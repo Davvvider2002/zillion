@@ -1,5 +1,5 @@
 [build]
-  publish   = "frontend"
+  publish   = "."
   functions = "backend/netlify/functions"
   command   = "echo 'No build step for MVP'"
 
