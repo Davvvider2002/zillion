@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zillion — Agent Portal</title>
+<style>
+  :root {
+    --green:       #1A7A4A;
+    --green-light: #E8F5EE;
+    --green-mid:   #C8E6D4;
+    --dark:        #0D1F1A;
+    --grey:        #555;
+    --border:      #DDD;
+    --red:         #C0392B;
+    --amber:       #E67E22;
+    --white:       #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #F5F5F5; color: var(--dark); }
+
+  header {
+    background: var(--dark);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 { font-size: 22px; letter-spacing: 2px; }
+  header span { font-size: 13px; color: var(--green-mid); }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+  .agent-card {
+    background: var(--white);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid var(--green);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .agent-name { font-size: 18px; font-weight: bold; }
+  .float-badge {
+    background: var(--green-light);
+    color: var(--green);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 15px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .tab {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    background: var(--white);
+    color: var(--grey);
+    border: 1px solid var(--border);
+  }
+  .tab.active {
+    background: var(--green);
+    color: var(--white);
+    border-color: var(--green);
+  }
+
+  .panel {
+    background: var(--white);
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: var(--grey); }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+  }
+  input:focus { outline: none; border-color: var(--green); }
+
+  .btn {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%;
+  }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-danger  { background: var(--red);   color: white; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .result-box {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 6px;
+    display: none;
+  }
+  .result-box.success { background: var(--green-light); border-left: 4px solid var(--green); }
+  .result-box.error   { background: #FDECEA; border-left: 4px solid var(--red); }
+  .result-box.visible { display: block; }
+
+  .result-title { font-weight: bold; font-size: 16px; margin-bottom: 8px; }
+  .result-amount { font-size: 28px; font-weight: bold; color: var(--green); margin: 8px 0; }
+  .result-detail { font-size: 13px; color: var(--grey); margin-top: 4px; }
+
+  .qr-container {
+    text-align: center;
+    margin-top: 20px;
+    padding: 20px;
+    border: 2px dashed var(--green-mid);
+    border-radius: 8px;
+    display: none;
+  }
+  .qr-container.visible { display: block; }
+  .qr-container img { max-width: 200px; }
+  .qr-caption { font-size: 13px; color: var(--grey); margin-top: 8px; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th { background: var(--dark); color: white; padding: 10px 12px; text-align: left; font-size: 13px; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  tr:nth-child(even) td { background: #FAFAFA; }
+
+  .status-badge {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  .status-held     { background: var(--green-light); color: var(--green); }
+  .status-spent    { background: #EEE; color: #666; }
+  .status-redeemed { background: #FFF3E0; color: var(--amber); }
+
+  .loading { display: none; text-align: center; padding: 20px; color: var(--grey); }
+  .loading.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ZILLION</h1>
+  <span id="agent-label">Agent Portal — Loading...</span>
+</header>
+
+<div class="container">
+
+  <!-- Agent Info Card -->
+  <div class="agent-card">
+    <div>
+      <div class="agent-name" id="agent-name">—</div>
+      <div style="font-size:13px;color:var(--grey);margin-top:4px" id="agent-location">—</div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--grey);text-align:right">Float Balance</div>
+      <div class="float-badge" id="float-balance">₦0</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('cash-in')">💵 Cash In</button>
+    <button class="tab" onclick="switchTab('cash-out')">🏧 Cash Out</button>
+    <button class="tab" onclick="switchTab('verify')">🔍 Verify Coin</button>
+    <button class="tab" onclick="switchTab('history')">📋 History</button>
+  </div>
+
+  <!-- CASH IN Panel -->
+  <div id="tab-cash-in" class="panel active">
+    <h3 style="margin-bottom:16px;color:var(--green)">Cash In — Issue Zil to Customer</h3>
+    <div class="form-group">
+      <label>Customer Phone Number</label>
+      <input type="tel" id="ci-phone" placeholder="+2348012345678">
+    </div>
+    <div class="form-group">
+      <label>Customer Device ID (scan QR from their app)</label>
+      <input type="text" id="ci-device" placeholder="DEVICE-XXXXXXXXXXXX">
+    </div>
+    <div class="form-group">
+      <label>Amount in Naira (₦)</label>
+      <input type="number" id="ci-amount" placeholder="e.g. 2000" min="100" max="10000" step="100">
+    </div>
+    <div class="form-group">
+      <label>Coin Denomination</label>
+      <select id="ci-denom">
+        <option value="50000">₦500 coins</option>
+        <option value="100000" selected>₦1,000 coins</option>
+        <option value="200000">₦2,000 coins</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="processCashIn()">Issue Zil Coins →</button>
+
+    <div id="ci-result" class="result-box">
+      <div class="result-title">✅ Coins Issued Successfully</div>
+      <div class="result-amount" id="ci-result-amount"></div>
+      <div class="result-detail" id="ci-result-detail"></div>
+    </div>
+    <div id="ci-qr" class="qr-container">
+      <img id="ci-qr-img" src="" alt="QR Code">
+      <div class="qr-caption">Customer scans this QR code with their Zillion app to receive coins</div>
+    </div>
+    <div id="ci-error" class="result-box error"></div>
+  </div>
+
+  <!-- CASH OUT Panel -->
+  <div id="tab-cash-out" class="panel">
+    <h3 style="margin-bottom:16px;color:var(--green)">Cash Out — Redeem Customer's Zil</h3>
+    <p style="font-size:13px;color:var(--grey);margin-bottom:16px">
+      Customer presents their Zil coins via QR or Bluetooth. 
+      Paste the coin IDs below (one per line) or scan their QR.
+    </p>
+    <div class="form-group">
+      <label>Customer Owner Hash (from their app)</label>
+      <input type="text" id="co-holder" placeholder="64-character hash from customer app">
+    </div>
+    <div class="form-group">
+      <label>Coin IDs to Redeem (one per line)</label>
+      <textarea id="co-coins" rows="6" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace" placeholder="ZIL-20260601-A4F8C2D1-0000001&#10;ZIL-20260601-B5G9D3E2-0000002"></textarea>
+    </div>
+    <button class="btn btn-danger" onclick="processCashOut()">Redeem & Pay Customer →</button>
+
+    <div id="co-result" class="result-box">
+      <div class="result-title">✅ Redemption Confirmed — Pay Customer</div>
+      <div class="result-amount" id="co-result-amount"></div>
+      <div class="result-detail" id="co-result-detail"></div>
+    </div>
+    <div id="co-error" class="result-box error"></div>
+  </div>
+
+  <!-- VERIFY Panel -->
+  <div id="tab-verify" class="panel">
+    <h3 style="margin-bottom:16px;color:var(--green)">Verify Coin</h3>
+    <p style="font-size:13px;color:var(--grey);margin-bottom:16px">
+      For high-value transactions above ₦5,000. Check a coin is valid before accepting.
+    </p>
+    <div class="form-group">
+      <label>Coin ID</label>
+      <input type="text" id="v-coin-id" placeholder="ZIL-20260601-A4F8C2D1-0000001">
+    </div>
+    <button class="btn btn-primary" onclick="verifyCoin()">Verify Coin Online →</button>
+    <div id="v-result" class="result-box" style="margin-top:16px"></div>
+  </div>
+
+  <!-- HISTORY Panel -->
+  <div id="tab-history" class="panel">
+    <h3 style="margin-bottom:16px;color:var(--green)">Transaction History</h3>
+    <div id="history-loading" class="loading">Loading transactions...</div>
+    <table id="history-table">
+      <thead>
+        <tr>
+          <th>Coin ID</th>
+          <th>Amount</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="history-body">
+        <tr><td colspan="5" style="text-align:center;color:var(--grey);padding:24px">No transactions yet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── Configuration ─────────────────────────────────────────────────────────────
+const API_BASE  = '/.netlify/functions';
+const AGENT_ID  = localStorage.getItem('zillion_agent_id') || 'AGENT-00001';
+const JWT_TOKEN = localStorage.getItem('zillion_jwt') || 'dev-token-replace-me';
+
+// ── Agent Load ────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  loadAgentInfo();
+});
+
+async function loadAgentInfo() {
+  // In POC, display from localStorage or defaults
+  document.getElementById('agent-name').textContent     = localStorage.getItem('agent_name') || 'Agent Kola';
+  document.getElementById('agent-location').textContent = localStorage.getItem('agent_location') || 'Mushin Market Kiosk A';
+  document.getElementById('agent-label').textContent    = `Agent Portal — ${AGENT_ID}`;
+
+  // In full build: fetch from /api/v1/agent/profile
+  const storedFloat = localStorage.getItem('agent_float_kobo') || '500000';
+  updateFloatDisplay(parseInt(storedFloat));
+}
+
+function updateFloatDisplay(kobo) {
+  const naira = (kobo / 100).toLocaleString('en-NG', { style:'currency', currency:'NGN' });
+  document.getElementById('float-balance').textContent = naira;
+}
+
+// ── Tab Switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'history') loadHistory();
+}
+
+// ── Cash In ───────────────────────────────────────────────────────────────────
+async function processCashIn() {
+  const phone  = document.getElementById('ci-phone').value.trim();
+  const device = document.getElementById('ci-device').value.trim();
+  const amount = parseInt(document.getElementById('ci-amount').value) * 100; // to kobo
+  const denom  = parseInt(document.getElementById('ci-denom').value);
+
+  hideAll('ci');
+
+  if (!phone || !amount || amount <= 0) {
+    showError('ci', 'Please fill in all fields');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/issue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${JWT_TOKEN}`,
+      },
+      body: JSON.stringify({
+        amount,
+        coin_denomination: denom,
+        recipient_phone:   phone,
+        recipient_device:  device,
+        recipient_hash:    await computeOwnerHashClient(phone, device),
+        agent_id:          AGENT_ID,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) { showError('ci', data.error || 'Issue failed'); return; }
+
+    const naira = (data.total_kobo / 100).toLocaleString('en-NG', { style:'currency', currency:'NGN' });
+    document.getElementById('ci-result-amount').textContent = naira;
+    document.getElementById('ci-result-detail').textContent =
+      `${data.coin_count} coins issued. Customer can now receive via QR below.`;
+
+    document.getElementById('ci-result').className = 'result-box success visible';
+
+    // Generate QR code containing the coin data
+    generateQR(JSON.stringify({ coins: data.coins.map(c => c.coin_id), total: data.total_kobo }));
+
+    // Update local float
+    const currentFloat = parseInt(localStorage.getItem('agent_float_kobo') || '500000');
+    localStorage.setItem('agent_float_kobo', currentFloat - amount);
+    updateFloatDisplay(currentFloat - amount);
+
+    // Save to local history
+    saveToHistory(data.coins, 'CASH_IN', data.total_kobo);
+
+  } catch (err) {
+    showError('ci', 'Network error. Check connection. ' + err.message);
+  }
+}
+
+// ── Cash Out ──────────────────────────────────────────────────────────────────
+async function processCashOut() {
+  const holderHash = document.getElementById('co-holder').value.trim();
+  const coinText   = document.getElementById('co-coins').value.trim();
+  const coinIds    = coinText.split('\n').map(l => l.trim()).filter(Boolean);
+
+  hideAll('co');
+
+  if (!holderHash || coinIds.length === 0) {
+    showError('co', 'Please enter holder hash and at least one coin ID');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/redeem`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${JWT_TOKEN}`,
+      },
+      body: JSON.stringify({ agent_id: AGENT_ID, holder_hash: holderHash, coin_ids: coinIds }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) { showError('co', data.error || 'Redemption failed'); return; }
+
+    const naira = (data.total_kobo / 100).toLocaleString('en-NG', { style:'currency', currency:'NGN' });
+    document.getElementById('co-result-amount').textContent = naira;
+    document.getElementById('co-result-detail').textContent =
+      `${data.redeemed_count} coins redeemed. ${data.rejected_count} rejected. Pay customer cash now.`;
+
+    document.getElementById('co-result').className = 'result-box success visible';
+
+    // Update local float
+    const currentFloat = parseInt(localStorage.getItem('agent_float_kobo') || '500000');
+    localStorage.setItem('agent_float_kobo', currentFloat + data.total_kobo);
+    updateFloatDisplay(currentFloat + data.total_kobo);
+
+  } catch (err) {
+    showError('co', 'Network error. ' + err.message);
+  }
+}
+
+// ── Verify Coin ───────────────────────────────────────────────────────────────
+async function verifyCoin() {
+  const coinId  = document.getElementById('v-coin-id').value.trim();
+  const result  = document.getElementById('v-result');
+  result.className = 'result-box';
+  result.textContent = 'Checking...';
+  result.className = 'result-box visible';
+
+  try {
+    const res  = await fetch(`${API_BASE}/validate?coin_id=${encodeURIComponent(coinId)}`);
+    const data = await res.json();
+
+    if (data.valid) {
+      const naira = ((data.amount || 0) / 100).toLocaleString('en-NG', { style:'currency', currency:'NGN' });
+      result.className = 'result-box success visible';
+      result.innerHTML = `<div class="result-title">✅ Valid Coin</div>
+        <div class="result-amount">${naira}</div>
+        <div class="result-detail">Status: ${data.status} | Checked: ${new Date(data.checked_at).toLocaleString()}</div>`;
+    } else {
+      result.className = 'result-box error visible';
+      result.innerHTML = `<div class="result-title">❌ Invalid Coin</div>
+        <div class="result-detail">Reason: ${data.reason || data.status}</div>
+        <div class="result-detail">DO NOT accept this coin.</div>`;
+    }
+  } catch (err) {
+    result.className = 'result-box error visible';
+    result.textContent = 'Network error. ' + err.message;
+  }
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function loadHistory() {
+  const history = JSON.parse(localStorage.getItem('zillion_agent_history') || '[]');
+  const tbody = document.getElementById('history-body');
+  if (history.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--grey);padding:24px">No transactions yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = history.slice().reverse().map(tx => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px">${tx.coin_id ? tx.coin_id.slice(0,24)+'...' : '—'}</td>
+      <td>₦${(tx.amount_kobo / 100).toLocaleString()}</td>
+      <td>${tx.type}</td>
+      <td><span class="status-badge status-${tx.status.toLowerCase()}">${tx.status}</span></td>
+      <td>${new Date(tx.ts).toLocaleTimeString()}</td>
+    </tr>
+  `).join('');
+}
+
+function saveToHistory(coins, type, totalKobo) {
+  const history = JSON.parse(localStorage.getItem('zillion_agent_history') || '[]');
+  coins.forEach(c => history.push({
+    coin_id:    c.coin_id || c,
+    amount_kobo: Math.floor(totalKobo / coins.length),
+    type,
+    status: type === 'CASH_IN' ? 'HELD' : 'REDEEMED',
+    ts: new Date().toISOString(),
+  }));
+  localStorage.setItem('zillion_agent_history', JSON.stringify(history));
+}
+
+// ── QR Generation ─────────────────────────────────────────────────────────────
+function generateQR(data) {
+  // In full build: use qrcode.js library
+  // For POC: show the raw data in a styled box
+  const container = document.getElementById('ci-qr');
+  container.innerHTML = `
+    <div style="background:#FFF;border:1px solid #DDD;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;word-break:break-all;text-align:left;max-height:100px;overflow:auto;">${data}</div>
+    <div class="qr-caption">Coin data for customer app (QR library required for production)</div>
+  `;
+  container.className = 'qr-container visible';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function computeOwnerHashClient(phone, device) {
+  // Browser-side HMAC-SHA256 for owner hash (matches server logic)
+  const salt = 'dev-salt-replace-with-env';
+  const enc  = new TextEncoder();
+  const key  = await crypto.subtle.importKey('raw', enc.encode(salt),
+    { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
+  const sig  = await crypto.subtle.sign('HMAC', key, enc.encode(`${phone}:${device}`));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function hideAll(prefix) {
+  ['result', 'error', 'qr'].forEach(s => {
+    const el = document.getElementById(`${prefix}-${s}`);
+    if (el) el.className = el.className.replace(' visible','').replace('success','').replace('error','') + '';
+  });
+}
+
+function showError(prefix, message) {
+  const el = document.getElementById(`${prefix}-error`);
+  if (!el) return;
+  el.textContent = '⚠️ ' + message;
+  el.className = 'result-box error visible';
+}
+</script>
+</body>
+</html>

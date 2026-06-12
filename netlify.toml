@@ -1,0 +1,34 @@
+[build]
+  publish   = "frontend"
+  functions = "backend/netlify/functions"
+  command   = "echo 'No build step for MVP'"
+
+[dev]
+  port      = 8888
+  targetPort = 3000
+  framework = "#static"
+
+[[redirects]]
+  from   = "/api/v1/*"
+  to     = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/agent/*"
+  to     = "/frontend/agent-portal/:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/admin/*"
+  to     = "/frontend/admin-dashboard/:splat"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
