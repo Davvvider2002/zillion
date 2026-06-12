@@ -3,28 +3,36 @@
   functions = "backend/netlify/functions"
   command   = "echo 'No build step for MVP'"
 
-[dev]
-  port      = 8888
-  targetPort = 3000
-  framework = "#static"
+[functions]
+  node_bundler = "esbuild"
 
+# API functions
 [[redirects]]
   from   = "/api/v1/*"
   to     = "/.netlify/functions/:splat"
   status = 200
 
+# Agent portal — serves frontend/agent-portal/index.html
+[[redirects]]
+  from   = "/agent"
+  to     = "/agent-portal/index.html"
+  status = 200
+
 [[redirects]]
   from   = "/agent/*"
-  to     = "/frontend/agent-portal/:splat"
+  to     = "/agent-portal/:splat"
+  status = 200
+
+# Admin dashboard
+[[redirects]]
+  from   = "/admin"
+  to     = "/admin-dashboard/index.html"
   status = 200
 
 [[redirects]]
   from   = "/admin/*"
-  to     = "/frontend/admin-dashboard/:splat"
+  to     = "/admin-dashboard/:splat"
   status = 200
-
-[functions]
-  node_bundler = "esbuild"
 
 [[headers]]
   for = "/*"
