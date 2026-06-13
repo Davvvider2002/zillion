@@ -8,34 +8,23 @@
   external_node_modules = ["@supabase/supabase-js"]
 
 [[redirects]]
-  from   = "/api/v1/issue"
-  to     = "/.netlify/functions/issue"
-  status = 200
-
+  from="/api/v1/issue"          to="/.netlify/functions/issue"           status=200
 [[redirects]]
-  from   = "/api/v1/sync"
-  to     = "/.netlify/functions/sync"
-  status = 200
-
+  from="/api/v1/sync"           to="/.netlify/functions/sync"            status=200
 [[redirects]]
-  from   = "/api/v1/redeem"
-  to     = "/.netlify/functions/redeem"
-  status = 200
-
+  from="/api/v1/redeem"         to="/.netlify/functions/redeem"          status=200
 [[redirects]]
-  from   = "/api/v1/validate"
-  to     = "/.netlify/functions/validate"
-  status = 200
-
+  from="/api/v1/validate"       to="/.netlify/functions/validate"        status=200
 [[redirects]]
-  from   = "/api/v1/agent-token"
-  to     = "/.netlify/functions/agent-token"
-  status = 200
-
+  from="/api/v1/agent-token"    to="/.netlify/functions/agent-token"     status=200
 [[redirects]]
-  from   = "/api/v1/agent-login"
-  to     = "/.netlify/functions/agent-login"
-  status = 200
+  from="/api/v1/agent-login"    to="/.netlify/functions/agent-login"     status=200
+[[redirects]]
+  from="/api/v1/agent-statement" to="/.netlify/functions/agent-statement" status=200
+[[redirects]]
+  from="/api/v1/admin-login"    to="/.netlify/functions/admin-login"     status=200
+[[redirects]]
+  from="/api/v1/admin-agents"   to="/.netlify/functions/admin-agents"    status=200
 
 [[headers]]
   for = "/*"

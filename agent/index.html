@@ -195,6 +195,42 @@ textarea { resize:vertical; font-family:monospace; font-size:12px; }
   .form-grid{grid-template-columns:1fr;}
   .profile-bottom{grid-template-columns:1fr 1fr;}
 }
+
+/* STATEMENT */
+.stmt-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+.stmt-date-filter { display:flex; gap:8px; align-items:center; }
+.stmt-date-filter input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:130px; }
+.stmt-btn { padding:7px 14px; background:var(--green); color:white; border:none; border-radius:6px; font-size:12px; cursor:pointer; }
+.summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+.sum-card { border-radius:8px; padding:14px; text-align:center; }
+.sum-card.opening  { background:#EEF4FF; border:1px solid #AABCFF; }
+.sum-card.cashin   { background:var(--gl); border:1px solid var(--gm); }
+.sum-card.cashout  { background:var(--rl); border:1px solid #FFAAAA; }
+.sum-card.closing  { background:#1A3A2A; border:1px solid var(--green); }
+.sum-label { font-size:10px; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:4px; color:var(--grey); }
+.sum-card.closing .sum-label { color:var(--gm); }
+.sum-value { font-size:18px; font-weight:bold; }
+.sum-card.opening .sum-value  { color:var(--blue); }
+.sum-card.cashin  .sum-value  { color:var(--green); }
+.sum-card.cashout .sum-value  { color:var(--red); }
+.sum-card.closing .sum-value  { color:white; }
+.sum-sub { font-size:10px; color:var(--grey); margin-top:2px; }
+.sum-card.closing .sum-sub { color:var(--gm); }
+.stmt-table { width:100%; border-collapse:collapse; font-size:13px; }
+.stmt-table th { background:var(--dark); color:white; padding:9px 12px; text-align:left; font-size:11px; text-transform:uppercase; }
+.stmt-table td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.stmt-table tr:hover td { background:var(--gl); }
+.tx-type-badge { padding:2px 8px; border-radius:10px; font-size:10px; font-weight:bold; }
+.tx-cashin  { background:var(--gl); color:#0A5C35; }
+.tx-cashout { background:var(--rl); color:var(--red); }
+.debit-col  { color:var(--red); font-weight:bold; }
+.credit-col { color:var(--green); font-weight:bold; }
+.balance-col{ font-weight:bold; color:var(--dark); }
+.stmt-empty { text-align:center; padding:32px; color:var(--grey); font-size:13px; }
+.export-btn { padding:7px 16px; background:white; color:var(--green); border:1px solid var(--green); border-radius:6px; font-size:12px; cursor:pointer; }
+.export-btn:hover { background:var(--green); color:white; }
+@media(max-width:600px){ .summary-grid{grid-template-columns:1fr 1fr;} }
+
 </style>
 </head>
 <body>
@@ -299,6 +335,7 @@ textarea { resize:vertical; font-family:monospace; font-size:12px; }
     <button class="tab" onclick="switchTab('verify',this)">🔍 Verify Coin</button>
     <button class="tab" onclick="switchTab('history',this)">📋 History</button>
     <button class="tab" onclick="switchTab('profile',this)">👤 Profile</button>
+    <button class="tab" onclick="switchTab('statement',this)">📊 Statement</button>
   </div>
 
   <!-- CASH IN -->
@@ -424,6 +461,70 @@ textarea { resize:vertical; font-family:monospace; font-size:12px; }
       </div>
     </div>
   </div>
+
+
+  <!-- STATEMENT -->
+  <div id="panel-statement" class="panel">
+    <div class="panel-inner">
+      <div class="stmt-header">
+        <div>
+          <div class="panel-title">Account Statement</div>
+          <div class="panel-sub">Opening balance, all transactions, and running balance</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="stmt-btn" onclick="loadStatement()">↻ Refresh</button>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="summary-grid">
+        <div class="sum-card opening">
+          <div class="sum-label">Opening Balance</div>
+          <div class="sum-value" id="sm-opening">—</div>
+          <div class="sum-sub">Before pilot activity</div>
+        </div>
+        <div class="sum-card cashin">
+          <div class="sum-label">Total Cash-In</div>
+          <div class="sum-value" id="sm-cashin">—</div>
+          <div class="sum-sub" id="sm-cashin-count">0 transactions</div>
+        </div>
+        <div class="sum-card cashout">
+          <div class="sum-label">Total Cash-Out</div>
+          <div class="sum-value" id="sm-cashout">—</div>
+          <div class="sum-sub" id="sm-cashout-count">0 redemptions</div>
+        </div>
+        <div class="sum-card closing">
+          <div class="sum-label">Current Balance</div>
+          <div class="sum-value" id="sm-closing">—</div>
+          <div class="sum-sub" id="sm-tx-count">0 total transactions</div>
+        </div>
+      </div>
+
+      <!-- Transaction Table -->
+      <div id="stmt-loading" style="text-align:center;padding:24px;color:var(--grey)">Loading statement...</div>
+      <div id="stmt-table-wrap" style="display:none;overflow-x:auto">
+        <table class="stmt-table">
+          <thead>
+            <tr>
+              <th>Date & Time</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Coin ID</th>
+              <th style="text-align:right">Debit (₦)</th>
+              <th style="text-align:right">Credit (₦)</th>
+              <th style="text-align:right">Balance (₦)</th>
+            </tr>
+          </thead>
+          <tbody id="stmt-body"></tbody>
+        </table>
+      </div>
+      <div id="stmt-empty" class="stmt-empty" style="display:none">
+        No transactions yet. Issue your first coins using the Cash In tab.
+      </div>
+    </div>
+  </div>
+
 
 </div><!-- end app-screen -->
 
@@ -770,6 +871,87 @@ function hideResult(id){const el=document.getElementById(id);if(el)el.className=
 function showLoader(t){document.getElementById('loader-text').textContent=t;document.getElementById('loader').classList.add('show');}
 function hideLoader(){document.getElementById('loader').classList.remove('show');}
 function notify(msg,type=''){const el=document.getElementById('notif');el.textContent=msg;el.className=`notif show ${type}`;setTimeout(()=>el.classList.remove('show'),3500);}
+
+// ── Statement ─────────────────────────────────────────────────────────────────
+let statementData = null;
+
+async function loadStatement() {
+  if (!agentProfile || !sessionToken) return;
+  const loading  = document.getElementById('stmt-loading');
+  const tableWrap= document.getElementById('stmt-table-wrap');
+  const emptyDiv = document.getElementById('stmt-empty');
+  loading.style.display   = 'block';
+  tableWrap.style.display = 'none';
+  emptyDiv.style.display  = 'none';
+
+  try {
+    const res  = await fetch(`${API}/agent-statement?agent_id=${agentProfile.agent_id}`, {
+      headers:{ 'Authorization': `Bearer ${sessionToken}` }
+    });
+    const data = await res.json();
+    loading.style.display = 'none';
+
+    if (!res.ok) { emptyDiv.textContent = data.error; emptyDiv.style.display='block'; return; }
+
+    statementData = data;
+    const s = data.summary;
+    const fmt = kobo => '₦' + (kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+
+    document.getElementById('sm-opening').textContent       = fmt(s.opening_balance_kobo);
+    document.getElementById('sm-cashin').textContent        = fmt(s.total_cash_in_kobo);
+    document.getElementById('sm-cashin-count').textContent  = s.cash_in_count + ' transactions';
+    document.getElementById('sm-cashout').textContent       = fmt(s.total_cash_out_kobo);
+    document.getElementById('sm-cashout-count').textContent = s.cash_out_count + ' redemptions';
+    document.getElementById('sm-closing').textContent       = fmt(s.closing_balance_kobo);
+    document.getElementById('sm-tx-count').textContent      = s.transaction_count + ' total transactions';
+
+    if (data.transactions.length === 0) {
+      emptyDiv.style.display = 'block'; return;
+    }
+
+    const tbody = document.getElementById('stmt-body');
+    tbody.innerHTML = data.transactions.map(tx => `
+      <tr>
+        <td style="white-space:nowrap">${new Date(tx.ts).toLocaleString()}</td>
+        <td><span class="tx-type-badge ${tx.type==='CASH_IN'?'tx-cashin':'tx-cashout'}">${tx.type.replace('_',' ')}</span></td>
+        <td>${tx.label}</td>
+        <td style="font-family:monospace;font-size:11px;color:var(--grey)">${tx.coin_id?.slice(0,28)||'—'}...</td>
+        <td class="debit-col"  style="text-align:right">${tx.debit  >0?'('+fmt(tx.debit) +')':''}</td>
+        <td class="credit-col" style="text-align:right">${tx.credit >0?fmt(tx.credit):''}</td>
+        <td class="balance-col"style="text-align:right">${fmt(tx.balance_after)}</td>
+      </tr>`).join('');
+
+    tableWrap.style.display = 'block';
+  } catch(err) {
+    loading.style.display = 'none';
+    emptyDiv.textContent  = 'Error loading statement: ' + err.message;
+    emptyDiv.style.display= 'block';
+  }
+}
+
+function exportCSV() {
+  if (!statementData?.transactions?.length) { notify('No data to export','error'); return; }
+  const rows = [['Date','Type','Description','Coin ID','Debit (kobo)','Credit (kobo)','Balance (kobo)']];
+  statementData.transactions.forEach(tx => {
+    rows.push([tx.ts, tx.type, tx.label, tx.coin_id, tx.debit, tx.credit, tx.balance_after]);
+  });
+  const csv  = rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `${agentProfile.agent_id}_statement.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  notify('Statement exported as CSV');
+}
+
+// Override switchTab to load statement when selected
+const _origSwitch = switchTab;
+function switchTab(name, el) {
+  _origSwitch(name, el);
+  if (name === 'statement') loadStatement();
+}
+
 </script>
 </body>
 </html>
+<!-- INJECT STATEMENT TAB - append to tabs and panels -->
