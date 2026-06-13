@@ -1,0 +1,4 @@
+/api/v1/issue     /.netlify/functions/issue    200
+/api/v1/sync      /.netlify/functions/sync     200
+/api/v1/redeem    /.netlify/functions/redeem   200
+/api/v1/validate  /.netlify/functions/validate 200

@@ -1,37 +1,30 @@
 [build]
   publish   = "."
   functions = "backend/netlify/functions"
-  command   = "echo 'No build step for MVP'"
+  command   = "npm install"
 
 [functions]
-  node_bundler = "esbuild"
+  node_bundler          = "esbuild"
+  external_node_modules = ["@supabase/supabase-js"]
 
-# API functions
 [[redirects]]
-  from   = "/api/v1/*"
-  to     = "/.netlify/functions/:splat"
-  status = 200
-
-# Agent portal — serves frontend/agent-portal/index.html
-[[redirects]]
-  from   = "/agent"
-  to     = "/agent-portal/index.html"
+  from   = "/api/v1/issue"
+  to     = "/.netlify/functions/issue"
   status = 200
 
 [[redirects]]
-  from   = "/agent/*"
-  to     = "/agent-portal/:splat"
-  status = 200
-
-# Admin dashboard
-[[redirects]]
-  from   = "/admin"
-  to     = "/admin-dashboard/index.html"
+  from   = "/api/v1/sync"
+  to     = "/.netlify/functions/sync"
   status = 200
 
 [[redirects]]
-  from   = "/admin/*"
-  to     = "/admin-dashboard/:splat"
+  from   = "/api/v1/redeem"
+  to     = "/.netlify/functions/redeem"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/validate"
+  to     = "/.netlify/functions/validate"
   status = 200
 
 [[headers]]
