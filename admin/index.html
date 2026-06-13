@@ -365,6 +365,8 @@ async function adminLogin() {
   const btn    = document.getElementById('login-btn');
   errEl.className = 'login-error';
   if (!secret) { errEl.textContent='Enter your admin secret.'; errEl.className='login-error show'; return; }
+  // Save plaintext secret for token generation (session memory only)
+  localStorage.setItem('zil_admin_secret_plain', secret);
 
   btn.disabled=true; btn.textContent='Verifying...';
   showLoader('Authenticating...');
@@ -397,6 +399,7 @@ function showAdminApp() {
 
 function adminLogout() {
   localStorage.removeItem('zil_admin_token');
+  localStorage.removeItem('zil_admin_secret_plain');
   adminToken=null; platformData=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -656,21 +659,7 @@ function showLoader(t){document.getElementById('loader-text').textContent=t;docu
 function hideLoader(){document.getElementById('loader').classList.remove('show');}
 function notify(msg,type=''){const el=document.getElementById('notif');el.textContent=msg;el.className=`notif show ${type}`;setTimeout(()=>el.classList.remove('show'),3500);}
 
-// Store admin secret plaintext for token generation (session only, not persisted)
-const _origLogin = adminLogin;
-async function adminLogin() {
-  const secret = document.getElementById('l-secret').value.trim();
-  localStorage.setItem('zil_admin_secret_plain', secret);
-  await _origLogin();
-}
-function adminLogout() {
-  localStorage.removeItem('zil_admin_token');
-  localStorage.removeItem('zil_admin_secret_plain');
-  adminToken=null; platformData=null;
-  document.getElementById('app-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('l-secret').value='';
-}
+
 </script>
 </body>
 </html>
