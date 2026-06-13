@@ -27,6 +27,11 @@
   to     = "/.netlify/functions/validate"
   status = 200
 
+[[redirects]]
+  from   = "/api/v1/agent-token"
+  to     = "/.netlify/functions/agent-token"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

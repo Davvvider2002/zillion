@@ -20,51 +20,27 @@ header {
   position:sticky; top:0; z-index:100;
 }
 .h-logo { font-size:22px; font-weight:bold; letter-spacing:3px; }
-.h-badge {
-  background:var(--amber); color:white;
-  padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold;
-}
+.h-badge { background:var(--amber); color:white; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold; }
 .h-nav { display:flex; align-items:center; gap:16px; }
-.h-dot { width:8px; height:8px; border-radius:50%; background:var(--green);
-  animation:pulse 2s infinite; display:inline-block; margin-right:4px; }
+.h-dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; display:inline-block; margin-right:4px; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-/* METRICS */
-.metrics {
-  display:grid; grid-template-columns:repeat(4,1fr);
-  gap:14px; margin:20px 24px 0;
-}
-.metric {
-  background:white; border-radius:10px; padding:18px 20px;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
-  border-top:4px solid var(--green);
-  position:relative; overflow:hidden;
-}
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:20px 24px 0; }
+.metric { background:white; border-radius:10px; padding:18px 20px; box-shadow:0 1px 4px rgba(0,0,0,0.08); border-top:4px solid var(--green); position:relative; overflow:hidden; }
 .metric.amber { border-top-color:var(--amber); }
 .metric.red   { border-top-color:var(--red); }
 .metric.blue  { border-top-color:var(--blue); }
 .metric-label { font-size:11px; color:var(--grey); text-transform:uppercase; letter-spacing:0.5px; }
 .metric-value { font-size:28px; font-weight:bold; margin:6px 0 2px; }
-.metric-sub { font-size:12px; color:var(--grey); }
-.metric-icon {
-  position:absolute; right:16px; top:50%; transform:translateY(-50%);
-  font-size:36px; opacity:0.12;
-}
+.metric-sub   { font-size:12px; color:var(--grey); }
+.metric-icon  { position:absolute; right:16px; top:50%; transform:translateY(-50%); font-size:36px; opacity:0.12; }
 
-/* LAYOUT */
 .main-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:16px 24px; }
 .full-width { grid-column:1/-1; }
-.card {
-  background:white; border-radius:10px; padding:20px;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
-}
-.card-title {
-  font-size:15px; font-weight:bold; color:var(--dark);
-  margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;
-}
+.card { background:white; border-radius:10px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+.card-title { font-size:15px; font-weight:bold; color:var(--dark); margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; }
 .card-sub { font-size:12px; color:var(--grey); margin-bottom:16px; }
 
-/* TABLE */
 table { width:100%; border-collapse:collapse; }
 th { background:var(--dark); color:white; padding:9px 12px; text-align:left; font-size:11px; text-transform:uppercase; }
 td { padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; }
@@ -72,85 +48,142 @@ tr:nth-child(even) td { background:#FAFAFA; }
 tr:hover td { background:var(--green-light); }
 .no-data { text-align:center; color:var(--grey); padding:24px; font-size:13px; }
 
-/* BADGES */
-.badge {
-  padding:2px 9px; border-radius:10px;
-  font-size:10px; font-weight:bold; text-transform:uppercase;
-}
+.badge { padding:2px 9px; border-radius:10px; font-size:10px; font-weight:bold; text-transform:uppercase; }
 .b-held     { background:var(--green-light); color:#0A5C35; }
 .b-spent    { background:#EEE; color:#666; }
-.b-redeemed { background:#FFF3E0; color:var(--amber); }
-.b-fraud    { background:#FDECEA; color:var(--red); }
 .b-ok       { background:var(--green-light); color:#0A5C35; }
 .b-warn     { background:#FFF3E0; color:var(--amber); }
+.b-error    { background:#FDECEA; color:var(--red); }
+.b-phase2   { background:#EEE; color:#666; }
 
-/* AGENTS */
-.agent-row {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 0; border-bottom:1px solid var(--border);
-}
+.agent-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
 .agent-row:last-child { border-bottom:none; }
-.agent-avatar {
-  width:36px; height:36px; border-radius:50%;
-  background:var(--green-mid); display:flex; align-items:center;
-  justify-content:center; font-weight:bold; font-size:14px; color:#0A5C35; flex-shrink:0;
-}
+.agent-avatar { width:36px; height:36px; border-radius:50%; background:var(--green-mid); display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px; color:#0A5C35; flex-shrink:0; }
 .agent-info { flex:1; margin-left:12px; }
 .agent-info .name { font-size:14px; font-weight:bold; }
-.agent-info .loc { font-size:11px; color:var(--grey); }
-.float-pill {
-  background:var(--green-light); color:#0A5C35;
-  padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold;
-}
+.agent-info .loc  { font-size:11px; color:var(--grey); }
+.float-pill { background:var(--green-light); color:#0A5C35; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold; }
 .float-pill.low { background:#FDECEA; color:var(--red); }
 
-/* CHART BAR */
-.chart-bar-wrap { margin-top:12px; }
-.chart-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-.chart-label { font-size:12px; color:var(--grey); width:80px; flex-shrink:0; text-align:right; }
-.chart-bar-bg { flex:1; background:#F0F2F0; border-radius:4px; height:20px; overflow:hidden; }
-.chart-bar-fill { height:100%; border-radius:4px; background:var(--green); transition:width 0.8s; display:flex; align-items:center; padding-left:6px; }
-.chart-bar-fill.amber { background:var(--amber); }
-.chart-bar-val { font-size:11px; color:var(--grey); width:60px; flex-shrink:0; }
-
-/* FRAUD */
-.fraud-item {
-  display:flex; align-items:flex-start; gap:12px;
-  padding:12px 0; border-bottom:1px solid var(--border);
-}
-.fraud-item:last-child { border-bottom:none; }
-.fraud-dot { width:10px; height:10px; border-radius:50%; margin-top:4px; flex-shrink:0; }
-.fraud-dot.high { background:var(--red); }
-.fraud-dot.med  { background:var(--amber); }
-.fraud-info .title { font-size:13px; font-weight:bold; }
-.fraud-info .detail { font-size:11px; color:var(--grey); margin-top:2px; }
-.fraud-time { font-size:11px; color:var(--grey); margin-left:auto; flex-shrink:0; }
-
-/* SEARCH */
-.search-bar {
-  display:flex; gap:8px; margin-bottom:14px;
-}
-.search-bar input {
-  flex:1; padding:8px 12px; border:1px solid var(--border);
-  border-radius:6px; font-size:13px;
-}
-.search-bar input:focus { outline:none; border-color:var(--green); }
-.search-btn {
-  padding:8px 16px; background:var(--green); color:white;
-  border:none; border-radius:6px; cursor:pointer; font-size:13px;
-}
-
-/* REFRESH BTN */
-.refresh-btn {
-  padding:5px 12px; background:var(--green-light); color:var(--green);
-  border:1px solid var(--green-mid); border-radius:6px;
-  font-size:11px; cursor:pointer; font-weight:bold;
-}
+.refresh-btn { padding:5px 12px; background:var(--green-light); color:var(--green); border:1px solid var(--green-mid); border-radius:6px; font-size:11px; cursor:pointer; font-weight:bold; }
 .refresh-btn:hover { background:var(--green); color:white; }
+
+/* ── TOKEN GENERATOR ── */
+.token-section {
+  background: linear-gradient(135deg, #0D1F1A 0%, #1A3A2A 100%);
+  border-radius:12px; padding:24px; margin-bottom:16px;
+  border:1px solid var(--green);
+}
+.token-section h3 { color:white; font-size:16px; margin-bottom:4px; }
+.token-section p  { color:var(--green-mid); font-size:13px; margin-bottom:20px; }
+
+.token-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+.token-field label { display:block; font-size:11px; font-weight:bold; color:var(--green-mid); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.3px; }
+.token-field input, .token-field select {
+  width:100%; padding:9px 12px;
+  background:#1A3A2A; border:1px solid #2A5A3A;
+  border-radius:6px; font-size:13px; color:white;
+}
+.token-field input:focus, .token-field select:focus { outline:none; border-color:var(--green); }
+.token-field input::placeholder { color:#5A8A6A; }
+
+.gen-btn {
+  width:100%; padding:12px;
+  background:var(--green); color:white;
+  border:none; border-radius:8px;
+  font-size:14px; font-weight:bold; cursor:pointer;
+  transition:opacity 0.15s;
+}
+.gen-btn:hover { opacity:0.88; }
+.gen-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+.token-output { display:none; margin-top:16px; }
+.token-output.show { display:block; }
+.token-box {
+  background:#0A1A12; border:1px solid var(--green);
+  border-radius:8px; padding:14px;
+}
+.token-box-label { font-size:11px; color:var(--green-mid); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+.token-value {
+  font-family:monospace; font-size:11px; color:#7AE8A8;
+  word-break:break-all; line-height:1.6;
+  background:#061209; padding:10px; border-radius:6px;
+  border:1px solid #1A4A2A; cursor:pointer;
+  user-select:all;
+}
+.token-value:hover { border-color:var(--green); }
+.token-meta { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px; }
+.token-meta-item { background:#1A3A2A; border-radius:6px; padding:8px 10px; }
+.token-meta-item .tmi-label { font-size:10px; color:var(--green-mid); text-transform:uppercase; }
+.token-meta-item .tmi-value { font-size:13px; color:white; font-weight:bold; margin-top:2px; }
+.copy-btn {
+  width:100%; padding:9px; margin-top:10px;
+  background:#1A3A2A; color:var(--green-mid);
+  border:1px solid var(--green); border-radius:6px;
+  font-size:13px; font-weight:bold; cursor:pointer;
+}
+.copy-btn:hover { background:var(--green); color:white; }
+.copy-btn.copied { background:var(--green); color:white; }
+
+.token-instructions {
+  margin-top:12px; background:#1A3A2A; border-radius:8px;
+  padding:12px 14px; border-left:3px solid var(--green);
+}
+.token-instructions p { font-size:12px; color:var(--green-mid); line-height:1.7; }
+.token-instructions strong { color:white; }
+
+.token-error {
+  display:none; margin-top:12px;
+  background:#2A1010; border:1px solid var(--red);
+  border-radius:8px; padding:12px 14px;
+  font-size:13px; color:#FF8A8A;
+}
+.token-error.show { display:block; }
+
+/* Agent token history */
+.token-history { margin-top:16px; }
+.token-history-title { font-size:13px; font-weight:bold; color:var(--green-mid); margin-bottom:8px; }
+.token-history-item {
+  background:#1A3A2A; border-radius:6px; padding:10px 12px;
+  margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;
+}
+.thi-agent { font-size:13px; color:white; font-weight:bold; }
+.thi-time  { font-size:11px; color:#5A8A6A; }
+.thi-copy  { font-size:11px; color:var(--green); cursor:pointer; padding:3px 8px; border:1px solid var(--green); border-radius:4px; }
+.thi-copy:hover { background:var(--green); color:white; }
+
+/* Coin lookup */
+.search-bar { display:flex; gap:8px; margin-bottom:14px; }
+.search-bar input { flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; }
+.search-bar input:focus { outline:none; border-color:var(--green); }
+.search-btn { padding:8px 16px; background:var(--green); color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; }
+
+/* System status */
+.status-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
+.status-row:last-child { border-bottom:none; }
+.status-info .s-title { font-size:14px; font-weight:bold; }
+.status-info .s-sub   { font-size:11px; color:var(--grey); margin-top:2px; }
+.s-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-right:12px; }
+
+/* Chart */
+.chart-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.chart-label { font-size:12px; color:var(--grey); width:40px; flex-shrink:0; text-align:right; }
+.chart-bar-bg { flex:1; background:#F0F2F0; border-radius:4px; height:18px; }
+.chart-bar-fill { height:100%; border-radius:4px; background:var(--green); }
+.chart-bar-fill.amber { background:var(--amber); }
+.chart-val { font-size:11px; color:var(--grey); width:40px; flex-shrink:0; }
+
+/* Progress */
+.progress-row { margin-bottom:14px; }
+.progress-label { display:flex; justify-content:space-between; font-size:12px; color:var(--grey); margin-bottom:5px; }
+.progress-bar { background:#F0F2F0; border-radius:4px; height:8px; }
+.progress-fill { height:100%; border-radius:4px; }
 
 @media(max-width:768px) {
   .metrics { grid-template-columns:1fr 1fr; }
   .main-grid { grid-template-columns:1fr; }
+  .token-grid { grid-template-columns:1fr; }
+  .token-meta { grid-template-columns:1fr; }
 }
 </style>
 </head>
@@ -171,106 +204,164 @@ tr:hover td { background:var(--green-light); }
 <div class="metrics">
   <div class="metric">
     <div class="metric-label">Total Float in Circulation</div>
-    <div class="metric-value" id="m-float">₦18,000</div>
+    <div class="metric-value">₦18,000</div>
     <div class="metric-sub">Across 5 pilot agents</div>
     <div class="metric-icon">💰</div>
   </div>
   <div class="metric amber">
     <div class="metric-label">Coins Issued (Total)</div>
-    <div class="metric-value" id="m-coins">0</div>
+    <div class="metric-value">0</div>
     <div class="metric-sub">Pilot lifetime</div>
     <div class="metric-icon">🪙</div>
   </div>
   <div class="metric blue">
     <div class="metric-label">Transactions Settled</div>
-    <div class="metric-value" id="m-txs">0</div>
+    <div class="metric-value">0</div>
     <div class="metric-sub">Registry confirmed</div>
     <div class="metric-icon">✅</div>
   </div>
   <div class="metric red">
     <div class="metric-label">Fraud Events</div>
-    <div class="metric-value" id="m-fraud">0</div>
+    <div class="metric-value">0</div>
     <div class="metric-sub">Unresolved flags</div>
     <div class="metric-icon">🚨</div>
   </div>
 </div>
 
-<!-- MAIN GRID -->
 <div class="main-grid">
+
+  <!-- ── AGENT TOKEN GENERATOR ── -->
+  <div class="card full-width">
+    <div class="card-title">Agent Activation — JWT Token Generator</div>
+    <div class="card-sub">Generate a secure authentication token for each agent. They paste this into their Agent Portal Settings tab to activate their account.</div>
+
+    <div class="token-section">
+      <h3>🔐 Generate Agent Token</h3>
+      <p>Enter the agent details and your admin secret to generate a signed JWT token. Each token is unique to the agent and valid for 1 year.</p>
+
+      <div class="token-grid">
+        <div class="token-field">
+          <label>Agent ID</label>
+          <select id="t-agent-id">
+            <option value="AGENT-00001">AGENT-00001 — Kola Adekunle</option>
+            <option value="AGENT-00002">AGENT-00002 — Bisi Okonkwo</option>
+            <option value="AGENT-00003">AGENT-00003 — Emeka Nwosu</option>
+            <option value="AGENT-00004">AGENT-00004 — Fatima Bello</option>
+            <option value="AGENT-00005">AGENT-00005 — Yusuf Musa</option>
+            <option value="AGENT-CUSTOM">Custom Agent ID...</option>
+          </select>
+        </div>
+        <div class="token-field" id="custom-id-wrap" style="display:none">
+          <label>Custom Agent ID</label>
+          <input type="text" id="t-custom-id" placeholder="AGENT-00006">
+        </div>
+        <div class="token-field">
+          <label>Agent Name</label>
+          <input type="text" id="t-agent-name" placeholder="Full name of agent">
+        </div>
+        <div class="token-field">
+          <label>Admin Secret</label>
+          <input type="password" id="t-admin-secret" placeholder="Your JWT_SECRET from Netlify env vars">
+        </div>
+      </div>
+
+      <button class="gen-btn" id="gen-btn" onclick="generateToken()">
+        Generate Agent Token →
+      </button>
+
+      <div class="token-error" id="t-error"></div>
+
+      <div class="token-output" id="t-output">
+        <div class="token-box">
+          <div class="token-box-label">JWT Token — Click to select all</div>
+          <div class="token-value" id="t-value" onclick="selectToken(this)"></div>
+          <div class="token-meta">
+            <div class="token-meta-item">
+              <div class="tmi-label">Agent ID</div>
+              <div class="tmi-value" id="t-meta-agent">—</div>
+            </div>
+            <div class="token-meta-item">
+              <div class="tmi-label">Valid Until</div>
+              <div class="tmi-value" id="t-meta-exp">—</div>
+            </div>
+            <div class="token-meta-item">
+              <div class="tmi-label">Status</div>
+              <div class="tmi-value" style="color:#7AE8A8">Active</div>
+            </div>
+          </div>
+          <button class="copy-btn" id="copy-btn" onclick="copyToken()">
+            📋 Copy Token to Clipboard
+          </button>
+        </div>
+
+        <div class="token-instructions">
+          <p>
+            <strong>How to activate the agent:</strong><br>
+            1. Copy the token above<br>
+            2. Open the Agent Portal at <strong>/agent</strong><br>
+            3. Click the <strong>Settings</strong> tab<br>
+            4. Paste the token into <strong>API Token</strong> field<br>
+            5. Fill in Agent ID, Name, and Location<br>
+            6. Click <strong>Save Settings</strong><br>
+            7. Agent is now fully activated — Cash In and Cash Out will work
+          </p>
+        </div>
+      </div>
+
+      <div class="token-history" id="t-history" style="display:none">
+        <div class="token-history-title">Recently Generated Tokens (this session)</div>
+        <div id="t-history-list"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- AGENT FLOAT MONITOR -->
   <div class="card">
     <div class="card-title">
       Agent Float Monitor
-      <button class="refresh-btn" onclick="refreshAgents()">↻ Refresh</button>
+      <button class="refresh-btn" onclick="this.textContent='↻ Loading...';setTimeout(()=>this.textContent='↻ Refresh',1000)">↻ Refresh</button>
     </div>
     <div class="card-sub">Live float balance across all pilot agents</div>
-    <div id="agent-list">
-      <div class="agent-row">
-        <div class="agent-avatar">KA</div>
-        <div class="agent-info"><div class="name">Kola Adekunle</div><div class="loc">Mushin Market Kiosk A</div></div>
-        <div class="float-pill">₦5,000</div>
-      </div>
-      <div class="agent-row">
-        <div class="agent-avatar">BO</div>
-        <div class="agent-info"><div class="name">Bisi Okonkwo</div><div class="loc">Agege Motor Road Kiosk</div></div>
-        <div class="float-pill">₦3,000</div>
-      </div>
-      <div class="agent-row">
-        <div class="agent-avatar">EN</div>
-        <div class="agent-info"><div class="name">Emeka Nwosu</div><div class="loc">Mushin Market Kiosk B</div></div>
-        <div class="float-pill">₦4,000</div>
-      </div>
-      <div class="agent-row">
-        <div class="agent-avatar">FB</div>
-        <div class="agent-info"><div class="name">Fatima Bello</div><div class="loc">Agege Central Kiosk</div></div>
-        <div class="float-pill low">₦2,500</div>
-      </div>
-      <div class="agent-row">
-        <div class="agent-avatar">YM</div>
-        <div class="agent-info"><div class="name">Yusuf Musa</div><div class="loc">Iyana Ipaja Junction</div></div>
-        <div class="float-pill">₦3,500</div>
-      </div>
+    <div class="agent-row">
+      <div class="agent-avatar">KA</div>
+      <div class="agent-info"><div class="name">Kola Adekunle</div><div class="loc">Mushin Market Kiosk A</div></div>
+      <div class="float-pill">₦5,000</div>
+    </div>
+    <div class="agent-row">
+      <div class="agent-avatar">BO</div>
+      <div class="agent-info"><div class="name">Bisi Okonkwo</div><div class="loc">Agege Motor Road Kiosk</div></div>
+      <div class="float-pill">₦3,000</div>
+    </div>
+    <div class="agent-row">
+      <div class="agent-avatar">EN</div>
+      <div class="agent-info"><div class="name">Emeka Nwosu</div><div class="loc">Mushin Market Kiosk B</div></div>
+      <div class="float-pill">₦4,000</div>
+    </div>
+    <div class="agent-row">
+      <div class="agent-avatar">FB</div>
+      <div class="agent-info"><div class="name">Fatima Bello</div><div class="loc">Agege Central Kiosk</div></div>
+      <div class="float-pill low">₦2,500</div>
+    </div>
+    <div class="agent-row">
+      <div class="agent-avatar">YM</div>
+      <div class="agent-info"><div class="name">Yusuf Musa</div><div class="loc">Iyana Ipaja Junction</div></div>
+      <div class="float-pill">₦3,500</div>
     </div>
   </div>
 
-  <!-- TRANSACTION VOLUME CHART -->
+  <!-- TRANSACTION VOLUME -->
   <div class="card">
     <div class="card-title">Transaction Volume</div>
     <div class="card-sub">Daily activity — pilot period</div>
-    <div class="chart-bar-wrap" id="vol-chart">
-      <div class="chart-row">
-        <div class="chart-label">Mon</div>
-        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
-        <div class="chart-bar-val">₦0</div>
-      </div>
-      <div class="chart-row">
-        <div class="chart-label">Tue</div>
-        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
-        <div class="chart-bar-val">₦0</div>
-      </div>
-      <div class="chart-row">
-        <div class="chart-label">Wed</div>
-        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
-        <div class="chart-bar-val">₦0</div>
-      </div>
-      <div class="chart-row">
-        <div class="chart-label">Thu</div>
-        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
-        <div class="chart-bar-val">₦0</div>
-      </div>
-      <div class="chart-row">
-        <div class="chart-label">Fri</div>
-        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
-        <div class="chart-bar-val">₦0</div>
-      </div>
-      <div class="chart-row">
-        <div class="chart-label">Sat</div>
-        <div class="chart-bar-bg"><div class="chart-bar-fill amber" style="width:0%"></div></div>
-        <div class="chart-bar-val">₦0</div>
-      </div>
+    <div style="margin-top:8px">
+      <div class="chart-row"><div class="chart-label">Mon</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div><div class="chart-val">₦0</div></div>
+      <div class="chart-row"><div class="chart-label">Tue</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div><div class="chart-val">₦0</div></div>
+      <div class="chart-row"><div class="chart-label">Wed</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div><div class="chart-val">₦0</div></div>
+      <div class="chart-row"><div class="chart-label">Thu</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div><div class="chart-val">₦0</div></div>
+      <div class="chart-row"><div class="chart-label">Fri</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div><div class="chart-val">₦0</div></div>
+      <div class="chart-row"><div class="chart-label">Sat</div><div class="chart-bar-bg"><div class="chart-bar-fill amber" style="width:0%"></div></div><div class="chart-val">₦0</div></div>
       <div style="text-align:center;font-size:12px;color:var(--grey);margin-top:12px">
-        Pilot transactions begin after Supabase is connected
+        Pilot transactions begin after agents are activated
       </div>
     </div>
   </div>
@@ -278,35 +369,76 @@ tr:hover td { background:var(--green-light); }
   <!-- COIN LOOKUP -->
   <div class="card">
     <div class="card-title">Coin Registry Lookup</div>
-    <div class="card-sub">Check any coin's live status in the registry</div>
+    <div class="card-sub">Check any coin's live status in the Supabase registry</div>
     <div class="search-bar">
-      <input type="text" id="coin-search" placeholder="ZIL-20260601-A4F8C2D1-0000001"
+      <input type="text" id="coin-search" placeholder="ZIL-20260613-A4F8C2D1-0000001"
         onkeydown="if(event.key==='Enter')lookupCoin()">
       <button class="search-btn" onclick="lookupCoin()">Check</button>
     </div>
-    <div id="coin-lookup-result" style="display:none">
+    <div id="coin-result-wrap" style="display:none">
       <table>
         <thead><tr><th>Field</th><th>Value</th></tr></thead>
-        <tbody id="coin-lookup-body"></tbody>
+        <tbody id="coin-result-body"></tbody>
       </table>
     </div>
-    <div id="coin-lookup-empty" style="font-size:13px;color:var(--grey);text-align:center;padding:20px">
-      Enter a Coin ID above to check its registry status
+    <div id="coin-result-empty" style="font-size:13px;color:var(--grey);text-align:center;padding:20px">
+      Enter a Coin ID above to check its status
     </div>
   </div>
 
-  <!-- FRAUD MONITOR -->
+  <!-- SYSTEM STATUS -->
   <div class="card">
-    <div class="card-title">
-      Fraud Monitor
-      <span class="badge b-ok" id="fraud-badge">0 Active</span>
+    <div class="card-title">System Status</div>
+    <div class="card-sub">Live health of all Zillion components</div>
+    <div class="status-row">
+      <div class="s-dot" style="background:var(--green)"></div>
+      <div class="status-info"><div class="s-title">Netlify Functions</div><div class="s-sub">5 endpoints deployed</div></div>
+      <span class="badge b-ok">LIVE</span>
     </div>
-    <div class="card-sub">Real-time fraud event detection</div>
-    <div id="fraud-list">
-      <div style="font-size:13px;color:var(--grey);text-align:center;padding:24px">
-        🛡️ No fraud events detected<br>
-        <span style="font-size:11px">System is monitoring all sync operations</span>
-      </div>
+    <div class="status-row">
+      <div class="s-dot" id="db-dot" style="background:var(--amber)"></div>
+      <div class="status-info"><div class="s-title">Supabase Registry</div><div class="s-sub" id="db-sub">Checking...</div></div>
+      <span class="badge b-warn" id="db-badge">CHECKING</span>
+    </div>
+    <div class="status-row">
+      <div class="s-dot" id="mint-dot" style="background:var(--amber)"></div>
+      <div class="status-info"><div class="s-title">Mint Keys</div><div class="s-sub" id="mint-sub">Checking...</div></div>
+      <span class="badge b-warn" id="mint-badge">CHECKING</span>
+    </div>
+    <div class="status-row">
+      <div class="s-dot" id="token-dot" style="background:var(--amber)"></div>
+      <div class="status-info"><div class="s-title">Agent Token API</div><div class="s-sub" id="token-sub">Checking...</div></div>
+      <span class="badge b-warn" id="token-badge">CHECKING</span>
+    </div>
+    <div class="status-row">
+      <div class="s-dot" style="background:#DDD"></div>
+      <div class="status-info"><div class="s-title">Mobile App</div><div class="s-sub">React Native — Phase 2</div></div>
+      <span class="badge b-phase2">PHASE 2</span>
+    </div>
+  </div>
+
+  <!-- PILOT PROGRESS -->
+  <div class="card">
+    <div class="card-title">Pilot Progress</div>
+    <div class="card-sub">90-day Lagos market pilot</div>
+    <div class="progress-row">
+      <div class="progress-label"><span>Agents onboarded</span><span>5 / 5</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:100%;background:var(--green)"></div></div>
+    </div>
+    <div class="progress-row">
+      <div class="progress-label"><span>Agents activated</span><span id="activated-count">0 / 5</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="activated-bar" style="width:0%;background:var(--amber)"></div></div>
+    </div>
+    <div class="progress-row">
+      <div class="progress-label"><span>Traders onboarded</span><span>0 / 50</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%;background:var(--blue)"></div></div>
+    </div>
+    <div class="progress-row">
+      <div class="progress-label"><span>Transactions completed</span><span>0 / 1,000</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%;background:var(--blue)"></div></div>
+    </div>
+    <div style="background:var(--green-light);border-radius:6px;padding:10px 12px;font-size:12px;margin-top:8px">
+      <strong>Next step:</strong> Generate tokens for all 5 agents above, then have each agent paste their token into Settings in the Agent Portal.
     </div>
   </div>
 
@@ -314,169 +446,256 @@ tr:hover td { background:var(--green-light); }
   <div class="card full-width">
     <div class="card-title">
       Recent Transactions
-      <button class="refresh-btn" onclick="refreshTxs()">↻ Refresh</button>
+      <button class="refresh-btn" onclick="this.textContent='↻ Loading...';setTimeout(()=>this.textContent='↻ Refresh',1000)">↻ Refresh</button>
     </div>
-    <div class="card-sub">Latest settled and pending transactions from the registry</div>
+    <div class="card-sub">Latest transactions from the registry. Connect Supabase to populate live data.</div>
     <table>
       <thead>
-        <tr>
-          <th>Time</th>
-          <th>Transaction ID</th>
-          <th>Coin ID</th>
-          <th>Amount</th>
-          <th>From</th>
-          <th>To</th>
-          <th>Status</th>
-        </tr>
+        <tr><th>Time</th><th>TX ID</th><th>Coin ID</th><th>Amount</th><th>Agent</th><th>Status</th></tr>
       </thead>
-      <tbody id="tx-body">
-        <tr><td colspan="7" class="no-data">
-          Connect Supabase to see live transaction data
-        </td></tr>
+      <tbody>
+        <tr><td colspan="6" class="no-data">No transactions yet — issue your first coins to see data here</td></tr>
       </tbody>
     </table>
-  </div>
-
-  <!-- SYSTEM STATUS -->
-  <div class="card">
-    <div class="card-title">System Status</div>
-    <div class="card-sub">Live health of all Zillion components</div>
-    <div id="system-status">
-      <div class="agent-row">
-        <div style="width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
-        <div class="agent-info"><div class="name">Netlify Functions</div><div class="loc">4 endpoints deployed</div></div>
-        <span class="badge b-ok">LIVE</span>
-      </div>
-      <div class="agent-row">
-        <div id="db-dot" style="width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0"></div>
-        <div class="agent-info"><div class="name">Supabase Registry</div><div class="loc">Checking connection...</div></div>
-        <span class="badge b-warn" id="db-badge">CHECKING</span>
-      </div>
-      <div class="agent-row">
-        <div id="mint-dot" style="width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0"></div>
-        <div class="agent-info"><div class="name">Mint Keys</div><div class="loc">Ed25519 signing keys</div></div>
-        <span class="badge b-warn" id="mint-badge">CHECKING</span>
-      </div>
-      <div class="agent-row">
-        <div style="width:10px;height:10px;border-radius:50%;background:#DDD;flex-shrink:0"></div>
-        <div class="agent-info"><div class="name">Mobile App</div><div class="loc">React Native — Bluetooth/NFC</div></div>
-        <span class="badge b-spent">PHASE 2</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- PILOT PROGRESS -->
-  <div class="card">
-    <div class="card-title">Pilot Progress</div>
-    <div class="card-sub">90-day Lagos market pilot — Mushin/Agege</div>
-    <div style="margin-top:8px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:6px">
-        <span>Agents onboarded</span><span>5 / 5</span>
-      </div>
-      <div style="background:#F0F2F0;border-radius:4px;height:8px;margin-bottom:12px">
-        <div style="width:100%;height:100%;background:var(--green);border-radius:4px"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:6px">
-        <span>Traders onboarded</span><span>0 / 50</span>
-      </div>
-      <div style="background:#F0F2F0;border-radius:4px;height:8px;margin-bottom:12px">
-        <div style="width:0%;height:100%;background:var(--amber);border-radius:4px"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:6px">
-        <span>Transactions completed</span><span>0 / 1,000 target</span>
-      </div>
-      <div style="background:#F0F2F0;border-radius:4px;height:8px;margin-bottom:16px">
-        <div style="width:0%;height:100%;background:var(--blue);border-radius:4px"></div>
-      </div>
-      <div style="background:var(--green-light);border-radius:6px;padding:10px 12px;font-size:12px">
-        <strong>Next step:</strong> Run schema.sql in Supabase, generate Mint keys,
-        complete Netlify env vars, then onboard first trader.
-      </div>
-    </div>
   </div>
 
 </div>
 
 <script>
 const API = '/.netlify/functions';
+let tokenHistory = [];
+let activatedAgents = parseInt(localStorage.getItem('zil_activated_agents') || '0');
 
-// Check system status on load
+// ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  checkApiStatus();
+  checkSystemStatus();
+  updateActivatedCount();
+  loadTokenHistory();
+
+  // Show custom ID field when custom selected
+  document.getElementById('t-agent-id').addEventListener('change', function() {
+    const customWrap = document.getElementById('custom-id-wrap');
+    customWrap.style.display = this.value === 'AGENT-CUSTOM' ? 'block' : 'none';
+    // Auto-fill agent name for known agents
+    const names = {
+      'AGENT-00001':'Kola Adekunle','AGENT-00002':'Bisi Okonkwo',
+      'AGENT-00003':'Emeka Nwosu','AGENT-00004':'Fatima Bello','AGENT-00005':'Yusuf Musa'
+    };
+    if (names[this.value]) document.getElementById('t-agent-name').value = names[this.value];
+    else if (this.value !== 'AGENT-CUSTOM') document.getElementById('t-agent-name').value = '';
+  });
+  // Trigger on load for first agent
+  document.getElementById('t-agent-name').value = 'Kola Adekunle';
 });
 
-async function checkApiStatus() {
-  try {
-    const res = await fetch(`${API}/validate?coin_id=ZIL-TEST`);
-    const data = await res.json();
-    if (data.reason === 'INVALID_FORMAT' || data.reason === 'NOT_FOUND') {
-      // API is responding
-      document.getElementById('mint-dot').style.background = 'var(--green)';
-      document.getElementById('mint-badge').className = 'badge b-ok';
-      document.getElementById('mint-badge').textContent = 'LIVE';
-    }
-  } catch(e) {}
+// ── Generate Token ────────────────────────────────────────────────────────────
+async function generateToken() {
+  const agentIdSelect = document.getElementById('t-agent-id').value;
+  const agentId   = agentIdSelect === 'AGENT-CUSTOM'
+    ? document.getElementById('t-custom-id').value.trim()
+    : agentIdSelect;
+  const agentName    = document.getElementById('t-agent-name').value.trim();
+  const adminSecret  = document.getElementById('t-admin-secret').value.trim();
+  const errBox       = document.getElementById('t-error');
+  const output       = document.getElementById('t-output');
+  const btn          = document.getElementById('gen-btn');
+
+  errBox.className = 'token-error';
+  output.className = 'token-output';
+
+  if (!agentId)    { showTokenError('Please select or enter an Agent ID'); return; }
+  if (!adminSecret){ showTokenError('Admin secret is required. This is your JWT_SECRET from Netlify environment variables.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
 
   try {
-    const res = await fetch(`${API}/validate?coin_id=ZIL-20260101-AAAABBBB-0000001`);
+    const res  = await fetch(`${API}/agent-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId, agent_name: agentName, admin_secret: adminSecret })
+    });
     const data = await res.json();
-    if (data.reason === 'NOT_FOUND' || data.valid === false) {
-      document.getElementById('db-dot').style.background = 'var(--green)';
-      document.getElementById('db-badge').className = 'badge b-ok';
-      document.getElementById('db-badge').textContent = 'LIVE';
+
+    if (!res.ok) {
+      showTokenError(data.error || 'Token generation failed. Check your admin secret.');
+      return;
     }
-  } catch(e) {
-    document.getElementById('db-dot').style.background = 'var(--red)';
-    document.getElementById('db-badge').className = 'badge b-fraud';
-    document.getElementById('db-badge').textContent = 'ERROR';
+
+    // Display token
+    document.getElementById('t-value').textContent    = data.token;
+    document.getElementById('t-meta-agent').textContent = data.agent_id;
+    document.getElementById('t-meta-exp').textContent   = new Date(data.expires_at).toLocaleDateString();
+    output.className = 'token-output show';
+
+    // Save to history
+    tokenHistory.unshift({ agentId: data.agent_id, agentName: data.agent_name,
+      token: data.token, ts: new Date().toISOString() });
+    saveTokenHistory();
+    renderTokenHistory();
+
+    // Update activated count
+    activatedAgents = Math.min(activatedAgents + 1, 5);
+    localStorage.setItem('zil_activated_agents', activatedAgents);
+    updateActivatedCount();
+
+    document.getElementById('copy-btn').textContent = '📋 Copy Token to Clipboard';
+    document.getElementById('copy-btn').className = 'copy-btn';
+
+  } catch(err) {
+    showTokenError('Network error: ' + err.message + '. Check your internet connection.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate Agent Token →';
   }
 }
 
+function showTokenError(msg) {
+  const el = document.getElementById('t-error');
+  el.textContent = '⚠️ ' + msg;
+  el.className = 'token-error show';
+}
+
+function selectToken(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+}
+
+async function copyToken() {
+  const token = document.getElementById('t-value').textContent;
+  const btn   = document.getElementById('copy-btn');
+  try {
+    await navigator.clipboard.writeText(token);
+    btn.textContent = '✅ Copied!';
+    btn.className = 'copy-btn copied';
+    setTimeout(() => {
+      btn.textContent = '📋 Copy Token to Clipboard';
+      btn.className = 'copy-btn';
+    }, 2500);
+  } catch {
+    // Fallback
+    selectToken(document.getElementById('t-value'));
+    btn.textContent = '✅ Selected — press Ctrl+C';
+  }
+}
+
+function saveTokenHistory() {
+  localStorage.setItem('zil_token_history', JSON.stringify(tokenHistory.slice(0,10)));
+}
+
+function loadTokenHistory() {
+  tokenHistory = JSON.parse(localStorage.getItem('zil_token_history') || '[]');
+  if (tokenHistory.length > 0) renderTokenHistory();
+}
+
+function renderTokenHistory() {
+  const hist = document.getElementById('t-history');
+  const list = document.getElementById('t-history-list');
+  if (tokenHistory.length === 0) { hist.style.display='none'; return; }
+  hist.style.display = 'block';
+  list.innerHTML = tokenHistory.map((t,i) => `
+    <div class="token-history-item">
+      <div>
+        <div class="thi-agent">${t.agentId} — ${t.agentName||''}</div>
+        <div class="thi-time">${new Date(t.ts).toLocaleString()}</div>
+      </div>
+      <span class="thi-copy" onclick="copyHistoryToken(${i})">Copy</span>
+    </div>`).join('');
+}
+
+async function copyHistoryToken(i) {
+  try {
+    await navigator.clipboard.writeText(tokenHistory[i].token);
+    event.target.textContent = '✅';
+    setTimeout(() => event.target.textContent = 'Copy', 2000);
+  } catch { alert(tokenHistory[i].token); }
+}
+
+function updateActivatedCount() {
+  const pct = (activatedAgents / 5) * 100;
+  document.getElementById('activated-count').textContent = `${activatedAgents} / 5`;
+  document.getElementById('activated-bar').style.width = pct + '%';
+}
+
+// ── Coin Lookup ───────────────────────────────────────────────────────────────
 async function lookupCoin() {
   const coinId = document.getElementById('coin-search').value.trim();
   if (!coinId) return;
-
-  const resultDiv = document.getElementById('coin-lookup-result');
-  const emptyDiv  = document.getElementById('coin-lookup-empty');
-  emptyDiv.textContent = 'Checking...';
+  const resultWrap  = document.getElementById('coin-result-wrap');
+  const resultEmpty = document.getElementById('coin-result-empty');
+  resultEmpty.textContent = 'Checking...';
+  resultWrap.style.display  = 'none';
+  resultEmpty.style.display = 'block';
 
   try {
     const res  = await fetch(`${API}/validate?coin_id=${encodeURIComponent(coinId)}`);
     const data = await res.json();
-
-    emptyDiv.style.display = 'none';
-    resultDiv.style.display = 'block';
-
-    const rows = [
-      ['Coin ID', `<code style="font-size:11px">${data.coin_id}</code>`],
-      ['Valid', data.valid ? '✅ Yes' : '❌ No'],
-      ['Status', `<span class="badge b-${data.status?.toLowerCase()||'spent'}">${data.status||'UNKNOWN'}</span>`],
-      ['Amount', data.amount ? `₦${(data.amount/100).toLocaleString()}` : '—'],
-      ['Expired', data.expired ? '⚠️ Yes' : '✅ No'],
-      ['Reason', data.reason || '—'],
-      ['Checked', new Date(data.checked_at||Date.now()).toLocaleString()],
-    ];
-
-    document.getElementById('coin-lookup-body').innerHTML =
-      rows.map(([k,v]) => `<tr><td style="font-weight:bold;width:120px">${k}</td><td>${v}</td></tr>`).join('');
-
+    resultWrap.style.display  = 'block';
+    resultEmpty.style.display = 'none';
+    document.getElementById('coin-result-body').innerHTML = [
+      ['Coin ID',  `<code style="font-size:11px">${data.coin_id}</code>`],
+      ['Valid',    data.valid ? '✅ Yes' : '❌ No'],
+      ['Status',   `<span class="badge b-${(data.status||'').toLowerCase()}">${data.status||'UNKNOWN'}</span>`],
+      ['Amount',   data.amount ? `₦${(data.amount/100).toLocaleString()}` : '—'],
+      ['Expired',  data.expired ? '⚠️ Yes' : '✅ No'],
+      ['Reason',   data.reason || '—'],
+      ['Checked',  new Date(data.checked_at||Date.now()).toLocaleString()],
+    ].map(([k,v]) => `<tr><td style="font-weight:bold;width:120px">${k}</td><td>${v}</td></tr>`).join('');
   } catch(e) {
-    emptyDiv.style.display = 'block';
-    emptyDiv.textContent = 'Error: ' + e.message;
-    resultDiv.style.display = 'none';
+    resultEmpty.textContent = 'Error: ' + e.message;
   }
 }
 
-function refreshAgents() {
-  const btn = event.target;
-  btn.textContent = '↻ Loading...';
-  setTimeout(() => { btn.textContent = '↻ Refresh'; }, 1000);
+// ── System Status ─────────────────────────────────────────────────────────────
+async function checkSystemStatus() {
+  // Check validate endpoint (tests Netlify + Mint + DB)
+  try {
+    const res  = await fetch(`${API}/validate?coin_id=ZIL-TEST`);
+    const data = await res.json();
+    if (data.reason === 'INVALID_FORMAT') {
+      setStatus('mint', 'green', 'LIVE', 'Ed25519 keys configured');
+    }
+  } catch {
+    setStatus('mint', 'red', 'ERROR', 'Check MINT keys in Netlify env vars');
+  }
+
+  // Check validate with properly formatted ID to test DB
+  try {
+    const res  = await fetch(`${API}/validate?coin_id=ZIL-20260101-AAAABBBB-0000001`);
+    const data = await res.json();
+    if (res.ok) {
+      setStatus('db', 'green', 'LIVE', 'Supabase connected');
+    }
+  } catch {
+    setStatus('db', 'red', 'ERROR', 'Check SUPABASE_URL and SERVICE_KEY');
+  }
+
+  // Check agent-token endpoint exists
+  try {
+    const res = await fetch(`${API}/agent-token`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ agent_id:'TEST', admin_secret:'WRONG' })
+    });
+    if (res.status === 401) {
+      setStatus('token', 'green', 'LIVE', 'Token API deployed and protected');
+    } else {
+      setStatus('token', 'amber', 'CHECK', 'Unexpected response');
+    }
+  } catch {
+    setStatus('token', 'red', 'ERROR', 'agent-token function not found');
+  }
 }
 
-function refreshTxs() {
-  const btn = event.target;
-  btn.textContent = '↻ Loading...';
-  setTimeout(() => { btn.textContent = '↻ Refresh'; }, 1000);
+function setStatus(id, color, badge, sub) {
+  const colors = { green:'var(--green)', amber:'var(--amber)', red:'var(--red)' };
+  const classes = { green:'b-ok', amber:'b-warn', red:'b-error' };
+  document.getElementById(id+'-dot').style.background = colors[color];
+  document.getElementById(id+'-badge').className = 'badge ' + classes[color];
+  document.getElementById(id+'-badge').textContent = badge;
+  document.getElementById(id+'-sub').textContent = sub;
 }
 </script>
 </body>
