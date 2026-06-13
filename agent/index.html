@@ -6,460 +6,573 @@
 <title>Zillion — Agent Portal</title>
 <style>
 :root {
-  --green:#1A7A4A; --green-light:#E8F5EE; --green-mid:#C8E6D4;
+  --green:#1A7A4A; --gl:#E8F5EE; --gm:#C8E6D4;
   --dark:#0D1F1A; --grey:#555; --border:#DDD;
-  --red:#C0392B; --amber:#E67E22; --white:#FFFFFF;
-  --blue:#1A3A7A; --blue-light:#EEF4FF;
+  --red:#C0392B; --rl:#FDECEA;
+  --amber:#E67E22; --al:#FFF3E0;
+  --blue:#1A3A7A; --white:#FFFFFF;
 }
-* { box-sizing:border-box; margin:0; padding:0; }
-body { font-family:Arial,sans-serif; background:#F0F2F0; color:var(--dark); min-height:100vh; }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;background:#F0F2F0;color:var(--dark);}
 
-/* HEADER */
+/* ── LOGIN SCREEN ── */
+#login-screen {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg, #0D1F1A 0%, #1A3A2A 50%, #0D1F1A 100%);
+  padding:24px;
+}
+.login-box {
+  background:white; border-radius:16px; padding:40px 36px;
+  width:100%; max-width:440px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.4);
+}
+.login-logo { font-size:36px; font-weight:bold; letter-spacing:6px; color:var(--dark); text-align:center; margin-bottom:6px; }
+.login-sub  { text-align:center; font-size:13px; color:var(--grey); margin-bottom:32px; }
+.login-field { margin-bottom:16px; }
+.login-field label { display:block; font-size:12px; font-weight:bold; color:var(--grey); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.3px; }
+.login-field input {
+  width:100%; padding:12px 14px;
+  border:1.5px solid var(--border); border-radius:8px;
+  font-size:14px; transition:border 0.15s;
+}
+.login-field input:focus { outline:none; border-color:var(--green); }
+.login-btn {
+  width:100%; padding:13px; background:var(--green); color:white;
+  border:none; border-radius:8px; font-size:15px; font-weight:bold;
+  cursor:pointer; margin-top:8px; transition:opacity 0.15s;
+}
+.login-btn:hover { opacity:0.88; }
+.login-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.login-error {
+  background:var(--rl); border-left:3px solid var(--red);
+  border-radius:6px; padding:10px 14px; font-size:13px;
+  color:var(--red); margin-top:12px; display:none;
+}
+.login-error.show { display:block; }
+.login-help {
+  text-align:center; font-size:12px; color:var(--grey);
+  margin-top:20px; line-height:1.6;
+}
+.login-help a { color:var(--green); text-decoration:none; }
+
+/* ── MAIN APP ── */
+#app-screen { display:none; }
+
 header {
-  background:var(--dark); color:white; padding:14px 24px;
+  background:var(--dark); color:white; padding:12px 24px;
   display:flex; justify-content:space-between; align-items:center;
-  position:sticky; top:0; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  position:sticky; top:0; z-index:100;
 }
-.h-logo { font-size:22px; font-weight:bold; letter-spacing:3px; }
-.h-right { display:flex; align-items:center; gap:16px; }
-.h-agent { font-size:13px; color:var(--green-mid); }
-.h-status { display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; }
-.h-dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.h-logo { font-size:20px; font-weight:bold; letter-spacing:3px; }
+.h-right { display:flex; align-items:center; gap:12px; }
+.h-agent { font-size:13px; color:var(--gm); }
+.h-dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; display:inline-block; margin-right:4px; }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.logout-btn {
+  padding:5px 12px; background:transparent;
+  color:#aaa; border:1px solid #333; border-radius:6px;
+  font-size:11px; cursor:pointer;
+}
+.logout-btn:hover { background:#1A3A2A; color:white; border-color:var(--green); }
 
-/* AGENT CARD */
-.agent-card {
-  background:white; margin:20px 24px 0;
-  border-radius:10px; padding:16px 20px;
-  display:flex; justify-content:space-between; align-items:center;
-  border-left:4px solid var(--green);
+/* PROFILE CARD */
+.profile-card {
+  background:white; margin:16px 24px 0;
+  border-radius:12px; padding:0;
   box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  overflow:hidden;
 }
-.agent-info .name { font-size:18px; font-weight:bold; }
-.agent-info .loc { font-size:13px; color:var(--grey); margin-top:3px; }
-.float-block { text-align:right; }
-.float-label { font-size:11px; color:var(--grey); margin-bottom:4px; }
-.float-amount {
-  background:var(--green-light); color:#0A5C35;
-  border-radius:20px; padding:7px 18px;
-  font-size:16px; font-weight:bold;
+.profile-top {
+  background:linear-gradient(135deg, var(--dark) 0%, #1A3A2A 100%);
+  padding:20px 24px; display:flex; align-items:center; gap:16px;
 }
+.profile-avatar {
+  width:52px; height:52px; border-radius:50%;
+  background:var(--green); display:flex; align-items:center;
+  justify-content:center; font-size:20px; font-weight:bold; color:white;
+  flex-shrink:0; border:2px solid var(--gm);
+}
+.profile-info .p-name { font-size:18px; font-weight:bold; color:white; }
+.profile-info .p-id   { font-size:12px; color:var(--gm); margin-top:2px; }
+.profile-info .p-loc  { font-size:12px; color:#aaa; margin-top:2px; }
+.profile-bottom {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border);
+}
+.p-stat {
+  padding:14px 16px; text-align:center;
+  border-right:1px solid var(--border);
+}
+.p-stat:last-child { border-right:none; }
+.p-stat-label { font-size:10px; color:var(--grey); text-transform:uppercase; letter-spacing:0.3px; }
+.p-stat-value { font-size:18px; font-weight:bold; color:var(--dark); margin-top:3px; }
+.p-stat-value.green { color:var(--green); }
 
 /* STATS ROW */
-.stats-row {
-  display:grid; grid-template-columns:repeat(4,1fr);
-  gap:12px; margin:16px 24px 0;
-}
-.stat-card {
-  background:white; border-radius:8px; padding:14px 16px;
-  box-shadow:0 1px 3px rgba(0,0,0,0.07);
-  border-top:3px solid var(--green);
-}
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 24px 0; }
+.stat-card { background:white; border-radius:8px; padding:14px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.07); border-top:3px solid var(--green); }
 .stat-card.amber { border-top-color:var(--amber); }
-.stat-card.red { border-top-color:var(--red); }
-.stat-card.blue { border-top-color:var(--blue); }
-.stat-label { font-size:11px; color:var(--grey); text-transform:uppercase; letter-spacing:0.5px; }
-.stat-value { font-size:24px; font-weight:bold; color:var(--dark); margin-top:4px; }
-.stat-sub { font-size:11px; color:var(--grey); margin-top:2px; }
+.stat-card.red   { border-top-color:var(--red); }
+.stat-card.blue  { border-top-color:var(--blue); }
+.stat-label { font-size:10px; color:var(--grey); text-transform:uppercase; letter-spacing:0.3px; }
+.stat-value { font-size:22px; font-weight:bold; margin-top:3px; }
+.stat-sub   { font-size:11px; color:var(--grey); margin-top:1px; }
 
 /* TABS */
-.tabs { display:flex; gap:6px; margin:20px 24px 0; flex-wrap:wrap; }
-.tab {
-  padding:9px 20px; border:none; border-radius:6px;
-  font-size:13px; font-weight:bold; cursor:pointer;
-  background:white; color:var(--grey);
-  border:1px solid var(--border);
-  transition:all 0.15s;
-}
+.tabs { display:flex; gap:6px; margin:16px 24px 0; flex-wrap:wrap; }
+.tab { padding:8px 18px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; background:white; color:var(--grey); transition:all 0.15s; }
 .tab.active { background:var(--green); color:white; border-color:var(--green); }
-.tab:hover:not(.active) { background:var(--green-light); color:var(--green); }
+.tab:hover:not(.active) { background:var(--gl); color:var(--green); }
 
 /* PANELS */
-.panel { display:none; margin:16px 24px 24px; }
+.panel { display:none; margin:14px 24px 24px; }
 .panel.active { display:block; }
-.panel-inner {
-  background:white; border-radius:10px; padding:24px;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
-}
-.panel-title { font-size:16px; font-weight:bold; color:var(--green); margin-bottom:4px; }
-.panel-sub { font-size:13px; color:var(--grey); margin-bottom:20px; }
+.panel-inner { background:white; border-radius:10px; padding:22px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+.panel-title { font-size:15px; font-weight:bold; color:var(--green); margin-bottom:3px; }
+.panel-sub   { font-size:13px; color:var(--grey); margin-bottom:18px; }
 
 /* FORM */
 .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-.form-group { margin-bottom:14px; }
-.form-group.full { grid-column:1/-1; }
-label { display:block; font-size:12px; font-weight:bold; color:var(--grey); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.3px; }
-input, select, textarea {
-  width:100%; padding:10px 12px;
-  border:1px solid var(--border); border-radius:6px;
-  font-size:14px; color:var(--dark);
-  transition:border 0.15s;
-}
+.form-group { margin-bottom:12px; }
+label { display:block; font-size:12px; font-weight:bold; color:var(--grey); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.3px; }
+input, select, textarea { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px; transition:border 0.15s; }
 input:focus, select:focus { outline:none; border-color:var(--green); }
 textarea { resize:vertical; font-family:monospace; font-size:12px; }
 
 /* BUTTONS */
-.btn {
-  padding:11px 24px; border:none; border-radius:6px;
-  font-size:14px; font-weight:bold; cursor:pointer;
-  width:100%; margin-top:4px; transition:opacity 0.15s;
-}
+.btn { padding:11px 24px; border:none; border-radius:6px; font-size:14px; font-weight:bold; cursor:pointer; width:100%; transition:opacity 0.15s; }
 .btn:hover { opacity:0.88; }
-.btn-green { background:var(--green); color:white; }
-.btn-red { background:var(--red); color:white; }
-.btn-amber { background:var(--amber); color:white; }
-.btn-outline { background:white; color:var(--green); border:2px solid var(--green); }
+.btn-green  { background:var(--green); color:white; }
+.btn-red    { background:var(--red); color:white; }
+.btn-outline{ background:white; color:var(--green); border:2px solid var(--green); }
 
-/* RESULT BOX */
-.result {
-  margin-top:16px; padding:16px 18px;
-  border-radius:8px; display:none;
-}
-.result.show { display:block; }
-.result.success { background:var(--green-light); border-left:4px solid var(--green); }
-.result.error { background:#FDECEA; border-left:4px solid var(--red); }
-.result.warn { background:#FFF3E0; border-left:4px solid var(--amber); }
-.result-title { font-size:14px; font-weight:bold; margin-bottom:4px; }
-.result-amount { font-size:28px; font-weight:bold; color:var(--green); margin:6px 0; }
+/* RESULT */
+.result { margin-top:14px; padding:14px 16px; border-radius:8px; display:none; }
+.result.show    { display:block; }
+.result.success { background:var(--gl); border-left:4px solid var(--green); }
+.result.error   { background:var(--rl); border-left:4px solid var(--red); }
+.result.warn    { background:var(--al); border-left:4px solid var(--amber); }
+.result-title  { font-size:14px; font-weight:bold; margin-bottom:3px; }
+.result-amount { font-size:28px; font-weight:bold; color:var(--green); margin:5px 0; }
 .result-detail { font-size:12px; color:var(--grey); line-height:1.6; }
 
-/* COIN DISPLAY */
-.coin-grid { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
-.coin-row {
-  display:flex; align-items:center; justify-content:space-between;
-  background:#F8FAF8; border:1px solid var(--border);
-  border-radius:6px; padding:8px 12px;
-}
-.coin-id { font-family:monospace; font-size:11px; color:var(--grey); }
-.coin-val { font-size:13px; font-weight:bold; color:var(--green); }
-.coin-status {
-  font-size:10px; font-weight:bold; text-transform:uppercase;
-  padding:2px 8px; border-radius:10px;
-}
-.cs-held { background:var(--green-light); color:#0A5C35; }
-.cs-spent { background:#EEE; color:#888; }
-.cs-redeemed { background:#FFF3E0; color:var(--amber); }
-
 /* QR BOX */
-.qr-box {
-  text-align:center; padding:20px;
-  border:2px dashed var(--green-mid); border-radius:8px;
-  margin-top:14px; display:none;
-}
+.qr-box { text-align:center; padding:18px; border:2px dashed var(--gm); border-radius:8px; margin-top:12px; display:none; }
 .qr-box.show { display:block; }
-.qr-data {
-  background:#F0F7F3; border:1px solid var(--green-mid);
-  border-radius:6px; padding:12px; font-family:monospace;
-  font-size:11px; word-break:break-all; text-align:left;
-  max-height:80px; overflow:auto; color:var(--dark);
-}
+.qr-data { background:#F0F7F3; border:1px solid var(--gm); border-radius:6px; padding:10px; font-family:monospace; font-size:11px; word-break:break-all; text-align:left; max-height:80px; overflow:auto; }
 .qr-caption { font-size:12px; color:var(--grey); margin-top:8px; }
+.qr-share-btn { margin-top:10px; padding:8px 20px; background:var(--green); color:white; border:none; border-radius:6px; font-size:13px; cursor:pointer; }
 
 /* HISTORY TABLE */
-.hist-table { width:100%; border-collapse:collapse; margin-top:12px; }
-.hist-table th {
-  background:var(--dark); color:white; padding:10px 12px;
-  text-align:left; font-size:12px; text-transform:uppercase;
-}
-.hist-table td { padding:10px 12px; border-bottom:1px solid var(--border); font-size:13px; }
+.hist-table { width:100%; border-collapse:collapse; margin-top:10px; }
+.hist-table th { background:var(--dark); color:white; padding:9px 12px; text-align:left; font-size:11px; text-transform:uppercase; }
+.hist-table td { padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; }
 .hist-table tr:nth-child(even) td { background:#FAFAFA; }
-.hist-table tr:hover td { background:var(--green-light); }
-.no-data { text-align:center; color:var(--grey); padding:32px; font-size:14px; }
+.no-data { text-align:center; color:var(--grey); padding:28px; font-size:13px; }
 
 /* VERIFY */
-.verify-result {
-  margin-top:16px; padding:20px;
-  border-radius:8px; display:none; text-align:center;
-}
+.verify-result { margin-top:14px; padding:20px; border-radius:8px; display:none; text-align:center; }
 .verify-result.show { display:block; }
-.verify-result.valid { background:var(--green-light); border:2px solid var(--green); }
-.verify-result.invalid { background:#FDECEA; border:2px solid var(--red); }
-.verify-icon { font-size:36px; margin-bottom:8px; }
-.verify-amount { font-size:32px; font-weight:bold; color:var(--green); }
+.verify-result.valid   { background:var(--gl); border:2px solid var(--green); }
+.verify-result.invalid { background:var(--rl); border:2px solid var(--red); }
+.verify-icon   { font-size:32px; margin-bottom:6px; }
+.verify-amount { font-size:30px; font-weight:bold; color:var(--green); }
 
 /* LOADING */
-.loading-overlay {
-  display:none; position:fixed; inset:0;
-  background:rgba(13,31,26,0.7); z-index:999;
-  align-items:center; justify-content:center;
-  flex-direction:column; gap:12px;
-}
-.loading-overlay.show { display:flex; }
-.spinner {
-  width:40px; height:40px; border:3px solid rgba(255,255,255,0.2);
-  border-top-color:var(--green-mid); border-radius:50%;
-  animation:spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform:rotate(360deg); } }
-.loading-text { color:white; font-size:14px; }
+.loader { display:none; position:fixed; inset:0; background:rgba(13,31,26,0.7); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
+.loader.show { display:flex; }
+.spinner { width:38px; height:38px; border:3px solid rgba(255,255,255,0.2); border-top-color:var(--gm); border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text { color:white; font-size:14px; }
 
-/* NOTIFICATION */
-.notif {
-  position:fixed; top:70px; right:20px;
-  background:var(--dark); color:white;
-  padding:12px 20px; border-radius:8px;
-  font-size:13px; z-index:200;
-  transform:translateX(120%); transition:transform 0.3s;
-  max-width:300px; border-left:4px solid var(--green);
-}
+/* NOTIF */
+.notif { position:fixed; top:64px; right:20px; background:var(--dark); color:white; padding:11px 18px; border-radius:8px; font-size:13px; z-index:200; transform:translateX(120%); transition:transform 0.3s; max-width:280px; border-left:4px solid var(--green); }
 .notif.show { transform:translateX(0); }
 .notif.error { border-left-color:var(--red); }
 
-@media(max-width:600px) {
-  .stats-row { grid-template-columns:1fr 1fr; }
-  .form-grid { grid-template-columns:1fr; }
-  .agent-card { flex-direction:column; gap:12px; text-align:center; }
+@media(max-width:600px){
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .form-grid{grid-template-columns:1fr;}
+  .profile-bottom{grid-template-columns:1fr 1fr;}
 }
 </style>
 </head>
 <body>
 
-<div class="loading-overlay" id="loader">
-  <div class="spinner"></div>
-  <div class="loading-text" id="loader-text">Processing...</div>
-</div>
+<div class="loader" id="loader"><div class="spinner"></div><div class="loader-text" id="loader-text">Loading...</div></div>
 <div class="notif" id="notif"></div>
 
-<header>
-  <div class="h-logo">ZILLION</div>
-  <div class="h-right">
-    <div class="h-agent" id="h-agent-name">Agent Portal</div>
-    <div class="h-status">
-      <div class="h-dot"></div>
-      <span id="h-status-text">Live</span>
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">ZILLION</div>
+    <div class="login-sub">Agent Portal — Secure Login</div>
+
+    <div class="login-field">
+      <label>Agent ID</label>
+      <input type="text" id="l-agent-id" placeholder="AGENT-00001" autocomplete="username">
     </div>
-  </div>
-</header>
-
-<!-- AGENT CARD -->
-<div class="agent-card">
-  <div class="agent-info">
-    <div class="name" id="agent-name">Kola Adekunle</div>
-    <div class="loc" id="agent-loc">Mushin Market Kiosk A · Lagos, Nigeria</div>
-  </div>
-  <div class="float-block">
-    <div class="float-label">Available Float</div>
-    <div class="float-amount" id="float-display">Loading...</div>
-  </div>
-</div>
-
-<!-- STATS -->
-<div class="stats-row">
-  <div class="stat-card">
-    <div class="stat-label">Today Cash-In</div>
-    <div class="stat-value" id="stat-cashin">₦0</div>
-    <div class="stat-sub">0 transactions</div>
-  </div>
-  <div class="stat-card amber">
-    <div class="stat-label">Today Cash-Out</div>
-    <div class="stat-value" id="stat-cashout">₦0</div>
-    <div class="stat-sub">0 redemptions</div>
-  </div>
-  <div class="stat-card blue">
-    <div class="stat-label">Coins Issued</div>
-    <div class="stat-value" id="stat-coins">0</div>
-    <div class="stat-sub">this session</div>
-  </div>
-  <div class="stat-card red">
-    <div class="stat-label">Pending Sync</div>
-    <div class="stat-value" id="stat-pending">0</div>
-    <div class="stat-sub">transactions</div>
-  </div>
-</div>
-
-<!-- TABS -->
-<div class="tabs">
-  <button class="tab active" onclick="switchTab('cashin',this)">💵 Cash In</button>
-  <button class="tab" onclick="switchTab('cashout',this)">🏧 Cash Out</button>
-  <button class="tab" onclick="switchTab('verify',this)">🔍 Verify Coin</button>
-  <button class="tab" onclick="switchTab('history',this)">📋 History</button>
-  <button class="tab" onclick="switchTab('settings',this)">⚙️ Settings</button>
-</div>
-
-<!-- CASH IN PANEL -->
-<div id="panel-cashin" class="panel active">
-  <div class="panel-inner">
-    <div class="panel-title">Cash In — Issue Zil Coins to Customer</div>
-    <div class="panel-sub">Customer hands you cash. You issue equivalent Zil coins to their phone.</div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Customer Phone Number</label>
-        <input type="tel" id="ci-phone" placeholder="+2348012345678">
-      </div>
-      <div class="form-group">
-        <label>Customer Device ID</label>
-        <input type="text" id="ci-device" placeholder="DEVICE-XXXX (from their app)">
-      </div>
-      <div class="form-group">
-        <label>Amount in Naira (₦)</label>
-        <input type="number" id="ci-amount" placeholder="e.g. 2000" min="500" max="10000" step="500">
-      </div>
-      <div class="form-group">
-        <label>Coin Denomination</label>
-        <select id="ci-denom">
-          <option value="50000">₦500 coins</option>
-          <option value="100000" selected>₦1,000 coins</option>
-          <option value="200000">₦2,000 coins</option>
-        </select>
-      </div>
+    <div class="login-field">
+      <label>JWT Token</label>
+      <input type="password" id="l-token" placeholder="Paste your token from the Admin dashboard" autocomplete="current-password">
     </div>
-    <button class="btn btn-green" onclick="processCashIn()">Issue Zil Coins →</button>
-    <div id="ci-result" class="result"></div>
-    <div id="ci-qr" class="qr-box">
-      <div class="qr-data" id="ci-qr-data"></div>
-      <div class="qr-caption">Customer scans this with their Zillion app to receive coins</div>
+
+    <button class="login-btn" id="login-btn" onclick="login()">Login to Agent Portal →</button>
+    <div class="login-error" id="login-error"></div>
+
+    <div class="login-help">
+      Don't have a token? Ask your Zillion admin to generate one at<br>
+      <a href="/admin" target="_blank">zillion-mvp.netlify.app/admin</a>
     </div>
   </div>
 </div>
 
-<!-- CASH OUT PANEL -->
-<div id="panel-cashout" class="panel">
-  <div class="panel-inner">
-    <div class="panel-title">Cash Out — Redeem Customer's Zil</div>
-    <div class="panel-sub">Customer presents Zil. Verify, redeem, and pay them cash.</div>
-    <div class="form-group">
-      <label>Customer Owner Hash</label>
-      <input type="text" id="co-hash" placeholder="64-character hash from customer's Zillion app">
-    </div>
-    <div class="form-group">
-      <label>Coin IDs to Redeem (one per line)</label>
-      <textarea id="co-coins" rows="5" placeholder="ZIL-20260601-A4F8C2D1-0000001&#10;ZIL-20260601-B5G9D3E2-0000002"></textarea>
-    </div>
-    <button class="btn btn-red" onclick="processCashOut()">Redeem & Pay Customer →</button>
-    <div id="co-result" class="result"></div>
-  </div>
-</div>
+<!-- ══ MAIN APP ══════════════════════════════════════════════════════════════ -->
+<div id="app-screen">
 
-<!-- VERIFY PANEL -->
-<div id="panel-verify" class="panel">
-  <div class="panel-inner">
-    <div class="panel-title">Verify Coin Online</div>
-    <div class="panel-sub">For transactions above ₦5,000. Confirm a coin is valid before accepting.</div>
-    <div class="form-group">
-      <label>Coin ID</label>
-      <input type="text" id="v-coin" placeholder="ZIL-20260601-A4F8C2D1-0000001">
+  <header>
+    <div class="h-logo">ZILLION</div>
+    <div class="h-right">
+      <span class="h-agent"><span class="h-dot"></span><span id="h-agent-id">—</span></span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
     </div>
-    <button class="btn btn-outline" onclick="verifyCoin()">Check Coin Status →</button>
-    <div id="v-result" class="verify-result"></div>
-  </div>
-</div>
+  </header>
 
-<!-- HISTORY PANEL -->
-<div id="panel-history" class="panel">
-  <div class="panel-inner">
-    <div class="panel-title">Transaction History</div>
-    <div class="panel-sub">All transactions this session. Clears on page refresh.</div>
-    <button class="btn btn-outline" style="width:auto;padding:8px 16px;font-size:12px;margin-bottom:12px" onclick="clearHistory()">Clear History</button>
-    <table class="hist-table">
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>Type</th>
-          <th>Amount</th>
-          <th>Coins</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="hist-body">
-        <tr><td colspan="5" class="no-data">No transactions yet this session</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- SETTINGS PANEL -->
-<div id="panel-settings" class="panel">
-  <div class="panel-inner">
-    <div class="panel-title">Agent Settings</div>
-    <div class="panel-sub">Configure your agent profile and portal preferences.</div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Agent ID</label>
-        <input type="text" id="s-agent-id" placeholder="AGENT-00001">
-      </div>
-      <div class="form-group">
-        <label>Agent Name</label>
-        <input type="text" id="s-agent-name" placeholder="Your name">
-      </div>
-      <div class="form-group">
-        <label>Location</label>
-        <input type="text" id="s-location" placeholder="Market / Kiosk name">
-      </div>
-      <div class="form-group">
-        <label>API Token (JWT)</label>
-        <input type="password" id="s-token" placeholder="Bearer token from Zillion admin">
+  <!-- PROFILE CARD -->
+  <div class="profile-card">
+    <div class="profile-top">
+      <div class="profile-avatar" id="p-avatar">?</div>
+      <div class="profile-info">
+        <div class="p-name" id="p-name">Loading...</div>
+        <div class="p-id"   id="p-id">—</div>
+        <div class="p-loc"  id="p-loc">—</div>
       </div>
     </div>
-    <button class="btn btn-green" onclick="saveSettings()">Save Settings</button>
-    <div id="s-result" class="result"></div>
+    <div class="profile-bottom">
+      <div class="p-stat">
+        <div class="p-stat-label">Float Balance</div>
+        <div class="p-stat-value green" id="p-float">—</div>
+      </div>
+      <div class="p-stat">
+        <div class="p-stat-label">Today Cash-In</div>
+        <div class="p-stat-value" id="p-cashin">₦0</div>
+      </div>
+      <div class="p-stat">
+        <div class="p-stat-label">Today Cash-Out</div>
+        <div class="p-stat-value" id="p-cashout">₦0</div>
+      </div>
+      <div class="p-stat">
+        <div class="p-stat-label">Coins Issued</div>
+        <div class="p-stat-value" id="p-coins">0</div>
+      </div>
+    </div>
   </div>
-</div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Session Cash-In</div>
+      <div class="stat-value" id="s-cashin">₦0</div>
+      <div class="stat-sub">0 transactions</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-label">Session Cash-Out</div>
+      <div class="stat-value" id="s-cashout">₦0</div>
+      <div class="stat-sub">0 redemptions</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Coins Issued</div>
+      <div class="stat-value" id="s-coins">0</div>
+      <div class="stat-sub">this session</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Pending Sync</div>
+      <div class="stat-value">0</div>
+      <div class="stat-sub">transactions</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('cashin',this)">💵 Cash In</button>
+    <button class="tab" onclick="switchTab('cashout',this)">🏧 Cash Out</button>
+    <button class="tab" onclick="switchTab('verify',this)">🔍 Verify Coin</button>
+    <button class="tab" onclick="switchTab('history',this)">📋 History</button>
+    <button class="tab" onclick="switchTab('profile',this)">👤 Profile</button>
+  </div>
+
+  <!-- CASH IN -->
+  <div id="panel-cashin" class="panel active">
+    <div class="panel-inner">
+      <div class="panel-title">Cash In — Issue Zil Coins</div>
+      <div class="panel-sub">Customer hands you cash. Issue equivalent Zil coins to their phone.</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Customer Phone Number</label>
+          <input type="tel" id="ci-phone" placeholder="+2348012345678">
+        </div>
+        <div class="form-group">
+          <label>Customer Device ID</label>
+          <input type="text" id="ci-device" placeholder="DEVICE-XXXX">
+        </div>
+        <div class="form-group">
+          <label>Amount in Naira (₦)</label>
+          <input type="number" id="ci-amount" placeholder="e.g. 2000" min="500" max="10000" step="500">
+        </div>
+        <div class="form-group">
+          <label>Coin Denomination</label>
+          <select id="ci-denom">
+            <option value="50000">₦500 coins</option>
+            <option value="100000" selected>₦1,000 coins</option>
+            <option value="200000">₦2,000 coins</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-green" onclick="processCashIn()">Issue Zil Coins →</button>
+      <div id="ci-result" class="result"></div>
+      <div id="ci-qr" class="qr-box">
+        <div class="qr-data" id="ci-qr-data"></div>
+        <div class="qr-caption">Customer scans this with their Zillion app to receive coins</div>
+        <button class="qr-share-btn" onclick="shareViaWhatsApp()">📱 Share via WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASH OUT -->
+  <div id="panel-cashout" class="panel">
+    <div class="panel-inner">
+      <div class="panel-title">Cash Out — Redeem Customer's Zil</div>
+      <div class="panel-sub">Customer presents Zil coins. Verify, redeem, and pay them cash.</div>
+      <div class="form-group">
+        <label>Customer Owner Hash</label>
+        <input type="text" id="co-hash" placeholder="64-character hash from customer's Zillion app">
+      </div>
+      <div class="form-group">
+        <label>Coin IDs to Redeem (one per line)</label>
+        <textarea id="co-coins" rows="5" placeholder="ZIL-20260601-A4F8C2D1-0000001&#10;ZIL-20260601-B5G9D3E2-0000002"></textarea>
+      </div>
+      <button class="btn btn-red" onclick="processCashOut()">Redeem & Pay Customer →</button>
+      <div id="co-result" class="result"></div>
+    </div>
+  </div>
+
+  <!-- VERIFY -->
+  <div id="panel-verify" class="panel">
+    <div class="panel-inner">
+      <div class="panel-title">Verify Coin Online</div>
+      <div class="panel-sub">Check a coin is valid before accepting. Required for transactions above ₦5,000.</div>
+      <div class="form-group">
+        <label>Coin ID</label>
+        <input type="text" id="v-coin" placeholder="ZIL-20260601-A4F8C2D1-0000001">
+      </div>
+      <button class="btn btn-outline" onclick="verifyCoin()">Check Coin Status →</button>
+      <div id="v-result" class="verify-result"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="panel-history" class="panel">
+    <div class="panel-inner">
+      <div class="panel-title">Transaction History</div>
+      <div class="panel-sub">All transactions this session.</div>
+      <table class="hist-table">
+        <thead><tr><th>Time</th><th>Type</th><th>Amount</th><th>Coins</th><th>Status</th></tr></thead>
+        <tbody id="hist-body"><tr><td colspan="5" class="no-data">No transactions yet this session</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PROFILE TAB -->
+  <div id="panel-profile" class="panel">
+    <div class="panel-inner">
+      <div class="panel-title">Agent Profile</div>
+      <div class="panel-sub">Your account details from the Zillion registry.</div>
+      <div id="profile-data" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:#F8FAF8;border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Agent ID</div>
+          <div style="font-size:15px;font-weight:bold" id="pr-id">—</div>
+        </div>
+        <div style="background:#F8FAF8;border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Full Name</div>
+          <div style="font-size:15px;font-weight:bold" id="pr-name">—</div>
+        </div>
+        <div style="background:#F8FAF8;border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Phone</div>
+          <div style="font-size:15px;font-weight:bold" id="pr-phone">—</div>
+        </div>
+        <div style="background:#F8FAF8;border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Location</div>
+          <div style="font-size:15px;font-weight:bold" id="pr-loc">—</div>
+        </div>
+        <div style="background:var(--gl);border-radius:8px;padding:14px;border:1px solid var(--gm)">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Float Balance</div>
+          <div style="font-size:20px;font-weight:bold;color:var(--green)" id="pr-float">—</div>
+        </div>
+        <div style="background:#F8FAF8;border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Status</div>
+          <div style="font-size:15px;font-weight:bold;color:var(--green)" id="pr-status">—</div>
+        </div>
+        <div style="background:#F8FAF8;border-radius:8px;padding:14px;border:1px solid var(--border);grid-column:1/-1">
+          <div style="font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Onboarded</div>
+          <div style="font-size:14px;font-weight:bold" id="pr-onboarded">—</div>
+        </div>
+      </div>
+      <button class="btn btn-outline" style="width:auto;padding:9px 20px;font-size:13px" onclick="refreshProfile()">↻ Refresh Profile</button>
+      <div style="margin-top:16px;padding:14px;background:var(--rl);border-radius:8px;border-left:3px solid var(--red)">
+        <div style="font-size:13px;font-weight:bold;color:var(--red);margin-bottom:4px">⚠️ Security</div>
+        <div style="font-size:12px;color:var(--grey)">Never share your JWT token with anyone. It gives full access to your agent account. If your token is compromised, contact your Zillion admin immediately to generate a new one.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end app-screen -->
 
 <script>
-// ── Config ────────────────────────────────────────────────────────────────────
 const API = '/.netlify/functions';
-let settings = JSON.parse(localStorage.getItem('zil_agent_settings') || '{}');
-let history_log = JSON.parse(localStorage.getItem('zil_agent_history') || '[]');
-let stats = { cashin: 0, cashout: 0, coins: 0, pending: 0 };
-let floatKobo = parseInt(localStorage.getItem('zil_float') || '500000');
+let agentProfile = null;
+let sessionToken = null;
+let history_log  = [];
+let sessionStats = { cashin:0, cashout:0, coins:0 };
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Boot ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  loadSettings();
-  updateFloat();
-  renderHistory();
-  loadStats();
+  const saved = getSavedSession();
+  if (saved) {
+    silentLogin(saved.agentId, saved.token);
+  }
+  // Enter key on login fields
+  ['l-agent-id','l-token'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') login();
+    });
+  });
 });
 
-function loadSettings() {
-  if (settings.agentId)   { document.getElementById('s-agent-id').value   = settings.agentId; document.getElementById('h-agent-name').textContent = settings.agentId; }
-  if (settings.agentName) { document.getElementById('s-agent-name').value = settings.agentName; document.getElementById('agent-name').textContent = settings.agentName; }
-  if (settings.location)  { document.getElementById('s-location').value   = settings.location; document.getElementById('agent-loc').textContent = settings.location; }
-  if (settings.token)     document.getElementById('s-token').value = settings.token;
+function getSavedSession() {
+  try {
+    const s = localStorage.getItem('zil_session');
+    return s ? JSON.parse(s) : null;
+  } catch { return null; }
 }
 
-function saveSettings() {
-  settings = {
-    agentId:   document.getElementById('s-agent-id').value.trim(),
-    agentName: document.getElementById('s-agent-name').value.trim(),
-    location:  document.getElementById('s-location').value.trim(),
-    token:     document.getElementById('s-token').value.trim(),
-  };
-  localStorage.setItem('zil_agent_settings', JSON.stringify(settings));
-  loadSettings();
-  showResult('s-result', 'success', '✅ Settings saved', '', '');
-  notify('Settings saved successfully');
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function login() {
+  const agentId = document.getElementById('l-agent-id').value.trim().toUpperCase();
+  const token   = document.getElementById('l-token').value.trim();
+  const errEl   = document.getElementById('login-error');
+  const btn     = document.getElementById('login-btn');
+
+  errEl.className = 'login-error';
+  if (!agentId || !token) {
+    errEl.textContent = 'Please enter your Agent ID and JWT token.';
+    errEl.className = 'login-error show';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Logging in...';
+  showLoader('Verifying credentials...');
+
+  try {
+    const profile = await fetchProfile(agentId, token);
+    hideLoader();
+    sessionToken = token;
+    agentProfile = profile;
+    localStorage.setItem('zil_session', JSON.stringify({ agentId, token }));
+    showApp();
+    notify(`Welcome back, ${profile.name.split(' ')[0]}!`);
+  } catch(err) {
+    hideLoader();
+    errEl.textContent = '⚠️ ' + err.message;
+    errEl.className = 'login-error show';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Login to Agent Portal →';
+  }
 }
 
-function updateFloat(delta = 0) {
-  floatKobo += delta;
-  if (floatKobo < 0) floatKobo = 0;
-  localStorage.setItem('zil_float', floatKobo);
-  document.getElementById('float-display').textContent =
-    '₦' + (floatKobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+async function silentLogin(agentId, token) {
+  showLoader('Restoring session...');
+  try {
+    const profile = await fetchProfile(agentId, token);
+    hideLoader();
+    sessionToken = token;
+    agentProfile = profile;
+    showApp();
+  } catch {
+    hideLoader();
+    localStorage.removeItem('zil_session');
+  }
 }
 
-function loadStats() {
-  const s = JSON.parse(localStorage.getItem('zil_stats') || '{}');
-  stats = { cashin: s.cashin || 0, cashout: s.cashout || 0, coins: s.coins || 0, pending: s.pending || 0 };
-  document.getElementById('stat-cashin').textContent  = '₦' + (stats.cashin / 100).toLocaleString();
-  document.getElementById('stat-cashout').textContent = '₦' + (stats.cashout / 100).toLocaleString();
-  document.getElementById('stat-coins').textContent   = stats.coins;
-  document.getElementById('stat-pending').textContent = stats.pending;
+async function fetchProfile(agentId, token) {
+  const res  = await fetch(`${API}/agent-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_id: agentId, token })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Login failed');
+  return data;
 }
 
-function saveStats() {
-  localStorage.setItem('zil_stats', JSON.stringify(stats));
-  loadStats();
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display   = 'block';
+  populateProfile();
+  history_log = JSON.parse(localStorage.getItem('zil_history_' + agentProfile.agent_id) || '[]');
+}
+
+function populateProfile() {
+  const p = agentProfile;
+  const initials = p.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('h-agent-id').textContent  = p.agent_id;
+  document.getElementById('p-avatar').textContent    = initials;
+  document.getElementById('p-name').textContent      = p.name;
+  document.getElementById('p-id').textContent        = p.agent_id;
+  document.getElementById('p-loc').textContent       = p.location || '—';
+  document.getElementById('p-float').textContent     = '₦' + (p.float_balance_kobo/100).toLocaleString();
+  document.getElementById('p-cashin').textContent    = '₦0';
+  document.getElementById('p-cashout').textContent   = '₦0';
+  document.getElementById('p-coins').textContent     = '0';
+  // Profile tab
+  document.getElementById('pr-id').textContent       = p.agent_id;
+  document.getElementById('pr-name').textContent     = p.name;
+  document.getElementById('pr-phone').textContent    = p.phone || '—';
+  document.getElementById('pr-loc').textContent      = p.location || '—';
+  document.getElementById('pr-float').textContent    = '₦' + (p.float_balance_kobo/100).toLocaleString();
+  document.getElementById('pr-status').textContent   = p.status;
+  document.getElementById('pr-onboarded').textContent = p.onboarded_at ? new Date(p.onboarded_at).toLocaleDateString() : '—';
+}
+
+async function refreshProfile() {
+  showLoader('Refreshing...');
+  try {
+    agentProfile = await fetchProfile(agentProfile.agent_id, sessionToken);
+    populateProfile();
+    hideLoader();
+    notify('Profile refreshed');
+  } catch(e) {
+    hideLoader();
+    notify('Refresh failed: ' + e.message, 'error');
+  }
+}
+
+function logout() {
+  localStorage.removeItem('zil_session');
+  agentProfile = null; sessionToken = null;
+  document.getElementById('app-screen').style.display   = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-token').value = '';
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function switchTab(name, el) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('panel-' + name).classList.add('active');
-  if (name === 'history') renderHistory();
+  document.getElementById('panel-'+name).classList.add('active');
+  if (name==='history') renderHistory();
 }
 
 // ── Cash In ───────────────────────────────────────────────────────────────────
@@ -468,20 +581,12 @@ async function processCashIn() {
   const device = document.getElementById('ci-device').value.trim() || 'DEVICE-UNKNOWN';
   const amount = Math.round(parseFloat(document.getElementById('ci-amount').value) * 100);
   const denom  = parseInt(document.getElementById('ci-denom').value);
-  const token  = settings.token || 'dev-token';
-  const agentId = settings.agentId || 'AGENT-00001';
 
   hideResult('ci-result');
   document.getElementById('ci-qr').classList.remove('show');
 
   if (!phone || !amount || amount <= 0) {
-    showResult('ci-result', 'error', '⚠️ Missing fields', '', 'Please fill in phone number and amount.');
-    return;
-  }
-  if (amount > floatKobo) {
-    showResult('ci-result', 'error', '⚠️ Insufficient float',
-      '₦' + (floatKobo/100).toLocaleString(),
-      'Your float balance is too low for this transaction. Top up your float first.');
+    showResult('ci-result','error','⚠️ Missing fields','','Fill in phone number and amount.');
     return;
   }
 
@@ -489,95 +594,98 @@ async function processCashIn() {
   try {
     const recipientHash = await computeOwnerHash(phone, device);
     const res = await fetch(`${API}/issue`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ amount, coin_denomination: denom, recipient_phone: phone,
-        recipient_device: device, recipient_hash: recipientHash, agent_id: agentId })
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${sessionToken}`},
+      body: JSON.stringify({
+        amount, coin_denomination: denom,
+        recipient_phone: phone, recipient_device: device,
+        recipient_hash: recipientHash, agent_id: agentProfile.agent_id
+      })
     });
     const data = await res.json();
     hideLoader();
 
     if (!res.ok) {
-      showResult('ci-result', 'error', '❌ ' + (data.error || 'Issue failed'), '',
-        data.errors ? data.errors.join(', ') : 'Check your settings and try again.');
+      showResult('ci-result','error','❌ ' + (data.error||'Issue failed'),'',
+        data.errors ? data.errors.join(', ') : 'Check your settings.');
       return;
     }
 
     const naira = data.total_kobo / 100;
-    showResult('ci-result', 'success',
-      `✅ ${data.coin_count} coins issued successfully`,
+    showResult('ci-result','success',
+      `✅ ${data.coin_count} coin${data.coin_count>1?'s':''} issued successfully`,
       '₦' + naira.toLocaleString(),
-      `${data.coin_count} × ₦${(denom/100).toLocaleString()} coins · Phone: ${phone}`
+      `${data.coin_count} × ₦${(denom/100).toLocaleString()} · Phone: ${phone}`
     );
 
-    const qrData = JSON.stringify({ coins: data.coins.map(c => c.coin_id), total: data.total_kobo, phone });
+    const qrData = JSON.stringify({coins:data.coins.map(c=>c.coin_id),total:data.total_kobo,phone});
     document.getElementById('ci-qr-data').textContent = qrData;
     document.getElementById('ci-qr').classList.add('show');
+    window._lastQrData = qrData;
 
-    updateFloat(-amount);
-    stats.cashin += amount;
-    stats.coins  += data.coin_count;
-    saveStats();
+    // Update stats
+    sessionStats.cashin += amount;
+    sessionStats.coins  += data.coin_count;
+    agentProfile.float_balance_kobo -= amount;
+    updateSessionStats();
     addHistory('CASH IN', amount, data.coin_count, 'SUCCESS');
     notify(`✅ Issued ₦${naira.toLocaleString()} to ${phone}`);
 
-  } catch (err) {
+  } catch(err) {
     hideLoader();
-    showResult('ci-result', 'error', '❌ Network error', '', err.message + '. Check your connection.');
+    showResult('ci-result','error','❌ Network error','',err.message);
   }
+}
+
+function shareViaWhatsApp() {
+  const data = window._lastQrData || '';
+  const msg  = `Your Zillion coins are ready!\n\nCoin data: ${data}\n\nOpen your Zillion app to receive.`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
 // ── Cash Out ──────────────────────────────────────────────────────────────────
 async function processCashOut() {
   const holderHash = document.getElementById('co-hash').value.trim();
   const coinText   = document.getElementById('co-coins').value.trim();
-  const coinIds    = coinText.split('\n').map(l => l.trim()).filter(Boolean);
-  const token      = settings.token || 'dev-token';
-  const agentId    = settings.agentId || 'AGENT-00001';
+  const coinIds    = coinText.split('\n').map(l=>l.trim()).filter(Boolean);
 
   hideResult('co-result');
-
-  if (!holderHash || coinIds.length === 0) {
-    showResult('co-result', 'error', '⚠️ Missing fields', '',
-      'Enter the customer owner hash and at least one coin ID.');
+  if (!holderHash || coinIds.length===0) {
+    showResult('co-result','error','⚠️ Missing fields','','Enter owner hash and coin IDs.');
     return;
   }
 
-  showLoader('Verifying and redeeming coins...');
+  showLoader('Redeeming coins...');
   try {
     const res = await fetch(`${API}/redeem`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ agent_id: agentId, holder_hash: holderHash, coin_ids: coinIds })
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${sessionToken}`},
+      body: JSON.stringify({agent_id:agentProfile.agent_id,holder_hash:holderHash,coin_ids:coinIds})
     });
     const data = await res.json();
     hideLoader();
 
     if (!res.ok) {
-      showResult('co-result', 'error', '❌ ' + (data.error || 'Redemption failed'), '',
-        'Could not redeem coins. They may already be spent or invalid.');
+      showResult('co-result','error','❌ '+(data.error||'Redemption failed'),'','Could not redeem coins.');
       return;
     }
 
-    const naira = data.total_kobo / 100;
-    const detail = `${data.redeemed_count} coins redeemed · ${data.rejected_count} rejected` +
-      (data.rejected_count > 0 ? ' · Check rejected coins — may already be spent' : '');
-
-    showResult('co-result', 'success',
+    const naira = data.total_kobo/100;
+    showResult('co-result','success',
       `✅ PAY CUSTOMER CASH NOW`,
       '₦' + naira.toLocaleString(),
-      detail
+      `${data.redeemed_count} coins redeemed · ${data.rejected_count} rejected`
     );
 
-    updateFloat(data.total_kobo);
-    stats.cashout += data.total_kobo;
-    saveStats();
+    sessionStats.cashout += data.total_kobo;
+    agentProfile.float_balance_kobo += data.total_kobo;
+    updateSessionStats();
     addHistory('CASH OUT', data.total_kobo, data.redeemed_count, 'SUCCESS');
     notify(`✅ Redeemed ₦${naira.toLocaleString()} — pay customer`);
 
-  } catch (err) {
+  } catch(err) {
     hideLoader();
-    showResult('co-result', 'error', '❌ Network error', '', err.message);
+    showResult('co-result','error','❌ Network error','',err.message);
   }
 }
 
@@ -586,109 +694,82 @@ async function verifyCoin() {
   const coinId = document.getElementById('v-coin').value.trim();
   const vbox   = document.getElementById('v-result');
   vbox.className = 'verify-result';
-
   if (!coinId) return;
-
   showLoader('Checking coin...');
   try {
     const res  = await fetch(`${API}/validate?coin_id=${encodeURIComponent(coinId)}`);
     const data = await res.json();
     hideLoader();
     vbox.classList.add('show');
-
     if (data.valid) {
       vbox.classList.add('valid');
-      vbox.innerHTML = `
-        <div class="verify-icon">✅</div>
-        <div style="font-size:16px;font-weight:bold;color:#0A5C35">Valid Coin</div>
-        <div class="verify-amount">₦${((data.amount||0)/100).toLocaleString()}</div>
-        <div style="font-size:13px;color:var(--grey);margin-top:6px">
-          Status: ${data.status} · Checked: ${new Date(data.checked_at).toLocaleTimeString()}
-        </div>`;
+      vbox.innerHTML = `<div class="verify-icon">✅</div><div style="font-size:15px;font-weight:bold;color:#0A5C35">Valid Coin</div><div class="verify-amount">₦${((data.amount||0)/100).toLocaleString()}</div><div style="font-size:12px;color:var(--grey);margin-top:5px">Status: ${data.status} · Checked: ${new Date(data.checked_at).toLocaleTimeString()}</div>`;
     } else {
       vbox.classList.add('invalid');
-      vbox.innerHTML = `
-        <div class="verify-icon">❌</div>
-        <div style="font-size:16px;font-weight:bold;color:var(--red)">Invalid Coin</div>
-        <div style="font-size:14px;color:var(--grey);margin-top:6px">Reason: ${data.reason || data.status}</div>
-        <div style="font-size:13px;color:var(--red);margin-top:8px;font-weight:bold">DO NOT ACCEPT THIS COIN</div>`;
+      vbox.innerHTML = `<div class="verify-icon">❌</div><div style="font-size:15px;font-weight:bold;color:var(--red)">Invalid Coin</div><div style="font-size:13px;color:var(--grey);margin-top:5px">Reason: ${data.reason||data.status}</div><div style="font-size:12px;color:var(--red);font-weight:bold;margin-top:8px">DO NOT ACCEPT THIS COIN</div>`;
     }
-  } catch (err) {
+  } catch(err) {
     hideLoader();
-    vbox.classList.add('show', 'invalid');
-    vbox.innerHTML = `<div class="verify-icon">⚠️</div><div>Network error: ${err.message}</div>`;
+    vbox.classList.add('show','invalid');
+    vbox.innerHTML = `<div>⚠️ Network error: ${err.message}</div>`;
   }
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
 function addHistory(type, amountKobo, coinCount, status) {
-  history_log.unshift({ type, amountKobo, coinCount, status, ts: new Date().toISOString() });
-  if (history_log.length > 100) history_log.pop();
-  localStorage.setItem('zil_agent_history', JSON.stringify(history_log));
+  const key = 'zil_history_' + (agentProfile?.agent_id||'unknown');
+  history_log.unshift({type,amountKobo,coinCount,status,ts:new Date().toISOString()});
+  if (history_log.length>100) history_log.pop();
+  localStorage.setItem(key, JSON.stringify(history_log));
   renderHistory();
 }
 
 function renderHistory() {
   const tbody = document.getElementById('hist-body');
-  if (history_log.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="no-data">No transactions yet this session</td></tr>';
+  if (!history_log.length) {
+    tbody.innerHTML='<tr><td colspan="5" class="no-data">No transactions yet this session</td></tr>';
     return;
   }
-  tbody.innerHTML = history_log.map(tx => `
+  tbody.innerHTML = history_log.map(tx=>`
     <tr>
       <td>${new Date(tx.ts).toLocaleTimeString()}</td>
       <td><strong>${tx.type}</strong></td>
       <td>₦${(tx.amountKobo/100).toLocaleString()}</td>
-      <td>${tx.coinCount} coins</td>
-      <td><span class="coin-status ${tx.status==='SUCCESS'?'cs-held':'cs-spent'}">${tx.status}</span></td>
+      <td>${tx.coinCount}</td>
+      <td><span style="background:${tx.status==='SUCCESS'?'var(--gl)':'var(--rl)'};color:${tx.status==='SUCCESS'?'#0A5C35':'var(--red)'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold">${tx.status}</span></td>
     </tr>`).join('');
 }
 
-function clearHistory() {
-  history_log = [];
-  localStorage.removeItem('zil_agent_history');
-  renderHistory();
-  notify('History cleared');
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateSessionStats() {
+  document.getElementById('s-cashin').textContent   = '₦' + (sessionStats.cashin/100).toLocaleString();
+  document.getElementById('s-cashout').textContent  = '₦' + (sessionStats.cashout/100).toLocaleString();
+  document.getElementById('s-coins').textContent    = sessionStats.coins;
+  document.getElementById('p-cashin').textContent   = '₦' + (sessionStats.cashin/100).toLocaleString();
+  document.getElementById('p-cashout').textContent  = '₦' + (sessionStats.cashout/100).toLocaleString();
+  document.getElementById('p-coins').textContent    = sessionStats.coins;
+  document.getElementById('p-float').textContent    = '₦' + (agentProfile.float_balance_kobo/100).toLocaleString();
+  document.getElementById('pr-float').textContent   = '₦' + (agentProfile.float_balance_kobo/100).toLocaleString();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function computeOwnerHash(phone, device) {
-  const salt = settings.token || 'dev-salt';
+  const salt = sessionToken || 'dev-salt';
   const enc  = new TextEncoder();
-  const key  = await crypto.subtle.importKey('raw', enc.encode(salt),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const key  = await crypto.subtle.importKey('raw', enc.encode(salt),{name:'HMAC',hash:'SHA-256'},false,['sign']);
   const sig  = await crypto.subtle.sign('HMAC', key, enc.encode(`${phone}:${device}`));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,'0')).join('');
+  return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-function showResult(id, type, title, amount, detail) {
-  const el = document.getElementById(id);
-  el.className = `result show ${type}`;
-  el.innerHTML = `<div class="result-title">${title}</div>` +
-    (amount ? `<div class="result-amount">${amount}</div>` : '') +
-    `<div class="result-detail">${detail}</div>`;
+function showResult(id,type,title,amount,detail) {
+  const el=document.getElementById(id);
+  el.className=`result show ${type}`;
+  el.innerHTML=`<div class="result-title">${title}</div>`+(amount?`<div class="result-amount">${amount}</div>`:'')+`<div class="result-detail">${detail}</div>`;
 }
-
-function hideResult(id) {
-  const el = document.getElementById(id);
-  if (el) el.className = 'result';
-}
-
-function showLoader(text) {
-  document.getElementById('loader-text').textContent = text;
-  document.getElementById('loader').classList.add('show');
-}
-
-function hideLoader() {
-  document.getElementById('loader').classList.remove('show');
-}
-
-function notify(msg, type = '') {
-  const el = document.getElementById('notif');
-  el.textContent = msg;
-  el.className = `notif show ${type}`;
-  setTimeout(() => el.classList.remove('show'), 3500);
-}
+function hideResult(id){const el=document.getElementById(id);if(el)el.className='result';}
+function showLoader(t){document.getElementById('loader-text').textContent=t;document.getElementById('loader').classList.add('show');}
+function hideLoader(){document.getElementById('loader').classList.remove('show');}
+function notify(msg,type=''){const el=document.getElementById('notif');el.textContent=msg;el.className=`notif show ${type}`;setTimeout(()=>el.classList.remove('show'),3500);}
 </script>
 </body>
 </html>
