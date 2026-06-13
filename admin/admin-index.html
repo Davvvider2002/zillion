@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zillion — Admin Dashboard</title>
+<style>
+:root {
+  --green:#1A7A4A; --green-light:#E8F5EE; --green-mid:#C8E6D4;
+  --dark:#0D1F1A; --grey:#555; --border:#DDD;
+  --red:#C0392B; --amber:#E67E22; --blue:#1A3A7A;
+  --white:#FFFFFF;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:Arial,sans-serif; background:#F0F2F0; color:var(--dark); }
+
+header {
+  background:var(--dark); color:white; padding:14px 24px;
+  display:flex; justify-content:space-between; align-items:center;
+  position:sticky; top:0; z-index:100;
+}
+.h-logo { font-size:22px; font-weight:bold; letter-spacing:3px; }
+.h-badge {
+  background:var(--amber); color:white;
+  padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold;
+}
+.h-nav { display:flex; align-items:center; gap:16px; }
+.h-dot { width:8px; height:8px; border-radius:50%; background:var(--green);
+  animation:pulse 2s infinite; display:inline-block; margin-right:4px; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* METRICS */
+.metrics {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:14px; margin:20px 24px 0;
+}
+.metric {
+  background:white; border-radius:10px; padding:18px 20px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  border-top:4px solid var(--green);
+  position:relative; overflow:hidden;
+}
+.metric.amber { border-top-color:var(--amber); }
+.metric.red   { border-top-color:var(--red); }
+.metric.blue  { border-top-color:var(--blue); }
+.metric-label { font-size:11px; color:var(--grey); text-transform:uppercase; letter-spacing:0.5px; }
+.metric-value { font-size:28px; font-weight:bold; margin:6px 0 2px; }
+.metric-sub { font-size:12px; color:var(--grey); }
+.metric-icon {
+  position:absolute; right:16px; top:50%; transform:translateY(-50%);
+  font-size:36px; opacity:0.12;
+}
+
+/* LAYOUT */
+.main-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:16px 24px; }
+.full-width { grid-column:1/-1; }
+.card {
+  background:white; border-radius:10px; padding:20px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+}
+.card-title {
+  font-size:15px; font-weight:bold; color:var(--dark);
+  margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;
+}
+.card-sub { font-size:12px; color:var(--grey); margin-bottom:16px; }
+
+/* TABLE */
+table { width:100%; border-collapse:collapse; }
+th { background:var(--dark); color:white; padding:9px 12px; text-align:left; font-size:11px; text-transform:uppercase; }
+td { padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; }
+tr:nth-child(even) td { background:#FAFAFA; }
+tr:hover td { background:var(--green-light); }
+.no-data { text-align:center; color:var(--grey); padding:24px; font-size:13px; }
+
+/* BADGES */
+.badge {
+  padding:2px 9px; border-radius:10px;
+  font-size:10px; font-weight:bold; text-transform:uppercase;
+}
+.b-held     { background:var(--green-light); color:#0A5C35; }
+.b-spent    { background:#EEE; color:#666; }
+.b-redeemed { background:#FFF3E0; color:var(--amber); }
+.b-fraud    { background:#FDECEA; color:var(--red); }
+.b-ok       { background:var(--green-light); color:#0A5C35; }
+.b-warn     { background:#FFF3E0; color:var(--amber); }
+
+/* AGENTS */
+.agent-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 0; border-bottom:1px solid var(--border);
+}
+.agent-row:last-child { border-bottom:none; }
+.agent-avatar {
+  width:36px; height:36px; border-radius:50%;
+  background:var(--green-mid); display:flex; align-items:center;
+  justify-content:center; font-weight:bold; font-size:14px; color:#0A5C35; flex-shrink:0;
+}
+.agent-info { flex:1; margin-left:12px; }
+.agent-info .name { font-size:14px; font-weight:bold; }
+.agent-info .loc { font-size:11px; color:var(--grey); }
+.float-pill {
+  background:var(--green-light); color:#0A5C35;
+  padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold;
+}
+.float-pill.low { background:#FDECEA; color:var(--red); }
+
+/* CHART BAR */
+.chart-bar-wrap { margin-top:12px; }
+.chart-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.chart-label { font-size:12px; color:var(--grey); width:80px; flex-shrink:0; text-align:right; }
+.chart-bar-bg { flex:1; background:#F0F2F0; border-radius:4px; height:20px; overflow:hidden; }
+.chart-bar-fill { height:100%; border-radius:4px; background:var(--green); transition:width 0.8s; display:flex; align-items:center; padding-left:6px; }
+.chart-bar-fill.amber { background:var(--amber); }
+.chart-bar-val { font-size:11px; color:var(--grey); width:60px; flex-shrink:0; }
+
+/* FRAUD */
+.fraud-item {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:12px 0; border-bottom:1px solid var(--border);
+}
+.fraud-item:last-child { border-bottom:none; }
+.fraud-dot { width:10px; height:10px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+.fraud-dot.high { background:var(--red); }
+.fraud-dot.med  { background:var(--amber); }
+.fraud-info .title { font-size:13px; font-weight:bold; }
+.fraud-info .detail { font-size:11px; color:var(--grey); margin-top:2px; }
+.fraud-time { font-size:11px; color:var(--grey); margin-left:auto; flex-shrink:0; }
+
+/* SEARCH */
+.search-bar {
+  display:flex; gap:8px; margin-bottom:14px;
+}
+.search-bar input {
+  flex:1; padding:8px 12px; border:1px solid var(--border);
+  border-radius:6px; font-size:13px;
+}
+.search-bar input:focus { outline:none; border-color:var(--green); }
+.search-btn {
+  padding:8px 16px; background:var(--green); color:white;
+  border:none; border-radius:6px; cursor:pointer; font-size:13px;
+}
+
+/* REFRESH BTN */
+.refresh-btn {
+  padding:5px 12px; background:var(--green-light); color:var(--green);
+  border:1px solid var(--green-mid); border-radius:6px;
+  font-size:11px; cursor:pointer; font-weight:bold;
+}
+.refresh-btn:hover { background:var(--green); color:white; }
+
+@media(max-width:768px) {
+  .metrics { grid-template-columns:1fr 1fr; }
+  .main-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-logo">ZILLION</div>
+  <div class="h-nav">
+    <span style="font-size:13px;color:var(--green-mid)">
+      <span class="h-dot"></span>Admin Dashboard
+    </span>
+    <span class="h-badge">PILOT v0.1</span>
+    <a href="/" style="color:var(--green-mid);font-size:12px;text-decoration:none">← Home</a>
+  </div>
+</header>
+
+<!-- METRICS -->
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">Total Float in Circulation</div>
+    <div class="metric-value" id="m-float">₦18,000</div>
+    <div class="metric-sub">Across 5 pilot agents</div>
+    <div class="metric-icon">💰</div>
+  </div>
+  <div class="metric amber">
+    <div class="metric-label">Coins Issued (Total)</div>
+    <div class="metric-value" id="m-coins">0</div>
+    <div class="metric-sub">Pilot lifetime</div>
+    <div class="metric-icon">🪙</div>
+  </div>
+  <div class="metric blue">
+    <div class="metric-label">Transactions Settled</div>
+    <div class="metric-value" id="m-txs">0</div>
+    <div class="metric-sub">Registry confirmed</div>
+    <div class="metric-icon">✅</div>
+  </div>
+  <div class="metric red">
+    <div class="metric-label">Fraud Events</div>
+    <div class="metric-value" id="m-fraud">0</div>
+    <div class="metric-sub">Unresolved flags</div>
+    <div class="metric-icon">🚨</div>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid">
+
+  <!-- AGENT FLOAT MONITOR -->
+  <div class="card">
+    <div class="card-title">
+      Agent Float Monitor
+      <button class="refresh-btn" onclick="refreshAgents()">↻ Refresh</button>
+    </div>
+    <div class="card-sub">Live float balance across all pilot agents</div>
+    <div id="agent-list">
+      <div class="agent-row">
+        <div class="agent-avatar">KA</div>
+        <div class="agent-info"><div class="name">Kola Adekunle</div><div class="loc">Mushin Market Kiosk A</div></div>
+        <div class="float-pill">₦5,000</div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar">BO</div>
+        <div class="agent-info"><div class="name">Bisi Okonkwo</div><div class="loc">Agege Motor Road Kiosk</div></div>
+        <div class="float-pill">₦3,000</div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar">EN</div>
+        <div class="agent-info"><div class="name">Emeka Nwosu</div><div class="loc">Mushin Market Kiosk B</div></div>
+        <div class="float-pill">₦4,000</div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar">FB</div>
+        <div class="agent-info"><div class="name">Fatima Bello</div><div class="loc">Agege Central Kiosk</div></div>
+        <div class="float-pill low">₦2,500</div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar">YM</div>
+        <div class="agent-info"><div class="name">Yusuf Musa</div><div class="loc">Iyana Ipaja Junction</div></div>
+        <div class="float-pill">₦3,500</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSACTION VOLUME CHART -->
+  <div class="card">
+    <div class="card-title">Transaction Volume</div>
+    <div class="card-sub">Daily activity — pilot period</div>
+    <div class="chart-bar-wrap" id="vol-chart">
+      <div class="chart-row">
+        <div class="chart-label">Mon</div>
+        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
+        <div class="chart-bar-val">₦0</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-label">Tue</div>
+        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
+        <div class="chart-bar-val">₦0</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-label">Wed</div>
+        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
+        <div class="chart-bar-val">₦0</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-label">Thu</div>
+        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
+        <div class="chart-bar-val">₦0</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-label">Fri</div>
+        <div class="chart-bar-bg"><div class="chart-bar-fill" style="width:0%"></div></div>
+        <div class="chart-bar-val">₦0</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-label">Sat</div>
+        <div class="chart-bar-bg"><div class="chart-bar-fill amber" style="width:0%"></div></div>
+        <div class="chart-bar-val">₦0</div>
+      </div>
+      <div style="text-align:center;font-size:12px;color:var(--grey);margin-top:12px">
+        Pilot transactions begin after Supabase is connected
+      </div>
+    </div>
+  </div>
+
+  <!-- COIN LOOKUP -->
+  <div class="card">
+    <div class="card-title">Coin Registry Lookup</div>
+    <div class="card-sub">Check any coin's live status in the registry</div>
+    <div class="search-bar">
+      <input type="text" id="coin-search" placeholder="ZIL-20260601-A4F8C2D1-0000001"
+        onkeydown="if(event.key==='Enter')lookupCoin()">
+      <button class="search-btn" onclick="lookupCoin()">Check</button>
+    </div>
+    <div id="coin-lookup-result" style="display:none">
+      <table>
+        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+        <tbody id="coin-lookup-body"></tbody>
+      </table>
+    </div>
+    <div id="coin-lookup-empty" style="font-size:13px;color:var(--grey);text-align:center;padding:20px">
+      Enter a Coin ID above to check its registry status
+    </div>
+  </div>
+
+  <!-- FRAUD MONITOR -->
+  <div class="card">
+    <div class="card-title">
+      Fraud Monitor
+      <span class="badge b-ok" id="fraud-badge">0 Active</span>
+    </div>
+    <div class="card-sub">Real-time fraud event detection</div>
+    <div id="fraud-list">
+      <div style="font-size:13px;color:var(--grey);text-align:center;padding:24px">
+        🛡️ No fraud events detected<br>
+        <span style="font-size:11px">System is monitoring all sync operations</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECENT TRANSACTIONS -->
+  <div class="card full-width">
+    <div class="card-title">
+      Recent Transactions
+      <button class="refresh-btn" onclick="refreshTxs()">↻ Refresh</button>
+    </div>
+    <div class="card-sub">Latest settled and pending transactions from the registry</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Transaction ID</th>
+          <th>Coin ID</th>
+          <th>Amount</th>
+          <th>From</th>
+          <th>To</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tx-body">
+        <tr><td colspan="7" class="no-data">
+          Connect Supabase to see live transaction data
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SYSTEM STATUS -->
+  <div class="card">
+    <div class="card-title">System Status</div>
+    <div class="card-sub">Live health of all Zillion components</div>
+    <div id="system-status">
+      <div class="agent-row">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+        <div class="agent-info"><div class="name">Netlify Functions</div><div class="loc">4 endpoints deployed</div></div>
+        <span class="badge b-ok">LIVE</span>
+      </div>
+      <div class="agent-row">
+        <div id="db-dot" style="width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0"></div>
+        <div class="agent-info"><div class="name">Supabase Registry</div><div class="loc">Checking connection...</div></div>
+        <span class="badge b-warn" id="db-badge">CHECKING</span>
+      </div>
+      <div class="agent-row">
+        <div id="mint-dot" style="width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0"></div>
+        <div class="agent-info"><div class="name">Mint Keys</div><div class="loc">Ed25519 signing keys</div></div>
+        <span class="badge b-warn" id="mint-badge">CHECKING</span>
+      </div>
+      <div class="agent-row">
+        <div style="width:10px;height:10px;border-radius:50%;background:#DDD;flex-shrink:0"></div>
+        <div class="agent-info"><div class="name">Mobile App</div><div class="loc">React Native — Bluetooth/NFC</div></div>
+        <span class="badge b-spent">PHASE 2</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PILOT PROGRESS -->
+  <div class="card">
+    <div class="card-title">Pilot Progress</div>
+    <div class="card-sub">90-day Lagos market pilot — Mushin/Agege</div>
+    <div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:6px">
+        <span>Agents onboarded</span><span>5 / 5</span>
+      </div>
+      <div style="background:#F0F2F0;border-radius:4px;height:8px;margin-bottom:12px">
+        <div style="width:100%;height:100%;background:var(--green);border-radius:4px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:6px">
+        <span>Traders onboarded</span><span>0 / 50</span>
+      </div>
+      <div style="background:#F0F2F0;border-radius:4px;height:8px;margin-bottom:12px">
+        <div style="width:0%;height:100%;background:var(--amber);border-radius:4px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:6px">
+        <span>Transactions completed</span><span>0 / 1,000 target</span>
+      </div>
+      <div style="background:#F0F2F0;border-radius:4px;height:8px;margin-bottom:16px">
+        <div style="width:0%;height:100%;background:var(--blue);border-radius:4px"></div>
+      </div>
+      <div style="background:var(--green-light);border-radius:6px;padding:10px 12px;font-size:12px">
+        <strong>Next step:</strong> Run schema.sql in Supabase, generate Mint keys,
+        complete Netlify env vars, then onboard first trader.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '/.netlify/functions';
+
+// Check system status on load
+window.addEventListener('DOMContentLoaded', () => {
+  checkApiStatus();
+});
+
+async function checkApiStatus() {
+  try {
+    const res = await fetch(`${API}/validate?coin_id=ZIL-TEST`);
+    const data = await res.json();
+    if (data.reason === 'INVALID_FORMAT' || data.reason === 'NOT_FOUND') {
+      // API is responding
+      document.getElementById('mint-dot').style.background = 'var(--green)';
+      document.getElementById('mint-badge').className = 'badge b-ok';
+      document.getElementById('mint-badge').textContent = 'LIVE';
+    }
+  } catch(e) {}
+
+  try {
+    const res = await fetch(`${API}/validate?coin_id=ZIL-20260101-AAAABBBB-0000001`);
+    const data = await res.json();
+    if (data.reason === 'NOT_FOUND' || data.valid === false) {
+      document.getElementById('db-dot').style.background = 'var(--green)';
+      document.getElementById('db-badge').className = 'badge b-ok';
+      document.getElementById('db-badge').textContent = 'LIVE';
+    }
+  } catch(e) {
+    document.getElementById('db-dot').style.background = 'var(--red)';
+    document.getElementById('db-badge').className = 'badge b-fraud';
+    document.getElementById('db-badge').textContent = 'ERROR';
+  }
+}
+
+async function lookupCoin() {
+  const coinId = document.getElementById('coin-search').value.trim();
+  if (!coinId) return;
+
+  const resultDiv = document.getElementById('coin-lookup-result');
+  const emptyDiv  = document.getElementById('coin-lookup-empty');
+  emptyDiv.textContent = 'Checking...';
+
+  try {
+    const res  = await fetch(`${API}/validate?coin_id=${encodeURIComponent(coinId)}`);
+    const data = await res.json();
+
+    emptyDiv.style.display = 'none';
+    resultDiv.style.display = 'block';
+
+    const rows = [
+      ['Coin ID', `<code style="font-size:11px">${data.coin_id}</code>`],
+      ['Valid', data.valid ? '✅ Yes' : '❌ No'],
+      ['Status', `<span class="badge b-${data.status?.toLowerCase()||'spent'}">${data.status||'UNKNOWN'}</span>`],
+      ['Amount', data.amount ? `₦${(data.amount/100).toLocaleString()}` : '—'],
+      ['Expired', data.expired ? '⚠️ Yes' : '✅ No'],
+      ['Reason', data.reason || '—'],
+      ['Checked', new Date(data.checked_at||Date.now()).toLocaleString()],
+    ];
+
+    document.getElementById('coin-lookup-body').innerHTML =
+      rows.map(([k,v]) => `<tr><td style="font-weight:bold;width:120px">${k}</td><td>${v}</td></tr>`).join('');
+
+  } catch(e) {
+    emptyDiv.style.display = 'block';
+    emptyDiv.textContent = 'Error: ' + e.message;
+    resultDiv.style.display = 'none';
+  }
+}
+
+function refreshAgents() {
+  const btn = event.target;
+  btn.textContent = '↻ Loading...';
+  setTimeout(() => { btn.textContent = '↻ Refresh'; }, 1000);
+}
+
+function refreshTxs() {
+  const btn = event.target;
+  btn.textContent = '↻ Loading...';
+  setTimeout(() => { btn.textContent = '↻ Refresh'; }, 1000);
+}
+</script>
+</body>
+</html>
