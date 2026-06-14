@@ -12,3 +12,5 @@
 /api/v1/agent-statement /.netlify/functions/agent-statement 200
 /api/v1/admin-login    /.netlify/functions/admin-login      200
 /api/v1/admin-agents   /.netlify/functions/admin-agents     200
+/api/v1/send-otp       /.netlify/functions/send-otp        200
+/api/v1/verify-otp     /.netlify/functions/verify-otp      200

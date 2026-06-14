@@ -83,3 +83,13 @@
     X-Frame-Options        = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy        = "strict-origin-when-cross-origin"
+
+[[redirects]]
+  from   = "/api/v1/send-otp"
+  to     = "/.netlify/functions/send-otp"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/verify-otp"
+  to     = "/.netlify/functions/verify-otp"
+  status = 200
