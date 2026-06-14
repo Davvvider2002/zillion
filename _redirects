@@ -1,4 +1,9 @@
-/api/v1/issue     /.netlify/functions/issue    200
-/api/v1/sync      /.netlify/functions/sync     200
-/api/v1/redeem    /.netlify/functions/redeem   200
-/api/v1/validate  /.netlify/functions/validate 200
+/api/v1/issue          /.netlify/functions/issue           200
+/api/v1/sync           /.netlify/functions/sync            200
+/api/v1/redeem         /.netlify/functions/redeem          200
+/api/v1/validate       /.netlify/functions/validate        200
+/api/v1/agent-token    /.netlify/functions/agent-token     200
+/api/v1/agent-login    /.netlify/functions/agent-login     200
+/api/v1/agent-statement /.netlify/functions/agent-statement 200
+/api/v1/admin-login    /.netlify/functions/admin-login     200
+/api/v1/admin-agents   /.netlify/functions/admin-agents    200
