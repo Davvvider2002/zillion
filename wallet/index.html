@@ -1307,18 +1307,31 @@ async function submitPhone() {
   }
   const phone = '+234' + raw.replace(/^0/,'');
   STATE._pendingPhone = phone;
-  showLoader('Sending code...');
-  // For MVP pilot: simulate OTP (real SMS via Africa's Talking in Phase 2)
-  await new Promise(r => setTimeout(r, 1200));
-  hideLoader();
-  STATE._devOtp = Math.floor(100000 + Math.random() * 900000).toString();
-  console.info('[DEV] OTP:', STATE._devOtp); // dev only — remove in prod
-  document.getElementById('otp-section').style.display = 'block';
-  document.getElementById('verify-btn-wrap').style.display = 'block';
-  document.getElementById('phone-btn').textContent = 'Resend Code';
-  startOtpTimer();
-  document.getElementById('otp0').focus();
-  toast('Code sent! Check SMS (dev: see console)');
+  showLoader('Sending SMS code...');
+  try {
+    const res = await fetch('/api/v1/send-otp', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) {
+      errEl.textContent = '⚠️ ' + (data.error || 'SMS failed — try again.');
+      errEl.style.display = 'block';
+      return;
+    }
+    document.getElementById('otp-section').style.display = 'block';
+    document.getElementById('verify-btn-wrap').style.display = 'block';
+    document.getElementById('phone-btn').textContent = 'Resend Code';
+    startOtpTimer();
+    document.getElementById('otp0').focus();
+    toast('✅ Code sent to ' + phone.slice(0,8) + '****' + phone.slice(-2));
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = '⚠️ Network error — ' + e.message;
+    errEl.style.display = 'block';
+  }
 }
 function startOtpTimer() {
   let secs = 60;
@@ -1345,18 +1358,37 @@ function getOtpValue() {
   return [0,1,2,3,4,5].map(i => document.getElementById('otp'+i).value).join('');
 }
 async function verifyOtp() {
-  const code = getOtpValue();
+  const code  = getOtpValue();
   const errEl = document.getElementById('phone-error');
+  errEl.style.display = 'none';
   if (code.length < 6) { errEl.textContent='Enter all 6 digits.'; errEl.style.display='block'; return; }
-  // Dev mode: accept the generated OTP
-  if (code !== STATE._devOtp) {
-    errEl.textContent='Incorrect code. Try again.'; errEl.style.display='block';
-    [0,1,2,3,4,5].forEach(i => { const b=document.getElementById('otp'+i); b.classList.add('error'); b.value=''; });
-    document.getElementById('otp0').focus(); return;
+  showLoader('Verifying...');
+  try {
+    const res  = await fetch('/api/v1/verify-otp', {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify({ phone: STATE._pendingPhone, otp: code }),
+    });
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok || !data.verified) {
+      errEl.textContent = '⚠️ ' + (data.error || 'Incorrect code. Try again.');
+      errEl.style.display = 'block';
+      [0,1,2,3,4,5].forEach(i => {
+        const b = document.getElementById('otp'+i);
+        b.classList.add('error'); b.value = '';
+      });
+      document.getElementById('otp0').focus();
+      return;
+    }
+    STATE._verifiedPhone = STATE._pendingPhone;
+    clearInterval(otpTimer);
+    goTo('screen-pin');
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = '⚠️ Network error — ' + e.message;
+    errEl.style.display = 'block';
   }
-  STATE._verifiedPhone = STATE._pendingPhone;
-  clearInterval(otpTimer);
-  goTo('screen-pin');
 }
 
 // ── PIN flow ───────────────────────────────────────────────────
