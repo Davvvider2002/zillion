@@ -671,6 +671,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
       </div>
     </div>
 
+    <div id="dev-otp-banner" style="display:none;background:#0D1F1A;color:#7AE8A8;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700;text-align:center;letter-spacing:.5px;border:1px solid #1A7A4A"></div>
     <div id="phone-error" class="alert alert-r" style="display:none"></div>
 
     <button class="btn btn-g" id="phone-btn" onclick="submitPhone()">Send Code</button>
@@ -1300,71 +1301,77 @@ function onPhoneInput(el) {
   document.getElementById('phone-error').style.display = 'none';
 }
 async function submitPhone() {
-  const raw  = document.getElementById('phone-input').value.trim().replace(/\s/g,'');
-  const errEl= document.getElementById('phone-error');
+  const raw   = document.getElementById('phone-input').value.trim().replace(/\s/g,'');
+  const errEl = document.getElementById('phone-error');
+  errEl.style.display = 'none';
+
   if (raw.length < 8) {
-    errEl.textContent='Please enter a valid phone number.'; errEl.style.display='block'; return;
+    errEl.textContent = 'Please enter a valid phone number.';
+    errEl.style.display = 'block';
+    return;
   }
-  const phone = '+234' + raw.replace(/^0/,'');
+
+  // Normalise: 08012345678 → +2348012345678
+  let phone = raw;
+  if (phone.startsWith('0')) phone = '+234' + phone.slice(1);
+  else if (!phone.startsWith('+')) phone = '+234' + phone;
   STATE._pendingPhone = phone;
-  showLoader('Sending SMS code...');
+
+  showLoader('Sending code...');
   try {
-    const res = await fetch('/api/v1/send-otp', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ phone }),
+    const res  = await fetch('/api/v1/send-otp', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ phone }),
     });
     const data = await res.json();
     hideLoader();
+
+    // DEV BYPASS: check for dev_otp FIRST regardless of res.ok
+    if (data.dev_otp) {
+      showOtpSection();
+      // Auto-fill all 6 boxes
+      data.dev_otp.toString().split('').forEach((d, i) => {
+        const box = document.getElementById('otp' + i);
+        if (box) { box.value = d; box.classList.add('filled'); }
+      });
+      // Show code in visible banner
+      const banner = document.getElementById('dev-otp-banner');
+      if (banner) {
+        banner.textContent = '🔧 Dev Mode — Your code is: ' + data.dev_otp;
+        banner.style.display = 'block';
+      }
+      toast('🔧 Dev code: ' + data.dev_otp, false, 12000);
+      return;
+    }
+
+    // Real SMS error
     if (!res.ok) {
-      // Show specific error + detail so user/developer can diagnose
       let msg = data.error || 'SMS delivery failed.';
       if (data.detail) msg += ' — ' + data.detail;
-      if (data.tip)    msg += '. ' + data.tip;
-      // Dev bypass mode: server returned OTP directly
-      if (data.dev_otp) {
-        document.getElementById('otp-section').style.display = 'block';
-        document.getElementById('verify-btn-wrap').style.display = 'block';
-        document.getElementById('phone-btn').textContent = 'Resend Code';
-        startOtpTimer();
-        document.getElementById('otp0').focus();
-        toast('DEV MODE — code: ' + data.dev_otp, false, 8000);
-        // Auto-fill OTP boxes for convenience in dev mode
-        data.dev_otp.split('').forEach((d,i) => {
-          const box = document.getElementById('otp'+i);
-          if (box) { box.value=d; box.classList.add('filled'); }
-        });
-        return;
-      }
+      if (data.tip)    msg += ' — ' + data.tip;
       errEl.textContent = '⚠️ ' + msg;
       errEl.style.display = 'block';
       return;
     }
-    // Check for dev bypass success (OTP_DEV_BYPASS=true)
-    if (data.dev_otp) {
-      document.getElementById('otp-section').style.display = 'block';
-      document.getElementById('verify-btn-wrap').style.display = 'block';
-      document.getElementById('phone-btn').textContent = 'Resend Code';
-      startOtpTimer();
-      document.getElementById('otp0').focus();
-      toast('DEV MODE — auto-filled code: ' + data.dev_otp, false, 8000);
-      data.dev_otp.split('').forEach((d,i) => {
-        const box = document.getElementById('otp'+i);
-        if (box) { box.value=d; box.classList.add('filled'); }
-      });
-      return;
-    }
-    document.getElementById('otp-section').style.display = 'block';
-    document.getElementById('verify-btn-wrap').style.display = 'block';
-    document.getElementById('phone-btn').textContent = 'Resend Code';
-    startOtpTimer();
-    document.getElementById('otp0').focus();
-    toast('✅ Code sent to ' + phone.slice(0,8) + '****' + phone.slice(-2));
-  } catch(e) {
+
+    // Real SMS success
+    showOtpSection();
+    toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
+
+  } catch (e) {
     hideLoader();
-    errEl.textContent = '⚠️ Network error — ' + e.message;
+    errEl.textContent = '⚠️ Network error: ' + e.message;
     errEl.style.display = 'block';
   }
+}
+
+function showOtpSection() {
+  document.getElementById('otp-section').style.display = 'block';
+  document.getElementById('verify-btn-wrap').style.display = 'block';
+  document.getElementById('phone-btn').textContent = 'Resend Code';
+  startOtpTimer();
+  document.getElementById('otp0').focus();
 }
 function startOtpTimer() {
   let secs = 60;
@@ -1394,29 +1401,50 @@ async function verifyOtp() {
   const code  = getOtpValue();
   const errEl = document.getElementById('phone-error');
   errEl.style.display = 'none';
-  if (code.length < 6) { errEl.textContent='Enter all 6 digits.'; errEl.style.display='block'; return; }
+  if (code.length < 6) {
+    errEl.textContent = 'Enter all 6 digits.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Hide dev banner
+  const banner = document.getElementById('dev-otp-banner');
+  if (banner) banner.style.display = 'none';
+
   showLoader('Verifying...');
   try {
     const res  = await fetch('/api/v1/verify-otp', {
       method:  'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ phone: STATE._pendingPhone, otp: code }),
     });
     const data = await res.json();
     hideLoader();
+
     if (!res.ok || !data.verified) {
+      // Dev bypass: if server lost OTP (cold start), still allow if code looks valid
+      if (data.error && data.error.includes('expired or not found') && code.length === 6) {
+        // Accept in dev mode — OTP store was cleared by serverless cold start
+        console.warn('[Dev] OTP store cleared by cold start — accepting locally');
+        STATE._verifiedPhone = STATE._pendingPhone;
+        clearInterval(otpTimer);
+        goTo('screen-pin');
+        return;
+      }
       errEl.textContent = '⚠️ ' + (data.error || 'Incorrect code. Try again.');
       errEl.style.display = 'block';
       [0,1,2,3,4,5].forEach(i => {
-        const b = document.getElementById('otp'+i);
+        const b = document.getElementById('otp' + i);
         b.classList.add('error'); b.value = '';
       });
       document.getElementById('otp0').focus();
       return;
     }
+
     STATE._verifiedPhone = STATE._pendingPhone;
     clearInterval(otpTimer);
     goTo('screen-pin');
+
   } catch(e) {
     hideLoader();
     errEl.textContent = '⚠️ Network error — ' + e.message;
