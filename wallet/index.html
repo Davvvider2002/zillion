@@ -46,18 +46,22 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
 
 /* ── App shell ────────────────────────────────────────────────── */
 #app{
-  width:100%;max-width:430px;height:100%;height:-webkit-fill-available;
+  width:100%;max-width:430px;
+  height:100vh;height:100dvh;
   margin:0 auto;display:flex;flex-direction:column;
   background:var(--w);position:relative;overflow:hidden;
 }
-html,body{height:100%;height:-webkit-fill-available;}
+html{height:100%;height:100dvh;}
+body{height:100%;height:100dvh;overflow:hidden;}
 
 /* ── Screen manager ───────────────────────────────────────────── */
 .screen{
   position:absolute;inset:0;display:flex;flex-direction:column;
   background:var(--w);transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;
-  will-change:transform;overflow:hidden;
+  will-change:transform;
 }
+/* Only lock overflow on screens that need it (prevents content cut-off) */
+#screen-home,#screen-vault,#screen-history,#screen-profile{overflow:hidden;}
 .screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none}
 .screen.slide-left{transform:translateX(-40%);opacity:0;pointer-events:none}
 .scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -200,8 +204,11 @@ html,body{height:100%;height:-webkit-fill-available;}
 #screen-splash{background:var(--d)}
 .splash-body{
   flex:1;display:flex;flex-direction:column;align-items:center;
-  justify-content:space-between;padding:60px 28px 40px;
+  justify-content:space-between;padding:40px 28px 36px;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  min-height:0;
 }
+#screen-splash{background:var(--d);overflow-y:auto;}
 .splash-brand{text-align:center}
 .splash-logo{
   font-size:48px;font-weight:800;letter-spacing:8px;color:var(--w);
@@ -568,19 +575,21 @@ html,body{height:100%;height:-webkit-fill-available;}
    RESPONSIVE
 ═══════════════════════════════════════════════════════════════ */
 @media(min-width:431px){
+  body{background:#1A1A2E;overflow:hidden;}
   #app{
     box-shadow:0 0 60px rgba(0,0,0,.3);
     border-radius:16px;
-    height:calc(100vh - 40px);
-    margin-top:20px;
+    height:100vh;height:100dvh;
+    margin-top:0;
+    max-width:430px;
+    position:relative;
   }
-  body{background:#1A1A2E;}
 }
 @media(max-width:430px){
-  body,html{overflow:hidden;}
   #app{
     border-radius:0;
     max-width:100%;
+    height:100vh;height:100dvh;
   }
 }
 @media(prefers-color-scheme:dark){
@@ -595,7 +604,7 @@ html,body{height:100%;height:-webkit-fill-available;}
   100%{ top:4px;   opacity:1; }
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </head>
 <body>
 <div id="app">
