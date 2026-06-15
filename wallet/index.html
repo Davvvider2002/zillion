@@ -589,6 +589,11 @@ html,body{height:100%;height:-webkit-fill-available;}
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;transition-duration:.01ms!important}
 }
+@keyframes scanline{
+  0%  { top:4px;   opacity:1; }
+  50% { top:188px; opacity:.8; }
+  100%{ top:4px;   opacity:1; }
+}
 </style>
 </head>
 <body>
@@ -831,7 +836,7 @@ html,body{height:100%;height:-webkit-fill-available;}
         <span class="action-icon">↑</span>
         <div class="action-label">Send Zil</div>
       </button>
-      <button class="action-btn" onclick="goTo('screen-receive')">
+      <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
         <span class="action-icon">↓</span>
         <div class="action-label">Receive</div>
       </button>
@@ -990,30 +995,97 @@ html,body{height:100%;height:-webkit-fill-available;}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     SCREEN 8 — RECEIVE / IMPORT ZIL
+     SCREEN 8 — RECEIVE / SCAN QR
 ══════════════════════════════════════════════════════════════ -->
 <div id="screen-receive" class="screen hidden">
   <div class="sb"></div>
   <div class="hdr">
-    <button class="hdr-back" onclick="goBack()">‹</button>
+    <button class="hdr-back" onclick="stopScanner();goBack()">‹</button>
     <div class="hdr-title">Receive Zil</div>
     <div style="width:40px"></div>
   </div>
-  <div class="scroll-body" style="background:var(--bg)">
-    <div style="padding:14px 18px 0">
-      <div class="alert alert-g" style="margin:0 0 14px">
-        <strong>To receive Zil:</strong> Ask sender to share the .zil file as a <strong>Document attachment</strong> in WhatsApp (not as text). Then download it and tap Browse Files below.
+
+  <!-- METHOD TABS -->
+  <div style="display:flex;background:var(--grl);border-bottom:1px solid var(--grb);flex-shrink:0">
+    <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">📷 Scan QR</button>
+    <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">📂 Import File</button>
+  </div>
+
+  <!-- QR SCANNER PANEL -->
+  <div id="recv-panel-qr" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+
+    <!-- Camera viewfinder -->
+    <div id="qr-scanner-wrap" style="position:relative;background:#000;flex-shrink:0">
+      <video id="qr-video" autoplay playsinline muted
+        style="width:100%;display:block;max-height:280px;object-fit:cover"></video>
+      <!-- Scanning overlay -->
+      <div id="qr-overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <div id="qr-frame" style="width:200px;height:200px;position:relative">
+          <div style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:3px solid var(--g);border-left:3px solid var(--g);border-radius:4px 0 0 0"></div>
+          <div style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:3px solid var(--g);border-right:3px solid var(--g);border-radius:0 4px 0 0"></div>
+          <div style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:3px solid var(--g);border-left:3px solid var(--g);border-radius:0 0 0 4px"></div>
+          <div style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:3px solid var(--g);border-right:3px solid var(--g);border-radius:0 0 4px 0"></div>
+          <!-- Scanning line animation -->
+          <div id="scan-line" style="position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,var(--g),transparent);animation:scanline 1.8s ease-in-out infinite"></div>
+        </div>
+      </div>
+      <!-- Camera status bar -->
+      <div id="qr-status" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);padding:8px 14px;font-size:12px;color:#fff;text-align:center">
+        Starting camera...
       </div>
     </div>
 
+    <!-- Scanner controls -->
+    <div style="padding:14px 18px;display:flex;gap:10px;flex-shrink:0">
+      <button id="scan-start-btn" class="btn btn-g" style="flex:1;padding:12px"
+        onclick="startScanner()">📷 Start Camera</button>
+      <button id="scan-stop-btn" class="btn btn-outline" style="flex:1;padding:12px;display:none"
+        onclick="stopScanner()">⏹ Stop</button>
+    </div>
+
+    <!-- QR claim result -->
+    <div id="qr-claim-result" style="display:none;margin:0 14px 14px">
+      <div style="background:var(--d);border-radius:14px;overflow:hidden">
+        <div style="padding:18px;text-align:center">
+          <div style="font-size:36px;margin-bottom:8px" id="qr-result-icon">⏳</div>
+          <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:4px" id="qr-result-amount">—</div>
+          <div style="font-size:13px;color:var(--gm)" id="qr-result-detail">Fetching coins...</div>
+        </div>
+        <div style="background:var(--d2);padding:14px 18px">
+          <div id="qr-result-coins"></div>
+          <div id="qr-result-error" class="alert alert-r" style="display:none;margin-top:10px"></div>
+          <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px" id="qr-result-actions" style="display:none">
+            <button class="btn btn-g" id="qr-accept-btn" onclick="confirmQRImport()" style="display:none">
+              Accept Coins into Vault →
+            </button>
+            <button class="btn btn-ghost" onclick="resetQRScanner()" style="color:var(--gm)">
+              Scan Another QR
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:0 18px 18px;font-size:12px;color:var(--tx2);text-align:center;line-height:1.6">
+      Point your camera at the QR code the agent shared with you.<br>
+      Coins will be added to your vault automatically.
+    </div>
+  </div>
+
+  <!-- FILE IMPORT PANEL -->
+  <div id="recv-panel-file" style="display:none;flex:1;overflow-y:auto;background:var(--bg)">
+    <div style="padding:14px 18px 0">
+      <div class="alert alert-g" style="margin:0 0 14px">
+        <strong>From WhatsApp:</strong> Download the .zil file the agent sent → tap Browse Files → select it.
+      </div>
+    </div>
     <div class="import-zone" id="import-zone" onclick="triggerFileImport()">
       <span class="import-zone-icon">📂</span>
       <div class="import-zone-title">Browse Files to Import</div>
-      <div class="import-zone-sub">Tap here → go to Downloads → select your .zil file</div>
+      <div class="import-zone-sub">Downloads → select the .zil file</div>
       <div style="margin-top:10px;background:var(--g);color:#fff;border-radius:20px;padding:8px 20px;font-size:13px;font-weight:700;display:inline-block">Select .zil File</div>
     </div>
     <input type="file" id="zil-file-input" accept=".zil,application/octet-stream" style="display:none" onchange="onZilFileSelected(this)">
-
     <div id="import-result-wrap" style="display:none">
       <div class="import-result">
         <div class="import-result-header">
@@ -1027,34 +1099,9 @@ html,body{height:100%;height:-webkit-fill-available;}
             <button class="btn btn-g" id="import-confirm-btn" onclick="confirmImport()">Accept Coins into Vault →</button>
           </div>
           <div style="margin-top:10px">
-            <button class="btn btn-ghost" onclick="rejectImport()">Reject — wrong file</button>
+            <button class="btn btn-ghost" onclick="rejectImport()">Cancel</button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div style="padding:0 18px 18px">
-      <div class="section-title" style="margin-bottom:12px">How to receive from WhatsApp</div>
-      <div class="card card-border">
-        <div class="tx-row">
-          <div class="tx-dot in" style="flex-shrink:0">1</div>
-          <div class="tx-info"><div class="tx-name">Sender shares a .zil file</div><div class="tx-meta">Look for a document attachment in WhatsApp — not a text message</div></div>
-        </div>
-        <div class="tx-row">
-          <div class="tx-dot in" style="flex-shrink:0">2</div>
-          <div class="tx-info"><div class="tx-name">Download the .zil file</div><div class="tx-meta">Tap the document → Download → it saves to your phone</div></div>
-        </div>
-        <div class="tx-row">
-          <div class="tx-dot in" style="flex-shrink:0">3</div>
-          <div class="tx-info"><div class="tx-name">Tap "Browse Files" above</div><div class="tx-meta">Navigate to Downloads and select the .zil file</div></div>
-        </div>
-        <div class="tx-row">
-          <div class="tx-dot pending" style="flex-shrink:0">4</div>
-          <div class="tx-info"><div class="tx-name">Accept coins into vault</div><div class="tx-meta">Preview shows — tap Accept to add to your wallet</div></div>
-        </div>
-      </div>
-      <div style="background:var(--aml);border-left:3px solid var(--am);border-radius:8px;padding:12px 14px;margin-top:12px;font-size:12px;color:var(--am);line-height:1.6">
-        <strong>⚠️ Important:</strong> The sender must share the <strong>.zil file as a document</strong>, not paste the text. If you only see text in WhatsApp, ask the sender to use the 📎 attachment button → Document.
       </div>
     </div>
     <div style="height:20px"></div>
@@ -1542,6 +1589,16 @@ async function completeOnboarding() {
   toast('Welcome to Zillion! 🎉');
   goTo('screen-home');
   setTimeout(() => refreshHome(), 100);
+  // If user arrived via QR link, handle the claim now
+  if (STATE._pendingClaimId) {
+    const cid = STATE._pendingClaimId;
+    STATE._pendingClaimId = null;
+    setTimeout(async () => {
+      goTo('screen-receive');
+      switchRecvTab('qr');
+      await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + cid);
+    }, 800);
+  }
 }
 
 // ── Session restore ────────────────────────────────────────────
@@ -1950,9 +2007,239 @@ document.addEventListener('drop', async e => {
   const file = e.dataTransfer.files[0];
   if (file && (file.name.endsWith('.zil') || file.type==='application/octet-stream')) {
     if (STATE.screen !== 'screen-receive') goTo('screen-receive');
+    switchRecvTab('file');
     await processZilFile(file);
   }
 });
+
+// ── Receive tab switcher ───────────────────────────────────────
+function switchRecvTab(tab) {
+  document.getElementById('recv-panel-qr').style.display   = tab==='qr'   ? 'flex' : 'none';
+  document.getElementById('recv-panel-file').style.display  = tab==='file' ? 'block': 'none';
+  document.getElementById('recv-panel-qr').style.flexDirection = 'column';
+  document.getElementById('recv-tab-qr').classList.toggle('active',  tab==='qr');
+  document.getElementById('recv-tab-file').classList.toggle('active', tab==='file');
+  if (tab === 'qr' && !window._scannerRunning) startScanner();
+  if (tab === 'file') stopScanner();
+}
+
+// ── QR Scanner (BarcodeDetector API) ──────────────────────────
+let _scannerStream   = null;
+let _scannerInterval = null;
+let _scannerDetector = null;
+let _pendingQRBundle = null;
+window._scannerRunning = false;
+
+async function startScanner() {
+  const statusEl = document.getElementById('qr-status');
+  const startBtn = document.getElementById('scan-start-btn');
+  const stopBtn  = document.getElementById('scan-stop-btn');
+
+  // Check BarcodeDetector support
+  if (!('BarcodeDetector' in window)) {
+    statusEl.textContent = '⚠️ QR scanning not supported in this browser. Use Chrome on Android.';
+    statusEl.style.background = 'rgba(192,57,43,.8)';
+    return;
+  }
+
+  try {
+    statusEl.textContent = 'Requesting camera...';
+    _scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+
+    const video = document.getElementById('qr-video');
+    video.srcObject = _scannerStream;
+    await video.play();
+
+    _scannerDetector = new BarcodeDetector({ formats: ['qr_code'] });
+    window._scannerRunning = true;
+
+    startBtn.style.display = 'none';
+    stopBtn.style.display  = '';
+    statusEl.textContent   = '📷 Scanning... Point at QR code';
+    statusEl.style.background = 'rgba(26,122,74,.8)';
+
+    // Scan every 400ms
+    _scannerInterval = setInterval(async () => {
+      if (!window._scannerRunning) return;
+      try {
+        const barcodes = await _scannerDetector.detect(video);
+        if (barcodes.length > 0) {
+          const rawValue = barcodes[0].rawValue;
+          console.log('[QR] Detected:', rawValue);
+          await handleQRResult(rawValue);
+        }
+      } catch(e) { /* frame not ready yet */ }
+    }, 400);
+
+  } catch(err) {
+    statusEl.textContent = '❌ Camera error: ' + err.message;
+    statusEl.style.background = 'rgba(192,57,43,.8)';
+    console.error('Scanner error:', err);
+  }
+}
+
+function stopScanner() {
+  window._scannerRunning = false;
+  clearInterval(_scannerInterval);
+  if (_scannerStream) {
+    _scannerStream.getTracks().forEach(t => t.stop());
+    _scannerStream = null;
+  }
+  const video = document.getElementById('qr-video');
+  if (video) video.srcObject = null;
+  const startBtn = document.getElementById('scan-start-btn');
+  const stopBtn  = document.getElementById('scan-stop-btn');
+  if (startBtn) startBtn.style.display = '';
+  if (stopBtn)  stopBtn.style.display  = 'none';
+  const statusEl = document.getElementById('qr-status');
+  if (statusEl) { statusEl.textContent = 'Camera stopped.'; statusEl.style.background = 'rgba(0,0,0,.6)'; }
+}
+
+async function handleQRResult(rawValue) {
+  // Stop scanning immediately to prevent duplicate reads
+  stopScanner();
+
+  const resultEl  = document.getElementById('qr-claim-result');
+  const iconEl    = document.getElementById('qr-result-icon');
+  const amountEl  = document.getElementById('qr-result-amount');
+  const detailEl  = document.getElementById('qr-result-detail');
+  const coinsEl   = document.getElementById('qr-result-coins');
+  const errorEl   = document.getElementById('qr-result-error');
+  const acceptBtn = document.getElementById('qr-accept-btn');
+  const actionsEl = document.getElementById('qr-result-actions');
+
+  resultEl.style.display  = 'block';
+  errorEl.style.display   = 'none';
+  acceptBtn.style.display = 'none';
+  iconEl.textContent   = '⏳';
+  amountEl.textContent = 'Fetching coins...';
+  detailEl.textContent = rawValue.slice(0, 50) + '...';
+  coinsEl.innerHTML    = '';
+
+  // Extract claim_id from URL: https://zillion-mvp.netlify.app/wallet/?claim=UUID
+  let claimId = null;
+  try {
+    const url = new URL(rawValue);
+    claimId = url.searchParams.get('claim');
+  } catch {
+    // Not a URL — might be a raw claim ID
+    if (/^[a-f0-9-]{36}$/.test(rawValue)) claimId = rawValue;
+  }
+
+  if (!claimId) {
+    iconEl.textContent   = '❌';
+    amountEl.textContent = 'Invalid QR Code';
+    detailEl.textContent = 'This is not a Zillion QR code';
+    errorEl.textContent  = 'Scanned value: ' + rawValue.slice(0,80);
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  showLoader('Fetching your coins...');
+  try {
+    const res  = await fetch('/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId));
+    const data = await res.json();
+    hideLoader();
+
+    if (!res.ok) {
+      iconEl.textContent   = '❌';
+      amountEl.textContent = 'Could not fetch coins';
+      detailEl.textContent = data.error || 'Unknown error';
+      errorEl.textContent  = data.detail || '';
+      errorEl.style.display = data.detail ? 'block' : 'none';
+      if (actionsEl) actionsEl.style.display = 'flex';
+      return;
+    }
+
+    // Success — show coin preview
+    const bundle = data.bundle;
+    _pendingQRBundle = bundle;
+    const fmt = fmtNaira(data.amount_kobo);
+
+    iconEl.textContent   = '✅';
+    amountEl.textContent = fmt;
+    detailEl.textContent = data.coin_count + ' coin' + (data.coin_count!==1?'s':'') + ' from agent ' + (data.agent_id||'—');
+
+    coinsEl.innerHTML = (bundle.coins||[]).slice(0,3).map(c => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--g);flex-shrink:0">₦</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#fff">${fmtNaira(c.amount)}</div>
+          <div style="font-size:10px;color:var(--gm);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.coin_id}</div>
+        </div>
+        <span style="background:var(--gl);color:var(--g);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">VALID</span>
+      </div>`).join('') +
+      (bundle.coins.length > 3 ? `<div style="font-size:11px;color:var(--gm);padding:8px 0">...and ${bundle.coins.length-3} more coin${bundle.coins.length-3!==1?'s':''}</div>` : '');
+
+    acceptBtn.style.display = 'block';
+    if (actionsEl) actionsEl.style.display = 'flex';
+
+  } catch(err) {
+    hideLoader();
+    iconEl.textContent   = '❌';
+    amountEl.textContent = 'Network Error';
+    detailEl.textContent = err.message;
+    if (actionsEl) actionsEl.style.display = 'flex';
+  }
+}
+
+function confirmQRImport() {
+  if (!_pendingQRBundle) return;
+  const bundle   = _pendingQRBundle;
+  const newCoins = (bundle.coins||[]).filter(c => {
+    const existingIds = new Set(STATE.vault.map(v=>v.coin_id));
+    return !existingIds.has(c.coin_id);
+  });
+
+  newCoins.forEach(c => {
+    c._status = 'PENDING_SYNC';
+    c._receivedAt = new Date().toISOString();
+    c._method = 'qr';
+    STATE.vault.push(c);
+  });
+
+  const total = newCoins.reduce((s,c)=>s+(c.amount||0),0);
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'received', amount:total,
+    coin_count:newCoins.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'qr', name:'Received via QR scan',
+    received_coin_ids: newCoins.map(c=>c.coin_id),
+  });
+
+  save();
+  _pendingQRBundle = null;
+  toast(fmtNaira(total) + ' added to your vault! 🎉');
+  goTo('screen-home');
+  refreshHome();
+  trySync();
+}
+
+function resetQRScanner() {
+  _pendingQRBundle = null;
+  document.getElementById('qr-claim-result').style.display = 'none';
+  document.getElementById('qr-accept-btn').style.display   = 'none';
+  startScanner();
+}
+
+// ── Check for ?claim= in URL on load ──────────────────────────
+async function checkClaimParam() {
+  const params  = new URLSearchParams(location.search);
+  const claimId = params.get('claim');
+  if (!claimId) return;
+  // Remove param from URL without reload
+  window.history.replaceState({}, '', '/wallet/');
+  // If not logged in yet, store and handle after onboarding
+  if (!STATE.user) {
+    STATE._pendingClaimId = claimId;
+    return;
+  }
+  // Navigate to receive screen and process
+  goTo('screen-receive');
+  switchRecvTab('qr');
+  await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + claimId);
+}
 
 // ── Web Share Target (handle incoming .zil from WhatsApp) ──────
 async function checkShareTarget() {
@@ -1999,18 +2286,25 @@ setInterval(() => {
 
 // ── Boot ───────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  // Register service worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
   checkShareTarget();
-  // Restore session if exists
   if (load() && STATE.user) {
     document.getElementById('screen-splash').classList.add('hidden');
     document.getElementById('screen-home').classList.remove('hidden');
     STATE.screen = 'screen-home';
     refreshHome();
     setTimeout(() => trySync(), 1500);
+    // Check for QR claim in URL (customer scanned QR from WhatsApp link)
+    setTimeout(() => checkClaimParam(), 800);
+  } else {
+    // Check claim param — store for after onboarding
+    const params = new URLSearchParams(location.search);
+    if (params.get('claim')) {
+      STATE._pendingClaimId = params.get('claim');
+      window.history.replaceState({}, '', '/wallet/');
+    }
   }
 });
 </script>

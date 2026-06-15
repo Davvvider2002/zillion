@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zillion — Agent Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{--g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--d:#0D1F1A;--gr:#555;--b:#DDD;--r:#C0392B;--rl:#FDECEA;--am:#E67E22;--al:#FFF3E0;--bl:#1A3A7A;--w:#FFF;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -236,10 +237,30 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
       </div>
       <button class="btn bg" onclick="doCashIn()">Issue Zil Coins →</button>
       <div id="cires" class="res"></div>
+      <!-- QR RESULT BOX -->
       <div id="ciqr" class="qr">
-        <div class="qrd" id="ciqrd"></div>
-        <div class="qrc">Customer scans this with their Zillion app to receive coins</div>
-        <button class="qrs" onclick="shareWA()">📱 Share via WhatsApp</button>
+        <!-- QR Code image -->
+        <div id="qr-canvas-wrap" style="display:flex;justify-content:center;margin-bottom:12px">
+          <div id="qr-canvas" style="background:white;padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1)"></div>
+        </div>
+        <!-- Amount label -->
+        <div id="qr-amount-label" style="font-size:18px;font-weight:bold;color:var(--d);text-align:center;margin-bottom:4px"></div>
+        <!-- Coin info -->
+        <div id="ciqrd" style="font-size:11px;color:var(--gr);text-align:center;margin-bottom:8px"></div>
+        <!-- Expiry -->
+        <div id="qr-expiry" style="font-size:11px;color:var(--am);text-align:center;margin-bottom:14px">⏱ Valid 15 minutes</div>
+        <!-- Action buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="shareQRWhatsApp()" style="flex:1;min-width:140px;padding:11px;background:#25D366;color:white;border:none;border-radius:10px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">
+            📱 Share QR via WhatsApp
+          </button>
+          <button onclick="saveQRImage()" style="flex:1;min-width:140px;padding:11px;background:var(--bl);color:white;border:none;border-radius:10px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">
+            💾 Save QR Image
+          </button>
+        </div>
+        <div style="margin-top:10px;padding:10px 12px;background:var(--gl);border-radius:8px;font-size:11px;color:#0A5C35;line-height:1.6">
+          ✅ Customer opens Zillion wallet → tap <strong>Scan QR</strong> → point camera at this code → coins added instantly
+        </div>
       </div>
     </div>
   </div>
@@ -451,10 +472,22 @@ async function doCashIn() {
     if (!r.ok) { showRes('cires','err','❌ '+(d.error||'Failed'),'',d.errors?.join(', ')||''); return; }
     const n = d.total_kobo/100;
     showRes('cires','ok','✅ '+d.coin_count+' coin'+(d.coin_count>1?'s':'')+' issued','₦'+n.toLocaleString(),d.coin_count+' × ₦'+(denom/100).toLocaleString()+' · '+phone);
-    const qd = JSON.stringify({coins:d.coins.map(c=>c.coin_id),total:d.total_kobo,phone});
-    document.getElementById('ciqrd').textContent = qd;
+    // Build full .zil bundle
+    const zilBundle = {
+      zillion_version: '1.0',
+      bundle_id: 'BUNDLE-' + Date.now(),
+      created_at: new Date().toISOString(),
+      issued_by: AP.agent_id,
+      recipient_phone: phone,
+      total_kobo: d.total_kobo,
+      coin_count: d.coin_count,
+      coins: d.coins,
+    };
+    window._zilBundle = zilBundle;
+    window._zilPhone  = phone;
+    // Generate QR code
+    await generateQR(zilBundle, d.total_kobo, d.coin_count);
     document.getElementById('ciqr').classList.add('show');
-    window._qd = qd;
     ss.ci += amount; ss.cn += d.coin_count;
     AP.float_balance_kobo -= amount;
     updateStats(); addH('CASH IN',amount,d.coin_count,'SUCCESS');
@@ -462,10 +495,133 @@ async function doCashIn() {
   } catch(e) { hideL(); showRes('cires','err','❌ Network error','',e.message); }
 }
 
-function shareWA() {
-  if (!window._qd) return;
-  window.open('https://wa.me/?text='+encodeURIComponent('Your Zillion coins:\n\n'+window._qd+'\n\nOpen your Zillion app to receive.'),'_blank');
+// ── QR GENERATION ────────────────────────────────────────────────────────────
+let _qrClaimUrl  = null;
+let _qrExpiresAt = null;
+let _qrImageData = null;
+
+async function generateQR(bundle, totalKobo, coinCount) {
+  // Step 1: Create server-side claim (stores bundle, returns short claim_id)
+  showL('Creating QR code...');
+  try {
+    const res = await fetch(`${API}/create-claim`, {
+      method:  'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+TK},
+      body:    JSON.stringify({ bundle }),
+    });
+    const data = await res.json();
+    hideL();
+    if (!res.ok) throw new Error(data.error || 'Failed to create claim');
+
+    _qrClaimUrl  = data.claim_url;
+    _qrExpiresAt = new Date(data.expires_at);
+    window._qrClaimUrl = _qrClaimUrl;
+
+    // Step 2: Render QR code in canvas
+    const container = document.getElementById('qr-canvas');
+    container.innerHTML = ''; // clear previous
+    new QRCode(container, {
+      text:          _qrClaimUrl,
+      width:         200,
+      height:        200,
+      colorDark:     '#0D1F1A',
+      colorLight:    '#FFFFFF',
+      correctLevel:  QRCode.CorrectLevel.M,
+    });
+
+    // Wait a tick for QR to render, then capture image data
+    await new Promise(r => setTimeout(r, 100));
+    const canvas = container.querySelector('canvas');
+    if (canvas) _qrImageData = canvas.toDataURL('image/png');
+
+    // Update labels
+    document.getElementById('qr-amount-label').textContent =
+      '₦' + (totalKobo/100).toLocaleString() + ' — ' + coinCount + ' coin' + (coinCount!==1?'s':'');
+    document.getElementById('ciqrd').textContent =
+      'Claim ID: ' + data.claim_id.slice(0,8) + '... · Valid 15 min';
+
+    // Start expiry countdown
+    startQRCountdown(_qrExpiresAt);
+
+    notify('✅ QR code ready — share with customer');
+  } catch(err) {
+    hideL();
+    showRes('cires','err','❌ QR generation failed','',err.message);
+  }
 }
+
+function startQRCountdown(expiresAt) {
+  const el = document.getElementById('qr-expiry');
+  if (!el) return;
+  const tick = () => {
+    const secs = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    const m = Math.floor(secs/60), s = secs%60;
+    if (secs > 0) {
+      el.textContent = '⏱ Expires in ' + m + ':' + String(s).padStart(2,'0');
+      el.style.color = secs < 60 ? 'var(--r)' : 'var(--am)';
+    } else {
+      el.textContent = '❌ QR expired — issue new coins to get a new QR';
+      el.style.color = 'var(--r)';
+      // Grey out QR
+      const canvas = document.querySelector('#qr-canvas canvas');
+      if (canvas) canvas.style.opacity = '0.3';
+    }
+  };
+  tick();
+  clearInterval(window._qrTimer);
+  window._qrTimer = setInterval(tick, 1000);
+}
+
+async function shareQRWhatsApp() {
+  if (!_qrClaimUrl) { notify('No QR code to share','err'); return; }
+  const fmt = document.getElementById('qr-amount-label').textContent;
+
+  // Try sharing QR image as file via Web Share API
+  if (_qrImageData && navigator.share) {
+    try {
+      const blob = await (await fetch(_qrImageData)).blob();
+      const file = new File([blob], 'zillion-qr-' + Date.now() + '.png', {type:'image/png'});
+      if (navigator.canShare && navigator.canShare({files:[file]})) {
+        await navigator.share({
+          title: 'Zillion Payment — ' + fmt,
+          text:  'Scan this QR code in your Zillion wallet to receive ' + fmt + '. Open your Zillion wallet at https://zillion-mvp.netlify.app/wallet/ then tap Scan QR.',
+          files: [file],
+        });
+        return;
+      }
+    } catch(e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+
+  // Fallback: share the claim URL as text with instructions
+  const msg = '💰 *Zillion Payment — ' + fmt + '*\n\n' +
+    'Scan this QR code in your Zillion wallet to receive your coins:\n\n' +
+    _qrClaimUrl + '\n\n' +
+    '👆 Tap the link OR open Zillion wallet → Receive → Scan QR\n' +
+    '⏱ Valid for 15 minutes only';
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title:'Zillion ' + fmt, text:msg });
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  // Last fallback: open WhatsApp with pre-filled message
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function saveQRImage() {
+  if (!_qrImageData) { notify('No QR code to save','err'); return; }
+  const a = document.createElement('a');
+  a.href     = _qrImageData;
+  a.download = 'zillion-qr-' + Date.now() + '.png';
+  a.click();
+  notify('QR image saved to Downloads');
+}
+
+// Legacy fallback (not used for QR flow but kept for compatibility)
+function shareWA() { shareQRWhatsApp(); }
 
 // ── Cash Out ──────────────────────────────────────────────────────────────────
 async function doCashOut() {

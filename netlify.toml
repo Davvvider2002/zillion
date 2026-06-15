@@ -98,3 +98,13 @@
   from   = "/api/v1/test-sms"
   to     = "/.netlify/functions/test-sms"
   status = 200
+
+[[redirects]]
+  from   = "/api/v1/create-claim"
+  to     = "/.netlify/functions/create-claim"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/fetch-claim"
+  to     = "/.netlify/functions/fetch-claim"
+  status = 200
