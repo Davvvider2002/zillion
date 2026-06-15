@@ -108,3 +108,23 @@
   from   = "/api/v1/fetch-claim"
   to     = "/.netlify/functions/fetch-claim"
   status = 200
+
+[[redirects]]
+  from   = "/api/v1/merchant-login"
+  to     = "/.netlify/functions/merchant-login"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/create-payment-request"
+  to     = "/.netlify/functions/create-payment-request"
+  status = 200
+
+[[redirects]]
+  from   = "/merchant"
+  to     = "/merchant/index.html"
+  status = 200
+
+[[redirects]]
+  from   = "/merchant/"
+  to     = "/merchant/index.html"
+  status = 200

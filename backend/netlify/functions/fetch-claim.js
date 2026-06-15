@@ -74,16 +74,22 @@ exports.handler = async (event) => {
       })
       .eq('claim_id', claim_id);
 
+    const bd = data.bundle_data || {};
     return {
       statusCode: 200,
       headers:    {'Content-Type':'application/json'},
       body: JSON.stringify({
-        success:    true,
-        bundle:     data.bundle_data,
-        agent_id:   data.agent_id,
-        amount_kobo:data.amount_kobo,
-        coin_count: data.coin_count,
-        claimed_at: new Date().toISOString(),
+        success:      true,
+        bundle:       bd,
+        type:         bd.type || 'cashin',           // cashin | cashout | payment
+        agent_id:     data.agent_id,
+        amount_kobo:  data.amount_kobo,
+        coin_count:   data.coin_count,
+        business_name:bd.business_name || null,
+        merchant_id:  bd.merchant_id   || null,
+        owner_phone:  bd.owner_phone   || null,
+        label:        bd.label         || null,
+        claimed_at:   new Date().toISOString(),
       }),
     };
   } catch(err) {

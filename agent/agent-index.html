@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zillion — Agent Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--d:#0D1F1A;--gr:#555;--b:#DDD;--r:#C0392B;--rl:#FDECEA;--am:#E67E22;--al:#FFF3E0;--bl:#1A3A7A;--w:#FFF;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;background:#F0F2F0;color:var(--d);}
+
+/* LOGIN */
+#ls{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0D1F1A,#1A3A2A,#0D1F1A);padding:24px;}
+.lb{background:white;border-radius:16px;padding:40px 36px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+.ll{font-size:36px;font-weight:bold;letter-spacing:6px;color:var(--d);text-align:center;margin-bottom:6px;}
+.ls2{text-align:center;font-size:13px;color:var(--gr);margin-bottom:32px;}
+.lf{margin-bottom:16px;}
+.lf label{display:block;font-size:11px;font-weight:bold;color:var(--gr);margin-bottom:4px;text-transform:uppercase;}
+.lf input{width:100%;padding:12px 14px;border:1.5px solid var(--b);border-radius:8px;font-size:14px;transition:border .15s;}
+.lf input:focus{outline:none;border-color:var(--g);}
+.lbtn{width:100%;padding:13px;background:var(--d);color:white;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;margin-top:4px;}
+.lbtn:hover{background:#1A3A2A;}.lbtn:disabled{opacity:.5;cursor:not-allowed;}
+.lerr{background:var(--rl);border-left:3px solid var(--r);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--r);margin-top:12px;display:none;}
+.lerr.show{display:block;}
+.lhelp{text-align:center;font-size:12px;color:var(--gr);margin-top:20px;line-height:1.6;}
+.lhelp a{color:var(--g);text-decoration:none;}
+
+/* APP */
+#as{display:none;}
+header{background:var(--d);color:white;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100;}
+.hl{font-size:20px;font-weight:bold;letter-spacing:3px;}
+.hr{display:flex;align-items:center;gap:12px;}
+.hdot{width:8px;height:8px;border-radius:50%;background:var(--g);animation:pulse 2s infinite;display:inline-block;margin-right:4px;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.lout{padding:5px 12px;background:transparent;color:#aaa;border:1px solid #333;border-radius:6px;font-size:11px;cursor:pointer;}
+.lout:hover{background:#1A3A2A;color:white;border-color:var(--g);}
+
+/* PROFILE CARD */
+.pc{background:white;margin:16px 24px 0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.pct{background:linear-gradient(135deg,var(--d),#1A3A2A);padding:18px 22px;display:flex;align-items:center;gap:14px;}
+.pav{width:48px;height:48px;border-radius:50%;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:white;flex-shrink:0;border:2px solid var(--gm);}
+.pn{font-size:17px;font-weight:bold;color:white;}
+.pi{font-size:11px;color:var(--gm);margin-top:2px;}
+.pl{font-size:11px;color:#aaa;margin-top:1px;}
+.pcb{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--b);}
+.ps{padding:12px 14px;text-align:center;border-right:1px solid var(--b);}
+.ps:last-child{border-right:none;}
+.psl{font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.3px;}
+.psv{font-size:17px;font-weight:bold;margin-top:3px;}
+.psv.green{color:var(--g);}
+
+/* STATS */
+.sr{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 24px 0;}
+.sc{background:white;border-radius:8px;padding:13px 15px;box-shadow:0 1px 3px rgba(0,0,0,.07);border-top:3px solid var(--g);}
+.sc.am{border-top-color:var(--am);}.sc.rd{border-top-color:var(--r);}.sc.bl{border-top-color:var(--bl);}
+.scl{font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.3px;}
+.scv{font-size:21px;font-weight:bold;margin-top:3px;}
+.scs{font-size:11px;color:var(--gr);margin-top:1px;}
+
+/* TABS */
+.tabs{display:flex;gap:5px;margin:14px 24px 0;flex-wrap:wrap;}
+.tab{padding:8px 16px;border:1px solid var(--b);border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;background:white;color:var(--gr);transition:all .15s;}
+.tab.active{background:var(--g);color:white;border-color:var(--g);}
+.tab:hover:not(.active){background:var(--gl);color:var(--g);}
+
+/* PANELS */
+.pn2{display:none;margin:12px 24px 24px;}
+.pn2.active{display:block;}
+.pi2{background:white;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.pt{font-size:15px;font-weight:bold;color:var(--g);margin-bottom:3px;}
+.ps2{font-size:13px;color:var(--gr);margin-bottom:16px;}
+
+/* FORMS */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fm{margin-bottom:12px;}
+label{display:block;font-size:11px;font-weight:bold;color:var(--gr);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--b);border-radius:6px;font-size:14px;transition:border .15s;}
+input:focus,select:focus{outline:none;border-color:var(--g);}
+textarea{resize:vertical;font-family:monospace;font-size:12px;}
+
+/* BUTTONS */
+.btn{padding:11px 24px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;width:100%;transition:opacity .15s;}
+.btn:hover{opacity:.88;}
+.bg{background:var(--g);color:white;}
+.br{background:var(--r);color:white;}
+.bo{background:white;color:var(--g);border:2px solid var(--g);}
+
+/* RESULT */
+.res{margin-top:12px;padding:13px 15px;border-radius:8px;display:none;}
+.res.show{display:block;}
+.res.ok{background:var(--gl);border-left:4px solid var(--g);}
+.res.err{background:var(--rl);border-left:4px solid var(--r);}
+.res.wn{background:var(--al);border-left:4px solid var(--am);}
+.rt{font-size:14px;font-weight:bold;margin-bottom:3px;}
+.ra{font-size:28px;font-weight:bold;color:var(--g);margin:5px 0;}
+.rd2{font-size:12px;color:var(--gr);line-height:1.6;}
+
+/* QR */
+.qr{text-align:center;padding:16px;border:2px dashed var(--gm);border-radius:8px;margin-top:12px;display:none;}
+.qr.show{display:block;}
+.qrd{background:#F0F7F3;border:1px solid var(--gm);border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;text-align:left;max-height:80px;overflow:auto;}
+.qrc{font-size:12px;color:var(--gr);margin-top:8px;}
+.qrs{margin-top:10px;padding:8px 20px;background:var(--g);color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;}
+
+/* HISTORY TABLE */
+.ht{width:100%;border-collapse:collapse;margin-top:10px;}
+.ht th{background:var(--d);color:white;padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;}
+.ht td{padding:9px 12px;border-bottom:1px solid var(--b);font-size:13px;}
+.ht tr:hover td{background:var(--gl);}
+.nd{text-align:center;color:var(--gr);padding:28px;font-size:13px;}
+
+/* STATEMENT */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.sk{border-radius:8px;padding:14px;text-align:center;}
+.sk.op{background:#EEF4FF;border:1px solid #AABCFF;}
+.sk.ci{background:var(--gl);border:1px solid var(--gm);}
+.sk.co{background:var(--rl);border:1px solid #FFAAAA;}
+.sk.cl{background:#1A3A2A;border:1px solid var(--g);}
+.skl{font-size:10px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;color:var(--gr);}
+.sk.cl .skl{color:var(--gm);}
+.skv{font-size:18px;font-weight:bold;}
+.sk.op .skv{color:var(--bl);}
+.sk.ci .skv{color:var(--g);}
+.sk.co .skv{color:var(--r);}
+.sk.cl .skv{color:white;}
+.sks{font-size:10px;color:var(--gr);margin-top:2px;}
+.sk.cl .sks{color:var(--gm);}
+.stbl{width:100%;border-collapse:collapse;font-size:13px;}
+.stbl th{background:var(--d);color:white;padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;}
+.stbl td{padding:9px 12px;border-bottom:1px solid var(--b);vertical-align:middle;}
+.stbl tr:hover td{background:var(--gl);}
+.tb{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;}
+.tci{background:var(--gl);color:#0A5C35;}
+.tco{background:var(--rl);color:var(--r);}
+.dc{color:var(--r);font-weight:bold;}
+.cc{color:var(--g);font-weight:bold;}
+.bc{font-weight:bold;}
+
+/* VERIFY */
+.vr{margin-top:12px;padding:20px;border-radius:8px;display:none;text-align:center;}
+.vr.show{display:block;}
+.vr.vl{background:var(--gl);border:2px solid var(--g);}
+.vr.vi{background:var(--rl);border:2px solid var(--r);}
+
+/* PROFILE TAB */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.pbox{background:#F8FAF8;border-radius:8px;padding:13px;border:1px solid var(--b);}
+.pbox.gn{background:var(--gl);border-color:var(--gm);}
+.pboxl{font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
+.pboxv{font-size:14px;font-weight:bold;}
+.pboxv.gn{color:var(--g);}
+
+/* LOADER / NOTIF */
+.loader{display:none;position:fixed;inset:0;background:rgba(13,31,26,.75);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.loader.show{display:flex;}
+.sp{width:38px;height:38px;border:3px solid rgba(255,255,255,.2);border-top-color:var(--gm);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lt{color:white;font-size:14px;}
+.notif{position:fixed;top:64px;right:20px;background:var(--d);color:white;padding:11px 18px;border-radius:8px;font-size:13px;z-index:200;transform:translateX(120%);transition:transform .3s;max-width:280px;border-left:4px solid var(--g);}
+.notif.show{transform:translateX(0);}
+.notif.err{border-left-color:var(--r);}
+
+@media(max-width:600px){.sr{grid-template-columns:1fr 1fr;}.fg{grid-template-columns:1fr;}.pcb{grid-template-columns:1fr 1fr;}.sg{grid-template-columns:1fr 1fr;}.pgrid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="loader" id="loader"><div class="sp"></div><div class="lt" id="lt">Loading...</div></div>
+<div class="notif" id="notif"></div>
+
+<!-- LOGIN -->
+<div id="ls">
+  <div class="lb">
+    <div class="ll">ZILLION</div>
+    <div class="ls2">Agent Portal — Secure Login</div>
+    <div class="lf"><label>Agent ID</label><input type="text" id="lai" placeholder="AGENT-00001" autocomplete="username"></div>
+    <div class="lf"><label>JWT Token</label><input type="password" id="lt2" placeholder="Paste your token from Admin dashboard" autocomplete="current-password"></div>
+    <button class="lbtn" id="lbtn" onclick="doLogin()">Login to Agent Portal →</button>
+    <div class="lerr" id="lerr"></div>
+    <div class="lhelp">No token? Ask admin at <a href="/admin" target="_blank">zillion-mvp.netlify.app/admin</a></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="as">
+  <header>
+    <div class="hl">ZILLION</div>
+    <div class="hr">
+      <span style="font-size:13px;color:var(--gm)"><span class="hdot"></span><span id="haid">—</span></span>
+      <button class="lout" onclick="doLogout()">Logout</button>
+    </div>
+  </header>
+
+  <!-- Profile Card -->
+  <div class="pc">
+    <div class="pct">
+      <div class="pav" id="pav">?</div>
+      <div><div class="pn" id="pname">—</div><div class="pi" id="pid">—</div><div class="pl" id="ploc">—</div></div>
+    </div>
+    <div class="pcb">
+      <div class="ps"><div class="psl">Float</div><div class="psv green" id="pflot">—</div></div>
+      <div class="ps"><div class="psl">Cash-In</div><div class="psv" id="pci">₦0</div></div>
+      <div class="ps"><div class="psl">Cash-Out</div><div class="psv" id="pco">₦0</div></div>
+      <div class="ps"><div class="psl">Coins</div><div class="psv" id="pcn">0</div></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="sr">
+    <div class="sc"><div class="scl">Session Cash-In</div><div class="scv" id="sci">₦0</div><div class="scs">0 transactions</div></div>
+    <div class="sc am"><div class="scl">Session Cash-Out</div><div class="scv" id="sco">₦0</div><div class="scs">0 redemptions</div></div>
+    <div class="sc bl"><div class="scl">Coins Issued</div><div class="scv" id="scn">0</div><div class="scs">this session</div></div>
+    <div class="sc rd"><div class="scl">Pending Sync</div><div class="scv">0</div><div class="scs">transactions</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="cashin"    onclick="switchTab(this)">💵 Cash In</button>
+    <button class="tab"        data-tab="cashout"   onclick="switchTab(this)">🏧 Cash Out</button>
+    <button class="tab"        data-tab="verify"    onclick="switchTab(this)">🔍 Verify</button>
+    <button class="tab"        data-tab="statement" onclick="switchTab(this)">📊 Statement</button>
+    <button class="tab"        data-tab="history"   onclick="switchTab(this)">📋 History</button>
+    <button class="tab"        data-tab="profile"   onclick="switchTab(this)">👤 Profile</button>
+  </div>
+
+  <!-- CASH IN -->
+  <div id="tab-cashin" class="pn2 active">
+    <div class="pi2">
+      <div class="pt">Cash In — Issue Zil Coins</div>
+      <div class="ps2">Customer hands you cash. Issue equivalent Zil coins to their phone.</div>
+      <div class="fg">
+        <div class="fm"><label>Customer Phone</label><input type="tel" id="cip" placeholder="+2348012345678"></div>
+        <div class="fm"><label>Device ID</label><input type="text" id="cid" placeholder="DEVICE-XXXX (or leave blank)"></div>
+        <div class="fm"><label>Amount (₦)</label><input type="number" id="cia" placeholder="e.g. 2000" min="500" max="10000" step="500"></div>
+        <div class="fm"><label>Denomination</label><select id="cidn"><option value="50000">₦500 coins</option><option value="100000" selected>₦1,000 coins</option><option value="200000">₦2,000 coins</option></select></div>
+      </div>
+      <button class="btn bg" onclick="doCashIn()">Issue Zil Coins →</button>
+      <div id="cires" class="res"></div>
+      <!-- QR RESULT BOX -->
+      <div id="ciqr" class="qr">
+        <!-- QR Code image -->
+        <div id="qr-canvas-wrap" style="display:flex;justify-content:center;margin-bottom:12px">
+          <div id="qr-canvas" style="background:white;padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1)"></div>
+        </div>
+        <!-- Amount label -->
+        <div id="qr-amount-label" style="font-size:18px;font-weight:bold;color:var(--d);text-align:center;margin-bottom:4px"></div>
+        <!-- Coin info -->
+        <div id="ciqrd" style="font-size:11px;color:var(--gr);text-align:center;margin-bottom:8px"></div>
+        <!-- Expiry -->
+        <div id="qr-expiry" style="font-size:11px;color:var(--am);text-align:center;margin-bottom:14px">⏱ Valid 15 minutes</div>
+        <!-- Action buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="shareQRWhatsApp()" style="flex:1;min-width:140px;padding:11px;background:#25D366;color:white;border:none;border-radius:10px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">
+            📱 Share QR via WhatsApp
+          </button>
+          <button onclick="saveQRImage()" style="flex:1;min-width:140px;padding:11px;background:var(--bl);color:white;border:none;border-radius:10px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">
+            💾 Save QR Image
+          </button>
+        </div>
+        <div style="margin-top:10px;padding:10px 12px;background:var(--gl);border-radius:8px;font-size:11px;color:#0A5C35;line-height:1.6">
+          ✅ Customer opens Zillion wallet → tap <strong>Scan QR</strong> → point camera at this code → coins added instantly
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASH OUT -->
+  <div id="tab-cashout" class="pn2">
+    <div class="pi2">
+      <div class="pt">Cash Out — Redeem Customer's Zil</div>
+      <div class="ps2">Customer presents Zil. Verify, redeem, and pay them cash.</div>
+      <div class="fm"><label>Customer Owner Hash</label><input type="text" id="coh" placeholder="64-character hash from customer's Zillion app"></div>
+      <div class="fm"><label>Coin IDs to Redeem (one per line)</label><textarea id="coc" rows="5" placeholder="ZIL-20260601-A4F8C2D1-0000001&#10;ZIL-20260601-B5G9D3E2-0000002"></textarea></div>
+      <button class="btn br" onclick="doCashOut()">Redeem & Pay Customer →</button>
+      <div id="cores" class="res"></div>
+    </div>
+  </div>
+
+  <!-- VERIFY -->
+  <div id="tab-verify" class="pn2">
+    <div class="pi2">
+      <div class="pt">Verify Coin Online</div>
+      <div class="ps2">Required for transactions above ₦5,000. Confirm a coin is valid before accepting.</div>
+      <div class="fm"><label>Coin ID</label><input type="text" id="vcid" placeholder="ZIL-20260613-B99BF022-1781346372559"></div>
+      <button class="btn bo" onclick="doVerify()">Check Coin Status →</button>
+      <div id="vres" class="vr"></div>
+    </div>
+  </div>
+
+  <!-- STATEMENT -->
+  <div id="tab-statement" class="pn2">
+    <div class="pi2">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div><div class="pt">Account Statement</div><div class="ps2" style="margin:0">Opening balance, all transactions, running balance</div></div>
+        <div style="display:flex;gap:8px">
+          <button onclick="exportCSV()" style="padding:7px 14px;background:white;color:var(--g);border:1px solid var(--g);border-radius:6px;font-size:12px;cursor:pointer">⬇ CSV</button>
+          <button onclick="loadStatement()" style="padding:7px 14px;background:var(--g);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="sg">
+        <div class="sk op"><div class="skl">Opening Balance</div><div class="skv" id="smop">—</div><div class="sks">Before activity</div></div>
+        <div class="sk ci"><div class="skl">Total Cash-In</div><div class="skv" id="smci">—</div><div class="sks" id="smcic">0 transactions</div></div>
+        <div class="sk co"><div class="skl">Total Cash-Out</div><div class="skv" id="smco">—</div><div class="sks" id="smcoc">0 redemptions</div></div>
+        <div class="sk cl"><div class="skl">Current Balance</div><div class="skv" id="smcl">—</div><div class="sks" id="smtc">0 total</div></div>
+      </div>
+      <div id="stload" style="text-align:center;padding:24px;color:var(--gr)">Click Refresh to load your statement</div>
+      <div id="stwrap" style="display:none;overflow-x:auto">
+        <table class="stbl">
+          <thead><tr><th>Date &amp; Time</th><th>Type</th><th>Description</th><th>Coin ID</th><th style="text-align:right">Debit (₦)</th><th style="text-align:right">Credit (₦)</th><th style="text-align:right">Balance (₦)</th></tr></thead>
+          <tbody id="stbody"></tbody>
+        </table>
+      </div>
+      <div id="stempty" style="display:none;text-align:center;padding:32px;color:var(--gr)">No transactions yet. Issue your first coins using Cash In.</div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="tab-history" class="pn2">
+    <div class="pi2">
+      <div class="pt">Transaction History</div>
+      <div class="ps2">All transactions this session.</div>
+      <table class="ht">
+        <thead><tr><th>Time</th><th>Type</th><th>Amount</th><th>Coins</th><th>Status</th></tr></thead>
+        <tbody id="hbody"><tr><td colspan="5" class="nd">No transactions yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="tab-profile" class="pn2">
+    <div class="pi2">
+      <div class="pt">Agent Profile</div>
+      <div class="ps2">Your account details from the Zillion registry.</div>
+      <div class="pgrid">
+        <div class="pbox"><div class="pboxl">Agent ID</div><div class="pboxv" id="prid">—</div></div>
+        <div class="pbox"><div class="pboxl">Full Name</div><div class="pboxv" id="prname">—</div></div>
+        <div class="pbox"><div class="pboxl">Phone</div><div class="pboxv" id="prphone">—</div></div>
+        <div class="pbox"><div class="pboxl">Location</div><div class="pboxv" id="prloc">—</div></div>
+        <div class="pbox gn"><div class="pboxl">Float Balance</div><div class="pboxv gn" id="prfloat" style="font-size:20px">—</div></div>
+        <div class="pbox"><div class="pboxl">Status</div><div class="pboxv" id="prstatus" style="color:var(--g)">—</div></div>
+        <div class="pbox" style="grid-column:1/-1"><div class="pboxl">Onboarded</div><div class="pboxv" id="pronb">—</div></div>
+      </div>
+      <button class="btn bo" style="width:auto;padding:9px 20px;font-size:13px" onclick="refreshProfile()">↻ Refresh Profile</button>
+      <div style="margin-top:14px;padding:12px 14px;background:var(--rl);border-radius:8px;border-left:3px solid var(--r)">
+        <div style="font-size:13px;font-weight:bold;color:var(--r);margin-bottom:3px">⚠️ Security</div>
+        <div style="font-size:12px;color:var(--gr)">Never share your JWT token. If compromised, contact your Zillion admin to generate a new one immediately.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #as -->
+
+<script>
+const API = '/.netlify/functions';
+let AP = null; // agent profile
+let TK = null; // token
+let hlog = [];
+let ss = { ci:0, co:0, cn:0 };
+let stData = null;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  ['lai','lt2'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); }));
+  const s = getSaved();
+  if (s) silentLogin(s.id, s.tk);
+});
+
+function getSaved() {
+  try { const s = localStorage.getItem('zs'); return s ? JSON.parse(s) : null; } catch { return null; }
+}
+
+// ── Tab Switching ─────────────────────────────────────────────────────────────
+function switchTab(el) {
+  const name = el.dataset.tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.pn2').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'history')   renderHistory();
+  if (name === 'statement') loadStatement();
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const id = document.getElementById('lai').value.trim().toUpperCase();
+  const tk = document.getElementById('lt2').value.trim();
+  const err = document.getElementById('lerr');
+  const btn = document.getElementById('lbtn');
+  err.className = 'lerr';
+  if (!id || !tk) { err.textContent = 'Enter Agent ID and token.'; err.className = 'lerr show'; return; }
+  btn.disabled = true; btn.textContent = 'Logging in...';
+  showL('Verifying...');
+  try {
+    const p = await fetchProfile(id, tk);
+    hideL(); TK = tk; AP = p;
+    localStorage.setItem('zs', JSON.stringify({ id, tk }));
+    showApp();
+    notify('Welcome, ' + p.name.split(' ')[0] + '!');
+  } catch(e) {
+    hideL(); err.textContent = '⚠️ ' + e.message; err.className = 'lerr show';
+  } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
+}
+
+async function silentLogin(id, tk) {
+  showL('Restoring session...');
+  try { AP = await fetchProfile(id, tk); hideL(); TK = tk; showApp(); }
+  catch { hideL(); localStorage.removeItem('zs'); }
+}
+
+async function fetchProfile(id, tk) {
+  const r = await fetch(`${API}/agent-login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({agent_id:id,token:tk}) });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Login failed');
+  return d;
+}
+
+function showApp() {
+  document.getElementById('ls').style.display = 'none';
+  document.getElementById('as').style.display = 'block';
+  fillProfile();
+  hlog = JSON.parse(localStorage.getItem('zh_' + AP.agent_id) || '[]');
+}
+
+function fillProfile() {
+  const p = AP;
+  const ini = p.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  const fmt = k => '₦' + (k/100).toLocaleString();
+  document.getElementById('haid').textContent  = p.agent_id;
+  document.getElementById('pav').textContent   = ini;
+  document.getElementById('pname').textContent = p.name;
+  document.getElementById('pid').textContent   = p.agent_id;
+  document.getElementById('ploc').textContent  = p.location || '—';
+  document.getElementById('pflot').textContent = fmt(p.float_balance_kobo);
+  document.getElementById('prid').textContent  = p.agent_id;
+  document.getElementById('prname').textContent= p.name;
+  document.getElementById('prphone').textContent=p.phone||'—';
+  document.getElementById('prloc').textContent = p.location||'—';
+  document.getElementById('prfloat').textContent=fmt(p.float_balance_kobo);
+  document.getElementById('prstatus').textContent=p.status;
+  document.getElementById('pronb').textContent = p.onboarded_at ? new Date(p.onboarded_at).toLocaleDateString() : '—';
+  updateStats();
+}
+
+async function refreshProfile() {
+  showL('Refreshing...');
+  try { AP = await fetchProfile(AP.agent_id, TK); fillProfile(); hideL(); notify('Profile refreshed'); }
+  catch(e) { hideL(); notify('Failed: '+e.message,'err'); }
+}
+
+function doLogout() {
+  localStorage.removeItem('zs');
+  AP=null; TK=null; ss={ci:0,co:0,cn:0};
+  document.getElementById('as').style.display='none';
+  document.getElementById('ls').style.display='flex';
+  document.getElementById('lt2').value='';
+}
+
+// ── Cash In ───────────────────────────────────────────────────────────────────
+async function doCashIn() {
+  const phone  = document.getElementById('cip').value.trim();
+  const device = document.getElementById('cid').value.trim() || 'DEVICE-001';
+  const amount = Math.round(parseFloat(document.getElementById('cia').value) * 100);
+  const denom  = parseInt(document.getElementById('cidn').value);
+  clearRes('cires'); document.getElementById('ciqr').classList.remove('show');
+  if (!phone || !amount) { showRes('cires','err','⚠️ Fill in phone and amount','',''); return; }
+  showL('Issuing coins...');
+  try {
+    const rh = await ownerHash(phone, device);
+    const r = await fetch(`${API}/issue`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+TK}, body:JSON.stringify({amount,coin_denomination:denom,recipient_phone:phone,recipient_device:device,recipient_hash:rh,agent_id:AP.agent_id}) });
+    const d = await r.json(); hideL();
+    if (!r.ok) { showRes('cires','err','❌ '+(d.error||'Failed'),'',d.errors?.join(', ')||''); return; }
+    const n = d.total_kobo/100;
+    showRes('cires','ok','✅ '+d.coin_count+' coin'+(d.coin_count>1?'s':'')+' issued','₦'+n.toLocaleString(),d.coin_count+' × ₦'+(denom/100).toLocaleString()+' · '+phone);
+    // Build full .zil bundle
+    const zilBundle = {
+      zillion_version: '1.0',
+      bundle_id: 'BUNDLE-' + Date.now(),
+      created_at: new Date().toISOString(),
+      issued_by: AP.agent_id,
+      recipient_phone: phone,
+      total_kobo: d.total_kobo,
+      coin_count: d.coin_count,
+      coins: d.coins,
+    };
+    window._zilBundle = zilBundle;
+    window._zilPhone  = phone;
+    // Generate QR code
+    await generateQR(zilBundle, d.total_kobo, d.coin_count);
+    document.getElementById('ciqr').classList.add('show');
+    ss.ci += amount; ss.cn += d.coin_count;
+    AP.float_balance_kobo -= amount;
+    updateStats(); addH('CASH IN',amount,d.coin_count,'SUCCESS');
+    notify('✅ Issued ₦'+n.toLocaleString());
+  } catch(e) { hideL(); showRes('cires','err','❌ Network error','',e.message); }
+}
+
+// ── QR GENERATION ────────────────────────────────────────────────────────────
+let _qrClaimUrl  = null;
+let _qrExpiresAt = null;
+let _qrImageData = null;
+
+async function generateQR(bundle, totalKobo, coinCount) {
+  // Step 1: Create server-side claim (stores bundle, returns short claim_id)
+  showL('Creating QR code...');
+  try {
+    const res = await fetch(`${API}/create-claim`, {
+      method:  'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+TK},
+      body:    JSON.stringify({ bundle }),
+    });
+    const data = await res.json();
+    hideL();
+    if (!res.ok) throw new Error(data.error || 'Failed to create claim');
+
+    _qrClaimUrl  = data.claim_url;
+    _qrExpiresAt = new Date(data.expires_at);
+    window._qrClaimUrl = _qrClaimUrl;
+
+    // Step 2: Render QR code in canvas
+    const container = document.getElementById('qr-canvas');
+    container.innerHTML = ''; // clear previous
+    new QRCode(container, {
+      text:          _qrClaimUrl,
+      width:         200,
+      height:        200,
+      colorDark:     '#0D1F1A',
+      colorLight:    '#FFFFFF',
+      correctLevel:  QRCode.CorrectLevel.M,
+    });
+
+    // Wait a tick for QR to render, then capture image data
+    await new Promise(r => setTimeout(r, 100));
+    const canvas = container.querySelector('canvas');
+    if (canvas) _qrImageData = canvas.toDataURL('image/png');
+
+    // Update labels
+    document.getElementById('qr-amount-label').textContent =
+      '₦' + (totalKobo/100).toLocaleString() + ' — ' + coinCount + ' coin' + (coinCount!==1?'s':'');
+    document.getElementById('ciqrd').textContent =
+      'Claim ID: ' + data.claim_id.slice(0,8) + '... · Valid 15 min';
+
+    // Start expiry countdown
+    startQRCountdown(_qrExpiresAt);
+
+    notify('✅ QR code ready — share with customer');
+  } catch(err) {
+    hideL();
+    showRes('cires','err','❌ QR generation failed','',err.message);
+  }
+}
+
+function startQRCountdown(expiresAt) {
+  const el = document.getElementById('qr-expiry');
+  if (!el) return;
+  const tick = () => {
+    const secs = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    const m = Math.floor(secs/60), s = secs%60;
+    if (secs > 0) {
+      el.textContent = '⏱ Expires in ' + m + ':' + String(s).padStart(2,'0');
+      el.style.color = secs < 60 ? 'var(--r)' : 'var(--am)';
+    } else {
+      el.textContent = '❌ QR expired — issue new coins to get a new QR';
+      el.style.color = 'var(--r)';
+      // Grey out QR
+      const canvas = document.querySelector('#qr-canvas canvas');
+      if (canvas) canvas.style.opacity = '0.3';
+    }
+  };
+  tick();
+  clearInterval(window._qrTimer);
+  window._qrTimer = setInterval(tick, 1000);
+}
+
+async function shareQRWhatsApp() {
+  if (!_qrClaimUrl) { notify('No QR code to share','err'); return; }
+  const fmt = document.getElementById('qr-amount-label').textContent;
+
+  // Try sharing QR image as file via Web Share API
+  if (_qrImageData && navigator.share) {
+    try {
+      const blob = await (await fetch(_qrImageData)).blob();
+      const file = new File([blob], 'zillion-qr-' + Date.now() + '.png', {type:'image/png'});
+      if (navigator.canShare && navigator.canShare({files:[file]})) {
+        await navigator.share({
+          title: 'Zillion Payment — ' + fmt,
+          text:  'Scan this QR code in your Zillion wallet to receive ' + fmt + '. Open your Zillion wallet at https://zillion-mvp.netlify.app/wallet/ then tap Scan QR.',
+          files: [file],
+        });
+        return;
+      }
+    } catch(e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+
+  // Fallback: share the claim URL as text with instructions
+  const msg = '💰 *Zillion Payment — ' + fmt + '*\n\n' +
+    'Scan this QR code in your Zillion wallet to receive your coins:\n\n' +
+    _qrClaimUrl + '\n\n' +
+    '👆 Tap the link OR open Zillion wallet → Receive → Scan QR\n' +
+    '⏱ Valid for 15 minutes only';
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title:'Zillion ' + fmt, text:msg });
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  // Last fallback: open WhatsApp with pre-filled message
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function saveQRImage() {
+  if (!_qrImageData) { notify('No QR code to save','err'); return; }
+  const a = document.createElement('a');
+  a.href     = _qrImageData;
+  a.download = 'zillion-qr-' + Date.now() + '.png';
+  a.click();
+  notify('QR image saved to Downloads');
+}
+
+// Legacy fallback (not used for QR flow but kept for compatibility)
+function shareWA() { shareQRWhatsApp(); }
+
+// ── Cash Out ──────────────────────────────────────────────────────────────────
+async function doCashOut() {
+  const hash = document.getElementById('coh').value.trim();
+  const ids  = document.getElementById('coc').value.trim().split('\n').map(l=>l.trim()).filter(Boolean);
+  clearRes('cores');
+  if (!hash || !ids.length) { showRes('cores','err','⚠️ Fill in owner hash and coin IDs','',''); return; }
+  showL('Redeeming...');
+  try {
+    const r = await fetch(`${API}/redeem`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+TK}, body:JSON.stringify({agent_id:AP.agent_id,holder_hash:hash,coin_ids:ids}) });
+    const d = await r.json(); hideL();
+    if (!r.ok) { showRes('cores','err','❌ '+(d.error||'Failed'),'',''); return; }
+    const n = d.total_kobo/100;
+    showRes('cores','ok','✅ PAY CUSTOMER CASH NOW','₦'+n.toLocaleString(),d.redeemed_count+' redeemed · '+d.rejected_count+' rejected');
+    ss.co += d.total_kobo; AP.float_balance_kobo += d.total_kobo;
+    updateStats(); addH('CASH OUT',d.total_kobo,d.redeemed_count,'SUCCESS');
+    notify('✅ Redeemed ₦'+n.toLocaleString());
+  } catch(e) { hideL(); showRes('cores','err','❌ Network error','',e.message); }
+}
+
+// ── Verify ────────────────────────────────────────────────────────────────────
+async function doVerify() {
+  const cid = document.getElementById('vcid').value.trim();
+  const vr  = document.getElementById('vres');
+  vr.className = 'vr';
+  if (!cid) return;
+  showL('Checking...');
+  try {
+    const r = await fetch(`${API}/validate?coin_id=${encodeURIComponent(cid)}`);
+    const d = await r.json(); hideL();
+    vr.classList.add('show');
+    if (d.valid) {
+      vr.classList.add('vl');
+      vr.innerHTML = `<div style="font-size:32px">✅</div><div style="font-size:15px;font-weight:bold;color:#0A5C35;margin:4px 0">Valid Coin</div><div style="font-size:28px;font-weight:bold;color:var(--g)">₦${((d.amount||0)/100).toLocaleString()}</div><div style="font-size:12px;color:var(--gr);margin-top:4px">Status: ${d.status} · ${new Date(d.checked_at).toLocaleTimeString()}</div>`;
+    } else {
+      vr.classList.add('vi');
+      vr.innerHTML = `<div style="font-size:32px">❌</div><div style="font-size:15px;font-weight:bold;color:var(--r);margin:4px 0">Invalid Coin</div><div style="font-size:13px;color:var(--gr)">Reason: ${d.reason||d.status}</div><div style="font-size:12px;color:var(--r);font-weight:bold;margin-top:8px">DO NOT ACCEPT</div>`;
+    }
+  } catch(e) { hideL(); vr.classList.add('show','vi'); vr.innerHTML='⚠️ Network error: '+e.message; }
+}
+
+// ── Statement ─────────────────────────────────────────────────────────────────
+async function loadStatement() {
+  if (!AP||!TK) return;
+  const ld=document.getElementById('stload'), sw=document.getElementById('stwrap'), se=document.getElementById('stempty');
+  ld.style.display='block'; sw.style.display='none'; se.style.display='none';
+  ld.textContent='Loading statement...';
+  try {
+    const r = await fetch(`${API}/agent-statement?agent_id=${AP.agent_id}`, { headers:{'Authorization':'Bearer '+TK} });
+    const d = await r.json(); ld.style.display='none';
+    if (!r.ok) { se.textContent=d.error; se.style.display='block'; return; }
+    stData = d;
+    const s=d.summary, fmt=k=>'₦'+(k/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+    document.getElementById('smop').textContent=fmt(s.opening_balance_kobo);
+    document.getElementById('smci').textContent=fmt(s.total_cash_in_kobo);
+    document.getElementById('smcic').textContent=s.cash_in_count+' transactions';
+    document.getElementById('smco').textContent=fmt(s.total_cash_out_kobo);
+    document.getElementById('smcoc').textContent=s.cash_out_count+' redemptions';
+    document.getElementById('smcl').textContent=fmt(s.closing_balance_kobo);
+    document.getElementById('smtc').textContent=s.transaction_count+' total';
+    if (!d.transactions.length) { se.style.display='block'; return; }
+    document.getElementById('stbody').innerHTML = d.transactions.map(tx=>`
+      <tr>
+        <td style="white-space:nowrap;font-size:12px">${new Date(tx.ts).toLocaleString()}</td>
+        <td><span class="tb ${tx.type==='CASH_IN'?'tci':'tco'}">${tx.type.replace('_',' ')}</span></td>
+        <td style="font-size:12px">${tx.label}</td>
+        <td style="font-family:monospace;font-size:10px;color:var(--gr)">${(tx.coin_id||'').slice(0,22)}...</td>
+        <td class="dc" style="text-align:right">${tx.debit>0?'('+fmt(tx.debit)+')':''}</td>
+        <td class="cc" style="text-align:right">${tx.credit>0?fmt(tx.credit):''}</td>
+        <td class="bc" style="text-align:right">${fmt(tx.balance_after)}</td>
+      </tr>`).join('');
+    sw.style.display='block';
+  } catch(e) { ld.style.display='none'; se.textContent='Error: '+e.message; se.style.display='block'; }
+}
+
+function exportCSV() {
+  if (!stData?.transactions?.length) { notify('No data to export','err'); return; }
+  const rows=[['Date','Type','Description','Coin ID','Debit Kobo','Credit Kobo','Balance Kobo']];
+  stData.transactions.forEach(t=>rows.push([t.ts,t.type,t.label,t.coin_id,t.debit,t.credit,t.balance_after]));
+  const blob=new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=AP.agent_id+'_statement.csv'; a.click();
+  notify('Exported CSV');
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function addH(type,amtKobo,cnt,status) {
+  hlog.unshift({type,amtKobo,cnt,status,ts:new Date().toISOString()});
+  if(hlog.length>100)hlog.pop();
+  localStorage.setItem('zh_'+AP.agent_id,JSON.stringify(hlog));
+}
+function renderHistory() {
+  const tb=document.getElementById('hbody');
+  if(!hlog.length){tb.innerHTML='<tr><td colspan="5" class="nd">No transactions yet</td></tr>';return;}
+  tb.innerHTML=hlog.map(t=>`<tr><td>${new Date(t.ts).toLocaleTimeString()}</td><td><strong>${t.type}</strong></td><td>₦${(t.amtKobo/100).toLocaleString()}</td><td>${t.cnt}</td><td><span style="background:${t.status==='SUCCESS'?'var(--gl)':'var(--rl)'};color:${t.status==='SUCCESS'?'#0A5C35':'var(--r)'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold">${t.status}</span></td></tr>`).join('');
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  const fmt=k=>'₦'+(k/100).toLocaleString();
+  document.getElementById('sci').textContent  = fmt(ss.ci);
+  document.getElementById('sco').textContent  = fmt(ss.co);
+  document.getElementById('scn').textContent  = ss.cn;
+  document.getElementById('pci').textContent  = fmt(ss.ci);
+  document.getElementById('pco').textContent  = fmt(ss.co);
+  document.getElementById('pcn').textContent  = ss.cn;
+  document.getElementById('pflot').textContent= fmt(AP.float_balance_kobo);
+  document.getElementById('prfloat').textContent=fmt(AP.float_balance_kobo);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function ownerHash(phone,device) {
+  const enc=new TextEncoder(), key=await crypto.subtle.importKey('raw',enc.encode(TK),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+  const sig=await crypto.subtle.sign('HMAC',key,enc.encode(`${phone}:${device}`));
+  return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function showRes(id,type,title,amount,detail){const e=document.getElementById(id);e.className=`res show ${type}`;e.innerHTML=`<div class="rt">${title}</div>`+(amount?`<div class="ra">${amount}</div>`:'')+`<div class="rd2">${detail}</div>`;}
+function clearRes(id){const e=document.getElementById(id);if(e)e.className='res';}
+function showL(t){document.getElementById('lt').textContent=t;document.getElementById('loader').classList.add('show');}
+function hideL(){document.getElementById('loader').classList.remove('show');}
+function notify(msg,type=''){const e=document.getElementById('notif');e.textContent=msg;e.className=`notif show ${type}`;setTimeout(()=>e.classList.remove('show'),3500);}
+</script>
+</body>
+</html>
