@@ -1,26 +1,44 @@
-# ── Page routes ────────────────────────────────────────────────
-/wallet                /wallet/index.html      200
-/wallet/               /wallet/index.html      200
-/merchant              /merchant/index.html    200
-/merchant/             /merchant/index.html    200
+# ═══════════════════════════════════════════════════════════
+# ZILLION — Netlify _redirects (single source of truth)
+# ═══════════════════════════════════════════════════════════
 
-# ── API routes ─────────────────────────────────────────────────
-/api/v1/issue                /.netlify/functions/issue                200
-/api/v1/sync                 /.netlify/functions/sync                 200
-/api/v1/redeem               /.netlify/functions/redeem               200
-/api/v1/validate             /.netlify/functions/validate             200
-/api/v1/agent-token          /.netlify/functions/agent-token          200
-/api/v1/agent-login          /.netlify/functions/agent-login          200
-/api/v1/agent-statement      /.netlify/functions/agent-statement      200
-/api/v1/admin-login          /.netlify/functions/admin-login          200
-/api/v1/admin-agents         /.netlify/functions/admin-agents         200
-/api/v1/admin-users          /.netlify/functions/admin-users          200
-/api/v1/admin-coins          /.netlify/functions/admin-coins          200
-/api/v1/admin-transactions   /.netlify/functions/admin-transactions   200
-/api/v1/send-otp             /.netlify/functions/send-otp             200
-/api/v1/verify-otp           /.netlify/functions/verify-otp           200
-/api/v1/test-sms             /.netlify/functions/test-sms             200
-/api/v1/create-claim         /.netlify/functions/create-claim         200
-/api/v1/fetch-claim          /.netlify/functions/fetch-claim          200
-/api/v1/merchant-login       /.netlify/functions/merchant-login       200
+# ── Page routes ─────────────────────────────────────────────
+/wallet          /wallet/index.html          200
+/wallet/         /wallet/index.html          200
+/agent           /agent/index.html           200
+/agent/          /agent/index.html           200
+/merchant        /merchant/index.html        200
+/merchant/       /merchant/index.html        200
+/admin           /admin/index.html           200
+/admin/          /admin/index.html           200
+
+# ── Core coin functions ──────────────────────────────────────
+/api/v1/issue                  /.netlify/functions/issue                  200
+/api/v1/sync                   /.netlify/functions/sync                   200
+/api/v1/redeem                 /.netlify/functions/redeem                 200
+/api/v1/validate               /.netlify/functions/validate               200
+
+# ── Agent functions ──────────────────────────────────────────
+/api/v1/agent-token            /.netlify/functions/agent-token            200
+/api/v1/agent-login            /.netlify/functions/agent-login            200
+/api/v1/agent-statement        /.netlify/functions/agent-statement        200
+
+# ── Admin functions ──────────────────────────────────────────
+/api/v1/admin-login            /.netlify/functions/admin-login            200
+/api/v1/admin-agents           /.netlify/functions/admin-agents           200
+/api/v1/admin-users            /.netlify/functions/admin-users            200
+/api/v1/admin-coins            /.netlify/functions/admin-coins            200
+/api/v1/admin-transactions     /.netlify/functions/admin-transactions     200
+
+# ── OTP / SMS ────────────────────────────────────────────────
+/api/v1/send-otp               /.netlify/functions/send-otp               200
+/api/v1/verify-otp             /.netlify/functions/verify-otp             200
+/api/v1/test-sms               /.netlify/functions/test-sms               200
+
+# ── QR / Claim system ────────────────────────────────────────
+/api/v1/create-claim           /.netlify/functions/create-claim           200
+/api/v1/fetch-claim            /.netlify/functions/fetch-claim            200
 /api/v1/create-payment-request /.netlify/functions/create-payment-request 200
+
+# ── Merchant ─────────────────────────────────────────────────
+/api/v1/merchant-login         /.netlify/functions/merchant-login         200
