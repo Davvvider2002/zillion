@@ -2,213 +2,215 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Zillion — Admin Dashboard</title>
 <style>
 :root{
+  --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;
+  --d:#0D1F1A;--d2:#162C20;
+  --w:#FFFFFF;--bg:#F0F2F0;
+  --gr:#555;--grl:#F4F4F4;--grb:#DDDDDD;
+  --r:#C0392B;--rl:#FDECEA;
+  --am:#E67E22;--al:#FFF3E0;
+  --bl:#1A3A7A;--bll:#EEF4FF;
   --pu:#6B21A8;--pul:#F3E8FF;--pum:#D8B4FE;
-  --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--d:#0D1F1A;--d2:#162C20;
-  --w:#FFFFFF;--bg:#F0F2F0;--gr:#555;--grl:#F4F4F4;--grb:#DDDDDD;
-  --r:#C0392B;--rl:#FDECEA;--am:#E67E22;--al:#FFF3E0;--bl:#1A3A7A;--bll:#EEF4FF;
-  --pu:#6B21A8;--pul:#F3E8FF;
+  --tx:#1A1A1A;--tx2:#666;--tx3:#AAA;
 }
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:Arial,sans-serif;background:var(--bg);color:var(--d);min-height:100vh;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:var(--bg);color:var(--d)}
 
-/* ── LOGIN ─────────────────────────────────────────── */
+/* LOGIN */
 #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#0D1F1A,#1A3A2A,#0D1F1A);padding:24px;}
+  background:linear-gradient(135deg,#0D1F1A,#1A3A2A,#0D1F1A);padding:24px}
 .lbox{background:var(--w);border-radius:16px;padding:40px 36px;width:100%;max-width:420px;
-  box-shadow:0 20px 60px rgba(0,0,0,.4);}
-.llogo{font-size:36px;font-weight:bold;letter-spacing:6px;color:var(--d);text-align:center;margin-bottom:4px;}
-.lsub{text-align:center;font-size:13px;color:var(--gr);margin-bottom:8px;}
-.lbadge{text-align:center;margin-bottom:28px;}
-.lbadge span{background:var(--al);color:var(--am);padding:3px 12px;border-radius:12px;font-size:11px;font-weight:bold;}
-.lf{margin-bottom:16px;}
-.lf label{display:block;font-size:11px;font-weight:bold;color:var(--gr);margin-bottom:4px;text-transform:uppercase;}
-.lf input{width:100%;padding:12px 14px;border:1.5px solid var(--grb);border-radius:8px;font-size:14px;transition:border .15s;}
-.lf input:focus{outline:none;border-color:var(--g);}
-.lbtn{width:100%;padding:13px;background:var(--d);color:var(--w);border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;}
-.lbtn:hover{background:var(--d2);}
-.lbtn:disabled{opacity:.5;cursor:not-allowed;}
-.lerr{background:var(--rl);border-left:3px solid var(--r);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--r);margin-top:12px;display:none;}
-.lerr.show{display:block;}
+  box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.llogo{font-size:36px;font-weight:bold;letter-spacing:6px;color:var(--d);text-align:center;margin-bottom:4px}
+.lsub{text-align:center;font-size:13px;color:var(--gr);margin-bottom:6px}
+.lbadge{text-align:center;margin-bottom:28px}
+.lbadge span{background:var(--al);color:var(--am);padding:3px 12px;border-radius:12px;font-size:11px;font-weight:bold}
+.lf{margin-bottom:16px}
+.lf label{display:block;font-size:11px;font-weight:bold;color:var(--gr);margin-bottom:4px;text-transform:uppercase}
+.lf input{width:100%;padding:12px 14px;border:1.5px solid var(--grb);border-radius:8px;font-size:14px;outline:none;transition:border .15s}
+.lf input:focus{border-color:var(--g)}
+.lbtn{width:100%;padding:13px;background:var(--d);color:var(--w);border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer}
+.lbtn:hover{background:var(--d2)}
+.lerr{background:var(--rl);border-left:3px solid var(--r);border-radius:6px;padding:10px 14px;
+  font-size:13px;color:var(--r);margin-top:12px;display:none}
+.lerr.show{display:block}
 
-/* ── APP ───────────────────────────────────────────── */
-#app-screen{display:none;}
-header{background:var(--d);color:var(--w);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3);}
-.hlogo{font-size:20px;font-weight:bold;letter-spacing:3px;}
-.hright{display:flex;align-items:center;gap:12px;}
-.hdot{width:8px;height:8px;border-radius:50%;background:var(--g);animation:pulse 2s infinite;display:inline-block;margin-right:4px;}
+/* APP */
+#app-screen{display:none}
+header{background:var(--d);color:var(--w);padding:12px 24px;display:flex;justify-content:space-between;
+  align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.hlogo{font-size:20px;font-weight:bold;letter-spacing:3px}
+.hright{display:flex;align-items:center;gap:12px}
+.hdot{width:8px;height:8px;border-radius:50%;background:var(--g);animation:pulse 2s infinite;display:inline-block;margin-right:4px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.hbadge{background:var(--am);color:var(--w);padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;}
-.lout{padding:5px 12px;background:transparent;color:#aaa;border:1px solid #333;border-radius:6px;font-size:11px;cursor:pointer;}
-.lout:hover{background:var(--d2);color:var(--w);border-color:var(--g);}
+.hbadge{background:var(--am);color:var(--w);padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold}
+.lout{padding:5px 12px;background:transparent;color:#aaa;border:1px solid #333;border-radius:6px;font-size:11px;cursor:pointer}
+.lout:hover{background:var(--d2);color:var(--w);border-color:var(--g)}
 
-/* ── NAV TABS ──────────────────────────────────────── */
-.navtabs{background:var(--w);border-bottom:1px solid var(--grb);padding:0 20px;display:flex;overflow-x:auto;gap:0;position:sticky;top:52px;z-index:99;}
-.navtabs::-webkit-scrollbar{display:none;}
-.ntab{padding:13px 18px;border-bottom:3px solid transparent;font-size:13px;font-weight:bold;cursor:pointer;color:var(--gr);white-space:nowrap;transition:all .15s;border:none;background:none;font-family:Arial,sans-serif;}
-.ntab.active{color:var(--g);border-bottom-color:var(--g);}
-.ntab:hover:not(.active){color:var(--d);background:#F8FAF8;}
+/* NAVTABS */
+.navtabs{background:var(--w);border-bottom:1px solid var(--grb);padding:0 20px;display:flex;
+  overflow-x:auto;position:sticky;top:52px;z-index:99}
+.navtabs::-webkit-scrollbar{display:none}
+.ntab{padding:13px 16px;border-bottom:3px solid transparent;font-size:13px;font-weight:bold;
+  cursor:pointer;color:var(--gr);white-space:nowrap;transition:all .15s;border:none;background:none;
+  font-family:Arial,sans-serif}
+.ntab.active{color:var(--g);border-bottom-color:var(--g)}
+.ntab:hover:not(.active){color:var(--d);background:#F8FAF8}
 
-/* ── SECTIONS ──────────────────────────────────────── */
-.sec{display:none;padding:20px 24px;}
-.sec.active{display:block;}
+/* SECTIONS */
+.sec{display:none;padding:20px 24px}
+.sec.active{display:block}
 
-/* ── METRICS ───────────────────────────────────────── */
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
-.metric{background:var(--w);border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid var(--g);position:relative;overflow:hidden;}
-.metric.am{border-top-color:var(--am);}
-.metric.rd{border-top-color:var(--r);}
-.metric.bl{border-top-color:var(--bl);}
-.metric.pu{border-top-color:var(--pu);}
-.mlabel{font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;}
-.mvalue{font-size:26px;font-weight:bold;margin:6px 0 2px;}
-.msub{font-size:11px;color:var(--gr);}
-.micon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:34px;opacity:.1;}
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.metric{background:var(--w);border-radius:10px;padding:18px 20px;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid var(--g);position:relative;overflow:hidden}
+.metric.am{border-top-color:var(--am)}
+.metric.rd{border-top-color:var(--r)}
+.metric.bl{border-top-color:var(--bl)}
+.metric.pu{border-top-color:var(--pu)}
+.mlabel{font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px}
+.mvalue{font-size:26px;font-weight:bold;margin:6px 0 2px}
+.msub{font-size:11px;color:var(--gr)}
+.micon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:34px;opacity:.1}
 
-/* ── CARDS & TABLES ────────────────────────────────── */
-.card{background:var(--w);border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:16px;}
-.card-title{font-size:15px;font-weight:bold;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
-.card-sub{font-size:12px;color:var(--gr);margin-bottom:14px;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+/* CARDS */
+.card{background:var(--w);border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:16px}
+.card-title{font-size:15px;font-weight:bold;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.card-sub{font-size:12px;color:var(--gr);margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 
-table{width:100%;border-collapse:collapse;font-size:13px;}
-th{background:var(--d);color:var(--w);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;white-space:nowrap;}
-td{padding:9px 12px;border-bottom:1px solid var(--grb);vertical-align:middle;}
-tr:hover td{background:var(--gl);}
-.no-data{text-align:center;color:var(--gr);padding:32px;font-size:13px;}
-.table-wrap{overflow-x:auto;}
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--d);color:var(--w);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--grb);vertical-align:middle}
+tr:hover td{background:var(--gl)}
+.no-data{text-align:center;color:var(--gr);padding:32px;font-size:13px}
+.table-wrap{overflow-x:auto}
 
-/* ── BADGES ────────────────────────────────────────── */
-.badge{padding:2px 9px;border-radius:10px;font-size:10px;font-weight:bold;text-transform:uppercase;display:inline-block;}
-.b-ok  {background:var(--gl);color:#0A5C35;}
-.b-warn{background:var(--al);color:var(--am);}
-.b-err {background:var(--rl);color:var(--r);}
-.b-blu {background:var(--bll);color:var(--bl);}
-.b-pu  {background:var(--pul);color:var(--pu);}
-.b-grey{background:#EEE;color:#666;}
+/* BADGES */
+.badge{padding:2px 9px;border-radius:10px;font-size:10px;font-weight:bold;text-transform:uppercase;display:inline-block}
+.b-ok{background:var(--gl);color:#0A5C35}
+.b-warn{background:var(--al);color:var(--am)}
+.b-err{background:var(--rl);color:var(--r)}
+.b-blu{background:var(--bll);color:var(--bl)}
+.b-pu{background:var(--pul);color:var(--pu)}
+.b-grey{background:#EEE;color:#666}
 
-/* ── ROLE TAGS ─────────────────────────────────────── */
-.role-c{background:var(--gl);color:#0A5C35;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:bold;}
-.role-a{background:var(--bll);color:var(--bl);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:bold;}
-.role-m{background:var(--pul);color:var(--pu);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:bold;}
+/* USER CARDS */
+.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.ucard{background:var(--w);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid var(--grb)}
+.ucard-top{padding:14px 16px;display:flex;align-items:center;gap:12px}
+.ucard-top.agent{background:linear-gradient(135deg,#0D1F3A,#1A2A5A)}
+.ucard-top.merchant{background:linear-gradient(135deg,#1A0A2E,#2D1052)}
+.ucard-name{font-size:13px;font-weight:bold;color:var(--w)}
+.ucard-id{font-size:10px;color:var(--pum);margin-top:2px;font-family:monospace}
+.ucard-id.agent-id{color:var(--gm)}
+.uavatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:bold;color:var(--w);flex-shrink:0}
+.uavatar.agent{background:var(--bl)}
+.uavatar.merchant{background:var(--pu)}
+.ucard-body{padding:12px 16px}
+.ustat-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #F0F0F0}
+.ustat-row:last-child{border-bottom:none}
+.ustat-key{font-size:11px;color:var(--gr)}
+.ustat-val{font-size:12px;font-weight:bold}
+.ustat-val.green{color:var(--g)}
+.ustat-val.red{color:var(--r)}
+.ustat-val.amber{color:var(--am)}
 
-/* ── SEARCH & FILTER ───────────────────────────────── */
-.toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
-.search-input{flex:1;min-width:200px;padding:8px 14px;border:1px solid var(--grb);border-radius:8px;font-size:13px;}
-.search-input:focus{outline:none;border-color:var(--g);}
-.filter-select{padding:8px 14px;border:1px solid var(--grb);border-radius:8px;font-size:13px;background:var(--w);cursor:pointer;}
-.rbtn{padding:7px 14px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;white-space:nowrap;}
-.rbtn:hover{background:var(--g);color:var(--w);}
-.export-btn{padding:7px 14px;background:var(--w);color:var(--bl);border:1px solid var(--bl);border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
-.export-btn:hover{background:var(--bl);color:var(--w);}
+/* TOOLBAR */
+.toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.search-input{flex:1;min-width:200px;padding:8px 14px;border:1px solid var(--grb);border-radius:8px;font-size:13px}
+.search-input:focus{outline:none;border-color:var(--g)}
+.filter-select{padding:8px 14px;border:1px solid var(--grb);border-radius:8px;font-size:13px;background:var(--w);cursor:pointer}
+.rbtn{padding:7px 14px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;white-space:nowrap}
+.rbtn:hover{background:var(--g);color:var(--w)}
+.export-btn{padding:7px 14px;background:var(--w);color:var(--bl);border:1px solid var(--bl);border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold}
+.export-btn:hover{background:var(--bl);color:var(--w)}
 
-/* ── USER CARDS ────────────────────────────────────── */
-.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
-.ucard{background:var(--w);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid var(--grb);}
-.ucard-top{padding:14px 16px;display:flex;align-items:center;gap:12px;}
-.ucard-top.customer{background:linear-gradient(135deg,#0D1F1A,#1A4A2A);}
-.ucard-top.agent{background:linear-gradient(135deg,#0D1F3A,#1A2A5A);}
-.ucard-top.merchant{background:linear-gradient(135deg,#1A0A2E,#2D1052);}
-.uavatar.merchant{background:#6B21A8;}
-.uavatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:var(--w);flex-shrink:0;}
-.uavatar.customer{background:var(--g);}
-.uavatar.agent{background:var(--bl);}
-.uavatar.merchant{background:var(--pu);}
-.ucard-name{font-size:13px;font-weight:bold;color:var(--w);}
-.ucard-id{font-size:10px;color:var(--gm);margin-top:2px;font-family:monospace;}
-.ucard-body{padding:12px 16px;}
-.ustat-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #F0F0F0;}
-.ustat-row:last-child{border-bottom:none;}
-.ustat-key{font-size:11px;color:var(--gr);}
-.ustat-val{font-size:12px;font-weight:bold;}
-.ustat-val.green{color:var(--g);}
-.ustat-val.red{color:var(--r);}
-.ustat-val.amber{color:var(--am);}
+/* TOKEN SECTION */
+.token-dark{background:linear-gradient(135deg,#0D1F1A,#1A3A2A);border-radius:12px;padding:22px;border:1px solid var(--g)}
+.token-dark h3{color:var(--w);font-size:15px;margin-bottom:4px}
+.token-dark p{color:var(--gm);font-size:12px;margin-bottom:16px}
+.tf label{display:block;font-size:11px;font-weight:bold;color:var(--gm);margin-bottom:4px;text-transform:uppercase}
+.tf select,.tf input{width:100%;padding:9px 12px;background:#1A3A2A;border:1px solid #2A5A3A;border-radius:6px;font-size:13px;color:var(--w);margin-bottom:12px}
+.genbtn{width:100%;padding:11px;background:var(--g);color:var(--w);border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer}
+.genbtn:disabled{opacity:.4;cursor:not-allowed}
+.token-out{display:none;margin-top:14px}
+.token-out.show{display:block}
+.token-val{background:#0A1A12;border:1px solid var(--g);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#7AE8A8;word-break:break-all;cursor:pointer;line-height:1.6}
+.copy-tok{width:100%;padding:9px;margin-top:8px;background:#1A3A2A;color:var(--gm);border:1px solid var(--g);border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer}
+.copy-tok:hover{background:var(--g);color:var(--w)}
+.tok-err{display:none;margin-top:10px;background:#2A1010;border:1px solid var(--r);border-radius:6px;padding:10px 12px;font-size:13px;color:#FF8A8A}
+.tok-err.show{display:block}
 
-/* ── TOKEN SECTION ─────────────────────────────────── */
-.token-dark{background:linear-gradient(135deg,#0D1F1A,#1A3A2A);border-radius:12px;padding:22px;border:1px solid var(--g);}
-.token-dark h3{color:var(--w);font-size:15px;margin-bottom:4px;}
-.token-dark p{color:var(--gm);font-size:12px;margin-bottom:16px;}
-.tf label{display:block;font-size:11px;font-weight:bold;color:var(--gm);margin-bottom:4px;text-transform:uppercase;}
-.tf select,.tf input{width:100%;padding:9px 12px;background:#1A3A2A;border:1px solid #2A5A3A;border-radius:6px;font-size:13px;color:var(--w);margin-bottom:12px;}
-.genbtn{width:100%;padding:11px;background:var(--g);color:var(--w);border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;}
-.genbtn:disabled{opacity:.4;cursor:not-allowed;}
-.token-out{display:none;margin-top:14px;}
-.token-out.show{display:block;}
-.token-val{background:#0A1A12;border:1px solid var(--g);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#7AE8A8;word-break:break-all;cursor:pointer;line-height:1.6;}
-.copy-tok{width:100%;padding:9px;margin-top:8px;background:#1A3A2A;color:var(--gm);border:1px solid var(--g);border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;}
-.copy-tok:hover{background:var(--g);color:var(--w);}
-.tok-err{display:none;margin-top:10px;background:#2A1010;border:1px solid var(--r);border-radius:6px;padding:10px 12px;font-size:13px;color:#FF8A8A;}
-.tok-err.show{display:block;}
+/* CHARTS */
+.chart-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.chart-day{font-size:11px;color:var(--gr);width:36px;flex-shrink:0;text-align:right}
+.chart-bg{flex:1;background:#F0F2F0;border-radius:4px;height:20px;overflow:hidden}
+.chart-fill{height:100%;border-radius:4px;background:var(--g);display:flex;align-items:center;padding-left:6px;min-width:4px}
+.chart-val{font-size:11px;color:var(--gr);width:70px;flex-shrink:0}
 
-/* ── COIN LOOKUP ───────────────────────────────────── */
-.lookup-row{display:flex;gap:8px;margin-bottom:14px;}
-.lookup-input{flex:1;padding:9px 12px;border:1px solid var(--grb);border-radius:6px;font-size:13px;}
-.lookup-input:focus{outline:none;border-color:var(--g);}
-.lookup-btn{padding:9px 18px;background:var(--g);color:var(--w);border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;}
+/* PROG BARS */
+.prog-row{margin-bottom:14px}
+.prog-label{display:flex;justify-content:space-between;font-size:12px;color:var(--gr);margin-bottom:5px}
+.prog-bar{background:#F0F2F0;border-radius:4px;height:8px}
+.prog-fill{height:100%;border-radius:4px;transition:width .8s}
 
-/* ── PROGRESS BARS ─────────────────────────────────── */
-.prog-row{margin-bottom:14px;}
-.prog-label{display:flex;justify-content:space-between;font-size:12px;color:var(--gr);margin-bottom:5px;}
-.prog-bar{background:#F0F2F0;border-radius:4px;height:8px;}
-.prog-fill{height:100%;border-radius:4px;transition:width .8s;}
+/* ACTIVITY */
+.activity-item{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--grb)}
+.activity-item:last-child{border-bottom:none}
+.activity-dot{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
+.act-ok{background:var(--gl)}
+.act-warn{background:var(--al)}
+.activity-title{font-size:13px;font-weight:bold;color:var(--d)}
+.activity-detail{font-size:11px;color:var(--gr);margin-top:2px}
+.activity-time{font-size:11px;color:var(--gr);flex-shrink:0;white-space:nowrap}
 
-/* ── ACTIVITY FEED ─────────────────────────────────── */
-.activity-item{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--grb);}
-.activity-item:last-child{border-bottom:none;}
-.activity-dot{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;}
-.act-onboard{background:var(--gl);}
-.act-cashin{background:var(--gl);}
-.act-cashout{background:var(--rl);}
-.act-transfer{background:var(--bll);}
-.act-fraud{background:var(--rl);}
-.act-sync{background:var(--al);}
-.activity-info{flex:1;}
-.activity-title{font-size:13px;font-weight:bold;color:var(--d);}
-.activity-detail{font-size:11px;color:var(--gr);margin-top:2px;}
-.activity-time{font-size:11px;color:var(--gr);flex-shrink:0;white-space:nowrap;}
+/* STATUS ROWS */
+.srow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--grb)}
+.srow:last-child{border-bottom:none}
+.sdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sinfo .stitle{font-size:14px;font-weight:bold}
+.sinfo .ssub{font-size:11px;color:var(--gr);margin-top:1px}
+.sbadge{margin-left:auto}
 
-/* ── CHART ─────────────────────────────────────────── */
-.chart-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
-.chart-day{font-size:11px;color:var(--gr);width:36px;flex-shrink:0;text-align:right;}
-.chart-bg{flex:1;background:#F0F2F0;border-radius:4px;height:20px;overflow:hidden;}
-.chart-fill{height:100%;border-radius:4px;background:var(--g);display:flex;align-items:center;padding-left:6px;min-width:4px;transition:width .8s;}
-.chart-fill.am{background:var(--am);}
-.chart-val{font-size:11px;color:var(--gr);width:70px;flex-shrink:0;}
+/* LOOKUP */
+.lookup-row{display:flex;gap:8px;margin-bottom:14px}
+.lookup-input{flex:1;padding:9px 12px;border:1px solid var(--grb);border-radius:6px;font-size:13px}
+.lookup-input:focus{outline:none;border-color:var(--g)}
+.lookup-btn{padding:9px 18px;background:var(--g);color:var(--w);border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold}
 
-/* ── STATUS ────────────────────────────────────────── */
-.srow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--grb);}
-.srow:last-child{border-bottom:none;}
-.sdot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
-.sinfo .stitle{font-size:14px;font-weight:bold;}
-.sinfo .ssub{font-size:11px;color:var(--gr);margin-top:1px;}
-.sbadge{margin-left:auto;}
+/* PAGINATION */
+.pagination{display:flex;justify-content:center;gap:8px;padding:16px 0}
+.page-btn{padding:6px 14px;border:1px solid var(--grb);border-radius:6px;background:var(--w);cursor:pointer;font-size:13px}
+.page-btn.active{background:var(--g);color:var(--w);border-color:var(--g)}
+.page-btn:hover:not(.active){background:var(--gl)}
 
-/* ── PAGINATION ────────────────────────────────────── */
-.pagination{display:flex;justify-content:center;gap:8px;padding:16px 0;}
-.page-btn{padding:6px 14px;border:1px solid var(--grb);border-radius:6px;background:var(--w);cursor:pointer;font-size:13px;}
-.page-btn.active{background:var(--g);color:var(--w);border-color:var(--g);}
-.page-btn:hover:not(.active){background:var(--gl);}
-
-/* ── NOTIF & LOADER ────────────────────────────────── */
-.notif{position:fixed;top:64px;right:20px;background:var(--d);color:var(--w);padding:11px 18px;border-radius:8px;font-size:13px;z-index:200;transform:translateX(120%);transition:transform .3s;max-width:300px;border-left:4px solid var(--g);}
-.notif.show{transform:translateX(0);}
-.notif.error{border-left-color:var(--r);}
-.loader{display:none;position:fixed;inset:0;background:rgba(13,31,26,.7);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
-.loader.show{display:flex;}
-.spinner{width:38px;height:38px;border:3px solid rgba(255,255,255,.2);border-top-color:var(--gm);border-radius:50%;animation:spin .8s linear infinite;}
+/* NOTIF / LOADER */
+.notif{position:fixed;top:64px;right:20px;background:var(--d);color:var(--w);padding:11px 18px;
+  border-radius:8px;font-size:13px;z-index:200;transform:translateX(120%);transition:transform .3s;
+  max-width:300px;border-left:4px solid var(--g)}
+.notif.show{transform:translateX(0)}
+.notif.error{border-left-color:var(--r)}
+.loader{display:none;position:fixed;inset:0;background:rgba(13,31,26,.7);z-index:999;
+  align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.loader.show{display:flex}
+.spinner{width:38px;height:38px;border:3px solid rgba(255,255,255,.2);border-top-color:var(--gm);
+  border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loader-text{color:var(--w);font-size:14px;}
+.loader-text{color:var(--w);font-size:14px}
 
 @media(max-width:900px){
-  .metrics{grid-template-columns:1fr 1fr;}
-  .grid2,.grid3{grid-template-columns:1fr;}
-  .user-grid{grid-template-columns:1fr;}
-  .sec{padding:14px 16px;}
+  .metrics{grid-template-columns:1fr 1fr}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .user-grid{grid-template-columns:1fr}
+  .sec{padding:14px 16px}
 }
 </style>
 </head>
@@ -217,7 +219,7 @@ tr:hover td{background:var(--gl);}
 <div class="notif" id="notif"></div>
 <div class="loader" id="loader"><div class="spinner"></div><div class="loader-text" id="ltxt">Loading...</div></div>
 
-<!-- ══ LOGIN ════════════════════════════════════════════════ -->
+<!-- LOGIN -->
 <div id="login-screen">
   <div class="lbox">
     <div class="llogo">ZILLION</div>
@@ -225,17 +227,15 @@ tr:hover td{background:var(--gl);}
     <div class="lbadge"><span>🔐 Restricted Access</span></div>
     <div class="lf">
       <label>Admin Secret</label>
-      <input type="password" id="l-secret" placeholder="Enter your admin secret"
-        onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="password" id="l-secret" placeholder="Enter your admin secret">
     </div>
     <button class="lbtn" id="lbtn" onclick="doLogin()">Access Dashboard →</button>
     <div class="lerr" id="lerr"></div>
   </div>
 </div>
 
-<!-- ══ APP ══════════════════════════════════════════════════ -->
+<!-- APP -->
 <div id="app-screen">
-
 <header>
   <div class="hlogo">ZILLION</div>
   <div class="hright">
@@ -248,7 +248,7 @@ tr:hover td{background:var(--gl);}
 
 <div class="navtabs">
   <button class="ntab active" onclick="showSec('overview',this)">📊 Overview</button>
-  <button class="ntab" onclick="showSec('users',this)">👥 Customers</button>
+  <button class="ntab" onclick="showSec('customers',this)">👥 Customers</button>
   <button class="ntab" onclick="showSec('merchants',this)">🛒 Merchants</button>
   <button class="ntab" onclick="showSec('agents',this)">🏪 Agents</button>
   <button class="ntab" onclick="showSec('coins',this)">🪙 Coins</button>
@@ -258,423 +258,199 @@ tr:hover td{background:var(--gl);}
   <button class="ntab" onclick="showSec('system',this)">⚙️ System</button>
 </div>
 
-<!-- ══ OVERVIEW ═════════════════════════════════════════════ -->
+<!-- OVERVIEW -->
 <div id="sec-overview" class="sec active">
-
-  <!-- Metrics -->
   <div class="metrics">
-    <div class="metric">
-      <div class="mlabel">Total Users</div>
-      <div class="mvalue" id="m-users">—</div>
-      <div class="msub" id="m-users-sub">Loading...</div>
-      <div class="micon">👥</div>
-    </div>
-    <div class="metric bl">
-      <div class="mlabel">Total Float (Agents)</div>
-      <div class="mvalue" id="m-float">—</div>
-      <div class="msub">Across all agents</div>
-      <div class="micon">💰</div>
-    </div>
-    <div class="metric am">
-      <div class="mlabel">Coins in Circulation</div>
-      <div class="mvalue" id="m-coins">—</div>
-      <div class="msub" id="m-coins-sub">—</div>
-      <div class="micon">🪙</div>
-    </div>
-    <div class="metric rd">
-      <div class="mlabel">Fraud Events</div>
-      <div class="mvalue" id="m-fraud">—</div>
-      <div class="msub">Unresolved flags</div>
-      <div class="micon">🚨</div>
-    </div>
+    <div class="metric"><div class="mlabel">Total Users</div><div class="mvalue" id="m-users">—</div><div class="msub" id="m-users-sub">Loading...</div><div class="micon">👥</div></div>
+    <div class="metric bl"><div class="mlabel">Agent Float</div><div class="mvalue" id="m-float">—</div><div class="msub">Across all agents</div><div class="micon">💰</div></div>
+    <div class="metric am"><div class="mlabel">Coins Issued</div><div class="mvalue" id="m-coins">—</div><div class="msub" id="m-coins-sub">—</div><div class="micon">🪙</div></div>
+    <div class="metric rd"><div class="mlabel">Fraud Events</div><div class="mvalue" id="m-fraud">—</div><div class="msub">Unresolved flags</div><div class="micon">🚨</div></div>
   </div>
-
-  <!-- Second row metrics -->
-  <div class="metrics" style="margin-bottom:16px">
-    <div class="metric pu">
-      <div class="mlabel">PWA Customers</div>
-      <div class="mvalue" id="m-pwa">—</div>
-      <div class="msub">Registered devices</div>
-      <div class="micon">📱</div>
-    </div>
-    <div class="metric">
-      <div class="mlabel">Total Volume</div>
-      <div class="mvalue" id="m-volume">—</div>
-      <div class="msub">All-time transferred</div>
-      <div class="micon">₦</div>
-    </div>
-    <div class="metric am">
-      <div class="mlabel">Transactions</div>
-      <div class="mvalue" id="m-txcount">—</div>
-      <div class="msub">Registry settled</div>
-      <div class="micon">📋</div>
-    </div>
-    <div class="metric bl">
-      <div class="mlabel">Active Agents</div>
-      <div class="mvalue" id="m-agents">—</div>
-      <div class="msub">Of 5 pilot agents</div>
-      <div class="micon">🏪</div>
-    </div>
+  <div class="metrics">
+    <div class="metric pu"><div class="mlabel">Merchants</div><div class="mvalue" id="m-merchants">—</div><div class="msub">Registered</div><div class="micon">🛒</div></div>
+    <div class="metric"><div class="mlabel">PWA Customers</div><div class="mvalue" id="m-pwa">—</div><div class="msub">Registered devices</div><div class="micon">📱</div></div>
+    <div class="metric am"><div class="mlabel">Transactions</div><div class="mvalue" id="m-txcount">—</div><div class="msub">Registry settled</div><div class="micon">📋</div></div>
+    <div class="metric bl"><div class="mlabel">Active Agents</div><div class="mvalue" id="m-agents">—</div><div class="msub">Of 5 pilot</div><div class="micon">🏪</div></div>
   </div>
-  <div class="metrics" style="margin-bottom:16px">
-    <div class="metric pu">
-      <div class="mlabel">Merchants</div>
-      <div class="mvalue" id="m-merchants">—</div>
-      <div class="msub">Registered traders</div>
-      <div class="micon">🛒</div>
-    </div>
-    <div class="metric">
-      <div class="mlabel">Merchant Volume</div>
-      <div class="mvalue" id="m-merch-volume">—</div>
-      <div class="msub">Total received</div>
-      <div class="micon">₦</div>
-    </div>
-    <div class="metric am">
-      <div class="mlabel">QR Payments</div>
-      <div class="mvalue" id="m-qr-payments">—</div>
-      <div class="msub">Completed claims</div>
-      <div class="micon">📲</div>
-    </div>
-    <div class="metric bl">
-      <div class="mlabel">Pending Claims</div>
-      <div class="mvalue" id="m-pending-claims">—</div>
-      <div class="msub">Active QR codes</div>
-      <div class="micon">⏱</div>
-    </div>
-  </div>
-  <div class="metrics" style="display:none"><!-- spacer --></div>
-  <div class="metrics" style="display:none">
-  </div>
-
   <div class="grid2">
-    <!-- Live Activity Feed -->
     <div class="card">
-      <div class="card-title">Live Activity Feed <button class="rbtn" onclick="loadOverview()">↻</button></div>
-      <div class="card-sub">Latest platform events across all users and agents</div>
-      <div id="activity-feed">
-        <div class="no-data">Loading activity...</div>
-      </div>
+      <div class="card-title">Live Activity <button class="rbtn" onclick="loadOverview()">↻</button></div>
+      <div class="card-sub">Latest platform events</div>
+      <div id="activity-feed"><div class="no-data">Loading...</div></div>
     </div>
-
-    <!-- Transaction Volume Chart -->
     <div class="card">
-      <div class="card-title">Transaction Volume (14 days)</div>
-      <div class="card-sub">Daily Zil transfer activity across the platform</div>
-      <div id="vol-chart"><div class="no-data">Loading chart...</div></div>
+      <div class="card-title">Volume (14 days)</div>
+      <div class="card-sub">Daily Zil transfer activity</div>
+      <div id="vol-chart"><div class="no-data">Loading...</div></div>
     </div>
   </div>
-
   <div class="grid3">
-    <!-- User breakdown -->
     <div class="card">
       <div class="card-title">User Breakdown</div>
-      <div class="card-sub">By role</div>
-      <div id="user-breakdown">
-        <div class="no-data">Loading...</div>
-      </div>
+      <div id="user-breakdown"><div class="no-data">Loading...</div></div>
     </div>
-    <!-- Coin status breakdown -->
     <div class="card">
       <div class="card-title">Coin Status</div>
-      <div class="card-sub">Current registry state</div>
-      <div id="coin-breakdown">
-        <div class="no-data">Loading...</div>
-      </div>
+      <div id="coin-breakdown"><div class="no-data">Loading...</div></div>
     </div>
-    <!-- Pilot progress -->
     <div class="card">
       <div class="card-title">Pilot Progress</div>
-      <div class="card-sub">90-day Lagos pilot</div>
       <div id="pilot-progress">
         <div class="prog-row"><div class="prog-label"><span>Agents onboarded</span><span>5/5</span></div><div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--g)"></div></div></div>
-        <div class="prog-row"><div class="prog-label"><span>Agents activated</span><span id="pp-agents">0/5</span></div><div class="prog-bar"><div class="prog-fill" id="pp-agents-bar" style="width:0%;background:var(--am)"></div></div></div>
-        <div class="prog-row"><div class="prog-label"><span>PWA customers</span><span id="pp-pwa">0 registered</span></div><div class="prog-bar"><div class="prog-fill" id="pp-pwa-bar" style="width:0%;background:var(--pu)"></div></div></div>
-        <div class="prog-row"><div class="prog-label"><span>Transactions</span><span id="pp-tx">0/1,000 target</span></div><div class="prog-bar"><div class="prog-fill" id="pp-tx-bar" style="width:0%;background:var(--bl)"></div></div></div>
-        <div class="prog-row"><div class="prog-label"><span>Volume target ₦500k</span><span id="pp-vol">₦0</span></div><div class="prog-bar"><div class="prog-fill" id="pp-vol-bar" style="width:0%;background:var(--g)"></div></div></div>
+        <div class="prog-row"><div class="prog-label"><span>Merchants</span><span id="pp-merch">0</span></div><div class="prog-bar"><div class="prog-fill" id="pp-merch-bar" style="width:0%;background:var(--pu)"></div></div></div>
+        <div class="prog-row"><div class="prog-label"><span>PWA customers</span><span id="pp-pwa">0</span></div><div class="prog-bar"><div class="prog-fill" id="pp-pwa-bar" style="width:0%;background:var(--bl)"></div></div></div>
+        <div class="prog-row"><div class="prog-label"><span>Transactions</span><span id="pp-tx">0/1,000</span></div><div class="prog-bar"><div class="prog-fill" id="pp-tx-bar" style="width:0%;background:var(--am)"></div></div></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══ USERS (PWA Customers + Merchants) ════════════════════ -->
-<div id="sec-users" class="sec">
+<!-- CUSTOMERS -->
+<div id="sec-customers" class="sec">
   <div class="card">
-    <div class="card-title">
-      All Users — Customers & Merchants
-      <div style="display:flex;gap:8px">
-        <button class="export-btn" onclick="exportUsers()">⬇ Export CSV</button>
-        <button class="rbtn" onclick="loadUsers()">↻ Refresh</button>
-      </div>
-    </div>
-    <div class="card-sub">All PWA-registered devices. Each device represents one user account.</div>
+    <div class="card-title">All PWA Customers<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportUsers()">⬇ CSV</button><button class="rbtn" onclick="loadUsers()">↻</button></div></div>
+    <div class="card-sub">All PWA-registered customer devices</div>
     <div class="toolbar">
-      <input class="search-input" type="text" id="user-search" placeholder="Search by device ID or phone hash..." oninput="filterUserTable()">
+      <input class="search-input" id="user-search" placeholder="Search device or phone hash..." oninput="filterUserTable()">
       <select class="filter-select" id="user-status-filter" onchange="filterUserTable()">
-        <option value="">All Status</option>
-        <option value="ACTIVE">Active</option>
-        <option value="SUSPENDED">Suspended</option>
-        <option value="FLAGGED">Flagged</option>
-      </select>
-      <select class="filter-select" id="user-sort" onchange="filterUserTable()">
-        <option value="newest">Newest first</option>
-        <option value="balance">Highest balance</option>
-        <option value="activity">Most transactions</option>
+        <option value="">All Status</option><option value="ACTIVE">Active</option><option value="FLAGGED">Flagged</option>
       </select>
     </div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Device ID</th>
-            <th>Phone Hash</th>
-            <th>Status</th>
-            <th>Registered</th>
-            <th>Last Active</th>
-            <th>Balance</th>
-            <th>Sent</th>
-            <th>Received</th>
-            <th>Tx Count</th>
-            <th>Fraud</th>
-          </tr>
-        </thead>
-        <tbody id="user-table-body">
-          <tr><td colspan="10" class="no-data">Loading users...</td></tr>
-        </tbody>
+        <thead><tr><th>Device ID</th><th>Phone Hash</th><th>Status</th><th>Registered</th><th>Last Active</th><th>Balance</th><th>Sent</th><th>Received</th><th>Tx Count</th><th>Fraud</th></tr></thead>
+        <tbody id="user-table-body"><tr><td colspan="10" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
-    <div id="user-pagination" class="pagination"></div>
   </div>
 </div>
 
-<!-- ══ MERCHANTS ══════════════════════════════════════════════ -->
+<!-- MERCHANTS -->
 <div id="sec-merchants" class="sec">
-
-  <!-- Summary cards -->
-  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
-    <div class="metric pu">
-      <div class="mlabel">Total Merchants</div>
-      <div class="mvalue" id="merch-m-total">—</div>
-      <div class="msub">Registered</div>
-      <div class="micon">🛒</div>
-    </div>
-    <div class="metric">
-      <div class="mlabel">Active</div>
-      <div class="mvalue" id="merch-m-active" style="color:var(--g)">—</div>
-      <div class="msub">Transacting</div>
-      <div class="micon">✅</div>
-    </div>
-    <div class="metric am">
-      <div class="mlabel">Total Payments</div>
-      <div class="mvalue" id="merch-m-payments">—</div>
-      <div class="msub">QR claims settled</div>
-      <div class="micon">📲</div>
-    </div>
-    <div class="metric bl">
-      <div class="mlabel">Total Volume</div>
-      <div class="mvalue" id="merch-m-volume">—</div>
-      <div class="msub">All-time received</div>
-      <div class="micon">₦</div>
-    </div>
+  <div class="metrics">
+    <div class="metric pu"><div class="mlabel">Total Merchants</div><div class="mvalue" id="merch-m-total">—</div><div class="msub">Registered</div><div class="micon">🛒</div></div>
+    <div class="metric"><div class="mlabel">Active</div><div class="mvalue" id="merch-m-active" style="color:var(--g)">—</div><div class="msub">Transacting</div><div class="micon">✅</div></div>
+    <div class="metric am"><div class="mlabel">Total Payments</div><div class="mvalue" id="merch-m-payments">—</div><div class="msub">QR claims</div><div class="micon">📲</div></div>
+    <div class="metric bl"><div class="mlabel">Total Volume</div><div class="mvalue" id="merch-m-volume">—</div><div class="msub">All-time</div><div class="micon">₦</div></div>
   </div>
-
-  <!-- Merchant cards grid -->
   <div class="card">
     <div class="card-title">
       All Merchants
       <div style="display:flex;gap:8px">
-        <button class="export-btn" onclick="exportMerchants()">⬇ Export CSV</button>
+        <button class="export-btn" onclick="exportMerchants()">⬇ CSV</button>
         <button class="rbtn" onclick="loadMerchants()">↻ Refresh</button>
       </div>
     </div>
-    <div class="card-sub">All registered merchants. Register at zillion-mvp.netlify.app/merchant/</div>
+    <div class="card-sub">Register at: zillion-mvp.netlify.app/merchant/ — Run merchants.sql in Supabase if first time</div>
     <div class="toolbar">
-      <input class="search-input" id="merch-search" placeholder="Search by name, location, type..."
-        oninput="filterMerchantTable()">
+      <input class="search-input" id="merch-search" placeholder="Search name, location, type..." oninput="filterMerchantTable()">
       <select class="filter-select" id="merch-status-filter" onchange="filterMerchantTable()">
-        <option value="">All Status</option>
-        <option value="ACTIVE">Active</option>
-        <option value="SUSPENDED">Suspended</option>
-        <option value="PENDING">Pending</option>
+        <option value="">All Status</option><option value="ACTIVE">Active</option>
+        <option value="SUSPENDED">Suspended</option><option value="PENDING">Pending</option>
       </select>
       <select class="filter-select" id="merch-type-filter" onchange="filterMerchantTable()">
         <option value="">All Types</option>
-        <option value="Food & Vegetables">Food &amp; Vegetables</option>
-        <option value="Clothing & Fashion">Clothing &amp; Fashion</option>
+        <option value="Food & Vegetables">Food &amp; Veg</option>
+        <option value="Clothing & Fashion">Clothing</option>
         <option value="Electronics">Electronics</option>
-        <option value="Restaurant & Food">Restaurant &amp; Food</option>
+        <option value="Restaurant & Food">Restaurant</option>
         <option value="Transport">Transport</option>
         <option value="General Retail">General Retail</option>
         <option value="Services">Services</option>
-        <option value="Other">Other</option>
       </select>
     </div>
     <div id="merchant-cards-grid" class="user-grid">
-      <div class="no-data">Loading merchants...</div>
+      <div class="no-data" style="grid-column:1/-1">Click Refresh to load merchants</div>
     </div>
   </div>
-
-  <!-- Merchant table -->
   <div class="card">
     <div class="card-title">Merchant Registry</div>
-    <div class="card-sub">Complete list with payment activity</div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Merchant ID</th>
-            <th>Owner</th>
-            <th>Business</th>
-            <th>Type</th>
-            <th>Location</th>
-            <th>Phone</th>
-            <th>Registered</th>
-            <th>Payments</th>
-            <th>Volume</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody id="merchant-table-body">
-          <tr><td colspan="11" class="no-data">Loading...</td></tr>
-        </tbody>
+        <thead><tr><th>Merchant ID</th><th>Owner</th><th>Business</th><th>Type</th><th>Location</th><th>Phone</th><th>Registered</th><th>Payments</th><th>Volume</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="merchant-table-body"><tr><td colspan="11" class="no-data">Click Refresh to load</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- ══ AGENTS ════════════════════════════════════════════════ -->
+<!-- AGENTS -->
 <div id="sec-agents" class="sec">
   <div class="card">
-    <div class="card-title">
-      Agent Management
-      <div style="display:flex;gap:8px">
-        <button class="export-btn" onclick="exportAgents()">⬇ Export CSV</button>
-        <button class="rbtn" onclick="loadAgents()">↻ Refresh</button>
-      </div>
-    </div>
-    <div class="card-sub">All registered pilot agents. Click "Generate Token" on any agent to activate them.</div>
-    <div id="agent-cards-grid" class="user-grid">
-      <div class="no-data">Loading agents...</div>
-    </div>
+    <div class="card-title">Agent Management<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportAgents()">⬇ CSV</button><button class="rbtn" onclick="loadAgents()">↻</button></div></div>
+    <div class="card-sub">All registered pilot agents. Use Tokens tab to generate JWT.</div>
+    <div id="agent-cards-grid" class="user-grid"><div class="no-data">Loading...</div></div>
   </div>
-
-  <!-- Agent onboarding history -->
   <div class="card">
-    <div class="card-title">Agent Activity Summary</div>
-    <div class="card-sub">Coins issued, redeemed, and float balance per agent</div>
+    <div class="card-title">Agent Activity</div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>Agent ID</th><th>Name</th><th>Location</th><th>Float</th><th>Coins Issued</th><th>Redeemed</th><th>Last Login</th><th>Status</th></tr>
-        </thead>
-        <tbody id="agent-table-body">
-          <tr><td colspan="8" class="no-data">Loading...</td></tr>
-        </tbody>
+        <thead><tr><th>Agent ID</th><th>Name</th><th>Location</th><th>Float</th><th>Issued</th><th>Redeemed</th><th>Last Login</th><th>Status</th></tr></thead>
+        <tbody id="agent-table-body"><tr><td colspan="8" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- ══ COINS ═════════════════════════════════════════════════ -->
+<!-- COINS -->
 <div id="sec-coins" class="sec">
   <div class="grid3" style="margin-bottom:16px">
-    <div class="card" style="padding:16px">
-      <div class="mlabel">Total Issued</div>
-      <div class="mvalue" id="coin-m-total">—</div>
-    </div>
-    <div class="card" style="padding:16px">
-      <div class="mlabel">Currently Held</div>
-      <div class="mvalue" id="coin-m-held" style="color:var(--g)">—</div>
-    </div>
-    <div class="card" style="padding:16px">
-      <div class="mlabel">Redeemed</div>
-      <div class="mvalue" id="coin-m-redeemed" style="color:var(--am)">—</div>
-    </div>
+    <div class="card" style="padding:16px"><div class="mlabel">Total Issued</div><div class="mvalue" id="coin-m-total">—</div></div>
+    <div class="card" style="padding:16px"><div class="mlabel">Currently Held</div><div class="mvalue" id="coin-m-held" style="color:var(--g)">—</div></div>
+    <div class="card" style="padding:16px"><div class="mlabel">Redeemed</div><div class="mvalue" id="coin-m-redeemed" style="color:var(--am)">—</div></div>
   </div>
-
   <div class="card">
-    <div class="card-title">
-      Coin Registry
-      <div style="display:flex;gap:8px">
-        <button class="export-btn" onclick="exportCoins()">⬇ Export CSV</button>
-        <button class="rbtn" onclick="loadCoins()">↻ Refresh</button>
-      </div>
-    </div>
-    <div class="card-sub">Every coin ever issued. Full Ed25519 signature record.</div>
+    <div class="card-title">Coin Registry<div style="display:flex;gap:8px"><button class="rbtn" onclick="loadCoins()">↻</button></div></div>
     <div class="toolbar">
       <select class="filter-select" id="coin-status-filter" onchange="loadCoins()">
-        <option value="">All Status</option>
-        <option value="ISSUED">Issued</option>
-        <option value="HELD">Held</option>
-        <option value="SPENT">Spent</option>
-        <option value="REDEEMED">Redeemed</option>
-        <option value="EXPIRED">Expired</option>
+        <option value="">All Status</option><option value="ISSUED">Issued</option>
+        <option value="HELD">Held</option><option value="SPENT">Spent</option>
+        <option value="REDEEMED">Redeemed</option><option value="EXPIRED">Expired</option>
       </select>
       <select class="filter-select" id="coin-agent-filter" onchange="loadCoins()">
         <option value="">All Agents</option>
-        <option value="AGENT-00001">AGENT-00001</option>
-        <option value="AGENT-00002">AGENT-00002</option>
-        <option value="AGENT-00003">AGENT-00003</option>
-        <option value="AGENT-00004">AGENT-00004</option>
+        <option value="AGENT-00001">AGENT-00001</option><option value="AGENT-00002">AGENT-00002</option>
+        <option value="AGENT-00003">AGENT-00003</option><option value="AGENT-00004">AGENT-00004</option>
         <option value="AGENT-00005">AGENT-00005</option>
       </select>
     </div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>Coin ID</th><th>Amount</th><th>Issued By</th><th>Issued At</th><th>Expires</th><th>Status</th><th>Holder</th><th>Transactions</th></tr>
-        </thead>
-        <tbody id="coin-table-body">
-          <tr><td colspan="8" class="no-data">Loading coins...</td></tr>
-        </tbody>
+        <thead><tr><th>Coin ID</th><th>Amount</th><th>Issued By</th><th>Issued At</th><th>Expires</th><th>Status</th><th>Holder</th></tr></thead>
+        <tbody id="coin-table-body"><tr><td colspan="7" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
-    <div id="coin-pagination" class="pagination"></div>
   </div>
 </div>
 
-<!-- ══ TRANSACTIONS ══════════════════════════════════════════ -->
+<!-- TRANSACTIONS -->
 <div id="sec-transactions" class="sec">
   <div class="card">
-    <div class="card-title">
-      Platform Transactions
-      <div style="display:flex;gap:8px">
-        <button class="export-btn" onclick="exportTransactions()">⬇ Export CSV</button>
-        <button class="rbtn" onclick="loadTransactions()">↻ Refresh</button>
-      </div>
-    </div>
-    <div class="card-sub">Every settled and synced transaction across the entire platform.</div>
+    <div class="card-title">Platform Transactions<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportTransactions()">⬇ CSV</button><button class="rbtn" onclick="loadTransactions()">↻</button></div></div>
     <div class="toolbar">
       <select class="filter-select" id="tx-status-filter" onchange="loadTransactions()">
-        <option value="">All Status</option>
-        <option value="SETTLED">Settled</option>
-        <option value="CONFLICT">Conflict</option>
-        <option value="REJECTED">Rejected</option>
+        <option value="">All Status</option><option value="SETTLED">Settled</option>
+        <option value="CONFLICT">Conflict</option><option value="REJECTED">Rejected</option>
       </select>
     </div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>TX ID</th><th>Coin ID</th><th>Amount</th><th>From</th><th>To</th><th>Device TX Time</th><th>Sync Time</th><th>Status</th></tr>
-        </thead>
-        <tbody id="tx-table-body">
-          <tr><td colspan="8" class="no-data">Loading transactions...</td></tr>
-        </tbody>
+        <thead><tr><th>TX ID</th><th>Coin ID</th><th>Amount</th><th>From</th><th>To</th><th>TX Time</th><th>Sync Time</th><th>Status</th></tr></thead>
+        <tbody id="tx-table-body"><tr><td colspan="8" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
-    <div id="tx-pagination" class="pagination"></div>
   </div>
 </div>
 
-<!-- ══ TOKENS ════════════════════════════════════════════════ -->
+<!-- TOKENS -->
 <div id="sec-tokens" class="sec">
   <div class="grid2">
     <div class="card">
       <div class="card-title">Generate Agent Token</div>
-      <div class="card-sub">Activate any agent by generating their JWT. Send via WhatsApp.</div>
+      <div class="card-sub">Activate any agent by generating their JWT.</div>
       <div class="token-dark">
         <h3>🔐 New Agent Token</h3>
-        <p>Select agent and generate their 1-year JWT login token.</p>
+        <p>Select agent and generate their 1-year JWT token.</p>
         <div class="tf">
           <label>Agent</label>
           <select id="t-agent" onchange="onAgentSelect()">
@@ -691,7 +467,7 @@ tr:hover td{background:var(--gl);}
         <button class="genbtn" id="genbtn" onclick="generateToken()">Generate Token →</button>
         <div class="tok-err" id="tok-err"></div>
         <div class="token-out" id="tok-out">
-          <div style="font-size:11px;color:var(--gm);margin-bottom:6px;text-transform:uppercase">JWT Token — click to select all</div>
+          <div style="font-size:11px;color:var(--gm);margin-bottom:6px;text-transform:uppercase">JWT Token (click to select)</div>
           <div class="token-val" id="tok-val" onclick="selectAllText(this)"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
             <div style="background:#1A3A2A;border-radius:6px;padding:8px;text-align:center">
@@ -703,699 +479,292 @@ tr:hover td{background:var(--gl);}
               <div style="font-size:12px;color:var(--w);font-weight:bold" id="tok-exp">—</div>
             </div>
           </div>
-          <button class="copy-tok" id="copy-tok" onclick="copyToken()">📋 Copy Token</button>
+          <button class="copy-tok" onclick="copyToken()">📋 Copy Token</button>
           <button class="copy-tok" style="margin-top:6px" onclick="shareTokenWA()">📱 Share via WhatsApp</button>
-          <div style="margin-top:12px;background:#1A3A2A;border-radius:6px;padding:12px;border-left:3px solid var(--g)">
-            <div style="font-size:12px;color:var(--gm);line-height:1.8">
-              <strong style="color:var(--w)">Activation steps:</strong><br>
-              1. Copy token above<br>
-              2. Send to agent via WhatsApp<br>
-              3. Agent opens <strong style="color:var(--w)">/agent</strong><br>
-              4. Enters Agent ID + pastes token → Login
-            </div>
-          </div>
         </div>
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Token History (this session)</div>
-      <div class="card-sub">Tokens generated since last login</div>
+      <div class="card-title">Token History (session)</div>
       <div id="tok-history"><div class="no-data">No tokens generated yet</div></div>
     </div>
   </div>
 </div>
 
-<!-- ══ FRAUD ═════════════════════════════════════════════════ -->
+<!-- FRAUD -->
 <div id="sec-fraud" class="sec">
   <div class="grid2" style="margin-bottom:16px">
-    <div class="card" style="padding:16px">
-      <div class="mlabel">Open Fraud Events</div>
-      <div class="mvalue" id="fraud-m-open" style="color:var(--r)">—</div>
-    </div>
-    <div class="card" style="padding:16px">
-      <div class="mlabel">High-Risk Devices</div>
-      <div class="mvalue" id="fraud-m-devices" style="color:var(--am)">—</div>
-    </div>
+    <div class="card" style="padding:16px"><div class="mlabel">Open Fraud Events</div><div class="mvalue" id="fraud-m-open" style="color:var(--r)">—</div></div>
+    <div class="card" style="padding:16px"><div class="mlabel">High-Risk Devices</div><div class="mvalue" id="fraud-m-devices" style="color:var(--am)">—</div></div>
   </div>
   <div class="card">
-    <div class="card-title">
-      Fraud Event Registry
-      <button class="rbtn" onclick="loadFraud()">↻ Refresh</button>
-    </div>
-    <div class="card-sub">Double-spend attempts, replay attacks, and sync conflicts flagged by the registry.</div>
+    <div class="card-title">Fraud Registry<button class="rbtn" style="margin-left:auto" onclick="loadFraud()">↻</button></div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>Event ID</th><th>Type</th><th>Device</th><th>Coin ID</th><th>Detected At</th><th>Severity</th><th>Resolved</th><th>Action</th></tr>
-        </thead>
-        <tbody id="fraud-table-body">
-          <tr><td colspan="8" class="no-data">No fraud events — system is clean 🛡️</td></tr>
-        </tbody>
+        <thead><tr><th>Event ID</th><th>Type</th><th>Device</th><th>Coin ID</th><th>Detected</th><th>Severity</th><th>Resolved</th></tr></thead>
+        <tbody id="fraud-table-body"><tr><td colspan="7" class="no-data">🛡️ No fraud events</td></tr></tbody>
       </table>
     </div>
-  </div>
-  <div class="card">
-    <div class="card-title">High-Risk Devices</div>
-    <div class="card-sub">Devices with fraud score above 0</div>
-    <div id="risk-device-list"><div class="no-data">No high-risk devices detected</div></div>
   </div>
 </div>
 
-<!-- ══ SYSTEM ════════════════════════════════════════════════ -->
+<!-- SYSTEM -->
 <div id="sec-system" class="sec">
   <div class="grid2">
     <div class="card">
-      <div class="card-title">System Health <button class="rbtn" onclick="checkSystem()">↻ Check All</button></div>
-      <div class="card-sub">Live status of all Zillion components</div>
-      <div class="srow"><div class="sdot" style="background:var(--g)"></div><div class="sinfo"><div class="stitle">Netlify Functions</div><div class="ssub">14 endpoints deployed</div></div><div class="sbadge"><span class="badge b-ok">LIVE</span></div></div>
-      <div class="srow"><div class="sdot" id="sd-db" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">Supabase Registry</div><div class="ssub" id="ss-db">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-db">CHECKING</span></div></div>
-      <div class="srow"><div class="sdot" id="sd-mint" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">Mint / Ed25519 Keys</div><div class="ssub" id="ss-mint">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-mint">CHECKING</span></div></div>
-      <div class="srow"><div class="sdot" id="sd-tok" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">Agent Token API</div><div class="ssub" id="ss-tok">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-tok">CHECKING</span></div></div>
-      <div class="srow"><div class="sdot" id="sd-pwa" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">PWA Wallet</div><div class="ssub" id="ss-pwa">Checking /wallet/...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-pwa">CHECKING</span></div></div>
-      <div class="srow"><div class="sdot" style="background:#DDD"></div><div class="sinfo"><div class="stitle">Mobile App (Native)</div><div class="ssub">React Native — Phase 2</div></div><div class="sbadge"><span class="badge b-grey">PHASE 2</span></div></div>
+      <div class="card-title">System Health <button class="rbtn" onclick="checkSystem()">↻ Check</button></div>
+      <div class="srow"><div class="sdot" style="background:var(--g)"></div><div class="sinfo"><div class="stitle">Netlify Functions</div><div class="ssub">Deployed</div></div><div class="sbadge"><span class="badge b-ok">LIVE</span></div></div>
+      <div class="srow"><div class="sdot" id="sd-db" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">Supabase Registry</div><div class="ssub" id="ss-db">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-db">CHECK</span></div></div>
+      <div class="srow"><div class="sdot" id="sd-mint" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">Mint / Ed25519</div><div class="ssub" id="ss-mint">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-mint">CHECK</span></div></div>
+      <div class="srow"><div class="sdot" id="sd-pwa" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">PWA Wallet</div><div class="ssub" id="ss-pwa">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-pwa">CHECK</span></div></div>
+      <div class="srow"><div class="sdot" id="sd-merch" style="background:var(--am)"></div><div class="sinfo"><div class="stitle">Merchant Portal</div><div class="ssub" id="ss-merch">Checking...</div></div><div class="sbadge"><span class="badge b-warn" id="sb-merch">CHECK</span></div></div>
     </div>
     <div class="card">
-      <div class="card-title">Platform Summary</div>
-      <div class="card-sub">Live registry statistics</div>
-      <table>
-        <tbody id="platform-summary-body">
-          <tr><td style="font-weight:bold">Total Agents</td><td>5</td></tr>
-          <tr><td style="font-weight:bold">Loading...</td><td>—</td></tr>
-        </tbody>
-      </table>
+      <div class="card-title">Coin Lookup</div>
+      <div class="lookup-row">
+        <input class="lookup-input" id="coin-lookup-input" placeholder="ZIL-20260613-..." onkeydown="if(event.key==='Enter')lookupCoin()">
+        <button class="lookup-btn" onclick="lookupCoin()">Check</button>
+      </div>
+      <div id="coin-lookup-result"></div>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Coin Lookup</div>
-    <div class="card-sub">Check any coin's live status in the registry</div>
-    <div class="lookup-row">
-      <input class="lookup-input" type="text" id="coin-lookup-input"
-        placeholder="ZIL-20260613-B99BF022-1781346372559"
-        onkeydown="if(event.key==='Enter')lookupCoin()">
-      <button class="lookup-btn" onclick="lookupCoin()">Check Coin</button>
-    </div>
-    <div id="coin-lookup-result"></div>
   </div>
 </div>
 
 </div><!-- end app-screen -->
 
 <script>
+'use strict';
 const API = '/.netlify/functions';
 let adminToken = null;
 let tokHistory = [];
 let allUsers = [];
 let allAgentsData = [];
-let coinsOffset = 0;
-let txOffset = 0;
+let allMerchantsData = [];
 
-// ── LOGIN ─────────────────────────────────────────────────────
+// ── LOGIN ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('zil_admin_token');
+  const saved  = localStorage.getItem('zil_admin_token');
   const secret = localStorage.getItem('zil_admin_secret');
-  if (saved && secret) { adminToken=saved; silentLoad(secret); }
-  document.getElementById('l-secret').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  if (saved && secret) { adminToken = saved; showApp(); }
+  document.getElementById('l-secret').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 });
 
 async function doLogin() {
   const secret = document.getElementById('l-secret').value.trim();
   const errEl  = document.getElementById('lerr');
   const btn    = document.getElementById('lbtn');
-  errEl.className='lerr';
-  if (!secret){errEl.textContent='Enter your admin secret.';errEl.className='lerr show';return;}
-  btn.disabled=true; btn.textContent='Verifying...';
+  errEl.className = 'lerr';
+  if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
+  btn.disabled = true; btn.textContent = 'Verifying...';
   showLoader('Authenticating...');
   try {
-    const res  = await fetch(`${API}/admin-login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_secret:secret})});
+    const res  = await fetch(`${API}/admin-login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_secret:secret}) });
     const data = await res.json();
     hideLoader();
-    if (!res.ok){errEl.textContent='⚠️ '+(data.error||'Invalid secret');errEl.className='lerr show';return;}
+    if (!res.ok) { errEl.textContent = '⚠️ ' + (data.error||'Invalid secret'); errEl.className = 'lerr show'; return; }
     adminToken = data.token;
     localStorage.setItem('zil_admin_token', adminToken);
     localStorage.setItem('zil_admin_secret', secret);
     showApp();
-  } catch(e){hideLoader();errEl.textContent='⚠️ '+e.message;errEl.className='lerr show';}
-  finally{btn.disabled=false;btn.textContent='Access Dashboard →';}
+  } catch(e) { hideLoader(); errEl.textContent = '⚠️ ' + e.message; errEl.className = 'lerr show'; }
+  finally { btn.disabled = false; btn.textContent = 'Access Dashboard →'; }
 }
 
-async function silentLoad(secret) {
-  showLoader('Restoring session...');
-  try { await loadOverview(); hideLoader(); showApp(); }
-  catch { hideLoader(); localStorage.removeItem('zil_admin_token'); localStorage.removeItem('zil_admin_secret'); adminToken=null; }
-}
-
-function showApp() {
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('app-screen').style.display='block';
-  loadOverview();
-  checkSystem();
-}
 function doLogout() {
   localStorage.removeItem('zil_admin_token');
   localStorage.removeItem('zil_admin_secret');
-  adminToken=null;
-  document.getElementById('app-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('l-secret').value='';
+  adminToken = null;
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-secret').value = '';
 }
 
-// ── NAV ───────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display   = 'block';
+  loadOverview();
+  checkSystem();
+}
+
+// ── NAV ────────────────────────────────────────────────────────
 function showSec(name, el) {
-  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('sec-'+name).classList.add('active');
-  const loaders={users:loadUsers,merchants:loadMerchants,agents:loadAgents,
-    coins:loadCoins,transactions:loadTransactions,fraud:loadFraud,system:checkSystem};
+  document.getElementById('sec-' + name).classList.add('active');
+  const loaders = { customers:loadUsers, merchants:loadMerchants, agents:loadAgents, coins:loadCoins, transactions:loadTransactions, fraud:loadFraud, system:checkSystem };
   if (loaders[name]) loaders[name]();
 }
 
-// ── OVERVIEW ──────────────────────────────────────────────────
+// ── OVERVIEW ───────────────────────────────────────────────────
 async function loadOverview() {
   try {
-    const [agRes, usrRes, txRes, coinRes] = await Promise.all([
-      fetch(`${API}/admin-agents`,{headers:{'Authorization':'Bearer '+adminToken}}),
-      fetch(`${API}/admin-users`, {headers:{'Authorization':'Bearer '+adminToken}}),
-      fetch(`${API}/admin-transactions`,{headers:{'Authorization':'Bearer '+adminToken}}),
-      fetch(`${API}/admin-coins`,{headers:{'Authorization':'Bearer '+adminToken}}),
+    const [agRes, usrRes, txRes, coinRes, merchRes] = await Promise.all([
+      fetch(`${API}/admin-agents`,       {headers:{'Authorization':'Bearer '+adminToken}}),
+      fetch(`${API}/admin-users`,        {headers:{'Authorization':'Bearer '+adminToken}}),
+      fetch(`${API}/admin-transactions`, {headers:{'Authorization':'Bearer '+adminToken}}),
+      fetch(`${API}/admin-coins`,        {headers:{'Authorization':'Bearer '+adminToken}}),
+      fetch(`${API}/admin-merchants`,    {headers:{'Authorization':'Bearer '+adminToken}}),
     ]);
-
-    const agents = agRes.ok ? await agRes.json() : {platform:{},agents:[]};
-    const users  = usrRes.ok? await usrRes.json() : {users:[],platform:{}};
-    const txData = txRes.ok ? await txRes.json() : {transactions:[],daily_volume:{}};
-    const coinData= coinRes.ok? await coinRes.json():{coins:[],summary:{by_status:{},total_value_kobo:0}};
+    const agents  = agRes.ok    ? await agRes.json()    : {platform:{},agents:[]};
+    const users   = usrRes.ok   ? await usrRes.json()   : {users:[],platform:{}};
+    const txData  = txRes.ok    ? await txRes.json()    : {transactions:[],daily_volume:{}};
+    const coins   = coinRes.ok  ? await coinRes.json()  : {summary:{by_status:{}}};
+    const merchs  = merchRes.ok ? await merchRes.json() : {merchants:[],total:0};
 
     const ap = agents.platform || {};
     const up = users.platform  || {};
 
-    // Metrics
-    const totalUsers = (up.total_users||0) + (ap.total_agents||0);
-    setText('m-users', totalUsers);
+    setText('m-users',    (up.total_users||0) + (ap.total_agents||0));
     setText('m-users-sub', `${up.total_users||0} PWA + ${ap.total_agents||0} agents`);
-    setText('m-float', fmt(ap.total_float_kobo||0));
-    setText('m-coins', ap.total_coins||0);
-    setText('m-coins-sub', `₦${((coinData.summary?.total_value_kobo||0)/100).toLocaleString()} total value`);
-    setText('m-fraud', up.open_fraud_events||ap.fraud_events||0);
-    setText('m-pwa', up.total_users||0);
-    setText('m-volume', fmt(up.total_volume_kobo||0));
-    setText('m-txcount', up.total_transactions||ap.total_transactions||0);
-    setText('m-agents', agents.agents?.filter(a=>a.last_activity).length||0);
-
-    // Platform summary table
-    document.getElementById('platform-summary-body').innerHTML = [
-      ['Total Agents', ap.total_agents||5],
-      ['Total Float', fmt(ap.total_float_kobo||0)],
-      ['PWA Users', up.total_users||0],
-      ['Total Coins', ap.total_coins||0],
-      ['Coins Held', ap.coins_held||0],
-      ['Coins Spent', ap.coins_spent||0],
-      ['Total Transactions', ap.total_transactions||0],
-      ['Open Fraud Events', up.open_fraud_events||ap.fraud_events||0],
-    ].map(([k,v])=>`<tr><td style="font-weight:bold">${k}</td><td>${v}</td></tr>`).join('');
-
-    // Pilot progress
-    const activated = (agents.agents||[]).filter(a=>a.last_activity).length;
-    const txCount   = ap.total_transactions||0;
-    const volKobo   = up.total_volume_kobo||0;
-    const pwaUsers  = up.total_users||0;
-    setText('pp-agents', `${activated}/5`);
-    setText('pp-pwa', `${pwaUsers} registered`);
-    setText('pp-tx', `${txCount}/1,000 target`);
-    setText('pp-vol', fmt(volKobo));
-    setWidth('pp-agents-bar', (activated/5)*100);
-    setWidth('pp-pwa-bar', Math.min((pwaUsers/50)*100,100));
-    setWidth('pp-tx-bar', Math.min((txCount/1000)*100,100));
-    setWidth('pp-vol-bar', Math.min((volKobo/50000000)*100,100));
+    setText('m-float',    fmt(ap.total_float_kobo||0));
+    setText('m-coins',    ap.total_coins||0);
+    setText('m-fraud',    up.open_fraud_events||0);
+    setText('m-pwa',      up.total_users||0);
+    setText('m-txcount',  up.total_transactions||0);
+    setText('m-agents',   (agents.agents||[]).filter(a=>a.last_activity).length||0);
+    setText('m-merchants', merchs.total||0);
+    setText('pp-merch',   merchs.total||0);
+    setText('pp-pwa',     up.total_users||0);
+    setText('pp-tx',      (up.total_transactions||0)+'/1,000');
+    setWidth('pp-merch-bar', Math.min((merchs.total||0)/20*100, 100));
+    setWidth('pp-pwa-bar',   Math.min((up.total_users||0)/50*100, 100));
+    setWidth('pp-tx-bar',    Math.min((up.total_transactions||0)/1000*100, 100));
 
     // User breakdown
     document.getElementById('user-breakdown').innerHTML = `
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--gl);border-radius:8px">
-          <span style="font-weight:bold">👩‍🌾 Customers (PWA)</span>
-          <span class="role-c">${up.total_users||0} users</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bll);border-radius:8px">
-          <span style="font-weight:bold">🏪 Agents</span>
-          <span class="role-a">${ap.total_agents||5} agents</span>
+          <span style="font-weight:bold">👥 Customers (PWA)</span><span class="badge b-ok">${up.total_users||0} users</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--pul);border-radius:8px">
-          <span style="font-weight:bold">🛒 Merchants (PWA)</span>
-          <span class="role-m">Coming in Phase 2</span>
+          <span style="font-weight:bold">🛒 Merchants</span><span class="badge b-pu">${merchs.total||0} registered</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bll);border-radius:8px">
+          <span style="font-weight:bold">🏪 Agents</span><span class="badge b-blu">${ap.total_agents||5} agents</span>
         </div>
       </div>`;
 
-    // Coin status breakdown
-    const bs = coinData.summary?.by_status||{};
-    const coinStatuses = [['HELD','var(--g)',bs.HELD||0],['ISSUED','var(--bl)',bs.ISSUED||0],['SPENT','var(--am)',bs.SPENT||0],['REDEEMED','var(--gr)',bs.REDEEMED||0],['EXPIRED','var(--r)',bs.EXPIRED||0]];
-    const maxCoins = Math.max(...coinStatuses.map(c=>c[2]),1);
-    document.getElementById('coin-breakdown').innerHTML = coinStatuses.map(([st,col,cnt])=>`
-      <div class="chart-row">
-        <div class="chart-day">${st}</div>
-        <div class="chart-bg"><div class="chart-fill" style="width:${(cnt/maxCoins)*100}%;background:${col}">${cnt>0?cnt:''}</div></div>
-        <div class="chart-val">${cnt} coins</div>
-      </div>`).join('');
+    // Coin breakdown
+    const bs = coins.summary?.by_status || {};
+    const coinRows = [['HELD',bs.HELD||0,'var(--g)'],['ISSUED',bs.ISSUED||0,'var(--bl)'],['SPENT',bs.SPENT||0,'var(--am)'],['REDEEMED',bs.REDEEMED||0,'var(--gr)']];
+    const maxC = Math.max(...coinRows.map(r=>r[1]), 1);
+    document.getElementById('coin-breakdown').innerHTML = coinRows.map(([s,c,col]) =>
+      `<div class="chart-row"><div class="chart-day">${s}</div><div class="chart-bg"><div class="chart-fill" style="width:${(c/maxC)*100}%;background:${col}">${c>0?c:''}</div></div><div class="chart-val">${c} coins</div></div>`
+    ).join('');
 
     // Volume chart
     const dv = txData.daily_volume || {};
     const days = Object.keys(dv).sort().slice(-14);
-    const maxVol = Math.max(...days.map(d=>dv[d]?.volume||0),1);
+    const maxV = Math.max(...days.map(d=>dv[d]?.volume||0), 1);
     document.getElementById('vol-chart').innerHTML = days.length
-      ? days.map(day=>`
-        <div class="chart-row">
-          <div class="chart-day">${day.slice(5)}</div>
-          <div class="chart-bg"><div class="chart-fill" style="width:${((dv[day]?.volume||0)/maxVol)*100}%"></div></div>
-          <div class="chart-val">${fmt(dv[day]?.volume||0)}</div>
-        </div>`).join('')
+      ? days.map(d => `<div class="chart-row"><div class="chart-day">${d.slice(5)}</div><div class="chart-bg"><div class="chart-fill" style="width:${((dv[d]?.volume||0)/maxV)*100}%"></div></div><div class="chart-val">${fmt(dv[d]?.volume||0)}</div></div>`).join('')
       : '<div class="no-data">No transaction data yet</div>';
 
-    // Activity feed — combine coins + txns
-    const activities = [];
-    (agents.agents||[]).forEach(a=>{
-      if (a.last_activity) activities.push({type:'agent_login',ts:a.last_activity,title:`Agent ${a.name} logged in`,detail:`${a.location_name} · Float: ${fmt(a.float_balance_kobo)}`,cls:'act-onboard',icon:'🏪'});
-    });
-    (txData.transactions||[]).slice(0,8).forEach(t=>{
-      activities.push({type:'tx',ts:t.tx_ts,title:`Transfer ${fmt(t.amount)}`,detail:`TX: ${t.tx_id?.slice(0,16)}... · ${t.status}`,cls:'act-transfer',icon:'₦'});
-    });
-    (users.users||[]).slice(0,4).forEach(u=>{
-      if (u.registered_at) activities.push({type:'onboard',ts:u.registered_at,title:'New PWA user registered',detail:`Device: ${u.device_hash?.slice(0,16)}...`,cls:'act-onboard',icon:'👋'});
-    });
-    activities.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-    document.getElementById('activity-feed').innerHTML = activities.slice(0,10).map(a=>`
-      <div class="activity-item">
-        <div class="activity-dot ${a.cls}">${a.icon}</div>
-        <div class="activity-info">
-          <div class="activity-title">${a.title}</div>
-          <div class="activity-detail">${a.detail}</div>
-        </div>
-        <div class="activity-time">${relTime(a.ts)}</div>
-      </div>`).join('') || '<div class="no-data">No activity yet</div>';
+    // Activity feed
+    const acts = [];
+    (agents.agents||[]).forEach(a => { if(a.last_activity) acts.push({ts:a.last_activity,icon:'🏪',cls:'act-ok',title:'Agent '+a.name+' active',detail:a.location_name||''}); });
+    (merchs.merchants||[]).slice(0,3).forEach(m => acts.push({ts:m.registered_at,icon:'🛒',cls:'act-ok',title:m.business_name+' registered',detail:m.location||''}));
+    acts.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+    document.getElementById('activity-feed').innerHTML = acts.slice(0,8).map(a =>
+      `<div class="activity-item"><div class="activity-dot ${a.cls}">${a.icon}</div><div style="flex:1"><div class="activity-title">${a.title}</div><div class="activity-detail">${a.detail}</div></div><div class="activity-time">${relTime(a.ts)}</div></div>`
+    ).join('') || '<div class="no-data">No activity yet</div>';
 
-  } catch(e) { notify('Overview load failed: '+e.message, true); }
+  } catch(e) { notify('Overview: ' + e.message, true); }
 }
 
-// ── USERS ─────────────────────────────────────────────────────
+// ── CUSTOMERS ──────────────────────────────────────────────────
 async function loadUsers() {
-  showLoader('Loading users...');
+  showLoader('Loading customers...');
   try {
-    const res  = await fetch(`${API}/admin-users`,{headers:{'Authorization':'Bearer '+adminToken}});
+    const res  = await fetch(`${API}/admin-users`, {headers:{'Authorization':'Bearer '+adminToken}});
     const data = await res.json();
     hideLoader();
-    if (!res.ok){notify('Failed: '+data.error,true);return;}
-    allUsers = data.users||[];
+    if (!res.ok) { notify('Users: '+data.error, true); return; }
+    allUsers = data.users || [];
     renderUserTable(allUsers);
-  } catch(e){hideLoader();notify('Error: '+e.message,true);}
+  } catch(e) { hideLoader(); notify('Users: '+e.message, true); }
 }
-
 function filterUserTable() {
-  const q   = document.getElementById('user-search').value.toLowerCase();
-  const st  = document.getElementById('user-status-filter').value;
-  const sort= document.getElementById('user-sort').value;
-  let filtered = allUsers.filter(u=>
-    (!q || u.device_hash?.toLowerCase().includes(q) || u.phone_hash?.toLowerCase().includes(q)) &&
-    (!st || u.status===st)
-  );
-  if (sort==='balance') filtered.sort((a,b)=>b.held_balance_kobo-a.held_balance_kobo);
-  else if (sort==='activity') filtered.sort((a,b)=>b.tx_count-a.tx_count);
-  else filtered.sort((a,b)=>new Date(b.registered_at)-new Date(a.registered_at));
-  renderUserTable(filtered);
+  const q  = document.getElementById('user-search').value.toLowerCase();
+  const st = document.getElementById('user-status-filter').value;
+  renderUserTable(allUsers.filter(u =>
+    (!q  || u.device_hash?.toLowerCase().includes(q) || u.phone_hash?.toLowerCase().includes(q)) &&
+    (!st || u.status === st)
+  ));
 }
-
 function renderUserTable(users) {
   document.getElementById('user-table-body').innerHTML = users.length
-    ? users.map(u=>`
-      <tr>
+    ? users.map(u => `<tr>
         <td style="font-family:monospace;font-size:11px">${u.device_hash?.slice(0,16)}...</td>
         <td style="font-family:monospace;font-size:11px">${u.phone_hash?.slice(0,12)}...</td>
-        <td><span class="badge ${u.status==='ACTIVE'?'b-ok':u.status==='FLAGGED'?'b-err':'b-warn'}">${u.status}</span></td>
+        <td><span class="badge ${u.status==='ACTIVE'?'b-ok':'b-err'}">${u.status}</span></td>
         <td style="font-size:11px">${fmtDate(u.registered_at)}</td>
         <td style="font-size:11px">${relTime(u.last_activity)}</td>
         <td style="font-weight:bold;color:var(--g)">${fmt(u.held_balance_kobo)}</td>
         <td style="color:var(--r)">${fmt(u.total_sent_kobo)}</td>
         <td style="color:var(--g)">${fmt(u.total_received_kobo)}</td>
         <td style="text-align:center">${u.tx_count}</td>
-        <td>${u.open_fraud>0?`<span class="badge b-err">${u.open_fraud}</span>`:'<span class="badge b-ok">0</span>'}</td>
+        <td>${u.open_fraud>0?'<span class="badge b-err">'+u.open_fraud+'</span>':'<span class="badge b-ok">0</span>'}</td>
       </tr>`).join('')
-    : '<tr><td colspan="10" class="no-data">No users found</td></tr>';
+    : '<tr><td colspan="10" class="no-data">No customers found</td></tr>';
 }
-
 function exportUsers() {
-  const rows = [['Device ID','Phone Hash','Status','Registered','Last Active','Balance (kobo)','Sent (kobo)','Received (kobo)','Tx Count','Fraud Events']];
-  allUsers.forEach(u=>rows.push([u.device_hash,u.phone_hash,u.status,u.registered_at,u.last_activity,u.held_balance_kobo,u.total_sent_kobo,u.total_received_kobo,u.tx_count,u.fraud_events]));
-  downloadCSV(rows,'zillion-users.csv');
+  const rows = [['Device ID','Phone Hash','Status','Registered','Balance (kobo)','Sent','Received','Tx Count']];
+  allUsers.forEach(u => rows.push([u.device_hash,u.phone_hash,u.status,u.registered_at,u.held_balance_kobo,u.total_sent_kobo,u.total_received_kobo,u.tx_count]));
+  downloadCSV(rows, 'zillion-customers.csv');
 }
 
-// ── AGENTS ────────────────────────────────────────────────────
-async function loadAgents() {
-  showLoader('Loading agents...');
-  try {
-    const res  = await fetch(`${API}/admin-agents`,{headers:{'Authorization':'Bearer '+adminToken}});
-    const data = await res.json();
-    hideLoader();
-    if (!res.ok){notify('Failed: '+data.error,true);return;}
-    allAgentsData = data.agents||[];
-    renderAgentCards(allAgentsData);
-    renderAgentTable(allAgentsData);
-  } catch(e){hideLoader();notify('Error: '+e.message,true);}
-}
-
-function renderAgentCards(agents) {
-  document.getElementById('agent-cards-grid').innerHTML = agents.map(a=>{
-    const ini = a.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-    const low = a.float_balance_kobo<200000;
-    return `
-    <div class="ucard">
-      <div class="ucard-top agent">
-        <div class="uavatar agent">${ini}</div>
-        <div>
-          <div class="ucard-name">${a.name}</div>
-          <div class="ucard-id">${a.agent_id}</div>
-        </div>
-      </div>
-      <div class="ucard-body">
-        <div class="ustat-row"><span class="ustat-key">Location</span><span class="ustat-val">${a.location_name||'—'}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Float Balance</span><span class="ustat-val ${low?'red':'green'}">${fmt(a.float_balance_kobo)}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Coins Issued</span><span class="ustat-val">${a.coins_issued||0}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Coins Redeemed</span><span class="ustat-val">${a.coins_redeemed||0}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Status</span><span class="ustat-val"><span class="badge ${a.status==='ACTIVE'?'b-ok':'b-warn'}">${a.status}</span></span></div>
-        <div class="ustat-row"><span class="ustat-key">Last Login</span><span class="ustat-val" style="font-size:11px">${relTime(a.last_activity)||'Never'}</span></div>
-        <button onclick="quickToken('${a.agent_id}','${a.name}')" style="width:100%;margin-top:10px;padding:8px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer">🔐 Generate Token</button>
-      </div>
-    </div>`}).join('');
-}
-
-function renderAgentTable(agents) {
-  document.getElementById('agent-table-body').innerHTML = agents.map(a=>`
-    <tr>
-      <td style="font-weight:bold">${a.agent_id}</td>
-      <td>${a.name}</td>
-      <td style="font-size:12px">${a.location_name||'—'}</td>
-      <td style="font-weight:bold;color:${a.float_balance_kobo<200000?'var(--r)':'var(--g)'}">${fmt(a.float_balance_kobo)}</td>
-      <td>${a.coins_issued||0}</td>
-      <td>${a.coins_redeemed||0}</td>
-      <td style="font-size:11px">${relTime(a.last_activity)||'Never'}</td>
-      <td><span class="badge ${a.status==='ACTIVE'?'b-ok':'b-warn'}">${a.status}</span></td>
-    </tr>`).join('');
-}
-
-function exportAgents() {
-  const rows=[['Agent ID','Name','Location','Float (kobo)','Coins Issued','Coins Redeemed','Last Login','Status']];
-  allAgentsData.forEach(a=>rows.push([a.agent_id,a.name,a.location_name,a.float_balance_kobo,a.coins_issued,a.coins_redeemed,a.last_activity,a.status]));
-  downloadCSV(rows,'zillion-agents.csv');
-}
-
-// ── COINS ─────────────────────────────────────────────────────
-async function loadCoins() {
-  showLoader('Loading coins...');
-  try {
-    const status = document.getElementById('coin-status-filter')?.value||'';
-    const agent  = document.getElementById('coin-agent-filter')?.value||'';
-    const params = new URLSearchParams({limit:50,offset:coinsOffset});
-    if (status) params.set('status',status);
-    if (agent)  params.set('agent_id',agent);
-    const res  = await fetch(`${API}/admin-coins?${params}`,{headers:{'Authorization':'Bearer '+adminToken}});
-    const data = await res.json();
-    hideLoader();
-    if (!res.ok){notify('Failed: '+data.error,true);return;}
-    const bs = data.summary?.by_status||{};
-    setText('coin-m-total', data.total||0);
-    setText('coin-m-held', bs.HELD||0);
-    setText('coin-m-redeemed', bs.REDEEMED||0);
-    document.getElementById('coin-table-body').innerHTML = (data.coins||[]).length
-      ? (data.coins||[]).map(c=>`
-        <tr>
-          <td style="font-family:monospace;font-size:10px">${c.coin_id?.slice(0,28)}...</td>
-          <td style="font-weight:bold;color:var(--g)">${fmt(c.amount)}</td>
-          <td style="font-size:11px">${c.issuer_id||'—'}</td>
-          <td style="font-size:11px">${fmtDate(c.issued_at)}</td>
-          <td style="font-size:11px">${fmtDate(c.expires_at)}</td>
-          <td><span class="badge ${statusBadge(c.status)}">${c.status}</span></td>
-          <td style="font-family:monospace;font-size:10px">${c.holder_hash?.slice(0,12)||'—'}...</td>
-          <td style="text-align:center">${(c.transactions||[]).length}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="8" class="no-data">No coins found</td></tr>';
-  } catch(e){hideLoader();notify('Error: '+e.message,true);}
-}
-
-function exportCoins() { notify('Export all coins — run from Supabase SQL editor for large datasets'); }
-
-// ── TRANSACTIONS ──────────────────────────────────────────────
-async function loadTransactions() {
-  showLoader('Loading transactions...');
-  try {
-    const status = document.getElementById('tx-status-filter')?.value||'';
-    const params = new URLSearchParams({limit:100,offset:txOffset});
-    if (status) params.set('status',status);
-    const res  = await fetch(`${API}/admin-transactions?${params}`,{headers:{'Authorization':'Bearer '+adminToken}});
-    const data = await res.json();
-    hideLoader();
-    if (!res.ok){notify('Failed: '+data.error,true);return;}
-    document.getElementById('tx-table-body').innerHTML = (data.transactions||[]).length
-      ? (data.transactions||[]).map(t=>`
-        <tr>
-          <td style="font-family:monospace;font-size:10px">${t.tx_id?.slice(0,20)}...</td>
-          <td style="font-family:monospace;font-size:10px">${t.coin_id?.slice(0,20)}...</td>
-          <td style="font-weight:bold;color:var(--g)">${fmt(t.amount)}</td>
-          <td style="font-family:monospace;font-size:10px">${t.from_hash?.slice(0,12)}...</td>
-          <td style="font-family:monospace;font-size:10px">${t.to_hash?.slice(0,12)}...</td>
-          <td style="font-size:11px">${fmtDate(t.tx_ts)}</td>
-          <td style="font-size:11px">${fmtDate(t.sync_ts)}</td>
-          <td><span class="badge ${t.status==='SETTLED'?'b-ok':t.status==='CONFLICT'?'b-err':'b-warn'}">${t.status}</span></td>
-        </tr>`).join('')
-      : '<tr><td colspan="8" class="no-data">No transactions yet</td></tr>';
-  } catch(e){hideLoader();notify('Error: '+e.message,true);}
-}
-
-function exportTransactions() { notify('Export — use Supabase dashboard for full CSV of large datasets'); }
-
-// ── TOKEN GENERATOR ───────────────────────────────────────────
-function onAgentSelect() {
-  const names={'AGENT-00001':'Kola Adekunle','AGENT-00002':'Bisi Okonkwo','AGENT-00003':'Emeka Nwosu','AGENT-00004':'Fatima Bello','AGENT-00005':'Yusuf Musa'};
-  const sel = document.getElementById('t-agent').value;
-  if (names[sel]) document.getElementById('t-name').value=names[sel];
-}
-
-function quickToken(agentId, agentName) {
-  showSec('tokens', document.querySelector('.ntab:nth-child(6)'));
-  document.getElementById('t-agent').value=agentId;
-  document.getElementById('t-name').value=agentName;
-  generateToken();
-}
-
-async function generateToken() {
-  const agentId   = document.getElementById('t-agent').value;
-  const agentName = document.getElementById('t-name').value.trim();
-  const secret    = localStorage.getItem('zil_admin_secret');
-  const errEl     = document.getElementById('tok-err');
-  errEl.className = 'tok-err';
-  document.getElementById('tok-out').className='token-out';
-  if (!agentId){errEl.textContent='⚠️ Select an agent.';errEl.className='tok-err show';return;}
-  if (!secret){errEl.textContent='⚠️ Session expired. Log out and log in again.';errEl.className='tok-err show';return;}
-  const btn=document.getElementById('genbtn');
-  btn.disabled=true;btn.textContent='Generating...';
-  try {
-    const res  = await fetch(`${API}/agent-token`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:agentId,agent_name:agentName,admin_secret:secret})});
-    const data = await res.json();
-    if (!res.ok){errEl.textContent='⚠️ '+(data.error||'Failed');errEl.className='tok-err show';return;}
-    document.getElementById('tok-val').textContent=data.token;
-    document.getElementById('tok-agent').textContent=data.agent_id;
-    document.getElementById('tok-exp').textContent=new Date(data.expires_at).toLocaleDateString();
-    document.getElementById('tok-out').className='token-out show';
-    window._lastTok=data.token; window._lastTokAgent=agentId;
-    tokHistory.unshift({agentId,agentName,token:data.token,ts:new Date().toISOString()});
-    renderTokHistory();
-    notify(`Token generated for ${agentName||agentId}`);
-  } catch(e){errEl.textContent='⚠️ '+e.message;errEl.className='tok-err show';}
-  finally{btn.disabled=false;btn.textContent='Generate Token →';}
-}
-
-function renderTokHistory() {
-  const el=document.getElementById('tok-history');
-  if (!tokHistory.length){el.innerHTML='<div class="no-data">No tokens generated yet</div>';return;}
-  el.innerHTML=tokHistory.map((t,i)=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--grb)">
-      <div>
-        <div style="font-size:13px;font-weight:bold">${t.agentId} — ${t.agentName}</div>
-        <div style="font-size:11px;color:var(--gr)">${fmtDate(t.ts)}</div>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button onclick="copyHistTok(${i})" style="padding:4px 10px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:4px;font-size:11px;cursor:pointer">Copy</button>
-        <button onclick="shareHistWA(${i})" style="padding:4px 10px;background:var(--bll);color:var(--bl);border:1px solid #AABCFF;border-radius:4px;font-size:11px;cursor:pointer">WhatsApp</button>
-      </div>
-    </div>`).join('');
-}
-
-async function copyToken(){
-  try{await navigator.clipboard.writeText(document.getElementById('tok-val').textContent);notify('Token copied!');}
-  catch{selectAllText(document.getElementById('tok-val'));notify('Select and press Ctrl+C');}
-}
-async function copyHistTok(i){try{await navigator.clipboard.writeText(tokHistory[i].token);notify('Copied!');}catch{alert(tokHistory[i].token);}}
-function shareTokenWA(){if(!window._lastTok)return;const msg=`Your Zillion Agent Token:\n\nAgent ID: ${window._lastTokAgent}\nToken: ${window._lastTok}\n\nLogin at https://zillion-mvp.netlify.app/agent`;window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');}
-function shareHistWA(i){const t=tokHistory[i];const msg=`Your Zillion Agent Token:\n\nAgent ID: ${t.agentId}\nToken: ${t.token}\n\nLogin at https://zillion-mvp.netlify.app/agent`;window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');}
-function selectAllText(el){const r=document.createRange();r.selectNodeContents(el);window.getSelection().removeAllRanges();window.getSelection().addRange(r);}
-
-// ── FRAUD ─────────────────────────────────────────────────────
-async function loadFraud() {
-  showLoader('Loading fraud data...');
-  try {
-    const [usrRes, agRes] = await Promise.all([
-      fetch(`${API}/admin-users`,{headers:{'Authorization':'Bearer '+adminToken}}),
-      fetch(`${API}/admin-agents`,{headers:{'Authorization':'Bearer '+adminToken}}),
-    ]);
-    const users  = usrRes.ok ? await usrRes.json() : {users:[],platform:{}};
-    hideLoader();
-    const openFraud = users.platform?.open_fraud_events||0;
-    const highRisk  = (users.users||[]).filter(u=>u.fraud_score>0||u.open_fraud>0);
-    setText('fraud-m-open', openFraud);
-    setText('fraud-m-devices', highRisk.length);
-    // Fraud events table
-    document.getElementById('fraud-table-body').innerHTML =
-      openFraud===0
-        ? '<tr><td colspan="8" class="no-data">🛡️ No fraud events — system is clean</td></tr>'
-        : '<tr><td colspan="8" class="no-data">Load from Supabase fraud_events table</td></tr>';
-    // Risk devices
-    document.getElementById('risk-device-list').innerHTML = highRisk.length
-      ? `<table><thead><tr><th>Device ID</th><th>Fraud Score</th><th>Open Events</th><th>Balance</th><th>Tx Count</th></tr></thead><tbody>
-        ${highRisk.map(u=>`<tr><td style="font-family:monospace;font-size:11px">${u.device_hash?.slice(0,20)}...</td><td style="color:var(--r);font-weight:bold">${u.fraud_score||0}</td><td>${u.open_fraud||0}</td><td>${fmt(u.held_balance_kobo)}</td><td>${u.tx_count}</td></tr>`).join('')}
-        </tbody></table>`
-      : '<div class="no-data">No high-risk devices detected</div>';
-  } catch(e){hideLoader();notify('Error: '+e.message,true);}
-}
-
-// ── SYSTEM ────────────────────────────────────────────────────
-async function checkSystem() {
-  setStatus('db','amber','CHECKING','Checking...');
-  setStatus('mint','amber','CHECKING','Checking...');
-  setStatus('tok','amber','CHECKING','Checking...');
-  setStatus('pwa','amber','CHECKING','Checking /wallet/...');
-  try {
-    const r=await fetch(`${API}/validate?coin_id=ZIL-TEST`);
-    const d=await r.json();
-    d.reason==='INVALID_FORMAT'?setStatus('mint','green','LIVE','Ed25519 keys configured'):setStatus('mint','red','ERROR','Check MINT keys');
-  } catch{setStatus('mint','red','ERROR','Function not responding');}
-  try {
-    const r=await fetch(`${API}/validate?coin_id=ZIL-20260101-AAAABBBB-0000001`);
-    r.ok?setStatus('db','green','LIVE','Supabase connected'):setStatus('db','red','ERROR','Check SUPABASE env vars');
-  } catch{setStatus('db','red','ERROR','Cannot reach Supabase');}
-  try {
-    const r=await fetch(`${API}/agent-token`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:'TEST',admin_secret:'WRONG'})});
-    r.status===401?setStatus('tok','green','LIVE','Token API protected'):setStatus('tok','amber','CHECK','Unexpected response');
-  } catch{setStatus('tok','red','ERROR','agent-token not found');}
-  try {
-    const r=await fetch('/wallet/');
-    r.ok?setStatus('pwa','green','LIVE','PWA wallet accessible'):setStatus('pwa','red','ERROR','Check wallet folder');
-  } catch{setStatus('pwa','red','ERROR','Cannot reach /wallet/');}
-}
-
-async function lookupCoin() {
-  const coinId=document.getElementById('coin-lookup-input').value.trim();
-  if (!coinId) return;
-  const el=document.getElementById('coin-lookup-result');
-  el.innerHTML='<div style="color:var(--gr);padding:8px">Checking...</div>';
-  try {
-    const res=await fetch(`${API}/validate?coin_id=${encodeURIComponent(coinId)}`);
-    const d=await res.json();
-    el.innerHTML=`<div style="margin-top:12px">
-      <table>
-        <thead><tr><th>Field</th><th>Value</th></tr></thead>
-        <tbody>
-          <tr><td style="font-weight:bold">Coin ID</td><td style="font-family:monospace;font-size:11px">${d.coin_id}</td></tr>
-          <tr><td style="font-weight:bold">Valid</td><td>${d.valid?'✅ Yes':'❌ No'}</td></tr>
-          <tr><td style="font-weight:bold">Status</td><td><span class="badge ${statusBadge(d.status)}">${d.status||'UNKNOWN'}</span></td></tr>
-          <tr><td style="font-weight:bold">Amount</td><td>${d.amount?fmt(d.amount):'—'}</td></tr>
-          <tr><td style="font-weight:bold">Expired</td><td>${d.expired?'⚠️ Yes':'✅ No'}</td></tr>
-          <tr><td style="font-weight:bold">Reason</td><td>${d.reason||'—'}</td></tr>
-          <tr><td style="font-weight:bold">Checked</td><td>${fmtDate(d.checked_at)}</td></tr>
-        </tbody>
-      </table></div>`;
-  } catch(e){el.innerHTML=`<div class="lerr show">Error: ${e.message}</div>`;}
-}
-
-// ── HELPERS ───────────────────────────────────────────────────
-const API_ROOT = '/.netlify/functions';
-function fmt(kobo){return '₦'+(kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function fmtDate(iso){if(!iso)return '—';const d=new Date(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
-function relTime(iso){if(!iso)return '—';const d=Date.now()-new Date(iso);if(d<60000)return 'just now';if(d<3600000)return Math.floor(d/60000)+'m ago';if(d<86400000)return Math.floor(d/3600000)+'h ago';return Math.floor(d/86400000)+'d ago';}
-function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function setWidth(id,pct){const e=document.getElementById(id);if(e)e.style.width=Math.min(pct,100)+'%';}
-function statusBadge(s){return s==='HELD'||s==='SETTLED'?'b-ok':s==='REDEEMED'||s==='SPENT'?'b-warn':s==='CONFLICT'||s==='EXPIRED'?'b-err':'b-grey';}
-function setStatus(id,col,badge,sub){
-  const cols={green:'var(--g)',amber:'var(--am)',red:'var(--r)'};
-  const cls={green:'b-ok',amber:'b-warn',red:'b-err'};
-  const dot=document.getElementById('sd-'+id);const bd=document.getElementById('sb-'+id);const ss=document.getElementById('ss-'+id);
-  if(dot)dot.style.background=cols[col];
-  if(bd){bd.className='badge '+cls[col];bd.textContent=badge;}
-  if(ss)ss.textContent=sub;
-}
-function notify(msg,isErr=false){const el=document.getElementById('notif');el.textContent=msg;el.className='notif show'+(isErr?' error':'');clearTimeout(el._t);el._t=setTimeout(()=>el.className='notif',3500);}
-function showLoader(t){document.getElementById('ltxt').textContent=t;document.getElementById('loader').classList.add('show');}
-function hideLoader(){document.getElementById('loader').classList.remove('show');}
-function downloadCSV(rows,filename){
-  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
-  notify('CSV exported: '+filename);
-}
-
-// ── MERCHANTS ─────────────────────────────────────────────────
-let allMerchantsData = [];
-
+// ── MERCHANTS ──────────────────────────────────────────────────
 async function loadMerchants() {
   showLoader('Loading merchants...');
   try {
-    const res  = await fetch(`${API}/admin-merchants`,{headers:{'Authorization':'Bearer '+adminToken}});
+    const res  = await fetch(`${API}/admin-merchants`, {headers:{'Authorization':'Bearer '+adminToken}});
     const data = await res.json();
     hideLoader();
-    if (!res.ok) { notify('Merchants: '+(data.error||'error'),true); showMerchantEmpty(); return; }
-    allMerchantsData = data.merchants||[];
-    const payments = allMerchantsData.reduce((s,m)=>s+(m.total_payments||0),0);
-    const volume   = allMerchantsData.reduce((s,m)=>s+(m.total_received_kobo||0),0);
-    setText('merch-m-total',   data.total||0);
-    setText('merch-m-active',  data.active||0);
-    setText('merch-m-payments',payments);
-    setText('merch-m-volume',  fmt(volume));
-    setText('m-merchants',     data.total||0);
-    setText('m-merch-volume',  fmt(volume));
-    setText('m-qr-payments',   payments);
+    if (!res.ok) { notify('Merchants: '+(data.error||'error'), true); showMerchantEmpty(); return; }
+    allMerchantsData = data.merchants || [];
+    const payments = allMerchantsData.reduce((s,m) => s+(m.total_payments||0), 0);
+    const volume   = allMerchantsData.reduce((s,m) => s+(m.total_received_kobo||0), 0);
+    setText('merch-m-total',    data.total||0);
+    setText('merch-m-active',   data.active||0);
+    setText('merch-m-payments', payments);
+    setText('merch-m-volume',   fmt(volume));
     renderMerchantCards(allMerchantsData);
     renderMerchantTable(allMerchantsData);
-  } catch(e) { hideLoader(); notify('Merchants: '+e.message,true); showMerchantEmpty(); }
+    if (!allMerchantsData.length) showMerchantEmpty();
+  } catch(e) { hideLoader(); notify('Merchants: '+e.message, true); showMerchantEmpty(); }
 }
-
 function showMerchantEmpty() {
   document.getElementById('merchant-cards-grid').innerHTML = `
     <div style="grid-column:1/-1;text-align:center;padding:40px 20px">
       <div style="font-size:48px;margin-bottom:12px">🛒</div>
-      <div style="font-size:16px;font-weight:bold;margin-bottom:8px">No merchants yet</div>
-      <div style="font-size:13px;color:#666;margin-bottom:16px">Share the portal to onboard traders.</div>
-      <div style="background:#F3E8FF;border-radius:10px;padding:12px 16px;display:inline-block;
-        font-size:13px;color:#6B21A8;font-weight:bold">
+      <div style="font-size:16px;font-weight:bold;margin-bottom:8px">No merchants registered yet</div>
+      <div style="font-size:13px;color:#666;margin-bottom:16px">Share the merchant portal to onboard traders.</div>
+      <div style="background:var(--pul);border-radius:10px;padding:12px 16px;display:inline-block;font-size:13px;color:var(--pu);font-weight:bold">
         🔗 zillion-mvp.netlify.app/merchant/
       </div>
-      <div style="margin-top:10px;font-size:11px;color:#999">
-        Run merchants.sql in Supabase if this is first time.
-      </div>
+      <div style="margin-top:10px;font-size:11px;color:#999">Run merchants.sql in Supabase SQL Editor if first time setup.</div>
     </div>`;
-  document.getElementById('merchant-table-body').innerHTML =
-    '<tr><td colspan="11" class="no-data">No merchants. Run merchants.sql in Supabase first.</td></tr>';
+  document.getElementById('merchant-table-body').innerHTML = '<tr><td colspan="11" class="no-data">No merchants. Run merchants.sql in Supabase first.</td></tr>';
 }
-
 function filterMerchantTable() {
-  const q  = document.getElementById('merch-search')?.value.toLowerCase()||'';
+  const q  = (document.getElementById('merch-search')?.value||'').toLowerCase();
   const st = document.getElementById('merch-status-filter')?.value||'';
   const tp = document.getElementById('merch-type-filter')?.value||'';
-  const f  = allMerchantsData.filter(m=>
-    (!q  || m.business_name?.toLowerCase().includes(q)||m.owner_name?.toLowerCase().includes(q)||m.location?.toLowerCase().includes(q))&&
-    (!st || m.status===st)&&(!tp || m.business_type===tp));
-  renderMerchantCards(f); renderMerchantTable(f);
+  const f  = allMerchantsData.filter(m =>
+    (!q  || m.business_name?.toLowerCase().includes(q) || m.owner_name?.toLowerCase().includes(q) || m.location?.toLowerCase().includes(q)) &&
+    (!st || m.status===st) && (!tp || m.business_type===tp)
+  );
+  renderMerchantCards(f);
+  renderMerchantTable(f);
 }
-
 function renderMerchantCards(merchants) {
-  const el=document.getElementById('merchant-cards-grid');
-  if (!merchants.length){el.innerHTML='<div class="no-data" style="grid-column:1/-1">No merchants match filter</div>';return;}
-  const icons={'Food & Vegetables':'🥬','Clothing & Fashion':'👗','Electronics':'📱','Pharmacy & Health':'💊',
-    'Transport':'🚌','Restaurant & Food':'🍲','Hardware & Tools':'🔧','General Retail':'🏪','Services':'⚙️','Other':'📦'};
-  el.innerHTML=merchants.map(m=>{
-    const ini=(m.business_name||'ZL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const el = document.getElementById('merchant-cards-grid');
+  if (!merchants.length) { el.innerHTML = '<div class="no-data" style="grid-column:1/-1">No merchants match filter</div>'; return; }
+  const icons = {'Food & Vegetables':'🥬','Clothing & Fashion':'👗','Electronics':'📱','Pharmacy & Health':'💊','Transport':'🚌','Restaurant & Food':'🍲','Hardware & Tools':'🔧','General Retail':'🏪','Services':'⚙️','Other':'📦'};
+  el.innerHTML = merchants.map(m => {
+    const ini = (m.business_name||'ZL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     return `<div class="ucard">
       <div class="ucard-top merchant">
         <div class="uavatar merchant">${ini}</div>
@@ -1408,28 +777,28 @@ function renderMerchantCards(merchants) {
         <div class="ustat-row"><span class="ustat-key">Phone</span><span class="ustat-val" style="font-size:11px">${m.phone||'—'}</span></div>
         <div class="ustat-row"><span class="ustat-key">Payments</span><span class="ustat-val green">${m.total_payments||0}</span></div>
         <div class="ustat-row"><span class="ustat-key">Volume</span><span class="ustat-val green">${fmt(m.total_received_kobo||0)}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Status</span>
-          <span class="badge ${m.status==='ACTIVE'?'b-ok':m.status==='SUSPENDED'?'b-err':'b-warn'}">${m.status}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Status</span><span class="badge ${m.status==='ACTIVE'?'b-ok':m.status==='SUSPENDED'?'b-err':'b-warn'}">${m.status}</span></div>
         <div class="ustat-row"><span class="ustat-key">Joined</span><span class="ustat-val" style="font-size:10px">${fmtDate(m.registered_at)}</span></div>
         <div style="display:flex;gap:6px;margin-top:10px">
           <button onclick="suspendMerchant('${m.merchant_id}','${m.status}')"
-            style="flex:1;padding:7px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};
-            color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};border:1px solid currentColor;
-            border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">
-            ${m.status==='ACTIVE'?'Suspend':'Activate'}</button>
-          <button onclick="alert('${m.merchant_id}\n${m.owner_name}\n${m.business_name}\n${m.phone}\n${m.location}')"
-            style="flex:1;padding:7px;background:#F3E8FF;color:#6B21A8;border:1px solid #D8B4FE;
-            border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">Details</button>
+            style="flex:1;padding:7px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};border:1px solid currentColor;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">
+            ${m.status==='ACTIVE'?'Suspend':'Activate'}
+          </button>
+          <button onclick="alert('${m.merchant_id}\\n${(m.owner_name||'').replace(/'/g,'')}')"
+            style="flex:1;padding:7px;background:var(--pul);color:var(--pu);border:1px solid var(--pum);border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">
+            Details
+          </button>
         </div>
-      </div></div>`}).join('');
+      </div>
+    </div>`;
+  }).join('');
 }
-
 function renderMerchantTable(merchants) {
   document.getElementById('merchant-table-body').innerHTML = merchants.length
-    ? merchants.map(m=>`<tr>
+    ? merchants.map(m => `<tr>
         <td style="font-family:monospace;font-size:10px">${m.merchant_id}</td>
         <td style="font-weight:600">${m.owner_name||'—'}</td>
-        <td style="font-weight:600;color:#6B21A8">${m.business_name}</td>
+        <td style="font-weight:600;color:var(--pu)">${m.business_name}</td>
         <td style="font-size:11px">${m.business_type||'—'}</td>
         <td style="font-size:11px">${m.location||'—'}</td>
         <td style="font-size:11px">${m.phone||'—'}</td>
@@ -1438,24 +807,258 @@ function renderMerchantTable(merchants) {
         <td style="font-weight:bold;color:var(--g)">${fmt(m.total_received_kobo||0)}</td>
         <td><span class="badge ${m.status==='ACTIVE'?'b-ok':m.status==='SUSPENDED'?'b-err':'b-warn'}">${m.status}</span></td>
         <td><button onclick="suspendMerchant('${m.merchant_id}','${m.status}')"
-          style="padding:4px 10px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};
-          border:1px solid currentColor;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer">
-          ${m.status==='ACTIVE'?'Suspend':'Activate'}</button></td></tr>`).join('')
+          style="padding:4px 10px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};border:1px solid currentColor;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer">
+          ${m.status==='ACTIVE'?'Suspend':'Activate'}</button></td>
+      </tr>`).join('')
     : '<tr><td colspan="11" class="no-data">No merchants found</td></tr>';
 }
-
 function suspendMerchant(id, status) {
-  const newSt = status==='ACTIVE'?'SUSPENDED':'ACTIVE';
-  const sql   = `UPDATE merchants SET status='${newSt}' WHERE merchant_id='${id}';`;
-  if (confirm(`Change ${id} to ${newSt}?\n\nRun in Supabase:\n${sql}`)) {
-    alert('Copy this SQL and run in Supabase SQL Editor:\n\n'+sql);
+  const newSt = status==='ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+  const sql   = "UPDATE merchants SET status='" + newSt + "' WHERE merchant_id='" + id + "';";
+  if (confirm('Change ' + id + ' to ' + newSt + '?\n\nRun this SQL in Supabase:\n' + sql)) {
+    alert('Copy and run in Supabase SQL Editor:\n\n' + sql);
   }
 }
-
 function exportMerchants() {
-  const rows=[['Merchant ID','Owner','Business','Type','Location','Phone','Status','Registered','Payments','Volume (kobo)']];
-  allMerchantsData.forEach(m=>rows.push([m.merchant_id,m.owner_name,m.business_name,m.business_type,m.location,m.phone,m.status,m.registered_at,m.total_payments||0,m.total_received_kobo||0]));
-  downloadCSV(rows,'zillion-merchants.csv');
+  const rows = [['Merchant ID','Owner','Business','Type','Location','Phone','Status','Registered','Payments','Volume (kobo)']];
+  allMerchantsData.forEach(m => rows.push([m.merchant_id,m.owner_name,m.business_name,m.business_type,m.location,m.phone,m.status,m.registered_at,m.total_payments||0,m.total_received_kobo||0]));
+  downloadCSV(rows, 'zillion-merchants.csv');
+}
+
+// ── AGENTS ─────────────────────────────────────────────────────
+async function loadAgents() {
+  showLoader('Loading agents...');
+  try {
+    const res  = await fetch(`${API}/admin-agents`, {headers:{'Authorization':'Bearer '+adminToken}});
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) { notify('Agents: '+data.error, true); return; }
+    allAgentsData = data.agents || [];
+    const el = document.getElementById('agent-cards-grid');
+    el.innerHTML = allAgentsData.map(a => {
+      const ini = a.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      return `<div class="ucard">
+        <div class="ucard-top agent">
+          <div class="uavatar agent">${ini}</div>
+          <div><div class="ucard-name">${a.name}</div><div class="ucard-id agent-id">${a.agent_id}</div></div>
+        </div>
+        <div class="ucard-body">
+          <div class="ustat-row"><span class="ustat-key">Location</span><span class="ustat-val">${a.location_name||'—'}</span></div>
+          <div class="ustat-row"><span class="ustat-key">Float</span><span class="ustat-val ${(a.float_balance_kobo||0)<200000?'red':'green'}">${fmt(a.float_balance_kobo||0)}</span></div>
+          <div class="ustat-row"><span class="ustat-key">Issued</span><span class="ustat-val">${a.coins_issued||0}</span></div>
+          <div class="ustat-row"><span class="ustat-key">Redeemed</span><span class="ustat-val">${a.coins_redeemed||0}</span></div>
+          <div class="ustat-row"><span class="ustat-key">Status</span><span class="badge ${a.status==='ACTIVE'?'b-ok':'b-warn'}">${a.status}</span></div>
+          <div class="ustat-row"><span class="ustat-key">Last Login</span><span class="ustat-val" style="font-size:11px">${relTime(a.last_activity)||'Never'}</span></div>
+          <button onclick="quickToken('${a.agent_id}','${a.name}')" style="width:100%;margin-top:10px;padding:8px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer">🔐 Generate Token</button>
+        </div>
+      </div>`;
+    }).join('') || '<div class="no-data">No agents found</div>';
+    document.getElementById('agent-table-body').innerHTML = allAgentsData.map(a => `<tr>
+      <td style="font-weight:bold">${a.agent_id}</td><td>${a.name}</td>
+      <td style="font-size:11px">${a.location_name||'—'}</td>
+      <td style="font-weight:bold;color:${(a.float_balance_kobo||0)<200000?'var(--r)':'var(--g)'}">${fmt(a.float_balance_kobo||0)}</td>
+      <td>${a.coins_issued||0}</td><td>${a.coins_redeemed||0}</td>
+      <td style="font-size:11px">${relTime(a.last_activity)||'Never'}</td>
+      <td><span class="badge ${a.status==='ACTIVE'?'b-ok':'b-warn'}">${a.status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="8" class="no-data">No agents</td></tr>';
+  } catch(e) { hideLoader(); notify('Agents: '+e.message, true); }
+}
+function exportAgents() {
+  const rows=[['Agent ID','Name','Location','Float (kobo)','Issued','Redeemed','Status']];
+  allAgentsData.forEach(a=>rows.push([a.agent_id,a.name,a.location_name,a.float_balance_kobo,a.coins_issued,a.coins_redeemed,a.status]));
+  downloadCSV(rows,'zillion-agents.csv');
+}
+
+// ── COINS ──────────────────────────────────────────────────────
+async function loadCoins() {
+  showLoader('Loading coins...');
+  try {
+    const status = document.getElementById('coin-status-filter')?.value||'';
+    const agent  = document.getElementById('coin-agent-filter')?.value||'';
+    const params = new URLSearchParams({limit:50,offset:0});
+    if (status) params.set('status',status);
+    if (agent)  params.set('agent_id',agent);
+    const res  = await fetch(`${API}/admin-coins?${params}`, {headers:{'Authorization':'Bearer '+adminToken}});
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) { notify('Coins: '+data.error, true); return; }
+    const bs = data.summary?.by_status||{};
+    setText('coin-m-total',    data.total||0);
+    setText('coin-m-held',     bs.HELD||0);
+    setText('coin-m-redeemed', bs.REDEEMED||0);
+    document.getElementById('coin-table-body').innerHTML = (data.coins||[]).length
+      ? (data.coins||[]).map(c => `<tr>
+          <td style="font-family:monospace;font-size:10px">${c.coin_id?.slice(0,28)}...</td>
+          <td style="font-weight:bold;color:var(--g)">${fmt(c.amount)}</td>
+          <td style="font-size:11px">${c.issuer_id||'—'}</td>
+          <td style="font-size:11px">${fmtDate(c.issued_at)}</td>
+          <td style="font-size:11px">${fmtDate(c.expires_at)}</td>
+          <td><span class="badge ${statusBadge(c.status)}">${c.status}</span></td>
+          <td style="font-family:monospace;font-size:10px">${c.holder_hash?.slice(0,12)||'—'}...</td>
+        </tr>`).join('')
+      : '<tr><td colspan="7" class="no-data">No coins found</td></tr>';
+  } catch(e) { hideLoader(); notify('Coins: '+e.message, true); }
+}
+
+// ── TRANSACTIONS ───────────────────────────────────────────────
+async function loadTransactions() {
+  showLoader('Loading transactions...');
+  try {
+    const status = document.getElementById('tx-status-filter')?.value||'';
+    const params = new URLSearchParams({limit:100,offset:0});
+    if (status) params.set('status',status);
+    const res  = await fetch(`${API}/admin-transactions?${params}`, {headers:{'Authorization':'Bearer '+adminToken}});
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) { notify('Transactions: '+data.error, true); return; }
+    document.getElementById('tx-table-body').innerHTML = (data.transactions||[]).length
+      ? (data.transactions||[]).map(t => `<tr>
+          <td style="font-family:monospace;font-size:10px">${t.tx_id?.slice(0,20)}...</td>
+          <td style="font-family:monospace;font-size:10px">${t.coin_id?.slice(0,20)}...</td>
+          <td style="font-weight:bold;color:var(--g)">${fmt(t.amount)}</td>
+          <td style="font-family:monospace;font-size:10px">${t.from_hash?.slice(0,12)}...</td>
+          <td style="font-family:monospace;font-size:10px">${t.to_hash?.slice(0,12)}...</td>
+          <td style="font-size:11px">${fmtDate(t.tx_ts)}</td>
+          <td style="font-size:11px">${fmtDate(t.sync_ts)}</td>
+          <td><span class="badge ${t.status==='SETTLED'?'b-ok':t.status==='CONFLICT'?'b-err':'b-warn'}">${t.status}</span></td>
+        </tr>`).join('')
+      : '<tr><td colspan="8" class="no-data">No transactions yet</td></tr>';
+  } catch(e) { hideLoader(); notify('TX: '+e.message, true); }
+}
+function exportTransactions() { notify('Use Supabase dashboard for full CSV export'); }
+
+// ── TOKENS ─────────────────────────────────────────────────────
+function onAgentSelect() {
+  const names = {'AGENT-00001':'Kola Adekunle','AGENT-00002':'Bisi Okonkwo','AGENT-00003':'Emeka Nwosu','AGENT-00004':'Fatima Bello','AGENT-00005':'Yusuf Musa'};
+  const sel = document.getElementById('t-agent').value;
+  if (names[sel]) document.getElementById('t-name').value = names[sel];
+}
+function quickToken(agentId, agentName) {
+  showSec('tokens', document.querySelector('.ntab:nth-child(7)'));
+  document.getElementById('t-agent').value = agentId;
+  document.getElementById('t-name').value  = agentName;
+  generateToken();
+}
+async function generateToken() {
+  const agentId   = document.getElementById('t-agent').value;
+  const agentName = document.getElementById('t-name').value.trim();
+  const secret    = localStorage.getItem('zil_admin_secret');
+  const errEl     = document.getElementById('tok-err');
+  const btn       = document.getElementById('genbtn');
+  errEl.className = 'tok-err';
+  document.getElementById('tok-out').className = 'token-out';
+  if (!agentId) { errEl.textContent='Select an agent.'; errEl.className='tok-err show'; return; }
+  btn.disabled=true; btn.textContent='Generating...';
+  try {
+    const res  = await fetch(`${API}/agent-token`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:agentId,agent_name:agentName,admin_secret:secret})});
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent='⚠️ '+(data.error||'Failed'); errEl.className='tok-err show'; return; }
+    document.getElementById('tok-val').textContent   = data.token;
+    document.getElementById('tok-agent').textContent = data.agent_id;
+    document.getElementById('tok-exp').textContent   = new Date(data.expires_at).toLocaleDateString();
+    document.getElementById('tok-out').className     = 'token-out show';
+    window._lastTok = data.token; window._lastTokAgent = agentId;
+    tokHistory.unshift({agentId,agentName,token:data.token,ts:new Date().toISOString()});
+    renderTokHistory();
+    notify('Token generated for '+agentName);
+  } catch(e) { errEl.textContent='⚠️ '+e.message; errEl.className='tok-err show'; }
+  finally { btn.disabled=false; btn.textContent='Generate Token →'; }
+}
+function renderTokHistory() {
+  const el = document.getElementById('tok-history');
+  if (!tokHistory.length) { el.innerHTML='<div class="no-data">No tokens generated yet</div>'; return; }
+  el.innerHTML = tokHistory.map((t,i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--grb)">
+      <div><div style="font-size:13px;font-weight:bold">${t.agentId}</div><div style="font-size:11px;color:var(--gr)">${fmtDate(t.ts)}</div></div>
+      <div style="display:flex;gap:6px">
+        <button onclick="copyHistTok(${i})" style="padding:4px 10px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:4px;font-size:11px;cursor:pointer">Copy</button>
+        <button onclick="shareHistWA(${i})" style="padding:4px 10px;background:var(--bll);color:var(--bl);border:1px solid #AABCFF;border-radius:4px;font-size:11px;cursor:pointer">WA</button>
+      </div>
+    </div>`).join('');
+}
+async function copyToken() { try { await navigator.clipboard.writeText(document.getElementById('tok-val').textContent); notify('Token copied!'); } catch { selectAllText(document.getElementById('tok-val')); } }
+async function copyHistTok(i) { try { await navigator.clipboard.writeText(tokHistory[i].token); notify('Copied!'); } catch { alert(tokHistory[i].token); } }
+function shareTokenWA() { if(!window._lastTok)return; const msg='Your Zillion Agent Token:\n\nAgent ID: '+window._lastTokAgent+'\nToken: '+window._lastTok+'\n\nLogin at https://zillion-mvp.netlify.app/agent'; window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }
+function shareHistWA(i) { const t=tokHistory[i]; const msg='Zillion Agent Token:\n\nAgent: '+t.agentId+'\nToken: '+t.token+'\n\nLogin: https://zillion-mvp.netlify.app/agent'; window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }
+function selectAllText(el) { const r=document.createRange(); r.selectNodeContents(el); window.getSelection().removeAllRanges(); window.getSelection().addRange(r); }
+
+// ── FRAUD ──────────────────────────────────────────────────────
+async function loadFraud() {
+  showLoader('Loading fraud data...');
+  try {
+    const res  = await fetch(`${API}/admin-users`, {headers:{'Authorization':'Bearer '+adminToken}});
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) return;
+    const up = data.platform||{};
+    setText('fraud-m-open',    up.open_fraud_events||0);
+    const highRisk = (data.users||[]).filter(u=>u.fraud_score>0||u.open_fraud>0);
+    setText('fraud-m-devices', highRisk.length);
+    document.getElementById('fraud-table-body').innerHTML =
+      (up.open_fraud_events||0)===0
+        ? '<tr><td colspan="7" class="no-data">🛡️ No fraud events — system is clean</td></tr>'
+        : '<tr><td colspan="7" class="no-data">Load from Supabase fraud_events table</td></tr>';
+  } catch(e) { hideLoader(); notify('Fraud: '+e.message, true); }
+}
+
+// ── SYSTEM ─────────────────────────────────────────────────────
+async function checkSystem() {
+  setStatus('db','amber','CHECK','Checking...');
+  setStatus('mint','amber','CHECK','Checking...');
+  setStatus('pwa','amber','CHECK','Checking...');
+  setStatus('merch','amber','CHECK','Checking...');
+  try { const r=await fetch(`${API}/validate?coin_id=ZIL-TEST`); const d=await r.json(); d.reason==='INVALID_FORMAT'?setStatus('mint','green','LIVE','Ed25519 OK'):setStatus('mint','red','ERROR','Check MINT keys'); } catch { setStatus('mint','red','ERROR','Not responding'); }
+  try { const r=await fetch(`${API}/validate?coin_id=ZIL-20260101-AAAABBBB-0000001`); r.ok?setStatus('db','green','LIVE','Supabase connected'):setStatus('db','red','ERROR','Check SUPABASE env vars'); } catch { setStatus('db','red','ERROR','Cannot reach Supabase'); }
+  try { const r=await fetch('/wallet/'); r.ok?setStatus('pwa','green','LIVE','PWA accessible'):setStatus('pwa','red','ERROR','Check wallet folder'); } catch { setStatus('pwa','red','ERROR','Cannot reach /wallet/'); }
+  try { const r=await fetch('/merchant/'); r.ok?setStatus('merch','green','LIVE','Merchant portal accessible'):setStatus('merch','red','ERROR','Check merchant folder'); } catch { setStatus('merch','red','ERROR','Cannot reach /merchant/'); }
+}
+
+async function lookupCoin() {
+  const coinId = document.getElementById('coin-lookup-input').value.trim();
+  if (!coinId) return;
+  const el = document.getElementById('coin-lookup-result');
+  el.innerHTML = '<div style="color:var(--gr);padding:8px">Checking...</div>';
+  try {
+    const res  = await fetch(`${API}/validate?coin_id=${encodeURIComponent(coinId)}`);
+    const d    = await res.json();
+    el.innerHTML = `<div style="margin-top:12px"><table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td style="font-weight:bold">Coin ID</td><td style="font-family:monospace;font-size:11px">${d.coin_id}</td></tr>
+        <tr><td style="font-weight:bold">Valid</td><td>${d.valid?'✅ Yes':'❌ No'}</td></tr>
+        <tr><td style="font-weight:bold">Status</td><td><span class="badge ${statusBadge(d.status)}">${d.status||'UNKNOWN'}</span></td></tr>
+        <tr><td style="font-weight:bold">Amount</td><td>${d.amount?fmt(d.amount):'—'}</td></tr>
+        <tr><td style="font-weight:bold">Expired</td><td>${d.expired?'⚠️ Yes':'✅ No'}</td></tr>
+        <tr><td style="font-weight:bold">Reason</td><td>${d.reason||'—'}</td></tr>
+      </tbody>
+    </table></div>`;
+  } catch(e) { el.innerHTML = '<div style="color:var(--r)">Error: '+e.message+'</div>'; }
+}
+
+// ── HELPERS ────────────────────────────────────────────────────
+function fmt(kobo) { return '₦'+(kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(iso) { if(!iso)return'—'; const d=new Date(iso); return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function relTime(iso) { if(!iso)return'—'; const d=Date.now()-new Date(iso); if(d<60000)return'just now'; if(d<3600000)return Math.floor(d/60000)+'m ago'; if(d<86400000)return Math.floor(d/3600000)+'h ago'; return Math.floor(d/86400000)+'d ago'; }
+function setText(id,v) { const e=document.getElementById(id); if(e)e.textContent=v; }
+function setWidth(id,pct) { const e=document.getElementById(id); if(e)e.style.width=Math.min(pct,100)+'%'; }
+function statusBadge(s) { return s==='HELD'||s==='SETTLED'?'b-ok':s==='REDEEMED'||s==='SPENT'?'b-warn':s==='CONFLICT'||s==='EXPIRED'?'b-err':'b-grey'; }
+function setStatus(id,col,badge,sub) {
+  const cols={green:'var(--g)',amber:'var(--am)',red:'var(--r)'};
+  const cls={green:'b-ok',amber:'b-warn',red:'b-err'};
+  const dot=document.getElementById('sd-'+id); const bd=document.getElementById('sb-'+id); const ss=document.getElementById('ss-'+id);
+  if(dot)dot.style.background=cols[col]; if(bd){bd.className='badge '+cls[col];bd.textContent=badge;} if(ss)ss.textContent=sub;
+}
+function notify(msg,isErr=false) {
+  const el=document.getElementById('notif'); el.textContent=msg;
+  el.className='notif show'+(isErr?' error':'');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.className='notif',3500);
+}
+function showLoader(t) { document.getElementById('ltxt').textContent=t; document.getElementById('loader').classList.add('show'); }
+function hideLoader() { document.getElementById('loader').classList.remove('show'); }
+function downloadCSV(rows,filename) {
+  const csv=rows.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=filename; a.click();
+  notify('CSV exported: '+filename);
 }
 </script>
 </body>
