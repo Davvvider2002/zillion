@@ -595,6 +595,7 @@ html,body{height:100%;height:-webkit-fill-available;}
   100%{ top:4px;   opacity:1; }
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -933,9 +934,9 @@ html,body{height:100%;height:-webkit-fill-available;}
       <div class="send-coins" id="send-coins-label">Select an amount below</div>
     </div>
     <div class="method-tabs">
-      <button class="method-tab active" onclick="switchSendMethod('wa',this)">📱 WhatsApp</button>
-      <button class="method-tab" onclick="switchSendMethod('qr',this)">QR Code</button>
-      <button class="method-tab" onclick="switchSendMethod('file',this)">📄 .zil File</button>
+      <button class="method-tab active" onclick="switchSendMethod('qr',this)">📲 QR Code</button>
+      <button class="method-tab" onclick="switchSendMethod('wa',this)">📱 WhatsApp</button>
+      <button class="method-tab" onclick="switchSendMethod('file',this)">📄 File</button>
     </div>
     <div class="scroll-body" style="background:var(--bg)">
       <div class="denom-pills">
@@ -977,9 +978,44 @@ html,body{height:100%;height:-webkit-fill-available;}
       </div>
 
       <!-- QR panel -->
-      <div id="send-panel-qr" class="method-panel">
-        <div class="alert alert-am" style="margin-bottom:16px">
-          QR transfer coming in Phase 2 of the native Android app. Use WhatsApp for now.
+      <div id="send-panel-qr" class="method-panel active">
+        <div id="send-qr-box" style="display:none;background:var(--d2);border-radius:14px;overflow:hidden;margin-bottom:14px">
+          <div style="padding:16px;text-align:center">
+            <div style="font-size:13px;color:var(--gm);margin-bottom:8px;font-weight:600">QR Payment Code</div>
+            <div style="display:flex;justify-content:center;margin-bottom:10px">
+              <div id="send-qr-canvas" style="background:#fff;padding:10px;border-radius:10px"></div>
+            </div>
+            <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:2px" id="send-qr-amount">₦0</div>
+            <div style="font-size:11px;color:var(--gm);margin-bottom:8px" id="send-qr-detail"></div>
+            <div style="font-size:12px;font-weight:700;color:var(--am)" id="send-qr-timer">⏱ Valid 15 minutes</div>
+          </div>
+          <div style="padding:0 14px 14px;display:flex;gap:8px">
+            <button onclick="shareSendQRWhatsApp()" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              📱 Share via WhatsApp
+            </button>
+            <button onclick="saveSendQRImage()" style="padding:11px 14px;background:var(--bll);color:var(--bl);border:none;border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">
+              💾
+            </button>
+          </div>
+        </div>
+        <div id="send-qr-info" class="wa-info">
+          <span class="wa-info-icon">📲</span>
+          <div class="wa-info-title">Send via QR Code</div>
+          <div class="wa-info-steps">
+            <li>✅ Enter amount above</li>
+            <li>✅ Tap Generate QR below</li>
+            <li>✅ Share QR via WhatsApp</li>
+            <li>✅ Recipient scans it in their Zillion wallet</li>
+            <li>✅ Coins transfer instantly — no internet needed</li>
+          </div>
+        </div>
+        <div id="send-qr-error" class="alert alert-r" style="display:none"></div>
+        <button class="btn btn-g" id="send-qr-btn" onclick="generateSendQR()">
+          📲 Generate QR Code →
+        </button>
+        <div style="height:14px"></div>
+        <div class="alert alert-am" style="margin:0">
+          <strong>⚡ Works offline.</strong> The recipient scans this QR in their Zillion wallet. Coins transfer via the Zillion registry.
         </div>
       </div>
 
@@ -1677,9 +1713,9 @@ function updateSendDisplay() {
 }
 function switchSendMethod(method, el) {
   STATE.sendMethod = method;
-  document.querySelectorAll('.method-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#screen-send .method-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
-  document.querySelectorAll('.method-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#screen-send .method-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('send-panel-'+method).classList.add('active');
 }
 async function sendViaWhatsApp(fileOnly=false) {
@@ -2239,6 +2275,145 @@ async function checkClaimParam() {
   goTo('screen-receive');
   switchRecvTab('qr');
   await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + claimId);
+}
+
+// ── Customer QR Send Functions ────────────────────────────────
+let _sendQrClaimUrl = null;
+let _sendQrImgData  = null;
+let _sendQrTimer    = null;
+let _sendQrBundle   = null;
+
+async function generateSendQR() {
+  const errEl = document.getElementById('send-qr-error');
+  errEl.style.display = 'none';
+  const amount = STATE.sendAmount;
+  if (!amount || amount < 50000) {
+    errEl.textContent = 'Minimum amount is ₦500'; errEl.style.display = 'block'; return;
+  }
+  const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER'&&c._status!=='PENDING_CASHOUT');
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  if (amount > totalAvail) {
+    errEl.textContent = `Insufficient balance. Available: ${fmtNaira(totalAvail)}`;
+    errEl.style.display = 'block'; return;
+  }
+  // Select coins
+  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
+  let remain = amount; const selected = [];
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+
+  const bundle = {
+    zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
+    created_at:new Date().toISOString(),
+    sender_device:STATE.user?.deviceId||'UNKNOWN',
+    type:'cashin',
+    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    coin_count:selected.length, coins:selected,
+  };
+  _sendQrBundle = bundle;
+
+  showLoader('Creating QR code...');
+  try {
+    const res = await fetch('/api/v1/create-claim', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ bundle }),
+    });
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) throw new Error(data.error||'Failed to create QR');
+
+    _sendQrClaimUrl = data.claim_url;
+
+    // Mark coins as pending
+    selected.forEach(c=>{
+      const idx=STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
+      if(idx>=0) STATE.vault[idx]._status='PENDING_TRANSFER';
+    });
+    STATE.history.unshift({
+      id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
+      coin_count:selected.length, ts:new Date().toISOString(),
+      status:'PENDING_SYNC', method:'qr', name:'Sent via QR code',
+    });
+    save(); refreshHome();
+
+    // Render QR
+    const canvas = document.getElementById('send-qr-canvas');
+    canvas.innerHTML = '';
+    new QRCode(canvas, {
+      text:data.claim_url, width:170, height:170,
+      colorDark:'#0D1F1A', colorLight:'#FFFFFF',
+      correctLevel:QRCode.CorrectLevel.M,
+    });
+    setTimeout(()=>{
+      const c=canvas.querySelector('canvas');
+      if(c) _sendQrImgData=c.toDataURL('image/png');
+    },100);
+
+    document.getElementById('send-qr-amount').textContent = fmtNaira(bundle.total_kobo);
+    document.getElementById('send-qr-detail').textContent =
+      selected.length+' coin'+(selected.length!==1?'s':'')+' · Claim expires in 15 min';
+    document.getElementById('send-qr-box').style.display  = 'block';
+    document.getElementById('send-qr-info').style.display = 'none';
+    document.getElementById('send-qr-btn').textContent    = '↻ Generate New QR';
+
+    startSendQRTimer(new Date(data.expires_at));
+    toast('QR ready — share with recipient 📲');
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = 'QR error: '+e.message; errEl.style.display='block';
+  }
+}
+
+function startSendQRTimer(exp) {
+  clearInterval(_sendQrTimer);
+  const el = document.getElementById('send-qr-timer');
+  const tick = () => {
+    const s = Math.max(0,Math.floor((exp-Date.now())/1000));
+    const m = Math.floor(s/60), sec = s%60;
+    if (!el) return;
+    if (s>0) {
+      el.textContent='⏱ '+m+'m '+String(sec).padStart(2,'0')+'s remaining';
+      el.style.color = s<60?'var(--r)':'var(--am)';
+    } else {
+      el.textContent='❌ Expired — generate a new QR';
+      el.style.color='var(--r)';
+      const canvas=document.querySelector('#send-qr-canvas canvas');
+      if(canvas) canvas.style.opacity='.3';
+      clearInterval(_sendQrTimer);
+    }
+  };
+  tick(); _sendQrTimer=setInterval(tick,1000);
+}
+
+async function shareSendQRWhatsApp() {
+  if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
+  const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
+  const msg = '💚 *Zillion Payment — '+fmt2+'*
+
+'+
+    'Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
+
+'+
+    _sendQrClaimUrl+'
+
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/';
+  if (_sendQrImgData && navigator.share) {
+    try {
+      const blob = await (await fetch(_sendQrImgData)).blob();
+      const file = new File([blob],'zillion-payment-qr.png',{type:'image/png'});
+      if (navigator.canShare && navigator.canShare({files:[file]})) {
+        await navigator.share({title:'Zillion '+fmt2,text:msg,files:[file]});
+        return;
+      }
+    } catch(e){if(e.name==='AbortError')return;}
+  }
+  if (navigator.share){try{await navigator.share({title:'Zillion '+fmt2,text:msg});return;}catch(e){if(e.name==='AbortError')return;}}
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+function saveSendQRImage() {
+  if (!_sendQrImgData){toast('No QR image',true);return;}
+  const a=document.createElement('a');a.href=_sendQrImgData;a.download='zillion-qr-'+Date.now()+'.png';a.click();
+  toast('QR image saved');
 }
 
 // ── Web Share Target (handle incoming .zil from WhatsApp) ──────

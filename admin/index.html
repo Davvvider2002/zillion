@@ -6,6 +6,7 @@
 <title>Zillion — Admin Dashboard</title>
 <style>
 :root{
+  --pu:#6B21A8;--pul:#F3E8FF;--pum:#D8B4FE;
   --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--d:#0D1F1A;--d2:#162C20;
   --w:#FFFFFF;--bg:#F0F2F0;--gr:#555;--grl:#F4F4F4;--grb:#DDDDDD;
   --r:#C0392B;--rl:#FDECEA;--am:#E67E22;--al:#FFF3E0;--bl:#1A3A7A;--bll:#EEF4FF;
@@ -111,7 +112,8 @@ tr:hover td{background:var(--gl);}
 .ucard-top{padding:14px 16px;display:flex;align-items:center;gap:12px;}
 .ucard-top.customer{background:linear-gradient(135deg,#0D1F1A,#1A4A2A);}
 .ucard-top.agent{background:linear-gradient(135deg,#0D1F3A,#1A2A5A);}
-.ucard-top.merchant{background:linear-gradient(135deg,#2D0D3A,#4A1A6A);}
+.ucard-top.merchant{background:linear-gradient(135deg,#1A0A2E,#2D1052);}
+.uavatar.merchant{background:#6B21A8;}
 .uavatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:var(--w);flex-shrink:0;}
 .uavatar.customer{background:var(--g);}
 .uavatar.agent{background:var(--bl);}
@@ -246,7 +248,8 @@ tr:hover td{background:var(--gl);}
 
 <div class="navtabs">
   <button class="ntab active" onclick="showSec('overview',this)">📊 Overview</button>
-  <button class="ntab" onclick="showSec('users',this)">👥 Users</button>
+  <button class="ntab" onclick="showSec('users',this)">👥 Customers</button>
+  <button class="ntab" onclick="showSec('merchants',this)">🛒 Merchants</button>
   <button class="ntab" onclick="showSec('agents',this)">🏪 Agents</button>
   <button class="ntab" onclick="showSec('coins',this)">🪙 Coins</button>
   <button class="ntab" onclick="showSec('transactions',this)">📋 Transactions</button>
@@ -312,6 +315,35 @@ tr:hover td{background:var(--gl);}
       <div class="msub">Of 5 pilot agents</div>
       <div class="micon">🏪</div>
     </div>
+  </div>
+  <div class="metrics" style="margin-bottom:16px">
+    <div class="metric pu">
+      <div class="mlabel">Merchants</div>
+      <div class="mvalue" id="m-merchants">—</div>
+      <div class="msub">Registered traders</div>
+      <div class="micon">🛒</div>
+    </div>
+    <div class="metric">
+      <div class="mlabel">Merchant Volume</div>
+      <div class="mvalue" id="m-merch-volume">—</div>
+      <div class="msub">Total received</div>
+      <div class="micon">₦</div>
+    </div>
+    <div class="metric am">
+      <div class="mlabel">QR Payments</div>
+      <div class="mvalue" id="m-qr-payments">—</div>
+      <div class="msub">Completed claims</div>
+      <div class="micon">📲</div>
+    </div>
+    <div class="metric bl">
+      <div class="mlabel">Pending Claims</div>
+      <div class="mvalue" id="m-pending-claims">—</div>
+      <div class="msub">Active QR codes</div>
+      <div class="micon">⏱</div>
+    </div>
+  </div>
+  <div class="metrics" style="display:none"><!-- spacer --></div>
+  <div class="metrics" style="display:none">
   </div>
 
   <div class="grid2">
@@ -411,6 +443,102 @@ tr:hover td{background:var(--gl);}
       </table>
     </div>
     <div id="user-pagination" class="pagination"></div>
+  </div>
+</div>
+
+<!-- ══ MERCHANTS ══════════════════════════════════════════════ -->
+<div id="sec-merchants" class="sec">
+
+  <!-- Summary cards -->
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric pu">
+      <div class="mlabel">Total Merchants</div>
+      <div class="mvalue" id="merch-m-total">—</div>
+      <div class="msub">Registered</div>
+      <div class="micon">🛒</div>
+    </div>
+    <div class="metric">
+      <div class="mlabel">Active</div>
+      <div class="mvalue" id="merch-m-active" style="color:var(--g)">—</div>
+      <div class="msub">Transacting</div>
+      <div class="micon">✅</div>
+    </div>
+    <div class="metric am">
+      <div class="mlabel">Total Payments</div>
+      <div class="mvalue" id="merch-m-payments">—</div>
+      <div class="msub">QR claims settled</div>
+      <div class="micon">📲</div>
+    </div>
+    <div class="metric bl">
+      <div class="mlabel">Total Volume</div>
+      <div class="mvalue" id="merch-m-volume">—</div>
+      <div class="msub">All-time received</div>
+      <div class="micon">₦</div>
+    </div>
+  </div>
+
+  <!-- Merchant cards grid -->
+  <div class="card">
+    <div class="card-title">
+      All Merchants
+      <div style="display:flex;gap:8px">
+        <button class="export-btn" onclick="exportMerchants()">⬇ Export CSV</button>
+        <button class="rbtn" onclick="loadMerchants()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="card-sub">All registered merchants. Register at zillion-mvp.netlify.app/merchant/</div>
+    <div class="toolbar">
+      <input class="search-input" id="merch-search" placeholder="Search by name, location, type..."
+        oninput="filterMerchantTable()">
+      <select class="filter-select" id="merch-status-filter" onchange="filterMerchantTable()">
+        <option value="">All Status</option>
+        <option value="ACTIVE">Active</option>
+        <option value="SUSPENDED">Suspended</option>
+        <option value="PENDING">Pending</option>
+      </select>
+      <select class="filter-select" id="merch-type-filter" onchange="filterMerchantTable()">
+        <option value="">All Types</option>
+        <option value="Food & Vegetables">Food &amp; Vegetables</option>
+        <option value="Clothing & Fashion">Clothing &amp; Fashion</option>
+        <option value="Electronics">Electronics</option>
+        <option value="Restaurant & Food">Restaurant &amp; Food</option>
+        <option value="Transport">Transport</option>
+        <option value="General Retail">General Retail</option>
+        <option value="Services">Services</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div id="merchant-cards-grid" class="user-grid">
+      <div class="no-data">Loading merchants...</div>
+    </div>
+  </div>
+
+  <!-- Merchant table -->
+  <div class="card">
+    <div class="card-title">Merchant Registry</div>
+    <div class="card-sub">Complete list with payment activity</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Merchant ID</th>
+            <th>Owner</th>
+            <th>Business</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Phone</th>
+            <th>Registered</th>
+            <th>Payments</th>
+            <th>Volume</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="merchant-table-body">
+          <tr><td colspan="11" class="no-data">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -738,7 +866,8 @@ function showSec(name, el) {
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('sec-'+name).classList.add('active');
-  const loaders={users:loadUsers,agents:loadAgents,coins:loadCoins,transactions:loadTransactions,fraud:loadFraud,system:checkSystem};
+  const loaders={users:loadUsers,merchants:loadMerchants,agents:loadAgents,
+    coins:loadCoins,transactions:loadTransactions,fraud:loadFraud,system:checkSystem};
   if (loaders[name]) loaders[name]();
 }
 
@@ -1209,3 +1338,126 @@ function downloadCSV(rows,filename){
 </script>
 </body>
 </html>
+// ── MERCHANTS ─────────────────────────────────────────────────
+let allMerchantsData = [];
+
+async function loadMerchants() {
+  showLoader('Loading merchants...');
+  try {
+    const res  = await fetch(`${API}/admin-merchants`,{headers:{'Authorization':'Bearer '+adminToken}});
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) { notify('Merchants: '+(data.error||'error'),true); showMerchantEmpty(); return; }
+    allMerchantsData = data.merchants||[];
+    const payments = allMerchantsData.reduce((s,m)=>s+(m.total_payments||0),0);
+    const volume   = allMerchantsData.reduce((s,m)=>s+(m.total_received_kobo||0),0);
+    setText('merch-m-total',   data.total||0);
+    setText('merch-m-active',  data.active||0);
+    setText('merch-m-payments',payments);
+    setText('merch-m-volume',  fmt(volume));
+    setText('m-merchants',     data.total||0);
+    setText('m-merch-volume',  fmt(volume));
+    setText('m-qr-payments',   payments);
+    renderMerchantCards(allMerchantsData);
+    renderMerchantTable(allMerchantsData);
+  } catch(e) { hideLoader(); notify('Merchants: '+e.message,true); showMerchantEmpty(); }
+}
+
+function showMerchantEmpty() {
+  document.getElementById('merchant-cards-grid').innerHTML = `
+    <div style="grid-column:1/-1;text-align:center;padding:40px 20px">
+      <div style="font-size:48px;margin-bottom:12px">🛒</div>
+      <div style="font-size:16px;font-weight:bold;margin-bottom:8px">No merchants yet</div>
+      <div style="font-size:13px;color:#666;margin-bottom:16px">Share the portal to onboard traders.</div>
+      <div style="background:#F3E8FF;border-radius:10px;padding:12px 16px;display:inline-block;
+        font-size:13px;color:#6B21A8;font-weight:bold">
+        🔗 zillion-mvp.netlify.app/merchant/
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#999">
+        Run merchants.sql in Supabase if this is first time.
+      </div>
+    </div>`;
+  document.getElementById('merchant-table-body').innerHTML =
+    '<tr><td colspan="11" class="no-data">No merchants. Run merchants.sql in Supabase first.</td></tr>';
+}
+
+function filterMerchantTable() {
+  const q  = document.getElementById('merch-search')?.value.toLowerCase()||'';
+  const st = document.getElementById('merch-status-filter')?.value||'';
+  const tp = document.getElementById('merch-type-filter')?.value||'';
+  const f  = allMerchantsData.filter(m=>
+    (!q  || m.business_name?.toLowerCase().includes(q)||m.owner_name?.toLowerCase().includes(q)||m.location?.toLowerCase().includes(q))&&
+    (!st || m.status===st)&&(!tp || m.business_type===tp));
+  renderMerchantCards(f); renderMerchantTable(f);
+}
+
+function renderMerchantCards(merchants) {
+  const el=document.getElementById('merchant-cards-grid');
+  if (!merchants.length){el.innerHTML='<div class="no-data" style="grid-column:1/-1">No merchants match filter</div>';return;}
+  const icons={'Food & Vegetables':'🥬','Clothing & Fashion':'👗','Electronics':'📱','Pharmacy & Health':'💊',
+    'Transport':'🚌','Restaurant & Food':'🍲','Hardware & Tools':'🔧','General Retail':'🏪','Services':'⚙️','Other':'📦'};
+  el.innerHTML=merchants.map(m=>{
+    const ini=(m.business_name||'ZL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<div class="ucard">
+      <div class="ucard-top merchant">
+        <div class="uavatar merchant">${ini}</div>
+        <div><div class="ucard-name">${m.business_name}</div><div class="ucard-id">${m.merchant_id}</div></div>
+      </div>
+      <div class="ucard-body">
+        <div class="ustat-row"><span class="ustat-key">Owner</span><span class="ustat-val">${m.owner_name||'—'}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Type</span><span class="ustat-val">${icons[m.business_type]||'🛒'} ${m.business_type||'—'}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Location</span><span class="ustat-val" style="font-size:11px">${m.location||'—'}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Phone</span><span class="ustat-val" style="font-size:11px">${m.phone||'—'}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Payments</span><span class="ustat-val green">${m.total_payments||0}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Volume</span><span class="ustat-val green">${fmt(m.total_received_kobo||0)}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Status</span>
+          <span class="badge ${m.status==='ACTIVE'?'b-ok':m.status==='SUSPENDED'?'b-err':'b-warn'}">${m.status}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Joined</span><span class="ustat-val" style="font-size:10px">${fmtDate(m.registered_at)}</span></div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button onclick="suspendMerchant('${m.merchant_id}','${m.status}')"
+            style="flex:1;padding:7px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};
+            color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};border:1px solid currentColor;
+            border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">
+            ${m.status==='ACTIVE'?'Suspend':'Activate'}</button>
+          <button onclick="alert('${m.merchant_id}\n${m.owner_name}\n${m.business_name}\n${m.phone}\n${m.location}')"
+            style="flex:1;padding:7px;background:#F3E8FF;color:#6B21A8;border:1px solid #D8B4FE;
+            border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">Details</button>
+        </div>
+      </div></div>`}).join('');
+}
+
+function renderMerchantTable(merchants) {
+  document.getElementById('merchant-table-body').innerHTML = merchants.length
+    ? merchants.map(m=>`<tr>
+        <td style="font-family:monospace;font-size:10px">${m.merchant_id}</td>
+        <td style="font-weight:600">${m.owner_name||'—'}</td>
+        <td style="font-weight:600;color:#6B21A8">${m.business_name}</td>
+        <td style="font-size:11px">${m.business_type||'—'}</td>
+        <td style="font-size:11px">${m.location||'—'}</td>
+        <td style="font-size:11px">${m.phone||'—'}</td>
+        <td style="font-size:11px">${fmtDate(m.registered_at)}</td>
+        <td style="text-align:center;font-weight:bold">${m.total_payments||0}</td>
+        <td style="font-weight:bold;color:var(--g)">${fmt(m.total_received_kobo||0)}</td>
+        <td><span class="badge ${m.status==='ACTIVE'?'b-ok':m.status==='SUSPENDED'?'b-err':'b-warn'}">${m.status}</span></td>
+        <td><button onclick="suspendMerchant('${m.merchant_id}','${m.status}')"
+          style="padding:4px 10px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};
+          border:1px solid currentColor;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer">
+          ${m.status==='ACTIVE'?'Suspend':'Activate'}</button></td></tr>`).join('')
+    : '<tr><td colspan="11" class="no-data">No merchants found</td></tr>';
+}
+
+function suspendMerchant(id, status) {
+  const newSt = status==='ACTIVE'?'SUSPENDED':'ACTIVE';
+  const sql   = `UPDATE merchants SET status='${newSt}' WHERE merchant_id='${id}';`;
+  if (confirm(`Change ${id} to ${newSt}?\n\nRun in Supabase:\n${sql}`)) {
+    alert('Copy this SQL and run in Supabase SQL Editor:\n\n'+sql);
+  }
+}
+
+function exportMerchants() {
+  const rows=[['Merchant ID','Owner','Business','Type','Location','Phone','Status','Registered','Payments','Volume (kobo)']];
+  allMerchantsData.forEach(m=>rows.push([m.merchant_id,m.owner_name,m.business_name,m.business_type,m.location,m.phone,m.status,m.registered_at,m.total_payments||0,m.total_received_kobo||0]));
+  downloadCSV(rows,'zillion-merchants.csv');
+}
+
+

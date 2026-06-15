@@ -163,27 +163,152 @@ html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg);}
 <div id="toast"></div>
 <div id="loader"><div class="spinner"></div><div class="ltxt" id="ltxt">Loading...</div></div>
 
-<!-- ══ LOGIN ════════════════════════════════════════════════ -->
-<div id="login-screen">
-  <div class="lbox">
-    <div class="llogo">ZILLION</div>
-    <div class="lsub">Merchant Portal</div>
-    <div class="lbadge"><span>🛒 Merchant Access</span></div>
-    <div class="lf">
-      <label>Phone Number</label>
-      <input type="tel" id="l-phone" placeholder="+2348012345678" inputmode="tel">
+<!-- ══ ONBOARDING ════════════════════════════════════════════ -->
+<div id="login-screen" style="min-height:100vh;display:flex;flex-direction:column;
+  background:linear-gradient(135deg,#1A0A2E,#2D1052,#1A0A2E);overflow-y:auto">
+
+  <!-- Onboarding screens (step-by-step) -->
+  <div id="ob-splash" style="flex:1;display:flex;flex-direction:column;align-items:center;
+    justify-content:space-between;padding:60px 28px 40px;min-height:100vh">
+    <div style="text-align:center">
+      <div style="font-size:44px;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:8px">ZILLION</div>
+      <div style="font-size:13px;color:var(--pm);font-weight:500">Merchant Portal</div>
     </div>
-    <div class="lf">
-      <label>Business Name</label>
-      <input type="text" id="l-biz" placeholder="e.g. Mama Ngozi Tomatoes">
+    <div style="width:130px;height:130px;border-radius:50%;background:rgba(107,33,168,.2);
+      border:1px solid rgba(216,180,254,.2);display:flex;align-items:center;justify-content:center;font-size:52px">
+      🛒
     </div>
-    <div class="lf">
-      <label>Location / Market</label>
-      <input type="text" id="l-loc" placeholder="e.g. Mushin Market, Lagos">
+    <div style="width:100%">
+      <div style="background:rgba(255,255,255,.06);border-radius:14px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📲</div>
+            <div style="font-size:13px;color:var(--pm)">Accept Zil payments via QR code</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">⚡</div>
+            <div style="font-size:13px;color:var(--pm)">Works offline — no internet needed</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🏧</div>
+            <div style="font-size:13px;color:var(--pm)">Cash out at any Zillion agent</div>
+          </div>
+        </div>
+      </div>
+      <button class="lbtn" onclick="showObStep(2)" style="margin-bottom:10px">Register My Business →</button>
+      <button class="lbtn" onclick="showObStep('login')"
+        style="background:transparent;border:1px solid rgba(216,180,254,.3);color:var(--pm);font-weight:500">
+        I already have an account
+      </button>
     </div>
-    <button class="lbtn" onclick="doLogin()">Enter Merchant Portal →</button>
-    <div class="lerr" id="lerr"></div>
   </div>
+
+  <!-- Step 2: Owner details -->
+  <div id="ob-step2" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
+    <div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Step 1 of 3</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">About you</div>
+      <div style="font-size:13px;color:var(--pm)">Your personal details to secure your account</div>
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Your Full Name</label>
+      <input type="text" id="ob-owner" placeholder="e.g. Ngozi Adeyemi" autocomplete="name"
+        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Phone Number</label>
+      <input type="tel" id="ob-phone" placeholder="08012345678" inputmode="tel"
+        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="lbtn" onclick="showObStep(1)" style="flex:1;background:rgba(255,255,255,.1);color:var(--pm)">‹ Back</button>
+      <button class="lbtn" onclick="validateStep2()" style="flex:2">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Business details -->
+  <div id="ob-step3" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
+    <div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Step 2 of 3</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">Your business</div>
+      <div style="font-size:13px;color:var(--pm)">Tell customers who you are</div>
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Business Name</label>
+      <input type="text" id="ob-biz" placeholder="e.g. Mama Ngozi Tomatoes"
+        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Business Type</label>
+      <select id="ob-type" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(216,180,254,.3);
+        border-radius:8px;color:#fff;padding:11px 13px;width:100%;font-size:14px;font-family:Arial,sans-serif">
+        <option value="Food & Vegetables">🥬 Food &amp; Vegetables</option>
+        <option value="Clothing & Fashion">👗 Clothing &amp; Fashion</option>
+        <option value="Electronics">📱 Electronics</option>
+        <option value="Pharmacy & Health">💊 Pharmacy &amp; Health</option>
+        <option value="Transport">🚌 Transport</option>
+        <option value="Restaurant & Food">🍲 Restaurant &amp; Food</option>
+        <option value="Hardware & Tools">🔧 Hardware &amp; Tools</option>
+        <option value="General Retail">🏪 General Retail</option>
+        <option value="Services">⚙️ Services</option>
+        <option value="Other">📦 Other</option>
+      </select>
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Market / Location</label>
+      <input type="text" id="ob-loc" placeholder="e.g. Mushin Market, Lagos"
+        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="lbtn" onclick="showObStep(2)" style="flex:1;background:rgba(255,255,255,.1);color:var(--pm)">‹ Back</button>
+      <button class="lbtn" onclick="validateStep3()" style="flex:2">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Confirm & Register -->
+  <div id="ob-step4" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Step 3 of 3</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">Confirm details</div>
+      <div style="font-size:13px;color:var(--pm)">Review before registering</div>
+    </div>
+    <div style="background:rgba(255,255,255,.06);border-radius:14px;padding:18px;margin-bottom:20px">
+      <div id="ob-summary" style="display:flex;flex-direction:column;gap:12px"></div>
+    </div>
+    <div style="background:rgba(107,33,168,.2);border-radius:10px;padding:12px 14px;margin-bottom:20px;
+      border-left:3px solid var(--p);font-size:12px;color:var(--pm);line-height:1.6">
+      By registering you agree to Zillion's merchant terms. Your Merchant ID will be generated from your phone number and is permanent.
+    </div>
+    <button class="lbtn" onclick="doRegister()" id="reg-btn" style="margin-bottom:10px">
+      ✅ Register My Business
+    </button>
+    <button class="lbtn" onclick="showObStep(3)" style="background:rgba(255,255,255,.1);color:var(--pm)">‹ Back</button>
+    <div class="lerr" id="ob-err" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <!-- Login screen (returning merchants) -->
+  <div id="ob-login" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:32px;font-weight:800;letter-spacing:5px;color:#fff;margin-bottom:4px">ZILLION</div>
+      <div style="font-size:12px;color:var(--pm)">Merchant Portal — Login</div>
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Phone Number</label>
+      <input type="tel" id="l-phone" placeholder="08012345678" inputmode="tel"
+        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
+    </div>
+    <div class="lf">
+      <label style="color:var(--pm)">Business Name</label>
+      <input type="text" id="l-biz" placeholder="Your registered business name"
+        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
+    </div>
+    <button class="lbtn" onclick="doLogin()" style="margin-bottom:10px">Login →</button>
+    <button class="lbtn" onclick="showObStep(1)" style="background:rgba(255,255,255,.1);color:var(--pm)">
+      New merchant? Register
+    </button>
+    <div class="lerr" id="lerr" style="display:none;margin-top:10px"></div>
+  </div>
+
 </div>
 
 <!-- ══ APP ══════════════════════════════════════════════════ -->
@@ -495,34 +620,125 @@ function showScreen(id) {
   if (id==='screen-accept')  startMerchScanner();
 }
 
-// ── LOGIN ──────────────────────────────────────────────────────
+// ── ONBOARDING FLOW ────────────────────────────────────────────
+const OB_STEPS = { 1:'ob-splash',2:'ob-step2',3:'ob-step3',4:'ob-step4','login':'ob-login' };
+function showObStep(step) {
+  Object.values(OB_STEPS).forEach(id => {
+    const el=document.getElementById(id);
+    if (el) el.style.display='none';
+  });
+  const el=document.getElementById(OB_STEPS[step]);
+  if (el) el.style.display='flex';
+  if (step===4) buildSummary();
+}
+
+function validateStep2() {
+  const owner = document.getElementById('ob-owner').value.trim();
+  const phone = document.getElementById('ob-phone').value.trim();
+  if (!owner) { alert('Please enter your full name'); return; }
+  if (!phone) { alert('Please enter your phone number'); return; }
+  showObStep(3);
+}
+
+function validateStep3() {
+  const biz = document.getElementById('ob-biz').value.trim();
+  const loc = document.getElementById('ob-loc').value.trim();
+  if (!biz) { alert('Please enter your business name'); return; }
+  if (!loc) { alert('Please enter your market / location'); return; }
+  showObStep(4);
+}
+
+function buildSummary() {
+  const data = {
+    'Owner Name':    document.getElementById('ob-owner')?.value||'',
+    'Phone':         document.getElementById('ob-phone')?.value||'',
+    'Business':      document.getElementById('ob-biz')?.value||'',
+    'Business Type': document.getElementById('ob-type')?.value||'',
+    'Location':      document.getElementById('ob-loc')?.value||'',
+  };
+  const el = document.getElementById('ob-summary');
+  if (!el) return;
+  el.innerHTML = Object.entries(data).map(([k,v])=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding:8px 0;border-bottom:1px solid rgba(216,180,254,.1)">
+      <span style="font-size:12px;color:var(--pm)">${k}</span>
+      <span style="font-size:13px;font-weight:700;color:#fff">${v||'—'}</span>
+    </div>`).join('');
+}
+
+async function doRegister() {
+  const phone    = document.getElementById('ob-phone').value.trim();
+  const owner    = document.getElementById('ob-owner').value.trim();
+  const biz      = document.getElementById('ob-biz').value.trim();
+  const bizType  = document.getElementById('ob-type').value;
+  const loc      = document.getElementById('ob-loc').value.trim();
+  const errEl    = document.getElementById('ob-err');
+  const btn      = document.getElementById('reg-btn');
+  errEl.style.display='none';
+
+  const normalised = phone.startsWith('+') ? phone
+    : phone.startsWith('0') ? '+234'+phone.slice(1) : '+234'+phone;
+
+  btn.disabled=true; btn.textContent='Registering...';
+  showL('Creating your merchant account...');
+  try {
+    const res = await fetch(`${API}/merchant-register`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone:normalised, owner_name:owner,
+        business_name:biz, business_type:bizType, location:loc }),
+    });
+    const data = await res.json();
+    hideL();
+    if (!res.ok) {
+      errEl.textContent=data.error||'Registration failed'; errEl.style.display='block';
+      btn.disabled=false; btn.textContent='✅ Register My Business';
+      return;
+    }
+    // Save session
+    M.token=data.token; M.merchant_id=data.merchant_id;
+    M.phone=normalised; M.owner_name=owner;
+    M.business_name=biz; M.business_type=bizType; M.location=loc;
+    save(); showApp();
+    toast('Welcome to Zillion, '+owner+'! 🎉');
+  } catch(e) {
+    hideL();
+    errEl.textContent='Network error: '+e.message; errEl.style.display='block';
+    btn.disabled=false; btn.textContent='✅ Register My Business';
+  }
+}
+
+// ── LOGIN (returning merchants) ────────────────────────────────
 async function doLogin() {
   const phone = document.getElementById('l-phone').value.trim();
   const biz   = document.getElementById('l-biz').value.trim();
-  const loc   = document.getElementById('l-loc').value.trim();
   const errEl = document.getElementById('lerr');
-  errEl.style.display = 'none';
+  errEl.style.display='none';
   if (!phone) { errEl.textContent='Phone number required'; errEl.style.display='block'; return; }
   if (!biz)   { errEl.textContent='Business name required'; errEl.style.display='block'; return; }
   showL('Logging in...');
   try {
-    const res  = await fetch(`${API}/merchant-login`, {
+    const normalised = phone.startsWith('+') ? phone
+      : phone.startsWith('0') ? '+234'+phone.slice(1) : '+234'+phone;
+    const res = await fetch(`${API}/merchant-login`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ phone, business_name:biz, location:loc }),
+      body: JSON.stringify({ phone:normalised, business_name:biz }),
     });
     const data = await res.json();
     hideL();
     if (!res.ok) { errEl.textContent=data.error||'Login failed'; errEl.style.display='block'; return; }
     M.token=data.token; M.merchant_id=data.merchant_id;
-    M.phone=phone; M.business_name=biz; M.location=loc;
+    M.phone=normalised; M.business_name=biz;
     save(); showApp();
   } catch(e) { hideL(); errEl.textContent='Network error: '+e.message; errEl.style.display='block'; }
 }
+
 function doLogout() {
   if (!confirm('Log out? Vault data stays on this device.')) return;
   M.token=null; save();
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-screen').style.flexDirection='column';
+  showObStep(1);
 }
 function showApp() {
   document.getElementById('login-screen').style.display='none';
@@ -897,7 +1113,12 @@ function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;
 
 // ── BOOT ───────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  if (load() && M.token) showApp();
+  if (load() && M.token) {
+    showApp();
+  } else {
+    // Show splash/onboarding
+    showObStep(1);
+  }
 });
 </script>
 </body>
