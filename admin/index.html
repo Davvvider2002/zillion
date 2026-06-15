@@ -1335,9 +1335,7 @@ function downloadCSV(rows,filename){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
   notify('CSV exported: '+filename);
 }
-</script>
-</body>
-</html>
+
 // ── MERCHANTS ─────────────────────────────────────────────────
 let allMerchantsData = [];
 
@@ -1459,5 +1457,6 @@ function exportMerchants() {
   allMerchantsData.forEach(m=>rows.push([m.merchant_id,m.owner_name,m.business_name,m.business_type,m.location,m.phone,m.status,m.registered_at,m.total_payments||0,m.total_received_kobo||0]));
   downloadCSV(rows,'zillion-merchants.csv');
 }
-
-
+</script>
+</body>
+</html>
