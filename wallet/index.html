@@ -1317,8 +1317,41 @@ async function submitPhone() {
     const data = await res.json();
     hideLoader();
     if (!res.ok) {
-      errEl.textContent = '⚠️ ' + (data.error || 'SMS failed — try again.');
+      // Show specific error + detail so user/developer can diagnose
+      let msg = data.error || 'SMS delivery failed.';
+      if (data.detail) msg += ' — ' + data.detail;
+      if (data.tip)    msg += '. ' + data.tip;
+      // Dev bypass mode: server returned OTP directly
+      if (data.dev_otp) {
+        document.getElementById('otp-section').style.display = 'block';
+        document.getElementById('verify-btn-wrap').style.display = 'block';
+        document.getElementById('phone-btn').textContent = 'Resend Code';
+        startOtpTimer();
+        document.getElementById('otp0').focus();
+        toast('DEV MODE — code: ' + data.dev_otp, false, 8000);
+        // Auto-fill OTP boxes for convenience in dev mode
+        data.dev_otp.split('').forEach((d,i) => {
+          const box = document.getElementById('otp'+i);
+          if (box) { box.value=d; box.classList.add('filled'); }
+        });
+        return;
+      }
+      errEl.textContent = '⚠️ ' + msg;
       errEl.style.display = 'block';
+      return;
+    }
+    // Check for dev bypass success (OTP_DEV_BYPASS=true)
+    if (data.dev_otp) {
+      document.getElementById('otp-section').style.display = 'block';
+      document.getElementById('verify-btn-wrap').style.display = 'block';
+      document.getElementById('phone-btn').textContent = 'Resend Code';
+      startOtpTimer();
+      document.getElementById('otp0').focus();
+      toast('DEV MODE — auto-filled code: ' + data.dev_otp, false, 8000);
+      data.dev_otp.split('').forEach((d,i) => {
+        const box = document.getElementById('otp'+i);
+        if (box) { box.value=d; box.classList.add('filled'); }
+      });
       return;
     }
     document.getElementById('otp-section').style.display = 'block';
