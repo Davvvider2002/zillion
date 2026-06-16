@@ -2016,11 +2016,8 @@ function exportVaultBackup() {
   toast('Backup exported');
 }
 function forceSync() {
-  if (!STATE.isOnline) {
-    toast('No connection — changes saved locally', true, 3000);
-    return;
-  }
-  if (!STATE.user) { toast('Please log in first', true); return; }
+  if (!STATE.isOnline) { toast('No connection - changes saved locally', true, 3000); return; }
+  if (!STATE.user)     { toast('Please log in first', true); return; }
   toast('Syncing with network...');
   trySync();
 }
@@ -2036,30 +2033,24 @@ function resetWallet() {
 }
 
 // -- Sync -------------------------------------------------------
-
-// ── Sync status helpers ─────────────────────────────────────────
+// -- Sync status helpers ---------------------------------------
 function updateConnBadge(online) {
-  // Update the dot in home header
   const dot  = document.getElementById('sync-dot');
   const text = document.getElementById('sync-text');
-  if (dot)  dot.style.background  = online ? '#22C55E' : '#F59E0B';
-  if (text) text.textContent      = online ? 'Online'  : 'Offline';
-  // Update offline banner
+  if (dot)  dot.style.background = online ? '#22C55E' : '#F59E0B';
+  if (text) text.textContent     = online ? 'Online'  : 'Offline';
   const banner = document.getElementById('offline-banner');
   if (banner) banner.style.display = online ? 'none' : 'flex';
 }
 function updateSyncStatus(msg, isErr) {
-  // Show in sync-text when relevant
   const text = document.getElementById('sync-text');
-  if (text && msg) {
-    text.textContent = msg;
-    text.style.color = isErr ? '#EF4444' : '';
-    // Reset after 4s
-    if (!isErr) setTimeout(function() {
-      text.textContent = navigator.onLine ? 'Online' : 'Offline';
-      text.style.color = '';
-    }, 4000);
-  }
+  if (!text || !msg) return;
+  text.textContent = msg;
+  text.style.color = isErr ? '#EF4444' : '';
+  if (!isErr) setTimeout(function() {
+    text.textContent = navigator.onLine ? 'Online' : 'Offline';
+    text.style.color = '';
+  }, 4000);
 }
 
 async function trySync() {
@@ -2067,11 +2058,11 @@ async function trySync() {
   const pending = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
   if (!pending.length) { updateSyncStatus('All synced'); return; }
 
-  updateSyncStatus('Syncing ' + pending.length + ' transaction(s)...');
+  updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
   const token    = STATE.user.token || STATE.user.agentToken || '';
   const deviceId = STATE.user.deviceId;
 
-  // Build tx_batch matching what backend expects
+  // Build tx_batch matching backend schema
   const tx_batch = pending.map(c => ({
     coin_id:    c.id || c.coin_id,
     status:     c.status || 'HELD',
@@ -2092,51 +2083,45 @@ async function trySync() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      // Mark settled coins
       (data.settled_coin_ids || []).forEach(coin_id => {
         const idx = STATE.vault.findIndex(v => (v.id || v.coin_id) === coin_id);
         if (idx >= 0) STATE.vault[idx]._status = 'HELD';
       });
-      // Mark history as settled
       STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
       STATE.lastSync = new Date().toISOString();
-      save();
-      refreshHome();
-      const ts = new Date().toLocaleTimeString();
-      updateSyncStatus('Synced ' + (data.settled_count||0) + ' tx · ' + ts);
+      save(); refreshHome();
+      updateSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
       updateConnBadge(true);
       if (data.conflicts && data.conflicts.length) {
-        toast('⚠️ ' + data.conflicts.length + ' conflict(s) detected — contact support', true, 6000);
+        toast('Warning: ' + data.conflicts.length + ' conflict(s) detected', true, 6000);
       }
     } else {
       updateSyncStatus('Sync error: ' + (data.error || res.status), true);
     }
   } catch(e) {
-    updateSyncStatus('Offline — will retry when connected');
     STATE.isOnline = false;
     updateConnBadge(false);
+    updateSyncStatus('Offline - will retry when connected');
   }
 }
 
-// ── Auto-sync every 30s when online ────────────────────────────
-setInterval(function() {
-  if (STATE.isOnline && STATE.user) trySync();
-}, 30000);
+// Auto-sync every 30s when online
+setInterval(function() { if (STATE.isOnline && STATE.user) trySync(); }, 30000);
 
 // -- Online/offline detection -----------------------------------
 window.addEventListener('online', function() {
   STATE.isOnline = true;
   updateConnBadge(true);
   refreshHome();
-  toast('Back online — syncing...');
+  toast('Back online - syncing...');
   setTimeout(trySync, 1000);
 });
 window.addEventListener('offline', function() {
   STATE.isOnline = false;
   updateConnBadge(false);
-  updateSyncStatus('Offline — changes saved locally');
+  updateSyncStatus('Offline - changes saved locally');
   refreshHome();
-  toast('Offline — transfers still work locally', false, 3000);
+  toast('Offline - transfers still work locally', false, 3000);
 });
 
 // -- Drag & drop for .zil files ---------------------------------
@@ -2368,7 +2353,7 @@ async function checkClaimParam() {
   const claimId = params.get('claim');
   if (!claimId) return;
   // Remove param from URL without reload
-  window.history.replaceState({}, '', '/wallet/');
+  try{window.history.replaceState({},'','/wallet/');}catch(e){}
   // If not logged in yet, store and handle after onboarding
   if (!STATE.user) {
     STATE._pendingClaimId = claimId;
@@ -2490,15 +2475,14 @@ function startSendQRTimer(exp) {
 async function shareSendQRWhatsApp() {
   if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
   const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
-  const msg = '💚 *Zillion Payment - '+fmt2+'*
+  const msg = `💚 *Zillion Payment - ${fmt2}*
 
-'+
-    'Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
+Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
 
-'+
-    _sendQrClaimUrl+'
+${_sendQrClaimUrl}
 
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/';
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
+
   if (_sendQrImgData && navigator.share) {
     try {
       const blob = await (await fetch(_sendQrImgData)).blob();
@@ -2572,6 +2556,8 @@ window.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
   checkShareTarget();
+  updateConnBadge(navigator.onLine);
+  if (!navigator.onLine) updateSyncStatus('Offline - changes saved locally');
   if (load() && STATE.user) {
     document.getElementById('screen-splash').classList.add('hidden');
     document.getElementById('screen-home').classList.remove('hidden');
@@ -2585,7 +2571,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(location.search);
     if (params.get('claim')) {
       STATE._pendingClaimId = params.get('claim');
-      window.history.replaceState({}, '', '/wallet/');
+      try{window.history.replaceState({},'','/wallet/');}catch(e){}
     }
   }
 });
