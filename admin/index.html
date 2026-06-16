@@ -875,7 +875,7 @@ function exportMerchants() {
 }
 
 // ── AGENTS ─────────────────────────────────────────────────────
-async async function loadAgents() {
+async function loadAgents() {
   showLoader('Loading agents...');
   try {
     const res  = await fetch(`${API}/admin-agents`, {headers:{'Authorization':'Bearer '+adminToken}});
