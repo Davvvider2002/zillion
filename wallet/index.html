@@ -652,11 +652,28 @@ body{height:100%;height:100dvh;overflow:hidden;}
         <div class="splash-dot" id="sd2"></div>
         <div class="splash-dot" id="sd3"></div>
       </div>
-      <button class="btn btn-g" onclick="goTo('screen-phone')">Get Started</button>
-      <button class="btn btn-ghost" onclick="tryRestoreSession()">I already have an account</button>
+      <button class="btn btn-g" id="btn-get-started">Get Started</button>
+      <button class="btn btn-ghost" id="btn-restore">I already have an account</button>
     </div>
   </div>
 </div>
+<script>
+// Minimal early script — wires up splash buttons as soon as they render
+// The main script (bottom of body) will redefine these fully
+(function(){
+  function waitAndBind(){
+    var b1=document.getElementById('btn-get-started');
+    var b2=document.getElementById('btn-restore');
+    if(b1) b1.addEventListener('click',function(){ if(typeof goTo==='function') goTo('screen-phone'); });
+    if(b2) b2.addEventListener('click',function(){ if(typeof tryRestoreSession==='function') tryRestoreSession(); });
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',waitAndBind);
+  } else {
+    waitAndBind();
+  }
+})();
+</script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 2 — PHONE VERIFICATION
