@@ -1191,7 +1191,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
     <button class="filter-tab" onclick="filterHistory('received',this)">Received</button>
     <button class="filter-tab" onclick="filterHistory('sent',this)">Sent</button>
     <button class="filter-tab" onclick="filterHistory('pending',this)">Pending</button>
-    <button class="filter-tab" onclick="filterHistory('pending',this)">Pending</button>
   </div>
   <div class="scroll-body" style="background:var(--bg)">
     <div id="history-list" style="padding:14px">
@@ -1578,6 +1577,7 @@ async function verifyOtp() {
     }
 
     STATE._verifiedPhone = STATE._pendingPhone;
+    STATE._verifiedToken = data.token || '';   // save JWT for sync
     clearInterval(otpTimer);
     goTo('screen-pin');
 
@@ -1655,11 +1655,14 @@ async function completeOnboarding() {
     if (!agentId || !agentToken) { toast('Enter Agent ID and token', true); return; }
   }
   STATE.user = { phone, deviceId, role:selectedRole, agentId, agentToken,
-    name: phone, createdAt: new Date().toISOString() };
+    name: phone, createdAt: new Date().toISOString(),
+    token: STATE._verifiedToken || '' };   // JWT for sync auth
   save();
   toast('Welcome to Zillion! 🎉');
   goTo('screen-home');
   setTimeout(() => refreshHome(), 100);
+  // Register device by triggering a sync (even with empty vault)
+  setTimeout(() => { STATE.isOnline = navigator.onLine; if (STATE.isOnline) trySync(); }, 1500);
   // If user arrived via QR link, handle the claim now
   if (STATE._pendingClaimId) {
     const cid = STATE._pendingClaimId;
@@ -1717,7 +1720,7 @@ function refreshVault() {
       <div class="coin-row">
         <div class="coin-left">
           <div class="coin-id">${(c.coin_id||c.id||'').slice(0,28)}...</div>
-          <div class="coin-denom">${fmtNaira(c.amount||c.value_kobo/100)}</div>
+          <div class="coin-denom">${fmtNaira(c.amount||c.value_kobo||0)}</div>
           <div class="coin-expiry">Expires ${fmtExpiry(c.expires_at)}</div>
         </div>
         <div class="coin-right" style="gap:6px;display:flex;flex-direction:column;align-items:flex-end">
@@ -2070,11 +2073,19 @@ function updateSyncStatus(msg, isErr) {
 
 async function trySync() {
   if (!STATE.isOnline || !STATE.user) return;
+  const token = STATE.user.token || STATE.user.agentToken || '';
+  if (!token) {
+    // Existing session without JWT - mark history settled locally so user sees correct state
+    STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
+    STATE.vault.forEach(c => { if (c._status === 'PENDING_SYNC') c._status = 'HELD'; });
+    save(); refreshHome(); refreshVault(); refreshHistory();
+    updateSyncStatus('Synced locally');
+    return;
+  }
   const pending = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
   if (!pending.length) { updateSyncStatus('All synced'); return; }
 
   updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
-  const token    = STATE.user.token || STATE.user.agentToken || '';
   const deviceId = STATE.user.deviceId;
 
   // Build tx_batch matching backend schema

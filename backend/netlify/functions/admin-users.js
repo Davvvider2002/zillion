@@ -26,6 +26,26 @@ exports.handler = async (event) => {
       .select('*')
       .order('registered_at', { ascending:false });
 
+    // Also get OTP-verified users not yet registered as devices
+    const { data:otpUsers } = await db
+      .from('otp_sessions')
+      .select('phone_hash, created_at, verified_at')
+      .eq('verified', true)
+      .order('created_at', { ascending:false })
+      .limit(200);
+
+    const devicePhones = new Set((devices||[]).map(d => d.phone_hash).filter(Boolean));
+    const pendingUsers = (otpUsers||[])
+      .filter(u => u.phone_hash && !devicePhones.has(u.phone_hash))
+      .map(u => ({
+        device_hash:   'PWA-' + (u.phone_hash||'').slice(0,12),
+        phone_hash:    u.phone_hash,
+        registered_at: u.verified_at || u.created_at,
+        last_sync:     null,
+        status:        'ACTIVE',
+      }));
+    const allDevices = [...(devices||[]), ...pendingUsers];
+
     // Get coin stats per holder
     const { data:coinStats } = await db
       .from('coins')
@@ -42,7 +62,7 @@ exports.handler = async (event) => {
       .select('device_hash, event_type, created_at, resolved');
 
     // Build per-device summary
-    const users = (devices||[]).map(dev => {
+    const users = allDevices.map(dev => {
       const coins  = (coinStats||[]).filter(c => c.holder_hash === dev.device_hash);
       const sent   = (txStats||[]).filter(t => t.from_hash === dev.device_hash);
       const recv   = (txStats||[]).filter(t => t.to_hash   === dev.device_hash);

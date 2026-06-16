@@ -485,6 +485,14 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <button onclick="stopScan();goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer">‹</button>
       <div style="font-size:15px;font-weight:700;color:#fff">Accept Payment</div>
     </div>
+    <!-- Receive method tabs -->
+    <div style="display:flex;background:var(--d);padding:0 16px 12px;gap:6px">
+      <button id="m-recv-tab-qr"   onclick="mSwitchRecv('qr')"   style="flex:1;padding:8px 0;border:none;border-radius:8px;background:#2D1052;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+      <button id="m-recv-tab-nfc"  onclick="mSwitchRecv('nfc')"  style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
+      <button id="m-recv-tab-file" onclick="mSwitchRecv('file')" style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 File</button>
+    </div>
+    <!-- QR scan panel (existing) -->
+    <div id="m-recv-panel-qr">
     <div class="scan-video-wrap">
       <video id="scan-video" class="scan-video" autoplay playsinline muted></video>
       <div class="scan-overlay">
@@ -520,6 +528,38 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
     <div style="padding:8px 18px;font-size:12px;color:var(--tx2);text-align:center;flex-shrink:0">
       Point camera at customer's Zillion QR code
     </div>
+    </div><!-- /m-recv-panel-qr -->
+
+    <!-- NFC receive panel -->
+    <div id="m-recv-panel-nfc" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;background:var(--d)">
+      <div style="font-size:64px;margin-bottom:16px">📡</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">NFC Receive</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.7;margin-bottom:28px">
+        Ask customer to hold their phone against yours.<br>The payment transfers automatically.
+      </div>
+      <button onclick="mStartNFCReceive()" style="width:100%;padding:15px;background:#7C3AED;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+        📡 Start NFC Receive
+      </button>
+      <div id="m-nfc-status" style="margin-top:16px;font-size:13px;color:#A78BFA;font-weight:600;min-height:20px"></div>
+      <div style="margin-top:16px;font-size:11px;color:rgba(255,255,255,.35)">Requires Android Chrome with NFC enabled</div>
+    </div>
+
+    <!-- File import panel -->
+    <div id="m-recv-panel-file" style="display:none;flex:1;flex-direction:column;padding:24px;gap:16px;background:var(--d)">
+      <div style="background:rgba(255,255,255,.08);border-radius:16px;padding:24px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">📄</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:8px">Import .zil File</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:20px;line-height:1.6">
+          Customer shares their .zil file via WhatsApp or other apps. Select it below to accept the payment.
+        </div>
+        <input type="file" id="m-zil-input" accept=".zil,application/octet-stream" style="display:none" onchange="mImportZilFile(this)">
+        <button onclick="document.getElementById('m-zil-input').click()" style="width:100%;padding:15px;background:#7C3AED;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+          📂 Choose .zil File
+        </button>
+      </div>
+      <div id="m-file-result" style="display:none;background:rgba(255,255,255,.08);border-radius:12px;padding:16px;color:#fff;font-size:13px"></div>
+    </div>
+
     <div class="bnav">
       <button class="bnav-item" onclick="stopScan();goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
       <button class="bnav-item active" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
@@ -1311,6 +1351,114 @@ document.addEventListener('DOMContentLoaded', function() {
   mConnBadge(navigator.onLine);
   if (!navigator.onLine) mSyncStatus('Offline — will sync when connected');
 });
+
+
+
+// ================================================================
+// MERCHANT RECEIVE - Tab switcher + NFC + File Import
+// ================================================================
+function mSwitchRecv(tab) {
+  ['qr','nfc','file'].forEach(function(t) {
+    const panel = document.getElementById('m-recv-panel-' + t);
+    const btn   = document.getElementById('m-recv-tab-' + t);
+    if (panel) panel.style.display = (t === tab) ? (t === 'qr' ? 'block' : 'flex') : 'none';
+    if (btn) {
+      btn.style.background = (t === tab) ? '#2D1052' : 'rgba(255,255,255,.1)';
+      btn.style.color      = (t === tab) ? '#fff'     : 'rgba(255,255,255,.7)';
+      btn.style.fontWeight = (t === tab) ? '700'      : '600';
+    }
+  });
+  if (tab === 'qr') {
+    // Resume camera scan
+  } else {
+    stopScan();
+  }
+  if (tab === 'nfc') {
+    mStartNFCReceive();
+  }
+}
+
+// NFC Receive for Merchant
+let _mNFCController = null;
+
+async function mStartNFCReceive() {
+  const statusEl = document.getElementById('m-nfc-status');
+  if (!('NDEFReader' in window)) {
+    if (statusEl) statusEl.textContent = 'NFC not supported on this device';
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Waiting for customer to tap...';
+  try {
+    const ndef = new NDEFReader();
+    _mNFCController = new AbortController();
+    await ndef.scan({ signal: _mNFCController.signal });
+    ndef.addEventListener('reading', function(event) {
+      for (const record of event.message.records) {
+        if (record.recordType === 'text') {
+          try {
+            const data = JSON.parse(new TextDecoder().decode(record.data));
+            if (statusEl) statusEl.textContent = 'Payment received! Processing...';
+            mProcessReceivedPayment(data);
+          } catch(e) {
+            if (statusEl) statusEl.textContent = 'Error reading payment data';
+          }
+        }
+      }
+    });
+  } catch(e) {
+    if (e.name !== 'AbortError' && statusEl) {
+      statusEl.textContent = 'NFC error: ' + e.message;
+    }
+  }
+}
+
+function mProcessReceivedPayment(coinOrBundle) {
+  // Handle both single coin and bundle
+  const coins  = coinOrBundle.coins || [coinOrBundle];
+  const total  = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
+  _pendingPayment = { amount_kobo: total, bundle: { coins } };
+
+  // Show in pay-result
+  document.getElementById('pr-amount').textContent = fmt(total);
+  document.getElementById('pr-detail').textContent = coins.length + ' coin' + (coins.length !== 1 ? 's' : '') + ' via NFC';
+  document.getElementById('pr-icon').textContent   = '✅';
+  document.getElementById('pr-accept-btn').style.display = 'block';
+  document.getElementById('pay-result').classList.add('show');
+
+  // Switch to QR tab to show the result
+  mSwitchRecv('qr');
+}
+
+// File Import for Merchant
+function mImportZilFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const resultEl = document.getElementById('m-file-result');
+  resultEl.style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const bundle = JSON.parse(e.target.result);
+      const coins  = bundle.coins || [];
+      if (!coins.length) { throw new Error('No coins found in file'); }
+      const total  = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
+      _pendingPayment = { amount_kobo: total, bundle };
+
+      resultEl.innerHTML = '<div style="color:#A78BFA;font-weight:700;margin-bottom:8px">File loaded successfully!</div>' +
+        '<div>Amount: <strong style="color:#fff">' + fmt(total) + '</strong></div>' +
+        '<div style="margin-top:4px">Coins: ' + coins.length + '</div>' +
+        '<button onclick="confirmPayment()" style="width:100%;margin-top:14px;padding:13px;background:#7C3AED;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✅ Accept Payment</button>';
+      resultEl.style.display = 'block';
+      showToast('File loaded: ' + fmt(total), false, 3000);
+    } catch(err) {
+      resultEl.innerHTML = '<div style="color:#EF4444">Error: ' + err.message + '</div>';
+      resultEl.style.display = 'block';
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so same file can be selected again
+  input.value = '';
+}
 
 </script>
 </body>
