@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#0D1F1A">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Zillion">
@@ -658,20 +659,15 @@ body{height:100%;height:100dvh;overflow:hidden;}
   </div>
 </div>
 <script>
-// Minimal early script — wires up splash buttons as soon as they render
-// The main script (bottom of body) will redefine these fully
 (function(){
-  function waitAndBind(){
+  function bind(){
     var b1=document.getElementById('btn-get-started');
     var b2=document.getElementById('btn-restore');
-    if(b1) b1.addEventListener('click',function(){ if(typeof goTo==='function') goTo('screen-phone'); });
-    if(b2) b2.addEventListener('click',function(){ if(typeof tryRestoreSession==='function') tryRestoreSession(); });
+    if(b1)b1.onclick=function(){if(typeof goTo==='function')goTo('screen-phone');};
+    if(b2)b2.onclick=function(){if(typeof tryRestoreSession==='function')tryRestoreSession();};
   }
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',waitAndBind);
-  } else {
-    waitAndBind();
-  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',bind);}
+  else{bind();}
 })();
 </script>
 
