@@ -1180,7 +1180,20 @@ async function confirmTopUp() {
       headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + adminToken },
       body:    JSON.stringify({ agent_id:agentId, amount_kobo:amtKobo, denomination_kobo:denomKobo, deposit_ref:ref }),
     });
-    const data = await res.json();
+
+    // Safe JSON parse — handles empty body or HTML error pages
+    let data;
+    const rawText = await res.text();
+    try { data = JSON.parse(rawText); }
+    catch(parseErr) {
+      resultEl.innerHTML = '<div style="background:#FEE2E2;border-radius:8px;padding:12px;color:#991B1B">' +
+        '❌ Server error (non-JSON response). Check Netlify function logs.<br>' +
+        '<small style="font-family:monospace;word-break:break-all">HTTP ' + res.status + ': ' + rawText.slice(0,200) + '</small></div>';
+      resultEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '✅ Confirm & Mint Coins';
+      return;
+    }
 
     if (res.ok && data.success) {
       resultEl.innerHTML =
