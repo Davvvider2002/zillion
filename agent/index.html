@@ -1085,16 +1085,26 @@ async function agStartNFCReceive() {
 function agImportZilFile(input) {
   const file = input.files[0];
   if (!file) return;
+  // Show loading state immediately
+  const resultEl = document.getElementById('ag-file-result');
+  if (resultEl) {
+    resultEl.className = 'res show';
+    resultEl.innerHTML = '<div class="rt">⏳ Validating file...</div><div class="rd2">Checking coins against registry...</div>';
+    resultEl.style.display = 'block';
+  }
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const bundle = JSON.parse(e.target.result);
-      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins in file');
+      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins found in file');
+      if (!bundle.zillion_version)               throw new Error('Not a valid Zillion file');
+      if (!bundle.bundle_id)                     throw new Error('Missing bundle ID — file may be corrupted');
       agShowRecvResult(bundle, 'File');
     } catch(err) {
-      const resultEl = document.getElementById('ag-file-result');
-      resultEl.innerHTML = '<div style="color:var(--r);padding:12px">Error: ' + err.message + '</div>';
-      resultEl.style.display = 'block';
+      if (resultEl) {
+        resultEl.className = 'res show err';
+        resultEl.innerHTML = '<div class="rt">❌ Invalid File</div><div class="rd2">' + err.message + '</div>';
+      }
     }
   };
   reader.readAsText(file);
@@ -1106,20 +1116,85 @@ function agImportZilFile(input) {
 let _agPendingBundle = null;
 let _coPendingBundle = null;
 
-function agShowRecvResult(bundle, method) {
-  _agPendingBundle = bundle;
-  const coins  = bundle.coins || [];
-  const total  = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
-  const totalN = '₦' + (total/100).toLocaleString('en-NG', {minimumFractionDigits:2});
+async function agShowRecvResult(bundle, method) {
+  // ── LAYER 1: Local dedup (vault = hlog received coin IDs) ──
+  const seenInHistory = new Set(
+    hlog
+      .filter(function(h){ return h.received_coin_ids && h.received_coin_ids.length; })
+      .flatMap(function(h){ return h.received_coin_ids; })
+  );
+  const coins    = bundle.coins || [];
+  const newCoins = coins.filter(function(c){
+    return (c.coin_id||c.id) && !seenInHistory.has(c.coin_id||c.id);
+  });
+  const dupCount = coins.length - newCoins.length;
   const resultEl = method === 'File'
     ? document.getElementById('ag-file-result')
     : document.getElementById('ag-recv-result');
   if (!resultEl) return;
-  resultEl.className = 'res show ok';
+
+  if (newCoins.length === 0) {
+    resultEl.className = 'res show err';
+    resultEl.innerHTML =
+      '<div class="rt">❌ Already Received</div>' +
+      '<div class="rd2">All coins in this file/QR have already been accepted. ' +
+      'This is a duplicate — do NOT accept.</div>' +
+      '<div class="rd2" style="color:var(--r);font-weight:700;margin-top:8px">' +
+      '⚠️ FRAUD ALERT: Duplicate payment rejected.</div>';
+    resultEl.style.display = 'block';
+    notify('❌ DUPLICATE: payment already received!', 'err');
+    try { if (navigator.vibrate) navigator.vibrate([200,100,200]); } catch(e){}
+    return;
+  }
+
+  // ── LAYER 2: Server validation (when online) ────────────────
+  let validationWarning = '';
+  if (_agentOnline) {
+    try {
+      const results = await Promise.all(
+        newCoins.map(function(c){
+          return fetch('/api/v1/validate?coin_id=' + encodeURIComponent(c.coin_id||c.id),
+            { headers:{ 'Authorization':'Bearer '+TK } })
+            .then(function(r){ return r.json(); })
+            .catch(function(){ return { valid:true, status:'UNKNOWN' }; });
+        })
+      );
+      const spentCoins = results.filter(function(r){
+        return r.status === 'SPENT' || r.status === 'REDEEMED';
+      });
+      if (spentCoins.length > 0) {
+        resultEl.className = 'res show err';
+        resultEl.innerHTML =
+          '<div class="rt">❌ Payment Rejected</div>' +
+          '<div class="rd2">' + spentCoins.length + ' coin(s) already spent in registry.</div>' +
+          '<div class="rd2" style="color:var(--r);font-weight:700;margin-top:8px">' +
+          '⚠️ FRAUD: These coins have been redeemed. Do not accept!</div>';
+        resultEl.style.display = 'block';
+        notify('❌ FRAUD: coins already spent!', 'err');
+        try { if (navigator.vibrate) navigator.vibrate([500,100,500,100,500]); } catch(e){}
+        return;
+      }
+      if (results.some(function(r){ return r.status === 'UNKNOWN'; })) {
+        validationWarning = '⚠️ Some coins unverified — proceed with caution.';
+      }
+    } catch(e) {
+      validationWarning = 'Offline — could not verify with registry.';
+    }
+  } else {
+    validationWarning = 'Offline — registry check skipped.';
+  }
+
+  // ── LAYER 3: Store pending with coin IDs ────────────────────
+  _agPendingBundle = { coins: newCoins, method, received_coin_ids: newCoins.map(function(c){ return c.coin_id||c.id; }) };
+  const total  = newCoins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  const totalN = '₦' + (total/100).toLocaleString('en-NG', {minimumFractionDigits:2});
+
+  resultEl.className = dupCount > 0 ? 'res show' : 'res show ok';
   resultEl.innerHTML =
-    '<div class="rt">' + totalN + ' received via ' + method + '</div>' +
+    '<div class="rt">' + totalN + ' via ' + method + (dupCount?' (⚠️ '+dupCount+' dup skipped)':'') + '</div>' +
     '<div class="ra">' + totalN + '</div>' +
-    '<div class="rd2">' + coins.length + ' coin' + (coins.length!==1?'s':'') + ' · Tap Accept to confirm</div>' +
+    '<div class="rd2">' + newCoins.length + ' coin' + (newCoins.length!==1?'s':'') + ' · Tap Accept to confirm</div>' +
+    (validationWarning ? '<div class="rd2" style="color:var(--am);margin-top:6px">' + validationWarning + '</div>' : '') +
     '<button onclick="agConfirmReceive()" style="width:100%;margin-top:12px;padding:13px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✅ Accept Payment</button>';
   resultEl.style.display = 'block';
 }
@@ -1128,10 +1203,15 @@ function agConfirmReceive() {
   const bundle = _agPendingBundle;
   if (!bundle) { notify('No pending payment', 'err'); return; }
   _agPendingBundle = null;
-  const coins = bundle.coins || [];
-  const total = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
-  const ts = new Date().toISOString();
-  hlog.unshift({ type:'RECEIVE', amount:total, coins:coins.length, ts, status:'SETTLED' });
+  const coins    = bundle.coins || [];
+  const rcIds    = bundle.received_coin_ids || coins.map(function(c){ return c.coin_id||c.id; });
+  const total    = coins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  const ts       = new Date().toISOString();
+  // Store received_coin_ids so Layer 1 dedup works across sessions
+  hlog.unshift({ type:'RECEIVE', amtKobo:total, cnt:coins.length, ts, status:'SETTLED',
+                 received_coin_ids: rcIds });
+  if (hlog.length > 200) hlog.pop();
+  localStorage.setItem('zh_' + AP.agent_id, JSON.stringify(hlog));
   renderHistory();
   ss.ci += total; updateStats();
   notify('✅ ₦' + (total/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' received!');
@@ -1263,17 +1343,25 @@ async function coStartNFC() {
 function coImportFile(input) {
   const file = input.files[0];
   if (!file) return;
+  const el = document.getElementById('co-result');
+  if (el) {
+    el.className = 'res show';
+    el.innerHTML = '<div class="rt">⏳ Validating file...</div><div class="rd2">Checking coins against registry...</div>';
+    el.style.display = 'block';
+  }
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const bundle = JSON.parse(e.target.result);
-      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins in file');
+      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins found in file');
+      if (!bundle.zillion_version)               throw new Error('Not a valid Zillion file');
+      if (!bundle.bundle_id)                     throw new Error('Missing bundle ID — file may be corrupted');
       coShowResult(bundle);
     } catch(err) {
-      const el = document.getElementById('co-result');
-      el.className = 'res show err';
-      el.innerHTML = '<div class="rt">❌ Import Error</div><div class="rd2">' + err.message + '</div>';
-      el.style.display = 'block';
+      if (el) {
+        el.className = 'res show err';
+        el.innerHTML = '<div class="rt">❌ Invalid File</div><div class="rd2">' + err.message + '</div>';
+      }
     }
   };
   reader.readAsText(file);
@@ -1281,19 +1369,81 @@ function coImportFile(input) {
 }
 
 // ── Shared result + redeem flow ──────────────────────────────────
-function coShowResult(bundle) {
+async function coShowResult(bundle) {
+  const el = document.getElementById('co-result');
+  if (!el) return;
+
+  // Show loading while we validate
+  el.className = 'res show';
+  el.innerHTML = '<div class="rt">⏳ Validating coins...</div><div class="rd2">Checking registry...</div>';
+  el.style.display = 'block';
+
+  const coins   = bundle.coins || [];
+  const coinIds = coins.map(function(c){ return c.coin_id||c.id; }).filter(Boolean);
+
+  // Check hlog for already-redeemed coins (agent already cashed out same file)
+  const alreadyRedeemed = new Set(
+    hlog
+      .filter(function(h){ return h.redeemed_coin_ids && h.redeemed_coin_ids.length; })
+      .flatMap(function(h){ return h.redeemed_coin_ids; })
+  );
+  const dupIds = coinIds.filter(function(id){ return alreadyRedeemed.has(id); });
+  if (dupIds.length === coinIds.length) {
+    el.className = 'res show err';
+    el.innerHTML =
+      '<div class="rt">❌ Already Redeemed</div>' +
+      '<div class="rd2">All coins in this file have already been cashed out.</div>' +
+      '<div class="rd2" style="color:var(--r);font-weight:700;margin-top:8px">⚠️ FRAUD: Do not pay this customer!</div>';
+    notify('❌ DUPLICATE cashout attempt blocked!', 'err');
+    try { if (navigator.vibrate) navigator.vibrate([200,100,200]); } catch(e){}
+    return;
+  }
+
+  // Server validate each coin (when online)
+  let warning = '';
+  if (_agentOnline) {
+    try {
+      const results = await Promise.all(
+        coinIds.map(function(id){
+          return fetch('/api/v1/validate?coin_id=' + encodeURIComponent(id),
+            { headers:{ 'Authorization':'Bearer '+TK } })
+            .then(function(r){ return r.json(); })
+            .catch(function(){ return { valid:true, status:'UNKNOWN' }; });
+        })
+      );
+      const spentCoins = results.filter(function(r){
+        return r.status === 'SPENT' || r.status === 'REDEEMED';
+      });
+      if (spentCoins.length > 0) {
+        el.className = 'res show err';
+        el.innerHTML =
+          '<div class="rt">❌ Cashout Rejected</div>' +
+          '<div class="rd2">' + spentCoins.length + ' coin(s) already spent in registry.</div>' +
+          '<div class="rd2" style="color:var(--r);font-weight:700;margin-top:8px">⚠️ FRAUD: Do not pay this customer!</div>';
+        notify('❌ FRAUD: coins already redeemed!', 'err');
+        try { if (navigator.vibrate) navigator.vibrate([500,100,500,100,500]); } catch(e){}
+        return;
+      }
+      if (results.some(function(r){ return r.status === 'UNKNOWN'; })) {
+        warning = '⚠️ Some coins unverified — proceed with caution.';
+      }
+    } catch(e) {
+      warning = 'Offline — registry unavailable. Proceed with caution.';
+    }
+  } else {
+    warning = 'Offline — registry check skipped.';
+  }
+
   _coPendingBundle = bundle;
-  const coins  = bundle.coins || [];
-  const total  = coins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
-  const naira  = '₦'+(total/100).toLocaleString('en-NG',{minimumFractionDigits:2});
-  const el     = document.getElementById('co-result');
+  const total = coins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  const naira = '₦'+(total/100).toLocaleString('en-NG',{minimumFractionDigits:2});
   el.className = 'res show ok';
   el.innerHTML =
     '<div class="rt">' + naira + ' to redeem</div>' +
     '<div class="ra">' + naira + '</div>' +
     '<div class="rd2">' + coins.length + ' coin'+(coins.length!==1?'s':'')+ ' · Pay customer cash after confirming</div>' +
+    (warning ? '<div class="rd2" style="color:var(--am);margin-top:6px">' + warning + '</div>' : '') +
     '<button onclick="coConfirmRedeem()" style="width:100%;margin-top:12px;padding:13px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✅ Redeem & Pay Customer Cash</button>';
-  el.style.display = 'block';
 }
 
 async function coConfirmRedeem() {
@@ -1324,7 +1474,14 @@ async function coConfirmRedeem() {
       '<div class="ra">' + naira + '</div>' +
       '<div class="rd2">' + d.redeemed_count + ' redeemed · ' + (d.rejected_count||0) + ' rejected</div>';
     ss.co += d.total_kobo; AP.float_balance_kobo += d.total_kobo;
-    updateStats(); addH('CASH OUT', d.total_kobo, d.redeemed_count, 'SUCCESS');
+    // Store redeemed coin IDs to block replay attempts
+    const redeemedIds = (_coPendingBundle?.coins||[]).map(function(c){ return c.coin_id||c.id; });
+    hlog.unshift({ type:'CASH OUT', amtKobo:d.total_kobo, cnt:d.redeemed_count,
+                   status:'SUCCESS', ts:new Date().toISOString(),
+                   redeemed_coin_ids: redeemedIds });
+    if (hlog.length > 200) hlog.pop();
+    localStorage.setItem('zh_' + AP.agent_id, JSON.stringify(hlog));
+    updateStats();
     notify('✅ Redeemed ' + naira + ' — pay customer now');
   } catch(e) { hideL(); notify('❌ Network error: '+e.message, 'err'); }
 }
