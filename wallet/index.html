@@ -2015,7 +2015,15 @@ function exportVaultBackup() {
   downloadFile(blob,'zillion-backup-'+Date.now()+'.json');
   toast('Backup exported');
 }
-function forceSync() { toast('Syncing...'); trySync(); }
+function forceSync() {
+  if (!STATE.isOnline) {
+    toast('No connection — changes saved locally', true, 3000);
+    return;
+  }
+  if (!STATE.user) { toast('Please log in first', true); return; }
+  toast('Syncing with network...');
+  trySync();
+}
 function logout() {
   if (!confirm('Log out? Your vault data stays on this device.')) return;
   STATE.user=null; STATE.pin=null;
@@ -2028,35 +2036,108 @@ function resetWallet() {
 }
 
 // -- Sync -------------------------------------------------------
-async function trySync() {
-  if (!STATE.isOnline || !STATE.user) return;
-  const pending = STATE.vault.filter(c=>c._status==='PENDING_SYNC');
-  if (!pending.length) return;
-  try {
-    const res = await fetch(`${API}/sync`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json',
-               ...(STATE.user.agentToken?{'Authorization':'Bearer '+STATE.user.agentToken}:{})},
-      body: JSON.stringify({ coins: pending.map(c=>c.coin_id),
-        device_id: STATE.user.deviceId, phone: STATE.user.phone }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      pending.forEach(c => {
-        const serverStatus = data.results?.find(r=>r.coin_id===c.coin_id)?.status||'HELD';
-        const idx = STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
-        if (idx>=0) STATE.vault[idx]._status = serverStatus;
-      });
-      STATE.history.forEach(h=>{ if(h.status==='PENDING_SYNC') h.status='SETTLED'; });
-      STATE.lastSync = new Date().toISOString();
-      save(); refreshHome();
-    }
-  } catch(e) { /* Offline or API unavailable - try again later */ }
+
+// ── Sync status helpers ─────────────────────────────────────────
+function updateConnBadge(online) {
+  // Update the dot in home header
+  const dot  = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  if (dot)  dot.style.background  = online ? '#22C55E' : '#F59E0B';
+  if (text) text.textContent      = online ? 'Online'  : 'Offline';
+  // Update offline banner
+  const banner = document.getElementById('offline-banner');
+  if (banner) banner.style.display = online ? 'none' : 'flex';
+}
+function updateSyncStatus(msg, isErr) {
+  // Show in sync-text when relevant
+  const text = document.getElementById('sync-text');
+  if (text && msg) {
+    text.textContent = msg;
+    text.style.color = isErr ? '#EF4444' : '';
+    // Reset after 4s
+    if (!isErr) setTimeout(function() {
+      text.textContent = navigator.onLine ? 'Online' : 'Offline';
+      text.style.color = '';
+    }, 4000);
+  }
 }
 
+async function trySync() {
+  if (!STATE.isOnline || !STATE.user) return;
+  const pending = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
+  if (!pending.length) { updateSyncStatus('All synced'); return; }
+
+  updateSyncStatus('Syncing ' + pending.length + ' transaction(s)...');
+  const token    = STATE.user.token || STATE.user.agentToken || '';
+  const deviceId = STATE.user.deviceId;
+
+  // Build tx_batch matching what backend expects
+  const tx_batch = pending.map(c => ({
+    coin_id:    c.id || c.coin_id,
+    status:     c.status || 'HELD',
+    owner_hash: c.owner_hash || '',
+    value_kobo: c.value_kobo || 0,
+    tx_history: c.tx_history || [],
+    synced_at:  new Date().toISOString(),
+  }));
+
+  try {
+    const res  = await fetch(`${API}/sync`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ device_id: deviceId, tx_batch }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // Mark settled coins
+      (data.settled_coin_ids || []).forEach(coin_id => {
+        const idx = STATE.vault.findIndex(v => (v.id || v.coin_id) === coin_id);
+        if (idx >= 0) STATE.vault[idx]._status = 'HELD';
+      });
+      // Mark history as settled
+      STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
+      STATE.lastSync = new Date().toISOString();
+      save();
+      refreshHome();
+      const ts = new Date().toLocaleTimeString();
+      updateSyncStatus('Synced ' + (data.settled_count||0) + ' tx · ' + ts);
+      updateConnBadge(true);
+      if (data.conflicts && data.conflicts.length) {
+        toast('⚠️ ' + data.conflicts.length + ' conflict(s) detected — contact support', true, 6000);
+      }
+    } else {
+      updateSyncStatus('Sync error: ' + (data.error || res.status), true);
+    }
+  } catch(e) {
+    updateSyncStatus('Offline — will retry when connected');
+    STATE.isOnline = false;
+    updateConnBadge(false);
+  }
+}
+
+// ── Auto-sync every 30s when online ────────────────────────────
+setInterval(function() {
+  if (STATE.isOnline && STATE.user) trySync();
+}, 30000);
+
 // -- Online/offline detection -----------------------------------
-window.addEventListener('online',  () => { STATE.isOnline=true;  refreshHome(); trySync(); toast('Back online - syncing...'); });
-window.addEventListener('offline', () => { STATE.isOnline=false; refreshHome(); toast('Offline mode - transfers still work','',2000); });
+window.addEventListener('online', function() {
+  STATE.isOnline = true;
+  updateConnBadge(true);
+  refreshHome();
+  toast('Back online — syncing...');
+  setTimeout(trySync, 1000);
+});
+window.addEventListener('offline', function() {
+  STATE.isOnline = false;
+  updateConnBadge(false);
+  updateSyncStatus('Offline — changes saved locally');
+  refreshHome();
+  toast('Offline — transfers still work locally', false, 3000);
+});
 
 // -- Drag & drop for .zil files ---------------------------------
 document.addEventListener('dragover', e => e.preventDefault());
@@ -2409,14 +2490,15 @@ function startSendQRTimer(exp) {
 async function shareSendQRWhatsApp() {
   if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
   const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
-  const msg = `💚 *Zillion Payment - ${fmt2}*
+  const msg = '💚 *Zillion Payment - '+fmt2+'*
 
-Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
+'+
+    'Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
 
-${_sendQrClaimUrl}
+'+
+    _sendQrClaimUrl+'
 
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
-
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/';
   if (_sendQrImgData && navigator.share) {
     try {
       const blob = await (await fetch(_sendQrImgData)).blob();

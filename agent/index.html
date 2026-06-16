@@ -187,6 +187,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
   <header>
     <div class="hl">ZILLION</div>
     <div class="hr">
+      <span id="agent-conn-badge" style="font-size:11px;font-weight:600;margin-right:8px;color:#F59E0B">● Offline</span>
       <span style="font-size:13px;color:var(--gm)"><span class="hdot"></span><span id="haid">—</span></span>
       <button class="lout" onclick="doLogout()">Logout</button>
     </div>
@@ -743,6 +744,88 @@ function clearRes(id){const e=document.getElementById(id);if(e)e.className='res'
 function showL(t){document.getElementById('lt').textContent=t;document.getElementById('loader').classList.add('show');}
 function hideL(){document.getElementById('loader').classList.remove('show');}
 function notify(msg,type=''){const e=document.getElementById('notif');e.textContent=msg;e.className=`notif show ${type}`;setTimeout(()=>e.classList.remove('show'),3500);}
+
+
+// ================================================================
+// AGENT SYNC ENGINE - online/offline detection + tx queue
+// ================================================================
+let _agentOnline  = navigator.onLine;
+let _offlineQueue = [];  // queued ops when offline: {type, payload, id}
+
+function agentUpdateConnBadge(online) {
+  _agentOnline = online;
+  const b = document.getElementById('agent-conn-badge');
+  if (!b) return;
+  b.textContent = online ? '● Online' : '● Offline';
+  b.style.color = online ? '#22C55E' : '#F59E0B';
+}
+
+// Queue a failed operation for retry when back online
+function agentQueueOp(type, payload) {
+  const id = Date.now() + '-' + Math.random().toString(36).slice(2,6);
+  _offlineQueue.push({ type, payload, id, ts: new Date().toISOString() });
+  localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
+  notify('Queued offline — will retry when connected', 'warn');
+  return id;
+}
+
+// Drain the offline queue when back online
+async function agentDrainQueue() {
+  if (!_agentOnline || !TK || !_offlineQueue.length) return;
+  const q = [..._offlineQueue];
+  _offlineQueue = [];
+  localStorage.removeItem('zs_queue');
+  let retried = 0;
+  for (const op of q) {
+    try {
+      let url, body;
+      if (op.type === 'issue') {
+        url  = `${API}/issue`;
+        body = op.payload;
+      } else if (op.type === 'redeem') {
+        url  = `${API}/redeem`;
+        body = op.payload;
+      } else continue;
+      const r = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TK },
+        body:    JSON.stringify(body),
+      });
+      if (r.ok) retried++;
+      else _offlineQueue.push(op); // re-queue if still fails
+    } catch { _offlineQueue.push(op); }
+  }
+  if (retried) notify('✅ Synced ' + retried + ' offline transaction(s)');
+  if (_offlineQueue.length) localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
+}
+
+// Restore queue from localStorage on load
+(function restoreQueue() {
+  try {
+    const q = JSON.parse(localStorage.getItem('zs_queue') || '[]');
+    if (q.length) {
+      _offlineQueue = q;
+      notify(q.length + ' transaction(s) pending sync', 'warn');
+    }
+  } catch {}
+})();
+
+// Network event listeners
+window.addEventListener('online', function() {
+  agentUpdateConnBadge(true);
+  notify('Back online — syncing queued transactions...');
+  setTimeout(agentDrainQueue, 1000);
+});
+window.addEventListener('offline', function() {
+  agentUpdateConnBadge(false);
+  notify('Offline — transactions will be queued', 'warn');
+});
+
+// Initialise on load
+document.addEventListener('DOMContentLoaded', function() {
+  agentUpdateConnBadge(navigator.onLine);
+});
+
 </script>
 </body>
 </html>

@@ -19,14 +19,17 @@
   --tx:#1A1A1A;--tx2:#666;--tx3:#AAA;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg)}
+html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
 #app{width:100%;max-width:430px;min-height:100%;margin:0 auto;background:var(--w);display:flex;flex-direction:column}
 
 /* ── ONBOARDING WRAPPER ─────────────────────────────────────── */
 #ob-wrap{
-  min-height:100vh;
+  min-height:100vh;min-height:100dvh;
+  width:100%;max-width:430px;
+  margin:0 auto;
   background:linear-gradient(160deg,#1A0A2E 0%,#2D1052 50%,#1A0A2E 100%);
   display:flex;flex-direction:column;
+  position:relative;
 }
 .ob-panel{display:none;flex:1;flex-direction:column;padding:0}
 .ob-panel.active{display:flex}
@@ -432,6 +435,10 @@ html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg)}
           <div>
             <div class="home-biz-name" id="home-biz-name">Business</div>
             <div class="home-biz-loc" id="home-biz-loc">Location</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div id="m-conn-badge" style="font-size:11px;font-weight:700;color:#F59E0B">● Offline</div>
+            <div id="m-sync-status" style="font-size:10px;color:#9CA3AF;margin-top:2px">—</div>
           </div>
         </div>
         <div class="today-card">
@@ -1194,6 +1201,100 @@ window.addEventListener('DOMContentLoaded', () => {
     showPanel('ob-splash');
   }
 });
+
+
+// ================================================================
+// MERCHANT SYNC ENGINE
+// Syncs PENDING_SYNC history items to backend
+// ================================================================
+let _mOnline = navigator.onLine;
+
+function mConnBadge(online) {
+  _mOnline = online;
+  const b  = document.getElementById('m-conn-badge');
+  const st = document.getElementById('m-sync-status');
+  if (b)  { b.textContent = online ? '● Online' : '● Offline';
+             b.style.color = online ? '#22C55E'  : '#F59E0B'; }
+  if (st) { st.textContent = online ? 'Connected' : 'Offline — syncs when connected'; }
+}
+
+function mSyncStatus(msg, isErr) {
+  const el = document.getElementById('m-sync-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isErr ? '#EF4444' : '#9CA3AF';
+  if (!isErr) setTimeout(function() { el.textContent = _mOnline ? 'Connected' : 'Offline'; el.style.color = '#9CA3AF'; }, 4000);
+}
+
+async function merchantSync() {
+  if (!_mOnline || !M.token) return;
+  const pending = M.history.filter(function(h) { return h.status === 'PENDING_SYNC'; });
+  if (!pending.length) { mSyncStatus('All synced'); return; }
+
+  mSyncStatus('Syncing ' + pending.length + ' payment(s)...');
+  const tx_batch = pending.map(function(h) {
+    return {
+      coin_id:      h.coin_id || h.id || ('MERCH-' + Date.now()),
+      status:       'HELD',
+      owner_hash:   M.merchant_id || '',
+      value_kobo:   h.amount_kobo || 0,
+      tx_history:   [{ type: h.type, ts: h.ts, merchant_id: M.merchant_id }],
+      synced_at:    new Date().toISOString(),
+    };
+  });
+
+  try {
+    const res  = await fetch('/api/v1/sync', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': 'Bearer ' + M.token,
+      },
+      body: JSON.stringify({
+        device_id: 'MERCHANT-' + M.merchant_id,
+        tx_batch,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      M.history.forEach(function(h) {
+        if (h.status === 'PENDING_SYNC') h.status = 'SETTLED';
+      });
+      save();
+      mSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
+      if (typeof refreshHistory === 'function') refreshHistory();
+    } else {
+      mSyncStatus('Sync error: ' + (data.error || res.status), true);
+    }
+  } catch (e) {
+    mSyncStatus('Offline — will retry', true);
+    _mOnline = false;
+    mConnBadge(false);
+  }
+}
+
+// Auto-sync every 60s when online
+setInterval(function() {
+  if (_mOnline && M.token) merchantSync();
+}, 60000);
+
+// Network listeners
+window.addEventListener('online', function() {
+  mConnBadge(true);
+  showToast('Back online — syncing payments...');
+  setTimeout(merchantSync, 1000);
+});
+window.addEventListener('offline', function() {
+  mConnBadge(false);
+  showToast('Offline — payments saved locally');
+});
+
+// Boot
+document.addEventListener('DOMContentLoaded', function() {
+  mConnBadge(navigator.onLine);
+  if (!navigator.onLine) mSyncStatus('Offline — will sync when connected');
+});
+
 </script>
 </body>
 </html>
