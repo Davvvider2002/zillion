@@ -437,7 +437,10 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
             <div class="home-biz-loc" id="home-biz-loc">Location</div>
           </div>
           <div style="margin-left:auto;text-align:right">
-            <div id="m-conn-badge" style="font-size:11px;font-weight:700;color:#F59E0B">● Offline</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div id="m-conn-badge" style="font-size:11px;font-weight:700;color:#F59E0B">● Offline</div>
+              <button onclick="merchantSync()" title="Sync now" style="background:none;border:1px solid rgba(255,255,255,.25);border-radius:5px;color:rgba(255,255,255,.55);font-size:10px;padding:2px 6px;cursor:pointer;font-family:inherit">↻</button>
+            </div>
             <div id="m-sync-status" style="font-size:10px;color:#9CA3AF;margin-top:2px">—</div>
           </div>
         </div>
@@ -1092,13 +1095,18 @@ function confirmPayment() {
   if (!_pendingPayment) return;
   const data   = _pendingPayment;
   const amount = data.amount_kobo||0;
+  const rcIds = data.received_coin_ids || (data.bundle?.coins||[]).map(function(c){return c.coin_id||c.id;});
   M.history.unshift({
     id:'TX-'+Date.now(), type:'received', amount,
     ts:new Date().toISOString(), status:'PENDING_SYNC',
-    method:(_pendingPayment.method||'qr'), name:'Payment received via '+((_pendingPayment.method||'qr').toUpperCase()),
+    method:(data.method||'qr'),
+    name:'Payment received via '+((data.method||'qr').toUpperCase()),
+    received_coin_ids: rcIds,  // persisted — blocks replay attacks on next import
   });
-  const coins=(data.bundle?.coins||[]).filter(c=>!M.vault.find(v=>v.coin_id===c.coin_id));
-  coins.forEach(c=>{c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();M.vault.push(c);});
+  const coins=(data.bundle?.coins||[]).filter(function(c){
+    return !M.vault.find(function(v){ return v.coin_id===(c.coin_id||c.id); });
+  });
+  coins.forEach(function(c){c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();M.vault.push(c);});
   save(); _pendingPayment=null;
 
   try { if (navigator.vibrate) navigator.vibrate([100,50,100,50,200]); } catch(e){}
@@ -1272,10 +1280,14 @@ let _mOnline = navigator.onLine;
 function mConnBadge(online) {
   _mOnline = online;
   const b  = document.getElementById('m-conn-badge');
-  const st = document.getElementById('m-sync-status');
   if (b)  { b.textContent = online ? '● Online' : '● Offline';
              b.style.color = online ? '#22C55E'  : '#F59E0B'; }
-  if (st) { st.textContent = online ? 'Connected' : 'Offline — syncs when connected'; }
+  // Only update sync text on network change, not on every sync result
+  const st = document.getElementById('m-sync-status');
+  if (st && (st.textContent === 'Connected' || st.textContent === 'Offline — syncs when connected' || st.textContent === '')) {
+    st.textContent = online ? 'Connected' : 'Offline — syncs when connected';
+    st.style.color = '#9CA3AF';
+  }
 }
 
 function mSyncStatus(msg, isErr) {
@@ -1283,7 +1295,15 @@ function mSyncStatus(msg, isErr) {
   if (!el) return;
   el.textContent = msg;
   el.style.color = isErr ? '#EF4444' : '#9CA3AF';
-  if (!isErr) setTimeout(function() { el.textContent = _mOnline ? 'Connected' : 'Offline'; el.style.color = '#9CA3AF'; }, 4000);
+  // Only auto-reset on SUCCESS — keep error visible until next sync attempt
+  if (!isErr) {
+    setTimeout(function() {
+      if (el.style.color !== '#EF4444') { // don't overwrite a subsequent error
+        el.textContent = _mOnline ? 'Connected' : 'Offline';
+        el.style.color = '#9CA3AF';
+      }
+    }, 5000);
+  }
 }
 
 async function merchantSync() {
@@ -1324,10 +1344,13 @@ async function merchantSync() {
       mSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
       if (typeof refreshHistory === 'function') refreshHistory();
     } else {
-      mSyncStatus('Sync error: ' + (data.error || res.status), true);
+      // Sync API rejected — show specific error, keep green dot (we're still online)
+      const errMsg = data.error || ('Server error ' + res.status);
+      mSyncStatus('Sync failed: ' + errMsg, true);
     }
   } catch (e) {
-    mSyncStatus('Offline — will retry', true);
+    // Network error — truly offline
+    mSyncStatus('Network error — will retry when online', true);
     _mOnline = false;
     mConnBadge(false);
   }
@@ -1415,16 +1438,100 @@ async function mStartNFCReceive() {
   }
 }
 
-function mProcessReceivedPayment(coinOrBundle, method) {
-  const coins  = (coinOrBundle.coins || [coinOrBundle]);
-  const total  = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
-  _pendingPayment = { amount_kobo: total, bundle: { coins }, method: method || 'nfc' };
+async function mProcessReceivedPayment(coinOrBundle, method) {
+  const coins = (coinOrBundle.coins || [coinOrBundle]);
 
-  // Show unified pay-result (it's now outside all panels, always reachable)
-  document.getElementById('pr-amount').textContent = fmt(total);
-  document.getElementById('pr-detail').textContent = coins.length + ' coin' + (coins.length!==1?'s':'') + ' · via ' + (method||'NFC');
-  document.getElementById('pr-icon').textContent   = '✅';
-  document.getElementById('pr-err').style.display  = 'none';
+  // ── LAYER 1: Local deduplication ───────────────────────────
+  // Build set of ALL coin_ids already seen (vault + history)
+  const seenInVault   = new Set(M.vault.map(function(c){ return c.coin_id||c.id; }));
+  const seenInHistory = new Set(
+    M.history
+      .filter(function(h){ return h.received_coin_ids && h.received_coin_ids.length; })
+      .flatMap(function(h){ return h.received_coin_ids; })
+  );
+
+  const newCoins = coins.filter(function(c) {
+    const id = c.coin_id || c.id;
+    return id && !seenInVault.has(id) && !seenInHistory.has(id);
+  });
+  const dupCount = coins.length - newCoins.length;
+
+  if (newCoins.length === 0) {
+    // ALL coins already received — hard reject
+    document.getElementById('pr-icon').textContent   = '\u274c';
+    document.getElementById('pr-amount').textContent  = 'Already Received';
+    document.getElementById('pr-detail').textContent  = 'All ' + coins.length + ' coin' + (coins.length!==1?'s':'') +
+      ' in this file have already been accepted. This file cannot be used again.';
+    document.getElementById('pr-err').textContent     = '\u26a0\ufe0f FRAUD ALERT: Duplicate payment file rejected.';
+    document.getElementById('pr-err').style.display   = 'block';
+    document.getElementById('pr-accept-btn').style.display = 'none';
+    document.getElementById('pay-result').classList.add('show');
+    toast('Duplicate file rejected!', true, 5000);
+    try { if (navigator.vibrate) navigator.vibrate([200,100,200]); } catch(e){}
+    return;
+  }
+
+  // ── LAYER 2: Server validation (when online) ─────────────────
+  // Validate each new coin against the registry
+  let validationWarning = '';
+  if (_mOnline) {
+    try {
+      const validationResults = await Promise.all(
+        newCoins.map(function(c) {
+          const id = c.coin_id || c.id;
+          return fetch('/api/v1/validate?coin_id=' + encodeURIComponent(id))
+            .then(function(r){ return r.json(); })
+            .catch(function(){ return { valid: true, status: 'UNKNOWN' }; }); // fail open if validate unreachable
+        })
+      );
+
+      const invalidCoins = validationResults.filter(function(r){ return r.valid === false && r.reason !== 'NOT_FOUND'; });
+      const spentCoins   = validationResults.filter(function(r){ return r.status === 'SPENT' || r.status === 'REDEEMED'; });
+
+      if (spentCoins.length > 0) {
+        // Hard reject — coins already spent in registry
+        document.getElementById('pr-icon').textContent   = '\u274c';
+        document.getElementById('pr-amount').textContent  = 'Payment Rejected';
+        document.getElementById('pr-detail').textContent  = spentCoins.length + ' coin' + (spentCoins.length!==1?'s':'') + ' already spent in registry.';
+        document.getElementById('pr-err').textContent     = '\u26a0\ufe0f FRAUD: These coins have already been redeemed. Do not accept this payment.';
+        document.getElementById('pr-err').style.display   = 'block';
+        document.getElementById('pr-accept-btn').style.display = 'none';
+        document.getElementById('pay-result').classList.add('show');
+        toast('FRAUD: Coins already spent — reject!', true, 8000);
+        try { if (navigator.vibrate) navigator.vibrate([500,100,500,100,500]); } catch(e){}
+        return;
+      }
+
+      if (invalidCoins.length > 0) {
+        validationWarning = '\u26a0\ufe0f ' + invalidCoins.length + ' coin' + (invalidCoins.length!==1?'s':'') + ' could not be validated online.';
+      }
+    } catch(e) {
+      validationWarning = 'Online validation unavailable — accepting offline.';
+    }
+  }
+
+  // ── LAYER 3: Build confirmed pending payment ─────────────────
+  const total = newCoins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  _pendingPayment = {
+    amount_kobo:   total,
+    bundle:        { coins: newCoins },
+    method:        method || 'file',
+    received_coin_ids: newCoins.map(function(c){ return c.coin_id||c.id; }),
+  };
+
+  document.getElementById('pr-icon').textContent   = dupCount > 0 ? '\u26a0\ufe0f' : '\u2705';
+  document.getElementById('pr-amount').textContent  = fmt(total);
+  document.getElementById('pr-detail').textContent  =
+    newCoins.length + ' coin' + (newCoins.length!==1?'s':'') + ' via ' + (method||'File') +
+    (dupCount > 0 ? ' \u00b7 ' + dupCount + ' duplicate(s) skipped' : '');
+  const errEl = document.getElementById('pr-err');
+  if (validationWarning) {
+    errEl.textContent    = validationWarning;
+    errEl.style.display  = 'block';
+    errEl.style.color    = '#F59E0B';
+  } else {
+    errEl.style.display  = 'none';
+  }
   document.getElementById('pr-accept-btn').style.display = 'block';
   document.getElementById('pay-result').classList.add('show');
 }
@@ -1433,24 +1540,29 @@ function mProcessReceivedPayment(coinOrBundle, method) {
 function mImportZilFile(input) {
   const file = input.files[0];
   if (!file) return;
+  // Show loading immediately
+  document.getElementById('pr-icon').textContent   = '⏳';
+  document.getElementById('pr-amount').textContent  = 'Validating...';
+  document.getElementById('pr-detail').textContent  = 'Checking coins against registry...';
+  document.getElementById('pr-err').style.display   = 'none';
+  document.getElementById('pr-accept-btn').style.display = 'none';
+  document.getElementById('pay-result').classList.add('show');
+
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const bundle = JSON.parse(e.target.result);
-      const coins  = bundle.coins || [];
-      if (!coins.length) throw new Error('No coins found in file');
+      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins found in file');
       if (!bundle.zillion_version) throw new Error('Not a valid Zillion file');
-      // Use unified pay-result (same as QR/NFC flow)
+      if (!bundle.bundle_id)       throw new Error('Missing bundle ID');
       mProcessReceivedPayment(bundle, 'File');
-      toast(fmt(coins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0)) + ' ready to accept');
     } catch(err) {
       document.getElementById('pr-icon').textContent   = '❌';
-      document.getElementById('pr-amount').textContent  = 'File Error';
+      document.getElementById('pr-amount').textContent  = 'Invalid File';
       document.getElementById('pr-detail').textContent  = err.message;
       document.getElementById('pr-err').textContent     = err.message;
       document.getElementById('pr-err').style.display   = 'block';
       document.getElementById('pr-accept-btn').style.display = 'none';
-      document.getElementById('pay-result').classList.add('show');
     }
   };
   reader.readAsText(file);
