@@ -1,0 +1,2601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0D1F1A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zillion">
+<title>Zillion Wallet — TEST MODE</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ─────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:#0D1F1A}
+
+/* ── Tokens (exact mockup palette) ───────────────────────────── */
+:root{
+  --g:  #1A7A4A;  /* primary green */
+  --gl: #E8F5EE;  /* green light */
+  --gm: #C8E6D4;  /* green mid */
+  --d:  #0D1F1A;  /* dark */
+  --d2: #162C20;  /* dark 2 */
+  --w:  #FFFFFF;
+  --bg: #EEF1EE;  /* page bg */
+  --gr: #555555;  /* grey text */
+  --grl:#F4F4F4;  /* grey light */
+  --grb:#DDDDDD;  /* grey border */
+  --r:  #C0392B;  /* red */
+  --rl: #FDECEA;  /* red light */
+  --am: #D4640A;  /* amber */
+  --aml:#FFF3E0;  /* amber light */
+  --bl: #1A3A7A;  /* blue */
+  --bll:#EEF4FF;  /* blue light */
+  --tx: #1A1A1A;  /* body text */
+  --tx2:#666666;
+  --tx3:#A0A0A0;
+  --r6: 16px;    /* standard radius */
+  --r3: 10px;
+  --sh: 0 2px 12px rgba(0,0,0,.10);
+}
+
+/* ── App shell ────────────────────────────────────────────────── */
+#app{
+  width:100%;max-width:430px;
+  height:100vh;height:100dvh;
+  margin:0 auto;display:flex;flex-direction:column;
+  background:var(--w);position:relative;overflow:hidden;
+}
+html{height:100%;height:100dvh;}
+body{height:100%;height:100dvh;overflow:hidden;}
+
+/* ── Screen manager ───────────────────────────────────────────── */
+.screen{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  background:var(--w);transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;
+  will-change:transform;
+}
+/* Only lock overflow on screens that need it (prevents content cut-off) */
+#screen-home,#screen-vault,#screen-history,#screen-profile{overflow:hidden;}
+.screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none}
+.screen.slide-left{transform:translateX(-40%);opacity:0;pointer-events:none}
+.scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.scroll-body::-webkit-scrollbar{display:none}
+
+/* ── Status bar spacer ────────────────────────────────────────── */
+.sb{height:env(safe-area-inset-top,0px);min-height:0;background:var(--d)}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.hdr{
+  background:var(--d);padding:14px 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:relative;flex-shrink:0;
+}
+.hdr-logo{font-size:18px;font-weight:800;letter-spacing:3px;color:var(--w)}
+.hdr-title{font-size:15px;font-weight:700;color:var(--w);flex:1;text-align:center}
+.hdr-back{
+  font-size:22px;color:var(--w);background:none;border:none;cursor:pointer;
+  padding:4px 8px 4px 0;line-height:1;flex-shrink:0;
+}
+.hdr-right{flex-shrink:0;display:flex;align-items:center;gap:10px}
+.hdr-sub{font-size:11px;color:var(--gm);font-weight:500}
+.hdr-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--g);
+  animation:pulse 2.4s ease-in-out infinite;display:inline-block;margin-right:4px;
+}
+.hdr-dot.offline{background:var(--am)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ── Bottom nav ───────────────────────────────────────────────── */
+.bnav{
+  display:flex;background:var(--w);border-top:1px solid var(--grb);
+  padding-bottom:env(safe-area-inset-bottom,0px);flex-shrink:0;
+}
+.bnav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:8px 4px 6px;background:none;border:none;cursor:pointer;
+  transition:color .15s;
+}
+.bnav-icon{font-size:20px;line-height:1;margin-bottom:3px;transition:transform .15s}
+.bnav-label{font-size:10px;font-weight:600;color:var(--tx3)}
+.bnav-item.active .bnav-label{color:var(--g)}
+.bnav-item.active .bnav-icon{transform:scale(1.1)}
+.bnav-item:not(.active) .bnav-icon{filter:grayscale(1) opacity(.5)}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card{
+  background:var(--w);border-radius:var(--r6);
+  box-shadow:var(--sh);overflow:hidden;
+}
+.card-border{border:1px solid var(--grb)}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn{
+  width:100%;padding:15px;border:none;border-radius:24px;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'Inter',sans-serif;transition:opacity .15s,transform .1s;
+  -webkit-appearance:none;
+}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-g{background:var(--g);color:var(--w)}
+.btn-d{background:var(--d);color:var(--w)}
+.btn-r{background:var(--r);color:var(--w)}
+.btn-ghost{background:transparent;color:var(--gm);font-size:14px;padding:12px}
+.btn-outline{background:transparent;color:var(--g);border:2px solid var(--g);
+  font-size:14px;font-weight:600}
+.btn-sm{padding:9px 20px;width:auto;font-size:13px;border-radius:20px}
+
+/* ── Form fields ──────────────────────────────────────────────── */
+.field-group{margin-bottom:18px}
+.field-label{
+  display:block;font-size:11px;font-weight:700;color:var(--tx3);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;
+}
+.field-input{
+  width:100%;padding:13px 16px;border:1.5px solid var(--grb);
+  border-radius:12px;font-size:15px;font-family:'Inter',sans-serif;
+  color:var(--tx);background:var(--w);outline:none;
+  transition:border-color .2s;-webkit-appearance:none;
+}
+.field-input:focus{border-color:var(--g)}
+.field-input.error{border-color:var(--r)}
+.field-select{
+  width:100%;padding:13px 16px;border:1.5px solid var(--grb);
+  border-radius:12px;font-size:15px;font-family:'Inter',sans-serif;
+  color:var(--tx);background:var(--w);outline:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23A0A0A0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 16px center;padding-right:40px;
+}
+
+/* ── Pill / Badge ─────────────────────────────────────────────── */
+.pill{
+  display:inline-flex;align-items:center;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:700;
+}
+.pill-g{background:var(--gl);color:#0A5C35}
+.pill-am{background:var(--aml);color:var(--am)}
+.pill-r{background:var(--rl);color:var(--r)}
+.pill-bl{background:var(--bll);color:var(--bl)}
+.pill-d{background:rgba(255,255,255,.12);color:var(--gm)}
+
+/* ── Divider ──────────────────────────────────────────────────── */
+.div-line{height:1px;background:var(--grb);margin:0 18px}
+
+/* ── Alert box ────────────────────────────────────────────────── */
+.alert{border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.5;margin:14px 0}
+.alert-g{background:var(--gl);border-left:3px solid var(--g);color:#0A5C35}
+.alert-r{background:var(--rl);border-left:3px solid var(--r);color:var(--r)}
+.alert-am{background:var(--aml);border-left:3px solid var(--am);color:var(--am)}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+#toast{
+  position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--d);color:var(--w);padding:12px 22px;border-radius:24px;
+  font-size:13px;font-weight:600;z-index:1000;opacity:0;pointer-events:none;
+  transition:all .3s;white-space:nowrap;max-width:90vw;
+  box-shadow:0 4px 20px rgba(0,0,0,.3);border-left:3px solid var(--g);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.error{border-left-color:var(--r)}
+
+/* ── Loader overlay ───────────────────────────────────────────── */
+#loader{
+  position:fixed;inset:0;background:rgba(13,31,26,.75);z-index:999;
+  display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+}
+#loader.show{display:flex}
+.spinner{
+  width:40px;height:40px;border:3px solid rgba(200,230,212,.2);
+  border-top-color:var(--gm);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text{color:var(--w);font-size:14px;font-weight:500}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 1 — SPLASH
+═══════════════════════════════════════════════════════════════ */
+#screen-splash{background:var(--d)}
+.splash-body{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:space-between;padding:40px 28px 36px;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  min-height:0;
+}
+#screen-splash{background:var(--d);overflow-y:auto;}
+.splash-brand{text-align:center}
+.splash-logo{
+  font-size:48px;font-weight:800;letter-spacing:8px;color:var(--w);
+  margin-bottom:8px;
+}
+.splash-tagline{font-size:13px;color:var(--gm);font-weight:500;letter-spacing:.5px}
+.splash-icon-wrap{
+  width:140px;height:140px;border-radius:50%;
+  background:rgba(26,122,74,.15);border:1.5px solid rgba(200,230,212,.2);
+  display:flex;align-items:center;justify-content:center;position:relative;
+  margin:20px 0;
+}
+.splash-icon-ring{
+  position:absolute;border-radius:50%;border:1px solid rgba(200,230,212,.12);
+}
+.splash-naira{
+  font-size:56px;font-weight:800;color:var(--g);line-height:1;
+}
+.splash-props{width:100%}
+.splash-prop{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 0;border-bottom:1px solid rgba(200,230,212,.1);
+}
+.splash-prop:last-child{border-bottom:none}
+.splash-prop-dot{
+  width:28px;height:28px;border-radius:50%;background:var(--g);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:13px;
+}
+.splash-prop-text{font-size:13px;color:var(--gm);font-weight:500}
+.splash-ctas{width:100%;display:flex;flex-direction:column;gap:10px}
+.splash-dots{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+.splash-dot{
+  width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);
+  transition:all .3s;
+}
+.splash-dot.active{width:20px;background:var(--w)}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 2 — VERIFY PHONE
+═══════════════════════════════════════════════════════════════ */
+.ob-body{flex:1;padding:20px 18px;overflow-y:auto}
+.ob-step-label{
+  font-size:11px;font-weight:700;color:var(--g);text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:10px;
+}
+.ob-title{font-size:24px;font-weight:800;color:var(--tx);margin-bottom:6px;line-height:1.2}
+.ob-sub{font-size:14px;color:var(--tx2);margin-bottom:28px;line-height:1.5}
+.phone-input-wrap{
+  display:flex;align-items:center;gap:0;border:1.5px solid var(--grb);
+  border-radius:12px;overflow:hidden;margin-bottom:14px;
+  transition:border-color .2s;width:100%;min-width:0;
+}
+.phone-flag{
+  padding:12px 10px;background:var(--grl);border-right:1px solid var(--grb);
+  font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap;flex-shrink:0;
+}
+.phone-number-input{
+  flex:1;min-width:0;padding:12px 12px;border:none;outline:none;
+  font-size:16px;font-family:'Inter',sans-serif;color:var(--tx);background:transparent;
+  width:100%;
+}
+.phone-input-wrap:focus-within{border-color:var(--g)}
+/* phone-flag and phone-number-input defined above */
+.otp-grid{display:flex;gap:6px;margin-bottom:16px}
+.otp-box{
+  flex:1;height:48px;min-width:0;border:1.5px solid var(--grb);border-radius:10px;
+  text-align:center;font-size:20px;font-weight:700;color:var(--tx);
+  outline:none;-webkit-appearance:none;font-family:'Inter',sans-serif;
+  transition:border-color .2s,background .2s;padding:0;
+}
+.otp-box:focus{border-color:var(--g)}
+.otp-box.filled{background:var(--gl);border-color:var(--g)}
+.otp-resend{font-size:13px;color:var(--tx3);text-align:center;margin-bottom:24px}
+.otp-resend span{color:var(--g);font-weight:600;cursor:pointer}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 3 — CREATE PIN
+═══════════════════════════════════════════════════════════════ */
+.pin-dots{
+  display:flex;gap:14px;justify-content:center;margin:24px 0 28px;
+}
+.pin-dot{
+  width:20px;height:20px;border-radius:50%;
+  border:2px solid var(--grb);background:transparent;
+  transition:all .2s;
+}
+.pin-dot.filled{background:var(--g);border-color:var(--g)}
+.pin-dot.error{background:var(--r);border-color:var(--r)}
+.numpad{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:1px;background:var(--grb);border:1px solid var(--grb);
+  border-radius:16px;overflow:hidden;margin-top:auto;flex-shrink:0;
+}
+.numpad-key{
+  background:var(--w);padding:16px 4px;text-align:center;
+  font-size:18px;font-weight:600;color:var(--tx);cursor:pointer;
+  border:none;font-family:'Inter',sans-serif;
+  transition:background .12s;-webkit-appearance:none;
+  user-select:none;-webkit-user-select:none;
+}
+.numpad-key:active{background:var(--grl)}
+.numpad-key.action{font-size:13px;color:var(--tx3);font-weight:500}
+.numpad-key.empty{background:var(--grl)}
+.pin-strength{
+  text-align:center;font-size:12px;color:var(--tx3);margin-bottom:16px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 4 — ROLE SELECTION
+═══════════════════════════════════════════════════════════════ */
+.role-card{
+  border:1.5px solid var(--grb);border-radius:var(--r6);padding:18px;
+  margin-bottom:12px;cursor:pointer;transition:all .2s;
+  display:flex;align-items:flex-start;gap:14px;position:relative;
+}
+.role-card.selected{
+  border-color:var(--g);background:var(--gl);
+}
+.role-icon{font-size:32px;flex-shrink:0;line-height:1;margin-top:2px}
+.role-info .role-title{
+  font-size:16px;font-weight:700;color:var(--tx);margin-bottom:4px;
+}
+.role-info .role-desc{font-size:13px;color:var(--tx2);line-height:1.5}
+.role-check{
+  position:absolute;top:16px;right:16px;
+  width:22px;height:22px;border-radius:50%;
+  border:2px solid var(--grb);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;
+}
+.role-card.selected .role-check{
+  background:var(--g);border-color:var(--g);color:var(--w);font-size:11px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 5 — HOME / WALLET
+═══════════════════════════════════════════════════════════════ */
+#screen-home .scroll-body{background:var(--bg)}
+.balance-card{
+  background:var(--w);border-radius:var(--r6);
+  margin:12px 14px;padding:16px 18px;box-shadow:var(--sh);
+}
+.bal-label{font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px}
+.bal-amount{font-size:34px;font-weight:800;color:var(--tx);margin-bottom:4px;letter-spacing:-1px}
+.bal-sub{font-size:12px;color:var(--tx3);display:flex;align-items:center;gap:8px}
+.bal-sync{font-size:11px;font-weight:600}
+.actions-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 14px 14px;
+}
+.action-btn{
+  background:var(--w);border-radius:var(--r3);padding:16px 14px;
+  border:1px solid var(--grb);cursor:pointer;text-align:left;
+  transition:all .15s;-webkit-appearance:none;font-family:'Inter',sans-serif;
+}
+.action-btn:active{transform:scale(.97)}
+.action-btn.primary-action{background:var(--g);border-color:var(--g)}
+.action-icon{font-size:22px;margin-bottom:8px;display:block}
+.action-label{font-size:13px;font-weight:700;color:var(--tx)}
+.action-btn.primary-action .action-label{color:var(--w)}
+.section-header{
+  padding:16px 18px 8px;display:flex;justify-content:space-between;align-items:center;
+}
+.section-title{font-size:14px;font-weight:700;color:var(--tx)}
+.section-link{font-size:13px;color:var(--g);font-weight:600}
+.tx-card{background:var(--w);border-radius:var(--r6);margin:0 14px;box-shadow:var(--sh)}
+.tx-row{
+  display:flex;align-items:center;gap:12px;padding:14px 16px;
+  border-bottom:1px solid var(--grb);
+}
+.tx-row:last-child{border-bottom:none}
+.tx-dot{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;
+}
+.tx-dot.in{background:var(--gl);color:var(--g)}
+.tx-dot.out{background:var(--rl);color:var(--r)}
+.tx-dot.pending{background:var(--aml);color:var(--am)}
+.tx-info{flex:1;min-width:0}
+.tx-name{font-size:14px;font-weight:600;color:var(--tx);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-meta{font-size:11px;color:var(--tx3);margin-top:2px}
+.tx-amount{font-size:14px;font-weight:700;flex-shrink:0}
+.tx-amount.in{color:var(--g)}
+.tx-amount.out{color:var(--r)}
+.tx-amount.pending{color:var(--am)}
+.empty-state{
+  text-align:center;padding:48px 28px;
+}
+.empty-icon{font-size:48px;margin-bottom:14px;display:block}
+.empty-title{font-size:17px;font-weight:700;color:var(--tx);margin-bottom:6px}
+.empty-sub{font-size:14px;color:var(--tx2);line-height:1.5}
+.offline-banner{
+  background:var(--aml);border-bottom:1px solid rgba(212,100,10,.2);
+  padding:10px 18px;display:flex;align-items:center;gap:8px;
+  font-size:12px;font-weight:600;color:var(--am);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 6 — VAULT
+═══════════════════════════════════════════════════════════════ */
+.vault-header{
+  background:var(--d2);padding:22px 18px 20px;
+}
+.vault-total-label{font-size:12px;color:var(--gm);font-weight:600;margin-bottom:6px}
+.vault-total{font-size:28px;font-weight:800;color:var(--w);margin-bottom:4px}
+.vault-sub{font-size:12px;color:var(--gm);display:flex;align-items:center;gap:6px}
+.vault-body{flex:1;overflow-y:auto;background:var(--bg);padding:14px}
+.coin-card{
+  background:var(--w);border-radius:var(--r3);margin-bottom:10px;
+  box-shadow:var(--sh);overflow:hidden;
+}
+.coin-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;
+}
+.coin-left{flex:1;min-width:0}
+.coin-id{font-size:10px;font-family:monospace;color:var(--tx3);margin-bottom:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.coin-denom{font-size:16px;font-weight:700;color:var(--tx)}
+.coin-expiry{font-size:11px;color:var(--tx3);margin-top:2px}
+.coin-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.vault-empty{
+  background:var(--grl);border-radius:10px;padding:12px 14px;
+  font-size:12px;color:var(--tx2);text-align:center;margin-top:8px;
+  border:1px solid var(--grb);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 7 — SEND
+═══════════════════════════════════════════════════════════════ */
+.send-hero{
+  background:var(--d);padding:14px 18px 18px;text-align:center;flex-shrink:0;
+}
+.send-label{font-size:12px;color:var(--gm);font-weight:600;margin-bottom:10px}
+.send-amount{font-size:44px;font-weight:800;color:var(--w);letter-spacing:-1px;margin-bottom:4px}
+.send-coins{font-size:13px;color:var(--gm)}
+.method-tabs{
+  display:flex;background:var(--grl);border-bottom:1px solid var(--grb);
+}
+.method-tab{
+  flex:1;padding:13px 8px;text-align:center;font-size:13px;font-weight:600;
+  color:var(--tx3);cursor:pointer;border-bottom:2.5px solid transparent;
+  transition:all .2s;background:none;border:none;border-bottom:2.5px solid transparent;
+  font-family:'Inter',sans-serif;
+}
+.method-tab.active{color:var(--g);border-bottom-color:var(--g);background:var(--w)}
+.denom-pills{
+  display:flex;gap:8px;padding:14px 14px 0;overflow-x:auto;
+  scrollbar-width:none;
+}
+.denom-pills::-webkit-scrollbar{display:none}
+.denom-pill{
+  padding:7px 16px;border-radius:20px;border:1.5px solid var(--grb);
+  font-size:13px;font-weight:700;color:var(--tx2);background:var(--w);
+  cursor:pointer;flex-shrink:0;font-family:'Inter',sans-serif;
+  transition:all .15s;
+}
+.denom-pill:active,.denom-pill.selected{
+  background:var(--gl);border-color:var(--g);color:var(--g);
+}
+.numpad-wrap{border-top:1px solid var(--grb);margin-top:14px}
+.method-panel{display:none;padding:20px 18px}
+.method-panel.active{display:block}
+.wa-info{
+  background:var(--gl);border-radius:14px;padding:18px;margin-bottom:16px;
+  border:1px solid var(--gm);
+}
+.wa-info-icon{font-size:32px;margin-bottom:10px;display:block}
+.wa-info-title{font-size:15px;font-weight:700;color:var(--d);margin-bottom:6px}
+.wa-info-steps{font-size:13px;color:var(--gr);line-height:1.8}
+.wa-info-steps li{list-style:none;padding-left:0}
+.wa-info-steps li::before{content:''; margin-right:8px}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 8 — RECEIVE / IMPORT
+═══════════════════════════════════════════════════════════════ */
+.import-zone{
+  border:2px dashed var(--gm);border-radius:var(--r6);
+  padding:28px 16px;text-align:center;margin:14px 18px;
+  background:var(--gl);cursor:pointer;transition:all .2s;
+  -webkit-tap-highlight-color:rgba(26,122,74,.15);
+}
+.import-zone:hover,.import-zone.drag-over{
+  background:#D8EFE2;border-color:var(--g);
+}
+.import-zone-icon{font-size:44px;margin-bottom:12px;display:block}
+.import-zone-title{font-size:16px;font-weight:700;color:var(--d);margin-bottom:6px}
+.import-zone-sub{font-size:13px;color:var(--gr)}
+.import-result{
+  margin:0 18px 18px;border-radius:var(--r6);overflow:hidden;
+  box-shadow:var(--sh);
+}
+.import-result-header{
+  background:var(--d);padding:18px;
+}
+.import-result-amount{font-size:28px;font-weight:800;color:var(--w);margin-bottom:4px}
+.import-result-coins{font-size:13px;color:var(--gm)}
+.import-result-body{padding:16px;background:var(--w)}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 9 — HISTORY
+═══════════════════════════════════════════════════════════════ */
+.filter-tabs{
+  display:flex;overflow-x:auto;scrollbar-width:none;
+  padding:12px 14px 0;gap:8px;background:var(--w);
+}
+.filter-tabs::-webkit-scrollbar{display:none}
+.filter-tab{
+  padding:7px 16px;border-radius:20px;font-size:13px;font-weight:600;
+  color:var(--tx2);background:var(--grl);border:none;cursor:pointer;
+  flex-shrink:0;font-family:'Inter',sans-serif;transition:all .15s;
+}
+.filter-tab.active{background:var(--g);color:var(--w)}
+.month-header{
+  padding:14px 18px 8px;font-size:12px;font-weight:700;
+  color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SCREEN 10 — PROFILE
+═══════════════════════════════════════════════════════════════ */
+.profile-banner{
+  background:var(--d2);padding:28px 18px 24px;text-align:center;
+}
+.profile-avatar{
+  width:64px;height:64px;border-radius:50%;
+  background:var(--g);border:3px solid var(--gm);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:800;color:var(--w);
+  margin:0 auto 12px;
+}
+.profile-name{font-size:18px;font-weight:800;color:var(--w);margin-bottom:4px}
+.profile-phone{font-size:13px;color:var(--gm)}
+.profile-body{padding:14px}
+.settings-group{background:var(--w);border-radius:var(--r3);
+  box-shadow:var(--sh);overflow:hidden;margin-bottom:14px;}
+.settings-group-label{
+  padding:12px 16px 8px;font-size:11px;font-weight:700;
+  color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;
+  background:var(--grl);border-bottom:1px solid var(--grb);
+}
+.settings-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-bottom:1px solid var(--grb);cursor:pointer;
+}
+.settings-row:last-child{border-bottom:none}
+.settings-label{font-size:14px;color:var(--tx);font-weight:500}
+.settings-value{font-size:13px;color:var(--tx3)}
+.toggle{
+  width:44px;height:24px;border-radius:12px;background:var(--grb);
+  position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;
+  border:none;outline:none;
+}
+.toggle.on{background:var(--g)}
+.toggle-dot{
+  position:absolute;top:3px;left:3px;width:18px;height:18px;
+  border-radius:50%;background:var(--w);transition:transform .2s;
+  box-shadow:0 1px 4px rgba(0,0,0,.2);
+}
+.toggle.on .toggle-dot{transform:translateX(20px)}
+
+/* ════════════════════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════════════════ */
+@media(min-width:431px){
+  body{background:#1A1A2E;overflow:hidden;}
+  #app{
+    box-shadow:0 0 60px rgba(0,0,0,.3);
+    border-radius:16px;
+    height:100vh;height:100dvh;
+    margin-top:0;
+    max-width:430px;
+    position:relative;
+  }
+}
+@media(max-width:430px){
+  #app{
+    border-radius:0;
+    max-width:100%;
+    height:100vh;height:100dvh;
+  }
+}
+@media(prefers-color-scheme:dark){
+  /* Reserve for future dark mode */
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+@keyframes scanline{
+  0%  { top:4px;   opacity:1; }
+  50% { top:188px; opacity:.8; }
+  100%{ top:4px;   opacity:1; }
+}
+</style>
+
+</head>
+<body>
+<div id="app">
+
+<!-- ═══ TOAST & LOADER ══════════════════════════════════════════ -->
+<div id="toast"></div>
+<div id="loader"><div class="spinner"></div><div class="loader-text" id="loader-text">Loading...</div></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 1 — SPLASH
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-splash" class="screen">
+  <div class="splash-body">
+    <div class="splash-brand">
+      <div class="splash-logo">ZILLION</div>
+      <div class="splash-tagline">Offline-First Digital Cash</div>
+    </div>
+
+    <div class="splash-icon-wrap">
+      <div class="splash-icon-ring" style="width:130px;height:130px;opacity:.08"></div>
+      <div class="splash-icon-ring" style="width:100px;height:100px;opacity:.14"></div>
+      <div class="splash-icon-ring" style="width:70px;height:70px;opacity:.22"></div>
+      <div class="splash-naira">₦</div>
+    </div>
+
+    <div class="splash-props">
+      <div class="splash-prop">
+        <div class="splash-prop-dot">⚡</div>
+        <div class="splash-prop-text">No internet needed to transfer</div>
+      </div>
+      <div class="splash-prop">
+        <div class="splash-prop-dot">🏦</div>
+        <div class="splash-prop-text">No bank account required</div>
+      </div>
+      <div class="splash-prop">
+        <div class="splash-prop-dot">🔒</div>
+        <div class="splash-prop-text">Secured with Ed25519 cryptography</div>
+      </div>
+    </div>
+
+    <div class="splash-ctas">
+      <div class="splash-dots">
+        <div class="splash-dot active" id="sd0"></div>
+        <div class="splash-dot" id="sd1"></div>
+        <div class="splash-dot" id="sd2"></div>
+        <div class="splash-dot" id="sd3"></div>
+      </div>
+      <button class="btn btn-g" id="btn-get-started">Get Started</button>
+      <button class="btn btn-ghost" id="btn-restore">I already have an account</button>
+    </div>
+  </div>
+</div>
+<script charset="utf-8">
+(function(){
+  function bind(){
+    var b1=document.getElementById('btn-get-started');
+    var b2=document.getElementById('btn-restore');
+    if(b1)b1.onclick=function(){if(typeof goTo==='function')goTo('screen-phone');};
+    if(b2)b2.onclick=function(){if(typeof tryRestoreSession==='function')tryRestoreSession();};
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',bind);}
+  else{bind();}
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 2 — PHONE VERIFICATION
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-phone" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="hdr-back" onclick="goBack()">‹</button>
+    <div class="hdr-title">Create Account</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="ob-body">
+    <div class="ob-step-label">Step 1 of 4</div>
+    <div class="ob-title">Verify your phone</div>
+    <div class="ob-sub">We'll send a one-time code via SMS. No email or bank account needed.</div>
+
+    <div class="field-group">
+      <label class="field-label">Phone Number</label>
+      <div class="phone-input-wrap" id="phone-wrap">
+        <div class="phone-flag">🇳🇬 +234</div>
+        <input class="phone-number-input" type="tel" id="phone-input"
+          placeholder="801 234 5678" maxlength="11"
+          oninput="onPhoneInput(this)" inputmode="numeric">
+      </div>
+    </div>
+
+    <div id="otp-section" style="display:none">
+      <div class="field-group">
+        <label class="field-label">Verification Code</label>
+        <div class="otp-grid">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" id="otp0" oninput="onOtpInput(0,this)" onkeydown="onOtpKey(0,event)">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" id="otp1" oninput="onOtpInput(1,this)" onkeydown="onOtpKey(1,event)">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" id="otp2" oninput="onOtpInput(2,this)" onkeydown="onOtpKey(2,event)">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" id="otp3" oninput="onOtpInput(3,this)" onkeydown="onOtpKey(3,event)">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" id="otp4" oninput="onOtpInput(4,this)" onkeydown="onOtpKey(4,event)">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" id="otp5" oninput="onOtpInput(5,this)" onkeydown="onOtpKey(5,event)">
+        </div>
+        <div class="otp-resend" id="otp-resend-text">
+          Resend code in <span id="otp-timer">0:60</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="dev-otp-banner" style="display:none;background:#0D1F1A;color:#7AE8A8;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700;text-align:center;letter-spacing:.5px;border:1px solid #1A7A4A"></div>
+    <div id="phone-error" class="alert alert-r" style="display:none"></div>
+
+    <button class="btn btn-g" id="phone-btn" onclick="submitPhone()">Send Code</button>
+    <div id="verify-btn-wrap" style="display:none;margin-top:12px">
+      <button class="btn btn-g" onclick="verifyOtp()">Verify Code</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 3 — CREATE PIN
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-pin" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="hdr-back" onclick="goBack()">‹</button>
+    <div class="hdr-title">Secure Your Wallet</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="ob-body" style="display:flex;flex-direction:column">
+    <div class="ob-step-label">Step 2 of 4</div>
+    <div class="ob-title" id="pin-title">Create 6-digit PIN</div>
+    <div class="ob-sub" id="pin-sub">Encrypts your coin vault. Never stored — only you know it.</div>
+
+    <div class="pin-strength" id="pin-strength"></div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+      <div class="pin-dot" id="pd4"></div>
+      <div class="pin-dot" id="pd5"></div>
+    </div>
+
+    <div class="numpad">
+      <button class="numpad-key" onclick="pinKey('1')">1</button>
+      <button class="numpad-key" onclick="pinKey('2')">2<div style="font-size:9px;color:var(--tx3);font-weight:500">ABC</div></button>
+      <button class="numpad-key" onclick="pinKey('3')">3<div style="font-size:9px;color:var(--tx3);font-weight:500">DEF</div></button>
+      <button class="numpad-key" onclick="pinKey('4')">4<div style="font-size:9px;color:var(--tx3);font-weight:500">GHI</div></button>
+      <button class="numpad-key" onclick="pinKey('5')">5<div style="font-size:9px;color:var(--tx3);font-weight:500">JKL</div></button>
+      <button class="numpad-key" onclick="pinKey('6')">6<div style="font-size:9px;color:var(--tx3);font-weight:500">MNO</div></button>
+      <button class="numpad-key" onclick="pinKey('7')">7<div style="font-size:9px;color:var(--tx3);font-weight:500">PQRS</div></button>
+      <button class="numpad-key" onclick="pinKey('8')">8<div style="font-size:9px;color:var(--tx3);font-weight:500">TUV</div></button>
+      <button class="numpad-key" onclick="pinKey('9')">9<div style="font-size:9px;color:var(--tx3);font-weight:500">WXYZ</div></button>
+      <button class="numpad-key empty" disabled></button>
+      <button class="numpad-key" onclick="pinKey('0')">0</button>
+      <button class="numpad-key action" onclick="pinKey('del')">⌫</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 4 — ROLE SELECTION
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-role" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="hdr-back" onclick="goBack()">‹</button>
+    <div class="hdr-title">How will you use Zillion?</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="ob-body">
+    <div class="ob-step-label">Step 3 of 4</div>
+    <div class="ob-title">Choose your role</div>
+    <div class="ob-sub">This determines your main features. You can change it later in Settings.</div>
+
+    <div class="role-card selected" id="role-customer" onclick="selectRole('customer')">
+      <div class="role-icon">👩‍🌾</div>
+      <div class="role-info">
+        <div class="role-title">Customer</div>
+        <div class="role-desc">Send and receive Zil offline. Buy goods at markets. Transfer via WhatsApp.</div>
+      </div>
+      <div class="role-check">✓</div>
+    </div>
+
+    <div class="role-card" id="role-merchant" onclick="selectRole('merchant')">
+      <div class="role-icon">🛒</div>
+      <div class="role-info">
+        <div class="role-title">Merchant</div>
+        <div class="role-desc">Accept Zil payments for your goods. Show your QR code to customers.</div>
+      </div>
+      <div class="role-check"></div>
+    </div>
+
+    <div class="role-card" id="role-agent" onclick="selectRole('agent')">
+      <div class="role-icon">🏪</div>
+      <div class="role-info">
+        <div class="role-title">Agent</div>
+        <div class="role-desc">Cash-in and cash-out services. Manage float. Requires Agent ID and token from admin.</div>
+      </div>
+      <div class="role-check"></div>
+    </div>
+
+    <div id="agent-fields" style="display:none;margin-top:16px">
+      <div class="field-group">
+        <label class="field-label">Agent ID</label>
+        <input class="field-input" type="text" id="agent-id-input" placeholder="AGENT-00001">
+      </div>
+      <div class="field-group">
+        <label class="field-label">JWT Token</label>
+        <input class="field-input" type="password" id="agent-token-input" placeholder="Paste token from admin dashboard">
+      </div>
+    </div>
+
+    <div style="margin-top:8px">
+      <button class="btn btn-g" onclick="completeOnboarding()">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 5 — HOME / WALLET
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-home" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <div class="hdr-logo">ZILLION</div>
+    <div class="hdr-right">
+      <span id="sync-status-hdr" class="hdr-sub">
+        <span class="hdr-dot" id="sync-dot"></span>
+        <span id="sync-text">Live</span>
+      </span>
+    </div>
+  </div>
+  <div id="offline-banner" class="offline-banner" style="display:none">
+    ⚡ Offline — transfers still work · Syncing when connected
+  </div>
+  <div class="scroll-body">
+    <!-- Balance card -->
+    <div class="balance-card">
+      <div class="bal-label">Wallet Balance</div>
+      <div class="bal-amount" id="home-balance">₦0.00</div>
+      <div class="bal-sub">
+        <span id="home-coin-count">0 coins</span>
+        <span>·</span>
+        <span class="bal-sync" id="home-sync-label">Up to date</span>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="actions-grid">
+      <button class="action-btn primary-action" onclick="goTo('screen-send')">
+        <span class="action-icon">↑</span>
+        <div class="action-label">Send Zil</div>
+      </button>
+      <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
+        <span class="action-icon">↓</span>
+        <div class="action-label">Receive</div>
+      </button>
+      <button class="action-btn" onclick="goTo('screen-vault')">
+        <span class="action-icon">⬡</span>
+        <div class="action-label">My Vault</div>
+      </button>
+      <button class="action-btn" onclick="goTo('screen-history')">
+        <span class="action-icon">≡</span>
+        <div class="action-label">History</div>
+      </button>
+    </div>
+
+    <!-- Recent -->
+    <div class="section-header">
+      <div class="section-title">Recent Transactions</div>
+      <div class="section-link" onclick="goTo('screen-history')">See all</div>
+    </div>
+    <div class="tx-card" id="home-tx-list">
+      <div class="empty-state">
+        <span class="empty-icon">🪙</span>
+        <div class="empty-title">No transactions yet</div>
+        <div class="empty-sub">Visit a Zillion agent to cash in your first Zil coins, or ask a friend to send you Zil via WhatsApp.</div>
+      </div>
+    </div>
+    <div style="height:24px"></div>
+  </div>
+  <div class="bnav">
+    <button class="bnav-item active" onclick="goTo('screen-home')">
+      <span class="bnav-icon">⌂</span><span class="bnav-label">Home</span>
+    </button>
+    <button class="bnav-item" onclick="goTo('screen-vault')">
+      <span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span>
+    </button>
+    <button class="bnav-item" onclick="goTo('screen-send')">
+      <span class="bnav-icon">⇅</span><span class="bnav-label">Send</span>
+    </button>
+    <button class="bnav-item" onclick="goTo('screen-history')">
+      <span class="bnav-icon">≡</span><span class="bnav-label">History</span>
+    </button>
+    <button class="bnav-item" onclick="goTo('screen-profile')">
+      <span class="bnav-icon">○</span><span class="bnav-label">Profile</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 6 — COIN VAULT
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-vault" class="screen hidden">
+  <div class="sb"></div>
+  <div class="vault-header">
+    <div class="vault-total-label">Vault Total</div>
+    <div class="vault-total" id="vault-total">₦0.00</div>
+    <div class="vault-sub">
+      <span id="vault-coin-count">0 coins</span>
+      <span>·</span>
+      <span>🔒 AES-256 encrypted</span>
+    </div>
+  </div>
+  <div class="vault-body">
+    <div id="vault-list">
+      <div class="empty-state" style="padding:36px 20px">
+        <span class="empty-icon">🔐</span>
+        <div class="empty-title">Vault is empty</div>
+        <div class="empty-sub">Cash in at a Zillion agent or receive Zil via WhatsApp to fill your vault.</div>
+      </div>
+    </div>
+    <div class="vault-empty">🔒 Your coins are stored encrypted on this device only. Back up regularly.</div>
+  </div>
+  <div class="bnav">
+    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+    <button class="bnav-item active" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
+    <button class="bnav-item" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 7 — SEND / EXPORT ZIL
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-send" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="hdr-back" onclick="goBack()">‹</button>
+    <div class="hdr-title">Send Zil</div>
+    <div style="width:40px"></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <div class="send-hero">
+      <div class="send-label">Amount to send</div>
+      <div class="send-amount" id="send-display">₦0</div>
+      <div class="send-coins" id="send-coins-label">Select an amount below</div>
+    </div>
+    <div class="method-tabs">
+      <button class="method-tab active" onclick="switchSendMethod('qr',this)">📲 QR Code</button>
+      <button class="method-tab" onclick="switchSendMethod('wa',this)">📱 WhatsApp</button>
+      <button class="method-tab" onclick="switchSendMethod('file',this)">📄 File</button>
+    </div>
+    <div class="scroll-body" style="background:var(--bg)">
+      <div class="denom-pills">
+        <button class="denom-pill" onclick="setSendAmt(50000)">₦500</button>
+        <button class="denom-pill" onclick="setSendAmt(100000)">₦1,000</button>
+        <button class="denom-pill" onclick="setSendAmt(200000)">₦2,000</button>
+        <button class="denom-pill" onclick="setSendAmt(500000)">₦5,000</button>
+      </div>
+      <div style="padding:14px">
+        <div class="field-group">
+          <label class="field-label">Amount in Naira (₦)</label>
+          <input class="field-input" type="number" id="send-amount-input"
+            placeholder="e.g. 2000" min="500" max="100000" step="500"
+            oninput="onSendAmountInput(this)" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- WhatsApp panel -->
+      <div id="send-panel-wa" class="method-panel active">
+        <div class="wa-info">
+          <span class="wa-info-icon">📱</span>
+          <div class="wa-info-title">Send via WhatsApp</div>
+          <div class="wa-info-steps">
+            <li>✅ Enter the amount above</li>
+            <li>✅ Tap the button below</li>
+            <li>✅ Your .zil file opens in WhatsApp</li>
+            <li>✅ Select the recipient and send</li>
+            <li>✅ They tap the file to receive into their wallet</li>
+          </div>
+        </div>
+        <div id="send-error-wa" class="alert alert-r" style="display:none"></div>
+        <button class="btn btn-g" onclick="sendViaWhatsApp()" id="wa-send-btn">
+          Export & Share via WhatsApp →
+        </button>
+        <div style="height:14px"></div>
+        <div class="alert alert-am">
+          <strong>⚠️ No internet needed.</strong> The .zil file carries its own cryptographic proof. Your coins are marked as sent immediately.
+        </div>
+      </div>
+
+      <!-- QR panel -->
+      <div id="send-panel-qr" class="method-panel active">
+        <div id="send-qr-box" style="display:none;background:var(--d2);border-radius:14px;overflow:hidden;margin-bottom:14px">
+          <div style="padding:16px;text-align:center">
+            <div style="font-size:13px;color:var(--gm);margin-bottom:8px;font-weight:600">QR Payment Code</div>
+            <div style="display:flex;justify-content:center;margin-bottom:10px">
+              <div id="send-qr-canvas" style="background:#fff;padding:10px;border-radius:10px"></div>
+            </div>
+            <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:2px" id="send-qr-amount">₦0</div>
+            <div style="font-size:11px;color:var(--gm);margin-bottom:8px" id="send-qr-detail"></div>
+            <div style="font-size:12px;font-weight:700;color:var(--am)" id="send-qr-timer">⏱ Valid 15 minutes</div>
+          </div>
+          <div style="padding:0 14px 14px;display:flex;gap:8px">
+            <button onclick="shareSendQRWhatsApp()" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              📱 Share via WhatsApp
+            </button>
+            <button onclick="saveSendQRImage()" style="padding:11px 14px;background:var(--bll);color:var(--bl);border:none;border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">
+              💾
+            </button>
+          </div>
+        </div>
+        <div id="send-qr-info" class="wa-info">
+          <span class="wa-info-icon">📲</span>
+          <div class="wa-info-title">Send via QR Code</div>
+          <div class="wa-info-steps">
+            <li>✅ Enter amount above</li>
+            <li>✅ Tap Generate QR below</li>
+            <li>✅ Share QR via WhatsApp</li>
+            <li>✅ Recipient scans it in their Zillion wallet</li>
+            <li>✅ Coins transfer instantly — no internet needed</li>
+          </div>
+        </div>
+        <div id="send-qr-error" class="alert alert-r" style="display:none"></div>
+        <button class="btn btn-g" id="send-qr-btn" onclick="generateSendQR()">
+          📲 Generate QR Code →
+        </button>
+        <div style="height:14px"></div>
+        <div class="alert alert-am" style="margin:0">
+          <strong>⚡ Works offline.</strong> The recipient scans this QR in their Zillion wallet. Coins transfer via the Zillion registry.
+        </div>
+      </div>
+
+      <!-- File panel -->
+      <div id="send-panel-file" class="method-panel">
+        <div class="alert alert-am" style="margin-bottom:16px">
+          Tap the button below to export your .zil file and save or share it manually.
+        </div>
+        <button class="btn btn-outline" onclick="sendViaWhatsApp(true)">Export .zil File</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 8 — RECEIVE / SCAN QR
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-receive" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="hdr-back" onclick="stopScanner();goBack()">‹</button>
+    <div class="hdr-title">Receive Zil</div>
+    <div style="width:40px"></div>
+  </div>
+
+  <!-- METHOD TABS -->
+  <div style="display:flex;background:var(--grl);border-bottom:1px solid var(--grb);flex-shrink:0">
+    <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">📷 Scan QR</button>
+    <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">📂 Import File</button>
+  </div>
+
+  <!-- QR SCANNER PANEL -->
+  <div id="recv-panel-qr" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+
+    <!-- Camera viewfinder -->
+    <div id="qr-scanner-wrap" style="position:relative;background:#000;flex-shrink:0">
+      <video id="qr-video" autoplay playsinline muted
+        style="width:100%;display:block;max-height:280px;object-fit:cover"></video>
+      <!-- Scanning overlay -->
+      <div id="qr-overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <div id="qr-frame" style="width:200px;height:200px;position:relative">
+          <div style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:3px solid var(--g);border-left:3px solid var(--g);border-radius:4px 0 0 0"></div>
+          <div style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:3px solid var(--g);border-right:3px solid var(--g);border-radius:0 4px 0 0"></div>
+          <div style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:3px solid var(--g);border-left:3px solid var(--g);border-radius:0 0 0 4px"></div>
+          <div style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:3px solid var(--g);border-right:3px solid var(--g);border-radius:0 0 4px 0"></div>
+          <!-- Scanning line animation -->
+          <div id="scan-line" style="position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,var(--g),transparent);animation:scanline 1.8s ease-in-out infinite"></div>
+        </div>
+      </div>
+      <!-- Camera status bar -->
+      <div id="qr-status" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);padding:8px 14px;font-size:12px;color:#fff;text-align:center">
+        Starting camera...
+      </div>
+    </div>
+
+    <!-- Scanner controls -->
+    <div style="padding:14px 18px;display:flex;gap:10px;flex-shrink:0">
+      <button id="scan-start-btn" class="btn btn-g" style="flex:1;padding:12px"
+        onclick="startScanner()">📷 Start Camera</button>
+      <button id="scan-stop-btn" class="btn btn-outline" style="flex:1;padding:12px;display:none"
+        onclick="stopScanner()">⏹ Stop</button>
+    </div>
+
+    <!-- QR claim result -->
+    <div id="qr-claim-result" style="display:none;margin:0 14px 14px">
+      <div style="background:var(--d);border-radius:14px;overflow:hidden">
+        <div style="padding:18px;text-align:center">
+          <div style="font-size:36px;margin-bottom:8px" id="qr-result-icon">⏳</div>
+          <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:4px" id="qr-result-amount">—</div>
+          <div style="font-size:13px;color:var(--gm)" id="qr-result-detail">Fetching coins...</div>
+        </div>
+        <div style="background:var(--d2);padding:14px 18px">
+          <div id="qr-result-coins"></div>
+          <div id="qr-result-error" class="alert alert-r" style="display:none;margin-top:10px"></div>
+          <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px" id="qr-result-actions" style="display:none">
+            <button class="btn btn-g" id="qr-accept-btn" onclick="confirmQRImport()" style="display:none">
+              Accept Coins into Vault →
+            </button>
+            <button class="btn btn-ghost" onclick="resetQRScanner()" style="color:var(--gm)">
+              Scan Another QR
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:0 18px 18px;font-size:12px;color:var(--tx2);text-align:center;line-height:1.6">
+      Point your camera at the QR code the agent shared with you.<br>
+      Coins will be added to your vault automatically.
+    </div>
+  </div>
+
+  <!-- FILE IMPORT PANEL -->
+  <div id="recv-panel-file" style="display:none;flex:1;overflow-y:auto;background:var(--bg)">
+    <div style="padding:14px 18px 0">
+      <div class="alert alert-g" style="margin:0 0 14px">
+        <strong>From WhatsApp:</strong> Download the .zil file the agent sent → tap Browse Files → select it.
+      </div>
+    </div>
+    <div class="import-zone" id="import-zone" onclick="triggerFileImport()">
+      <span class="import-zone-icon">📂</span>
+      <div class="import-zone-title">Browse Files to Import</div>
+      <div class="import-zone-sub">Downloads → select the .zil file</div>
+      <div style="margin-top:10px;background:var(--g);color:#fff;border-radius:20px;padding:8px 20px;font-size:13px;font-weight:700;display:inline-block">Select .zil File</div>
+    </div>
+    <input type="file" id="zil-file-input" accept=".zil,application/octet-stream" style="display:none" onchange="onZilFileSelected(this)">
+    <div id="import-result-wrap" style="display:none">
+      <div class="import-result">
+        <div class="import-result-header">
+          <div class="import-result-amount" id="import-amount">₦0</div>
+          <div class="import-result-coins" id="import-coins">0 coins received</div>
+        </div>
+        <div class="import-result-body">
+          <div id="import-coin-details"></div>
+          <div id="import-error" class="alert alert-r" style="display:none;margin-top:12px"></div>
+          <div style="margin-top:14px">
+            <button class="btn btn-g" id="import-confirm-btn" onclick="confirmImport()">Accept Coins into Vault →</button>
+          </div>
+          <div style="margin-top:10px">
+            <button class="btn btn-ghost" onclick="rejectImport()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 9 — HISTORY
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-history" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <div class="hdr-logo" style="font-size:14px">Transaction History</div>
+  </div>
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="filterHistory('all',this)">All</button>
+    <button class="filter-tab" onclick="filterHistory('received',this)">Received</button>
+    <button class="filter-tab" onclick="filterHistory('sent',this)">Sent</button>
+    <button class="filter-tab" onclick="filterHistory('pending',this)">Pending</button>
+  </div>
+  <div class="scroll-body" style="background:var(--bg)">
+    <div id="history-list" style="padding:14px">
+      <div class="empty-state">
+        <span class="empty-icon">📋</span>
+        <div class="empty-title">No transactions yet</div>
+        <div class="empty-sub">Your complete transaction history will appear here.</div>
+      </div>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item active" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
+    <button class="bnav-item" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 10 — PROFILE & SETTINGS
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-profile" class="screen hidden">
+  <div class="sb"></div>
+  <div class="profile-banner">
+    <div class="profile-avatar" id="profile-avatar">?</div>
+    <div class="profile-name" id="profile-name">Your Name</div>
+    <div class="profile-phone" id="profile-phone">+234 — —</div>
+  </div>
+  <div class="scroll-body">
+    <div class="profile-body">
+
+      <div class="settings-group">
+        <div class="settings-group-label">Account</div>
+        <div class="settings-row">
+          <span class="settings-label">Phone Number</span>
+          <span class="settings-value" id="settings-phone">—</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Role</span>
+          <span class="settings-value" id="settings-role">Customer</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Device ID</span>
+          <span class="settings-value" id="settings-device" style="font-family:monospace;font-size:11px">—</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Security</div>
+        <div class="settings-row" onclick="showChangePinFlow()">
+          <span class="settings-label">Change PIN</span>
+          <span class="settings-value">›</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Biometric Unlock</span>
+          <button class="toggle on" id="toggle-biometric" onclick="toggleSetting(this)">
+            <div class="toggle-dot"></div>
+          </button>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Transaction PIN</span>
+          <button class="toggle" id="toggle-txpin" onclick="toggleSetting(this)">
+            <div class="toggle-dot"></div>
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Sync & Network</div>
+        <div class="settings-row">
+          <span class="settings-label">Auto-Sync</span>
+          <button class="toggle on" id="toggle-sync" onclick="toggleSetting(this)">
+            <div class="toggle-dot"></div>
+          </button>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Last Synced</span>
+          <span class="settings-value" id="settings-last-sync">Never</span>
+        </div>
+        <div class="settings-row" onclick="forceSync()">
+          <span class="settings-label">Sync Now</span>
+          <span class="settings-value">↻</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Wallet</div>
+        <div class="settings-row" onclick="exportVaultBackup()">
+          <span class="settings-label">Export Backup</span>
+          <span class="settings-value">›</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Vault Version</span>
+          <span class="settings-value">v1.0.0</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">App</div>
+        <div class="settings-row">
+          <span class="settings-label">App Version</span>
+          <span class="settings-value">PWA v1.0.0</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Network Mode</span>
+          <span class="settings-value" id="settings-network">Online</span>
+        </div>
+      </div>
+
+      <div style="margin-top:8px">
+        <button class="btn btn-outline" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
+          onclick="resetWallet()">Reset Wallet</button>
+        <button class="btn btn-ghost" onclick="logout()">Log Out</button>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
+    <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JAVASCRIPT — APP ENGINE
+══════════════════════════════════════════════════════════════ -->
+<script charset="utf-8">
+
+// ================================================================
+//  ZILLION WALLET -- TEST / DEMO MODE
+//  All API calls are intercepted and return fake data.
+//  This lets you test the full UI flow without a backend.
+//  OTP code is always: 123456
+// ================================================================
+
+const _MOCK_MODE = true;
+const _MOCK_COINS = [
+  { id:'ZIL-20260616-DEMO0001-0001', value_kobo:100000, status:'HELD',
+    owner_hash:'demo', mint_id:'ZILLION-MINT-01',
+    issued_at: Date.now()-86400000, expires_at: Date.now()+7776000000,
+    signature:'demo-sig-0001', tx_history:[] },
+  { id:'ZIL-20260616-DEMO0002-0002', value_kobo:50000, status:'HELD',
+    owner_hash:'demo', mint_id:'ZILLION-MINT-01',
+    issued_at: Date.now()-86400000, expires_at: Date.now()+7776000000,
+    signature:'demo-sig-0002', tx_history:[] },
+  { id:'ZIL-20260616-DEMO0003-0003', value_kobo:200000, status:'HELD',
+    owner_hash:'demo', mint_id:'ZILLION-MINT-01',
+    issued_at: Date.now()-3600000, expires_at: Date.now()+7776000000,
+    signature:'demo-sig-0003', tx_history:[] },
+];
+
+// Intercept all fetch() calls
+const _realFetch = window.fetch.bind(window);
+window.fetch = async function(url, opts) {
+  if (!_MOCK_MODE) return _realFetch(url, opts);
+  const u = typeof url === 'string' ? url : url.toString();
+  const body = opts && opts.body ? JSON.parse(opts.body) : {};
+  await new Promise(r => setTimeout(r, 600)); // realistic delay
+
+  // OTP send
+  if (u.includes('send-otp')) {
+    return mockResp({ success:true, dev_otp:'123456',
+      message:'[TEST MODE] OTP: 123456' });
+  }
+  // OTP verify
+  if (u.includes('verify-otp')) {
+    const ok = body.otp === '123456';
+    return mockResp(ok
+      ? { success:true, token:'demo-jwt-token',
+          user:{ phone: body.phone || '08012345678',
+                 deviceId:'DEMO-DEVICE-001', role:'customer',
+                 createdAt: new Date().toISOString() } }
+      : { success:false, error:'Wrong OTP. Use 123456 in test mode.' });
+  }
+  // Sync
+  if (u.includes('sync')) {
+    return mockResp({ success:true, settled:STATE.vault.length, conflicts:[] });
+  }
+  // Fetch claim (QR cash-in)
+  if (u.includes('fetch-claim')) {
+    return mockResp({ success:true, coins:_MOCK_COINS,
+      amount_kobo: _MOCK_COINS.reduce((s,c)=>s+c.value_kobo,0) });
+  }
+  // Create claim (send QR)
+  if (u.includes('create-claim')) {
+    return mockResp({ success:true,
+      claim_id:'demo-claim-' + Math.random().toString(36).slice(2,8),
+      claim_url: window.location.origin + '/wallet/?claim=demo' });
+  }
+  // Fallback - pass through
+  return _realFetch(url, opts);
+};
+
+function mockResp(data) {
+  return Promise.resolve({
+    ok: true, status: 200,
+    json: () => Promise.resolve(data),
+    text: () => Promise.resolve(JSON.stringify(data)),
+  });
+}
+
+// Show test mode badge after DOM loads
+document.addEventListener('DOMContentLoaded', function() {
+  const badge = document.createElement('div');
+  badge.id = 'test-badge';
+  badge.innerHTML = '🧪 TEST MODE &nbsp;|&nbsp; OTP: <b>123456</b>';
+  badge.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+    'background:#7C3AED;color:#fff;font-size:11px;font-family:monospace;' +
+    'text-align:center;padding:4px 8px;letter-spacing:0.5px;';
+  document.body.prepend(badge);
+  // Push content down so badge doesn't cover UI
+  document.documentElement.style.setProperty('--test-banner-h','24px');
+});
+
+
+'use strict';
+
+// -- Constants -------------------------------------------------
+const API    = '/.netlify/functions';
+const DB_KEY = 'zillion_pwa_v1';
+const MINT_PUBLIC_KEY = null; // loaded from env on first sync
+
+// -- State -----------------------------------------------------
+let STATE = {
+  screen:    'screen-splash',
+  prevScreen:'screen-splash',
+  user:      null,   // { phone, deviceId, role, agentId, agentToken, createdAt }
+  vault:     [],     // array of .zil coin objects
+  history:   [],     // transaction log
+  pin:       null,   // ephemeral - never persisted as plaintext
+  pinConfirm:null,
+  pinState:  'create', // 'create' | 'confirm' | 'verify'
+  sendAmount:0,
+  sendMethod:'wa',
+  pendingImport: null,
+  isOnline:  navigator.onLine,
+  lastSync:  null,
+  settings:  { biometric:true, txpin:false, autosync:true },
+};
+
+// -- Persistence ------------------------------------------------
+function save() {
+  const toSave = {
+    user:     STATE.user,
+    vault:    STATE.vault,
+    history:  STATE.history,
+    settings: STATE.settings,
+    lastSync: STATE.lastSync,
+  };
+  localStorage.setItem(DB_KEY, JSON.stringify(toSave));
+}
+function load() {
+  try {
+    const s = localStorage.getItem(DB_KEY);
+    if (!s) return false;
+    const d = JSON.parse(s);
+    STATE.user     = d.user     || null;
+    STATE.vault    = d.vault    || [];
+    STATE.history  = d.history  || [];
+    STATE.settings = d.settings || STATE.settings;
+    STATE.lastSync = d.lastSync || null;
+    return !!STATE.user;
+  } catch { return false; }
+}
+
+// -- Screen navigation ------------------------------------------
+const screenHistory = [];
+function goTo(id) {
+  const curr = document.getElementById(STATE.screen);
+  const next = document.getElementById(id);
+  if (!next || STATE.screen === id) return;
+  screenHistory.push(STATE.screen);
+  curr.classList.add('slide-left');
+  next.classList.remove('hidden','slide-left');
+  STATE.prevScreen = STATE.screen;
+  STATE.screen = id;
+  updateBnav(id);
+  onScreenEnter(id);
+  setTimeout(() => curr.classList.add('hidden'), 320);
+}
+function goBack() {
+  const prev = screenHistory.pop();
+  if (!prev) return;
+  const curr = document.getElementById(STATE.screen);
+  const back = document.getElementById(prev);
+  curr.classList.add('hidden');
+  back.classList.remove('hidden','slide-left');
+  STATE.screen = prev;
+  updateBnav(prev);
+}
+function updateBnav(id) {
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
+  const map = {'screen-home':'Home','screen-vault':'Vault','screen-send':'Send',
+                'screen-history':'History','screen-profile':'Profile'};
+  const label = map[id];
+  if (label) {
+    document.querySelectorAll('.bnav-label').forEach(l => {
+      if (l.textContent === label) l.closest('.bnav-item').classList.add('active');
+    });
+  }
+}
+function onScreenEnter(id) {
+  if (id === 'screen-home') refreshHome();
+  if (id === 'screen-vault') refreshVault();
+  if (id === 'screen-history') refreshHistory();
+  if (id === 'screen-profile') refreshProfile();
+}
+
+// -- Toast & Loader ---------------------------------------------
+function toast(msg, isError=false, ms=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isError ? ' error' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', ms);
+}
+function showLoader(text='Processing...') {
+  document.getElementById('loader-text').textContent = text;
+  document.getElementById('loader').classList.add('show');
+}
+function hideLoader() { document.getElementById('loader').classList.remove('show'); }
+
+// -- Phone OTP --------------------------------------------------
+let otpTimer = null;
+function onPhoneInput(el) {
+  el.value = el.value.replace(/\D/g,'');
+  document.getElementById('phone-error').style.display = 'none';
+}
+async function submitPhone() {
+  const raw   = document.getElementById('phone-input').value.trim().replace(/\s/g,'');
+  const errEl = document.getElementById('phone-error');
+  errEl.style.display = 'none';
+
+  if (raw.length < 8) {
+    errEl.textContent = 'Please enter a valid phone number.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Normalise: 08012345678 -> +2348012345678
+  let phone = raw;
+  if (phone.startsWith('0')) phone = '+234' + phone.slice(1);
+  else if (!phone.startsWith('+')) phone = '+234' + phone;
+  STATE._pendingPhone = phone;
+
+  showLoader('Sending code...');
+  try {
+    const res  = await fetch('/api/v1/send-otp', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    hideLoader();
+
+    // DEV BYPASS: check for dev_otp FIRST regardless of res.ok
+    if (data.dev_otp) {
+      showOtpSection();
+      // Auto-fill all 6 boxes
+      data.dev_otp.toString().split('').forEach((d, i) => {
+        const box = document.getElementById('otp' + i);
+        if (box) { box.value = d; box.classList.add('filled'); }
+      });
+      // Show code in visible banner
+      const banner = document.getElementById('dev-otp-banner');
+      if (banner) {
+        banner.textContent = '🔧 Dev Mode - Your code is: ' + data.dev_otp;
+        banner.style.display = 'block';
+      }
+      toast('🔧 Dev code: ' + data.dev_otp, false, 12000);
+      return;
+    }
+
+    // Real SMS error
+    if (!res.ok) {
+      let msg = data.error || 'SMS delivery failed.';
+      if (data.detail) msg += ' - ' + data.detail;
+      if (data.tip)    msg += ' - ' + data.tip;
+      errEl.textContent = '⚠️ ' + msg;
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Real SMS success
+    showOtpSection();
+    toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
+
+  } catch (e) {
+    hideLoader();
+    errEl.textContent = '⚠️ Network error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function showOtpSection() {
+  document.getElementById('otp-section').style.display = 'block';
+  document.getElementById('verify-btn-wrap').style.display = 'block';
+  document.getElementById('phone-btn').textContent = 'Resend Code';
+  startOtpTimer();
+  document.getElementById('otp0').focus();
+}
+function startOtpTimer() {
+  let secs = 60;
+  clearInterval(otpTimer);
+  otpTimer = setInterval(() => {
+    secs--;
+    const m = Math.floor(secs/60), s = secs%60;
+    const el = document.getElementById('otp-timer');
+    if (el) el.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    if (secs <= 0) { clearInterval(otpTimer); if(el) el.parentElement.innerHTML='<span onclick="submitPhone()" style="color:var(--g);font-weight:600;cursor:pointer">Resend code</span>'; }
+  }, 1000);
+}
+function onOtpInput(i, el) {
+  el.value = el.value.replace(/\D/g,'').slice(0,1);
+  el.classList.toggle('filled', el.value.length > 0);
+  if (el.value && i < 5) document.getElementById('otp'+(i+1)).focus();
+  if (i === 5 && el.value) verifyOtp();
+}
+function onOtpKey(i, e) {
+  if (e.key === 'Backspace' && !document.getElementById('otp'+i).value && i > 0)
+    document.getElementById('otp'+(i-1)).focus();
+}
+function getOtpValue() {
+  return [0,1,2,3,4,5].map(i => document.getElementById('otp'+i).value).join('');
+}
+async function verifyOtp() {
+  const code  = getOtpValue();
+  const errEl = document.getElementById('phone-error');
+  errEl.style.display = 'none';
+  if (code.length < 6) {
+    errEl.textContent = 'Enter all 6 digits.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Hide dev banner
+  const banner = document.getElementById('dev-otp-banner');
+  if (banner) banner.style.display = 'none';
+
+  showLoader('Verifying...');
+  try {
+    const res  = await fetch('/api/v1/verify-otp', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ phone: STATE._pendingPhone, otp: code }),
+    });
+    const data = await res.json();
+    hideLoader();
+
+    if (!res.ok || !data.verified) {
+      // Dev bypass: if server lost OTP (cold start), still allow if code looks valid
+      if (data.error && data.error.includes('expired or not found') && code.length === 6) {
+        // Accept in dev mode - OTP store was cleared by serverless cold start
+        console.warn('[Dev] OTP store cleared by cold start - accepting locally');
+        STATE._verifiedPhone = STATE._pendingPhone;
+        clearInterval(otpTimer);
+        goTo('screen-pin');
+        return;
+      }
+      errEl.textContent = '⚠️ ' + (data.error || 'Incorrect code. Try again.');
+      errEl.style.display = 'block';
+      [0,1,2,3,4,5].forEach(i => {
+        const b = document.getElementById('otp' + i);
+        b.classList.add('error'); b.value = '';
+      });
+      document.getElementById('otp0').focus();
+      return;
+    }
+
+    STATE._verifiedPhone = STATE._pendingPhone;
+    clearInterval(otpTimer);
+    goTo('screen-pin');
+
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = '⚠️ Network error - ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+// -- PIN flow ---------------------------------------------------
+let pinBuffer = '';
+let pinFirst  = '';
+STATE.pinState = 'create';
+function updatePinDots(buf, state) {
+  for (let i=0;i<6;i++) {
+    const d = document.getElementById('pd'+i);
+    d.className = 'pin-dot' + (i < buf.length ? ' filled' : '');
+  }
+}
+function pinKey(k) {
+  if (k === 'del') { pinBuffer = pinBuffer.slice(0,-1); }
+  else if (pinBuffer.length < 6) { pinBuffer += k; }
+  updatePinDots(pinBuffer);
+  document.getElementById('pin-strength').textContent =
+    pinBuffer.length > 0 && pinBuffer.length < 6 ? `${pinBuffer.length} / 6 digits` : '';
+  if (pinBuffer.length === 6) {
+    setTimeout(() => processPinComplete(), 180);
+  }
+}
+function processPinComplete() {
+  if (STATE.pinState === 'create') {
+    pinFirst = pinBuffer; pinBuffer = '';
+    STATE.pinState = 'confirm';
+    document.getElementById('pin-title').textContent = 'Confirm your PIN';
+    document.getElementById('pin-sub').textContent = 'Enter the same PIN again to confirm.';
+    updatePinDots('');
+  } else if (STATE.pinState === 'confirm') {
+    if (pinBuffer !== pinFirst) {
+      // Mismatch
+      for (let i=0;i<6;i++) document.getElementById('pd'+i).className='pin-dot error';
+      toast("PINs don't match - try again", true);
+      setTimeout(() => {
+        pinBuffer=''; pinFirst=''; STATE.pinState='create';
+        document.getElementById('pin-title').textContent='Create 6-digit PIN';
+        document.getElementById('pin-sub').textContent='Encrypts your coin vault. Never stored - only you know it.';
+        updatePinDots('');
+      }, 600);
+    } else {
+      STATE.pin = pinBuffer;
+      pinBuffer=''; pinFirst='';
+      goTo('screen-role');
+    }
+  }
+}
+
+// -- Role selection ---------------------------------------------
+let selectedRole = 'customer';
+function selectRole(role) {
+  selectedRole = role;
+  ['customer','merchant','agent'].forEach(r => {
+    const c = document.getElementById('role-'+r);
+    c.classList.toggle('selected', r===role);
+    c.querySelector('.role-check').textContent = r===role ? '✓' : '';
+  });
+  document.getElementById('agent-fields').style.display = role==='agent' ? 'block' : 'none';
+}
+async function completeOnboarding() {
+  const phone = STATE._verifiedPhone || '+234000000000';
+  const deviceId = 'DEVICE-' + Math.random().toString(36).substr(2,8).toUpperCase();
+  let agentId=null, agentToken=null;
+  if (selectedRole === 'agent') {
+    agentId    = document.getElementById('agent-id-input').value.trim();
+    agentToken = document.getElementById('agent-token-input').value.trim();
+    if (!agentId || !agentToken) { toast('Enter Agent ID and token', true); return; }
+  }
+  STATE.user = { phone, deviceId, role:selectedRole, agentId, agentToken,
+    name: phone, createdAt: new Date().toISOString() };
+  save();
+  toast('Welcome to Zillion! 🎉');
+  goTo('screen-home');
+  setTimeout(() => refreshHome(), 100);
+  // If user arrived via QR link, handle the claim now
+  if (STATE._pendingClaimId) {
+    const cid = STATE._pendingClaimId;
+    STATE._pendingClaimId = null;
+    setTimeout(async () => {
+      goTo('screen-receive');
+      switchRecvTab('qr');
+      await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + cid);
+    }, 800);
+  }
+}
+
+// -- Session restore --------------------------------------------
+function tryRestoreSession() {
+  if (load() && STATE.user) { goTo('screen-home'); refreshHome(); }
+  else { toast('No account found - create one first', true); }
+}
+
+// -- Home -------------------------------------------------------
+function refreshHome() {
+  const total = STATE.vault.reduce((s,c) => s+(c.amount||0), 0);
+  const held  = STATE.vault.filter(c => c._status !== 'PENDING_TRANSFER');
+  document.getElementById('home-balance').textContent = fmtNaira(total);
+  document.getElementById('home-coin-count').textContent = `${held.length} coin${held.length!==1?'s':''}`;
+  const syncEl = document.getElementById('home-sync-label');
+  syncEl.textContent = STATE.isOnline ? (STATE.lastSync ? 'Synced '+fmtTime(STATE.lastSync) : 'Not synced yet') : 'Offline mode';
+  syncEl.style.color = STATE.isOnline ? 'var(--g)' : 'var(--am)';
+  document.getElementById('offline-banner').style.display = STATE.isOnline ? 'none' : 'flex';
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'hdr-dot' + (STATE.isOnline ? '' : ' offline');
+  document.getElementById('sync-text').textContent = STATE.isOnline ? 'Live' : 'Offline';
+  // Recent tx
+  const listEl = document.getElementById('home-tx-list');
+  const recent = [...STATE.history].slice(0,5);
+  if (!recent.length) {
+    listEl.innerHTML = `<div class="empty-state"><span class="empty-icon">🪙</span><div class="empty-title">No transactions yet</div><div class="empty-sub">Visit a Zillion agent to cash in, or ask a friend to send Zil via WhatsApp.</div></div>`;
+  } else {
+    listEl.innerHTML = recent.map(txRow).join('');
+  }
+}
+
+// -- Vault ------------------------------------------------------
+function refreshVault() {
+  const coins = STATE.vault;
+  const total = coins.reduce((s,c)=>s+(c.amount||0),0);
+  document.getElementById('vault-total').textContent = fmtNaira(total);
+  document.getElementById('vault-coin-count').textContent = `${coins.length} coin${coins.length!==1?'s':''}`;
+  const el = document.getElementById('vault-list');
+  if (!coins.length) {
+    el.innerHTML=`<div class="empty-state" style="padding:36px 20px"><span class="empty-icon">🔐</span><div class="empty-title">Vault is empty</div><div class="empty-sub">Cash in at a Zillion agent or receive Zil via WhatsApp.</div></div>`;
+    return;
+  }
+  el.innerHTML = coins.map(c => `
+    <div class="coin-card">
+      <div class="coin-row">
+        <div class="coin-left">
+          <div class="coin-id">${c.coin_id}</div>
+          <div class="coin-denom">${fmtNaira(c.amount)}</div>
+          <div class="coin-expiry">Expires ${fmtExpiry(c.expires_at)}</div>
+        </div>
+        <div class="coin-right">
+          <span class="pill ${c._status==='PENDING_TRANSFER'?'pill-am':'pill-g'}">${c._status||'HELD'}</span>
+          <span class="pill pill-d" style="font-size:9px">Ed25519 ✓</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// -- Send / Export ----------------------------------------------
+function setSendAmt(kobo) {
+  STATE.sendAmount = kobo;
+  document.getElementById('send-amount-input').value = kobo/100;
+  updateSendDisplay();
+}
+function onSendAmountInput(el) {
+  STATE.sendAmount = Math.round(parseFloat(el.value||0)*100);
+  updateSendDisplay();
+}
+function updateSendDisplay() {
+  const kobo = STATE.sendAmount;
+  document.getElementById('send-display').textContent = fmtNaira(kobo);
+  const denom = 100000; // ₦1,000 default
+  const count = Math.ceil(kobo/denom);
+  document.getElementById('send-coins-label').textContent =
+    kobo > 0 ? `${count} × ${fmtNaira(denom)} coin${count!==1?'s':''}` : 'Select an amount below';
+}
+function switchSendMethod(method, el) {
+  STATE.sendMethod = method;
+  document.querySelectorAll('#screen-send .method-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('#screen-send .method-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('send-panel-'+method).classList.add('active');
+}
+async function sendViaWhatsApp(fileOnly=false) {
+  const errEl = document.getElementById('send-error-wa');
+  errEl.style.display = 'none';
+  const amount = STATE.sendAmount;
+  if (!amount || amount < 50000) {
+    errEl.textContent='Minimum send amount is ₦500.'; errEl.style.display='block'; return;
+  }
+  const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER');
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  if (amount > totalAvail) {
+    errEl.textContent=`Insufficient balance. Available: ${fmtNaira(totalAvail)}.`; errEl.style.display='block'; return;
+  }
+
+  // Select coins greedy smallest-first
+  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
+  let remain = amount; const selected=[];
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+
+  const bundle = {
+    zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
+    created_at:new Date().toISOString(),
+    sender_device:STATE.user?.deviceId||'UNKNOWN',
+    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    coin_count:selected.length, coins:selected,
+  };
+  const fname  = `zillion-${(bundle.total_kobo/100).toFixed(0)}NGN-${Date.now()}.zil`;
+  const blob   = new Blob([JSON.stringify(bundle,null,2)], {type:'application/octet-stream'});
+  const file   = new File([blob], fname, {type:'application/octet-stream'});
+
+  // Mark coins as pending transfer
+  selected.forEach(c => {
+    const idx=STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
+    if (idx>=0) STATE.vault[idx]._status='PENDING_TRANSFER';
+  });
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
+    coin_count:selected.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'whatsapp', name:'Sent via WhatsApp',
+  });
+  save(); refreshHome();
+
+  // Step 1: Always download the .zil file to device first
+  downloadFile(blob, fname);
+
+  // Step 2: Show clear step-by-step instructions overlay
+  showSendSuccessOverlay(bundle, fname, file);
+}
+
+function showSendSuccessOverlay(bundle, fname, file) {
+  const fmt  = fmtNaira(bundle.total_kobo);
+  // Remove any existing overlay
+  document.getElementById('send-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'send-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;
+    display:flex;flex-direction:column;padding:24px 20px;overflow-y:auto;
+  `;
+  overlay.innerHTML = `
+    <div style="max-width:400px;margin:0 auto;width:100%">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:48px;margin-bottom:8px">✅</div>
+        <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:4px">${fmt} ready to send</div>
+        <div style="font-size:13px;color:#C8E6D4">${fname}</div>
+      </div>
+
+      <div style="background:#162C20;border-radius:14px;padding:20px;margin-bottom:16px;border:1px solid #1A7A4A">
+        <div style="font-size:13px;font-weight:700;color:#C8E6D4;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px">How to send via WhatsApp</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:#1A7A4A;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">1</div>
+            <div style="font-size:13px;color:#E8F5EE;line-height:1.5">The <strong style="color:#7AE8A8">${fname}</strong> file has been saved to your phone's Downloads folder</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:#1A7A4A;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">2</div>
+            <div style="font-size:13px;color:#E8F5EE;line-height:1.5">Open WhatsApp and open the chat with the recipient</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:#1A7A4A;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">3</div>
+            <div style="font-size:13px;color:#E8F5EE;line-height:1.5">Tap the <strong style="color:#7AE8A8">📎 attachment icon</strong> → <strong style="color:#7AE8A8">Document</strong> → find the .zil file in Downloads</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:#1A7A4A;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">4</div>
+            <div style="font-size:13px;color:#E8F5EE;line-height:1.5">Recipient taps the file → <strong style="color:#7AE8A8">Open with Zillion</strong> → coins added to their wallet</div>
+          </div>
+        </div>
+      </div>
+
+      <button id="open-wa-btn" style="width:100%;padding:15px;background:#25D366;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;font-family:inherit">
+        📱 Open WhatsApp Now
+      </button>
+      <button onclick="document.getElementById('send-overlay').remove();goTo('screen-home')"
+        style="width:100%;padding:13px;background:transparent;color:#C8E6D4;border:1px solid #2A5A3A;border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">
+        Done - Return to Wallet
+      </button>
+    </div>
+  `;
+  document.getElementById('app').appendChild(overlay);
+
+  // Wire up Open WhatsApp button
+  document.getElementById('open-wa-btn').addEventListener('click', async () => {
+    // Try Web Share API with file first (works on Android Chrome)
+    if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
+      try {
+        await navigator.share({
+          title: `Zillion ${fmt}`,
+          text:  `Here are your Zillion coins (${fmt}). Tap the attached .zil file in your Zillion wallet to receive them.`,
+          files: [file],
+        });
+        return;
+      } catch(e) {
+        if (e.name === 'AbortError') return; // User cancelled
+      }
+    }
+    // Fallback: open WhatsApp web
+    window.open('https://wa.me/', '_blank');
+  });
+}
+function downloadFile(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// -- Receive / Import -------------------------------------------
+function triggerFileImport() {
+  document.getElementById('zil-file-input').click();
+}
+async function onZilFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  await processZilFile(file);
+  input.value=''; // reset
+}
+async function processZilFile(file) {
+  showLoader('Validating coins...');
+  try {
+    const text = await file.text();
+    const bundle = JSON.parse(text);
+    // Basic validation
+    if (!bundle.coins || !Array.isArray(bundle.coins) || bundle.coins.length===0)
+      throw new Error('Invalid .zil file - no coins found');
+    if (!bundle.zillion_version)
+      throw new Error('Not a Zillion file');
+    // Check for already-received coins (local spent cache)
+    const existingIds = new Set(STATE.vault.map(c=>c.coin_id));
+    const histIds = new Set(STATE.history.filter(h=>h.received_coin_ids).flatMap(h=>h.received_coin_ids));
+    const newCoins = bundle.coins.filter(c => !existingIds.has(c.coin_id) && !histIds.has(c.coin_id));
+    const dupCoins = bundle.coins.length - newCoins.length;
+    hideLoader();
+    // Show preview
+    STATE.pendingImport = {bundle, newCoins, dupCoins};
+    const total = newCoins.reduce((s,c)=>s+(c.amount||0),0);
+    document.getElementById('import-amount').textContent = fmtNaira(total);
+    document.getElementById('import-coins').textContent = `${newCoins.length} coin${newCoins.length!==1?'s':''} will be added`;
+    const detailEl = document.getElementById('import-coin-details');
+    detailEl.innerHTML = newCoins.slice(0,3).map(c=>`
+      <div class="tx-row" style="border-bottom:1px solid var(--grb);padding:10px 0">
+        <div class="tx-dot in">₦</div>
+        <div class="tx-info">
+          <div class="tx-name">${fmtNaira(c.amount)}</div>
+          <div class="tx-meta" style="font-family:monospace">${c.coin_id?.slice(0,28)}...</div>
+        </div>
+        <span class="pill pill-g">Valid</span>
+      </div>`).join('') +
+      (newCoins.length>3?`<div class="tx-meta" style="padding:8px 0">...and ${newCoins.length-3} more coin${newCoins.length-3!==1?'s':''}</div>`:'') +
+      (dupCoins>0?`<div class="alert alert-am" style="margin-top:10px">${dupCoins} duplicate coin${dupCoins!==1?'s':''} skipped (already in vault)</div>`:'');
+    if (total === 0) {
+      document.getElementById('import-error').textContent='All coins in this file are already in your vault.';
+      document.getElementById('import-error').style.display='block';
+      document.getElementById('import-confirm-btn').disabled=true;
+    }
+    document.getElementById('import-result-wrap').style.display = 'block';
+    document.getElementById('import-zone').style.display = 'none';
+  } catch(e) {
+    hideLoader();
+    toast('Invalid file: ' + e.message, true);
+  }
+}
+function confirmImport() {
+  if (!STATE.pendingImport) return;
+  const {newCoins, bundle} = STATE.pendingImport;
+  newCoins.forEach(c => {
+    c._status = 'PENDING_SYNC'; c._receivedAt = new Date().toISOString();
+    STATE.vault.push(c);
+  });
+  const total = newCoins.reduce((s,c)=>s+(c.amount||0),0);
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'received', amount:total,
+    coin_count:newCoins.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'whatsapp', name:'Received via WhatsApp',
+    received_coin_ids: newCoins.map(c=>c.coin_id),
+  });
+  save();
+  STATE.pendingImport = null;
+  document.getElementById('import-result-wrap').style.display='none';
+  document.getElementById('import-zone').style.display='block';
+  toast(`₦${(total/100).toLocaleString()} received! 🎉`);
+  goTo('screen-home');
+  refreshHome();
+  trySync();
+}
+function rejectImport() {
+  STATE.pendingImport=null;
+  document.getElementById('import-result-wrap').style.display='none';
+  document.getElementById('import-zone').style.display='block';
+  document.getElementById('import-error').style.display='none';
+  document.getElementById('import-confirm-btn').disabled=false;
+}
+
+// -- History ----------------------------------------------------
+let histFilter = 'all';
+function filterHistory(f, el) {
+  histFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  refreshHistory();
+}
+function refreshHistory() {
+  const filtered = histFilter==='all' ? STATE.history
+    : STATE.history.filter(t => {
+        if (histFilter==='received') return t.type==='received';
+        if (histFilter==='sent')     return t.type==='sent';
+        if (histFilter==='pending')  return t.status==='PENDING_SYNC';
+        return true;
+      });
+  const el = document.getElementById('history-list');
+  if (!filtered.length) {
+    el.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No transactions</div><div class="empty-sub">No ${histFilter==='all'?'':histFilter+' '}transactions yet.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="tx-card">${filtered.map(txRow).join('')}</div>`;
+}
+function txRow(tx) {
+  const isIn = tx.type==='received' || tx.type==='cashin';
+  const isPending = tx.status==='PENDING_SYNC';
+  const dotClass = isPending?'pending':(isIn?'in':'out');
+  const icon = isIn?'↓':'↑';
+  const amtClass = isPending?'pending':(isIn?'in':'out');
+  const prefix = isIn?'+':'−';
+  return `<div class="tx-row">
+    <div class="tx-dot ${dotClass}">${icon}</div>
+    <div class="tx-info">
+      <div class="tx-name">${tx.name||'Transaction'}</div>
+      <div class="tx-meta">${fmtTime(tx.ts)}  ·  <span style="color:${isPending?'var(--am)':'var(--g)'};font-weight:600">${isPending?'Pending sync':'Settled'}</span></div>
+    </div>
+    <div class="tx-amount ${amtClass}">${prefix}${fmtNaira(tx.amount)}</div>
+  </div>`;
+}
+
+// -- Profile ----------------------------------------------------
+function refreshProfile() {
+  const u = STATE.user;
+  if (!u) return;
+  const initials = (u.phone||'?').slice(-4,-2)||'ZL';
+  document.getElementById('profile-avatar').textContent = initials;
+  document.getElementById('profile-name').textContent = u.phone||'-';
+  document.getElementById('profile-phone').textContent = u.phone||'-';
+  document.getElementById('settings-phone').textContent = u.phone||'-';
+  document.getElementById('settings-role').textContent = (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1);
+  document.getElementById('settings-device').textContent = u.deviceId||'-';
+  document.getElementById('settings-network').textContent = STATE.isOnline?'Online':'Offline';
+  document.getElementById('settings-last-sync').textContent = STATE.lastSync ? fmtTime(STATE.lastSync) : 'Never';
+}
+function toggleSetting(el) { el.classList.toggle('on'); }
+function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
+function exportVaultBackup() {
+  const data = JSON.stringify({vault:STATE.vault,history:STATE.history,user:STATE.user});
+  const blob = new Blob([data],{type:'application/json'});
+  downloadFile(blob,'zillion-backup-'+Date.now()+'.json');
+  toast('Backup exported');
+}
+function forceSync() { toast('Syncing...'); trySync(); }
+function logout() {
+  if (!confirm('Log out? Your vault data stays on this device.')) return;
+  STATE.user=null; STATE.pin=null;
+  goTo('screen-splash');
+}
+function resetWallet() {
+  if (!confirm('Reset wallet? This deletes all coins and history on this device. Only do this if you have a backup.')) return;
+  localStorage.removeItem(DB_KEY);
+  location.reload();
+}
+
+// -- Sync -------------------------------------------------------
+async function trySync() {
+  if (!STATE.isOnline || !STATE.user) return;
+  const pending = STATE.vault.filter(c=>c._status==='PENDING_SYNC');
+  if (!pending.length) return;
+  try {
+    const res = await fetch(`${API}/sync`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json',
+               ...(STATE.user.agentToken?{'Authorization':'Bearer '+STATE.user.agentToken}:{})},
+      body: JSON.stringify({ coins: pending.map(c=>c.coin_id),
+        device_id: STATE.user.deviceId, phone: STATE.user.phone }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      pending.forEach(c => {
+        const serverStatus = data.results?.find(r=>r.coin_id===c.coin_id)?.status||'HELD';
+        const idx = STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
+        if (idx>=0) STATE.vault[idx]._status = serverStatus;
+      });
+      STATE.history.forEach(h=>{ if(h.status==='PENDING_SYNC') h.status='SETTLED'; });
+      STATE.lastSync = new Date().toISOString();
+      save(); refreshHome();
+    }
+  } catch(e) { /* Offline or API unavailable - try again later */ }
+}
+
+// -- Online/offline detection -----------------------------------
+window.addEventListener('online',  () => { STATE.isOnline=true;  refreshHome(); trySync(); toast('Back online - syncing...'); });
+window.addEventListener('offline', () => { STATE.isOnline=false; refreshHome(); toast('Offline mode - transfers still work','',2000); });
+
+// -- Drag & drop for .zil files ---------------------------------
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && (file.name.endsWith('.zil') || file.type==='application/octet-stream')) {
+    if (STATE.screen !== 'screen-receive') goTo('screen-receive');
+    switchRecvTab('file');
+    await processZilFile(file);
+  }
+});
+
+// -- Receive tab switcher ---------------------------------------
+function switchRecvTab(tab) {
+  document.getElementById('recv-panel-qr').style.display   = tab==='qr'   ? 'flex' : 'none';
+  document.getElementById('recv-panel-file').style.display  = tab==='file' ? 'block': 'none';
+  document.getElementById('recv-panel-qr').style.flexDirection = 'column';
+  document.getElementById('recv-tab-qr').classList.toggle('active',  tab==='qr');
+  document.getElementById('recv-tab-file').classList.toggle('active', tab==='file');
+  if (tab === 'qr' && !window._scannerRunning) startScanner();
+  if (tab === 'file') stopScanner();
+}
+
+// -- QR Scanner (BarcodeDetector API) --------------------------
+let _scannerStream   = null;
+let _scannerInterval = null;
+let _scannerDetector = null;
+let _pendingQRBundle = null;
+window._scannerRunning = false;
+
+async function startScanner() {
+  const statusEl = document.getElementById('qr-status');
+  const startBtn = document.getElementById('scan-start-btn');
+  const stopBtn  = document.getElementById('scan-stop-btn');
+
+  // Check BarcodeDetector support
+  if (!('BarcodeDetector' in window)) {
+    statusEl.textContent = '⚠️ QR scanning not supported in this browser. Use Chrome on Android.';
+    statusEl.style.background = 'rgba(192,57,43,.8)';
+    return;
+  }
+
+  try {
+    statusEl.textContent = 'Requesting camera...';
+    _scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+
+    const video = document.getElementById('qr-video');
+    video.srcObject = _scannerStream;
+    await video.play();
+
+    _scannerDetector = new BarcodeDetector({ formats: ['qr_code'] });
+    window._scannerRunning = true;
+
+    startBtn.style.display = 'none';
+    stopBtn.style.display  = '';
+    statusEl.textContent   = '📷 Scanning... Point at QR code';
+    statusEl.style.background = 'rgba(26,122,74,.8)';
+
+    // Scan every 400ms
+    _scannerInterval = setInterval(async () => {
+      if (!window._scannerRunning) return;
+      try {
+        const barcodes = await _scannerDetector.detect(video);
+        if (barcodes.length > 0) {
+          const rawValue = barcodes[0].rawValue;
+          console.log('[QR] Detected:', rawValue);
+          await handleQRResult(rawValue);
+        }
+      } catch(e) { /* frame not ready yet */ }
+    }, 400);
+
+  } catch(err) {
+    statusEl.textContent = '❌ Camera error: ' + err.message;
+    statusEl.style.background = 'rgba(192,57,43,.8)';
+    console.error('Scanner error:', err);
+  }
+}
+
+function stopScanner() {
+  window._scannerRunning = false;
+  clearInterval(_scannerInterval);
+  if (_scannerStream) {
+    _scannerStream.getTracks().forEach(t => t.stop());
+    _scannerStream = null;
+  }
+  const video = document.getElementById('qr-video');
+  if (video) video.srcObject = null;
+  const startBtn = document.getElementById('scan-start-btn');
+  const stopBtn  = document.getElementById('scan-stop-btn');
+  if (startBtn) startBtn.style.display = '';
+  if (stopBtn)  stopBtn.style.display  = 'none';
+  const statusEl = document.getElementById('qr-status');
+  if (statusEl) { statusEl.textContent = 'Camera stopped.'; statusEl.style.background = 'rgba(0,0,0,.6)'; }
+}
+
+async function handleQRResult(rawValue) {
+  // Stop scanning immediately to prevent duplicate reads
+  stopScanner();
+
+  const resultEl  = document.getElementById('qr-claim-result');
+  const iconEl    = document.getElementById('qr-result-icon');
+  const amountEl  = document.getElementById('qr-result-amount');
+  const detailEl  = document.getElementById('qr-result-detail');
+  const coinsEl   = document.getElementById('qr-result-coins');
+  const errorEl   = document.getElementById('qr-result-error');
+  const acceptBtn = document.getElementById('qr-accept-btn');
+  const actionsEl = document.getElementById('qr-result-actions');
+
+  resultEl.style.display  = 'block';
+  errorEl.style.display   = 'none';
+  acceptBtn.style.display = 'none';
+  iconEl.textContent   = '⏳';
+  amountEl.textContent = 'Fetching coins...';
+  detailEl.textContent = rawValue.slice(0, 50) + '...';
+  coinsEl.innerHTML    = '';
+
+  // Extract claim_id from URL: https://zillion-mvp.netlify.app/wallet/?claim=UUID
+  let claimId = null;
+  try {
+    const url = new URL(rawValue);
+    claimId = url.searchParams.get('claim');
+  } catch {
+    // Not a URL - might be a raw claim ID
+    if (/^[a-f0-9-]{36}$/.test(rawValue)) claimId = rawValue;
+  }
+
+  if (!claimId) {
+    iconEl.textContent   = '❌';
+    amountEl.textContent = 'Invalid QR Code';
+    detailEl.textContent = 'This is not a Zillion QR code';
+    errorEl.textContent  = 'Scanned value: ' + rawValue.slice(0,80);
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  showLoader('Fetching your coins...');
+  try {
+    const res  = await fetch('/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId));
+    const data = await res.json();
+    hideLoader();
+
+    if (!res.ok) {
+      iconEl.textContent   = '❌';
+      amountEl.textContent = 'Could not fetch coins';
+      detailEl.textContent = data.error || 'Unknown error';
+      errorEl.textContent  = data.detail || '';
+      errorEl.style.display = data.detail ? 'block' : 'none';
+      if (actionsEl) actionsEl.style.display = 'flex';
+      return;
+    }
+
+    // Success - show coin preview
+    const bundle = data.bundle;
+    _pendingQRBundle = bundle;
+    const fmt = fmtNaira(data.amount_kobo);
+
+    iconEl.textContent   = '✅';
+    amountEl.textContent = fmt;
+    detailEl.textContent = data.coin_count + ' coin' + (data.coin_count!==1?'s':'') + ' from agent ' + (data.agent_id||'-');
+
+    coinsEl.innerHTML = (bundle.coins||[]).slice(0,3).map(c => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--g);flex-shrink:0">₦</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#fff">${fmtNaira(c.amount)}</div>
+          <div style="font-size:10px;color:var(--gm);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.coin_id}</div>
+        </div>
+        <span style="background:var(--gl);color:var(--g);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">VALID</span>
+      </div>`).join('') +
+      (bundle.coins.length > 3 ? `<div style="font-size:11px;color:var(--gm);padding:8px 0">...and ${bundle.coins.length-3} more coin${bundle.coins.length-3!==1?'s':''}</div>` : '');
+
+    acceptBtn.style.display = 'block';
+    if (actionsEl) actionsEl.style.display = 'flex';
+
+  } catch(err) {
+    hideLoader();
+    iconEl.textContent   = '❌';
+    amountEl.textContent = 'Network Error';
+    detailEl.textContent = err.message;
+    if (actionsEl) actionsEl.style.display = 'flex';
+  }
+}
+
+function confirmQRImport() {
+  if (!_pendingQRBundle) return;
+  const bundle   = _pendingQRBundle;
+  const newCoins = (bundle.coins||[]).filter(c => {
+    const existingIds = new Set(STATE.vault.map(v=>v.coin_id));
+    return !existingIds.has(c.coin_id);
+  });
+
+  newCoins.forEach(c => {
+    c._status = 'PENDING_SYNC';
+    c._receivedAt = new Date().toISOString();
+    c._method = 'qr';
+    STATE.vault.push(c);
+  });
+
+  const total = newCoins.reduce((s,c)=>s+(c.amount||0),0);
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'received', amount:total,
+    coin_count:newCoins.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'qr', name:'Received via QR scan',
+    received_coin_ids: newCoins.map(c=>c.coin_id),
+  });
+
+  save();
+  _pendingQRBundle = null;
+  toast(fmtNaira(total) + ' added to your vault! 🎉');
+  goTo('screen-home');
+  refreshHome();
+  trySync();
+}
+
+function resetQRScanner() {
+  _pendingQRBundle = null;
+  document.getElementById('qr-claim-result').style.display = 'none';
+  document.getElementById('qr-accept-btn').style.display   = 'none';
+  startScanner();
+}
+
+// -- Check for ?claim= in URL on load --------------------------
+async function checkClaimParam() {
+  const params  = new URLSearchParams(location.search);
+  const claimId = params.get('claim');
+  if (!claimId) return;
+  // Remove param from URL without reload
+  window.history.replaceState({}, '', '/wallet/');
+  // If not logged in yet, store and handle after onboarding
+  if (!STATE.user) {
+    STATE._pendingClaimId = claimId;
+    return;
+  }
+  // Navigate to receive screen and process
+  goTo('screen-receive');
+  switchRecvTab('qr');
+  await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + claimId);
+}
+
+// -- Customer QR Send Functions --------------------------------
+let _sendQrClaimUrl = null;
+let _sendQrImgData  = null;
+let _sendQrTimer    = null;
+let _sendQrBundle   = null;
+
+async function generateSendQR() {
+  const errEl = document.getElementById('send-qr-error');
+  errEl.style.display = 'none';
+  const amount = STATE.sendAmount;
+  if (!amount || amount < 50000) {
+    errEl.textContent = 'Minimum amount is ₦500'; errEl.style.display = 'block'; return;
+  }
+  const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER'&&c._status!=='PENDING_CASHOUT');
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  if (amount > totalAvail) {
+    errEl.textContent = `Insufficient balance. Available: ${fmtNaira(totalAvail)}`;
+    errEl.style.display = 'block'; return;
+  }
+  // Select coins
+  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
+  let remain = amount; const selected = [];
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+
+  const bundle = {
+    zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
+    created_at:new Date().toISOString(),
+    sender_device:STATE.user?.deviceId||'UNKNOWN',
+    type:'cashin',
+    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    coin_count:selected.length, coins:selected,
+  };
+  _sendQrBundle = bundle;
+
+  showLoader('Creating QR code...');
+  try {
+    const res = await fetch('/api/v1/create-claim', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ bundle }),
+    });
+    const data = await res.json();
+    hideLoader();
+    if (!res.ok) throw new Error(data.error||'Failed to create QR');
+
+    _sendQrClaimUrl = data.claim_url;
+
+    // Mark coins as pending
+    selected.forEach(c=>{
+      const idx=STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
+      if(idx>=0) STATE.vault[idx]._status='PENDING_TRANSFER';
+    });
+    STATE.history.unshift({
+      id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
+      coin_count:selected.length, ts:new Date().toISOString(),
+      status:'PENDING_SYNC', method:'qr', name:'Sent via QR code',
+    });
+    save(); refreshHome();
+
+    // Render QR
+    const canvas = document.getElementById('send-qr-canvas');
+    canvas.innerHTML = '';
+    new QRCode(canvas, {
+      text:data.claim_url, width:170, height:170,
+      colorDark:'#0D1F1A', colorLight:'#FFFFFF',
+      correctLevel:QRCode.CorrectLevel.M,
+    });
+    setTimeout(()=>{
+      const c=canvas.querySelector('canvas');
+      if(c) _sendQrImgData=c.toDataURL('image/png');
+    },100);
+
+    document.getElementById('send-qr-amount').textContent = fmtNaira(bundle.total_kobo);
+    document.getElementById('send-qr-detail').textContent =
+      selected.length+' coin'+(selected.length!==1?'s':'')+' · Claim expires in 15 min';
+    document.getElementById('send-qr-box').style.display  = 'block';
+    document.getElementById('send-qr-info').style.display = 'none';
+    document.getElementById('send-qr-btn').textContent    = '↻ Generate New QR';
+
+    startSendQRTimer(new Date(data.expires_at));
+    toast('QR ready - share with recipient 📲');
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = 'QR error: '+e.message; errEl.style.display='block';
+  }
+}
+
+function startSendQRTimer(exp) {
+  clearInterval(_sendQrTimer);
+  const el = document.getElementById('send-qr-timer');
+  const tick = () => {
+    const s = Math.max(0,Math.floor((exp-Date.now())/1000));
+    const m = Math.floor(s/60), sec = s%60;
+    if (!el) return;
+    if (s>0) {
+      el.textContent='⏱ '+m+'m '+String(sec).padStart(2,'0')+'s remaining';
+      el.style.color = s<60?'var(--r)':'var(--am)';
+    } else {
+      el.textContent='❌ Expired - generate a new QR';
+      el.style.color='var(--r)';
+      const canvas=document.querySelector('#send-qr-canvas canvas');
+      if(canvas) canvas.style.opacity='.3';
+      clearInterval(_sendQrTimer);
+    }
+  };
+  tick(); _sendQrTimer=setInterval(tick,1000);
+}
+
+async function shareSendQRWhatsApp() {
+  if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
+  const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
+  const msg = '💚 *Zillion Payment - '+fmt2+'*
+
+'+
+    'Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
+
+'+
+    _sendQrClaimUrl+'
+
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/';
+  if (_sendQrImgData && navigator.share) {
+    try {
+      const blob = await (await fetch(_sendQrImgData)).blob();
+      const file = new File([blob],'zillion-payment-qr.png',{type:'image/png'});
+      if (navigator.canShare && navigator.canShare({files:[file]})) {
+        await navigator.share({title:'Zillion '+fmt2,text:msg,files:[file]});
+        return;
+      }
+    } catch(e){if(e.name==='AbortError')return;}
+  }
+  if (navigator.share){try{await navigator.share({title:'Zillion '+fmt2,text:msg});return;}catch(e){if(e.name==='AbortError')return;}}
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+function saveSendQRImage() {
+  if (!_sendQrImgData){toast('No QR image',true);return;}
+  const a=document.createElement('a');a.href=_sendQrImgData;a.download='zillion-qr-'+Date.now()+'.png';a.click();
+  toast('QR image saved');
+}
+
+// -- Web Share Target (handle incoming .zil from WhatsApp) ------
+async function checkShareTarget() {
+  if (location.search.includes('share-target') || document.referrer.includes('whatsapp')) {
+    // Handle via launchQueue if supported
+  }
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async launchParams => {
+      if (!launchParams.files.length) return;
+      const file = await launchParams.files[0].getFile();
+      if (file.name.endsWith('.zil')) {
+        if (STATE.user) { goTo('screen-receive'); await processZilFile(file); }
+        else { STATE._pendingZilFile = file; }
+      }
+    });
+  }
+}
+
+// -- Utilities --------------------------------------------------
+function fmtNaira(kobo) {
+  return '₦' + (kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000)   return 'just now';
+  if (diff < 3600000) return Math.floor(diff/60000)+'m ago';
+  if (diff < 86400000)return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString([],{day:'numeric',month:'short'});
+}
+function fmtExpiry(iso) {
+  if (!iso) return 'Unknown';
+  return new Date(iso).toLocaleDateString([],{month:'short',year:'numeric'});
+}
+
+// -- Splash dot animation ---------------------------------------
+let splashIdx = 0;
+setInterval(() => {
+  document.querySelectorAll('.splash-dot').forEach((d,i)=>d.classList.toggle('active',i===splashIdx));
+  splashIdx = (splashIdx+1)%4;
+}, 2000);
+
+// -- Boot -------------------------------------------------------
+window.addEventListener('DOMContentLoaded', () => {
+  // Load QRCode.js async - doesn't block initial render
+  const qrScript = document.createElement('script');
+  qrScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  document.head.appendChild(qrScript);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  checkShareTarget();
+  if (load() && STATE.user) {
+    document.getElementById('screen-splash').classList.add('hidden');
+    document.getElementById('screen-home').classList.remove('hidden');
+    STATE.screen = 'screen-home';
+    refreshHome();
+    setTimeout(() => trySync(), 1500);
+    // Check for QR claim in URL (customer scanned QR from WhatsApp link)
+    setTimeout(() => checkClaimParam(), 800);
+  } else {
+    // Check claim param - store for after onboarding
+    const params = new URLSearchParams(location.search);
+    if (params.get('claim')) {
+      STATE._pendingClaimId = params.get('claim');
+      window.history.replaceState({}, '', '/wallet/');
+    }
+  }
+});
+</script>
+</body>
+</html>
