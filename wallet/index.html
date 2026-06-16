@@ -859,6 +859,10 @@ body{height:100%;height:100dvh;overflow:hidden;}
         <span class="action-icon">↑</span>
         <div class="action-label">Send Zil</div>
       </button>
+      <button class="action-btn" onclick="goTo('screen-request')">
+        <span class="action-icon">💰</span>
+        <div class="action-label">Request</div>
+      </button>
       <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
         <span class="action-icon">↓</span>
         <div class="action-label">Receive</div>
@@ -1066,6 +1070,7 @@ body{height:100%;height:100dvh;overflow:hidden;}
   <!-- METHOD TABS -->
   <div style="display:flex;background:var(--grl);border-bottom:1px solid var(--grb);flex-shrink:0">
     <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">📷 Scan QR</button>
+    <button id="recv-tab-nfc"  class="method-tab"        onclick="switchRecvTab('nfc')">📡 NFC</button>
     <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">📂 Import File</button>
   </div>
 
@@ -1131,6 +1136,13 @@ body{height:100%;height:100dvh;overflow:hidden;}
   </div>
 
   <!-- FILE IMPORT PANEL -->
+  <div id="recv-panel-nfc" style="display:none;padding:20px;flex-direction:column;align-items:center;text-align:center">
+    <span style="font-size:56px">📡</span>
+    <div style="font-size:18px;font-weight:800;color:var(--tx);margin-top:12px">NFC Receive</div>
+    <div style="font-size:13px;color:var(--gm);margin-top:8px;line-height:1.6">Hold your phone against the sender's.<br>The coin transfers automatically.</div>
+    <button onclick="startNFCReceive()" class="btn btn-g" style="margin-top:20px;width:100%">📡 Start NFC Receive</button>
+    <div style="font-size:11px;color:var(--gm);margin-top:12px">Requires Android Chrome with NFC enabled</div>
+  </div>
   <div id="recv-panel-file" style="display:none;flex:1;overflow-y:auto;background:var(--bg)">
     <div style="padding:14px 18px 0">
       <div class="alert alert-g" style="margin:0 0 14px">
@@ -1178,6 +1190,7 @@ body{height:100%;height:100dvh;overflow:hidden;}
     <button class="filter-tab active" onclick="filterHistory('all',this)">All</button>
     <button class="filter-tab" onclick="filterHistory('received',this)">Received</button>
     <button class="filter-tab" onclick="filterHistory('sent',this)">Sent</button>
+    <button class="filter-tab" onclick="filterHistory('pending',this)">Pending</button>
     <button class="filter-tab" onclick="filterHistory('pending',this)">Pending</button>
   </div>
   <div class="scroll-body" style="background:var(--bg)">
@@ -1699,19 +1712,21 @@ function refreshVault() {
     el.innerHTML=`<div class="empty-state" style="padding:36px 20px"><span class="empty-icon">🔐</span><div class="empty-title">Vault is empty</div><div class="empty-sub">Cash in at a Zillion agent or receive Zil via WhatsApp.</div></div>`;
     return;
   }
-  el.innerHTML = coins.map(c => `
-    <div class="coin-card">
+  el.innerHTML = coins.map((c,i) => `
+    <div class="coin-card" onclick="openCoinSheet(${i})" style="cursor:pointer">
       <div class="coin-row">
         <div class="coin-left">
-          <div class="coin-id">${c.coin_id}</div>
-          <div class="coin-denom">${fmtNaira(c.amount)}</div>
+          <div class="coin-id">${(c.coin_id||c.id||'').slice(0,28)}...</div>
+          <div class="coin-denom">${fmtNaira(c.amount||c.value_kobo/100)}</div>
           <div class="coin-expiry">Expires ${fmtExpiry(c.expires_at)}</div>
         </div>
-        <div class="coin-right">
-          <span class="pill ${c._status==='PENDING_TRANSFER'?'pill-am':'pill-g'}">${c._status||'HELD'}</span>
+        <div class="coin-right" style="gap:6px;display:flex;flex-direction:column;align-items:flex-end">
+          <span class="pill ${c._status==='PENDING_TRANSFER'?'pill-am':c._status==='PENDING_SYNC'?'pill-am':'pill-g'}">${c._status||'HELD'}</span>
           <span class="pill pill-d" style="font-size:9px">Ed25519 ✓</span>
+          <span style="font-size:18px;color:var(--gm);line-height:1">›</span>
         </div>
       </div>
+      ${c._status==='PENDING_TRANSFER'?`<div style="padding:0 16px 12px;font-size:11px;color:var(--am);font-weight:600">⚡ Tap to transfer, cancel or resend</div>`:''}
     </div>`).join('');
 }
 
@@ -2575,6 +2590,371 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+
+// ================================================================
+// COIN ACTION BOTTOM SHEET
+// ================================================================
+let _activeCoinIdx = null;
+
+function openCoinSheet(idx) {
+  _activeCoinIdx = idx;
+  const c = STATE.vault[idx];
+  if (!c) return;
+
+  document.getElementById('cs-id').textContent     = c.coin_id || c.id || '';
+  document.getElementById('cs-amount').textContent = fmtNaira(c.amount || (c.value_kobo/100));
+
+  const isPending = c._status === 'PENDING_TRANSFER';
+  const statusEl  = document.getElementById('cs-status');
+  statusEl.innerHTML = `<span class="pill ${isPending?'pill-am':'pill-g'}">${c._status||'HELD'}</span>`;
+
+  document.getElementById('cs-pending-banner').style.display  = isPending ? 'block' : 'none';
+  document.getElementById('cs-pending-actions').style.display = isPending ? 'block' : 'none';
+
+  // Show NFC button only if supported
+  const nfcBtn = document.getElementById('cs-nfc-btn');
+  if (nfcBtn) nfcBtn.style.display = ('NDEFReader' in window) ? 'flex' : 'none';
+
+  document.getElementById('coin-sheet-overlay').style.display = 'block';
+  const sheet = document.getElementById('coin-sheet');
+  sheet.style.display = 'block';
+  sheet.style.transform = 'translateX(-50%) translateY(100%)';
+  requestAnimationFrame(() => {
+    sheet.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1)';
+    sheet.style.transform  = 'translateX(-50%) translateY(0)';
+  });
+}
+
+function closeCoinSheet() {
+  const sheet = document.getElementById('coin-sheet');
+  sheet.style.transform = 'translateX(-50%) translateY(100%)';
+  setTimeout(() => {
+    sheet.style.display = 'none';
+    document.getElementById('coin-sheet-overlay').style.display = 'none';
+  }, 300);
+}
+
+function copyCoinId() {
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  const id = c.coin_id || c.id || '';
+  navigator.clipboard?.writeText(id).then(() => toast('Coin ID copied'));
+}
+
+function coinSheetQR() {
+  closeCoinSheet();
+  setTimeout(() => {
+    const c = STATE.vault[_activeCoinIdx];
+    if (!c) return;
+    const amt = c.amount || (c.value_kobo / 100);
+    STATE.sendAmount = amt * 100; // in kobo
+    goTo('screen-send');
+    switchSendMethod('qr', document.querySelector('.method-tab'));
+    setTimeout(() => generateSendQR(), 300);
+  }, 350);
+}
+
+function coinSheetWhatsApp() {
+  closeCoinSheet();
+  setTimeout(() => {
+    const c = STATE.vault[_activeCoinIdx];
+    if (!c) return;
+    STATE.sendAmount = (c.amount || c.value_kobo/100) * 100;
+    sendViaWhatsApp();
+  }, 350);
+}
+
+function coinSheetFile() {
+  closeCoinSheet();
+  setTimeout(() => {
+    const c = STATE.vault[_activeCoinIdx];
+    if (!c) return;
+    STATE.sendAmount = (c.amount || c.value_kobo/100) * 100;
+    sendViaWhatsApp(true);
+  }, 350);
+}
+
+function coinSheetCancel() {
+  if (_activeCoinIdx === null) return;
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  if (!confirm('Cancel this transfer and reclaim the coin?')) return;
+  STATE.vault[_activeCoinIdx]._status = 'HELD';
+  save(); refreshVault(); refreshHome();
+  closeCoinSheet();
+  toast('Transfer cancelled — coin returned to vault');
+}
+
+// ================================================================
+// NFC TRANSFER (Web NFC API - Android Chrome)
+// ================================================================
+let _nfcController = null;
+
+async function coinSheetNFC() {
+  if (!('NDEFReader' in window)) {
+    toast('NFC not supported on this device/browser', true, 4000);
+    return;
+  }
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  closeCoinSheet();
+  await startNFCSend(c);
+}
+
+async function startNFCSend(coin) {
+  const overlay = document.getElementById('nfc-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('nfc-status').textContent = 'Waiting for receiver...';
+  try {
+    const ndef = new NDEFReader();
+    _nfcController = new AbortController();
+    const coinData = JSON.stringify(coin);
+    await ndef.write({ records: [{ recordType: 'text', data: coinData }] },
+                     { signal: _nfcController.signal });
+    document.getElementById('nfc-status').textContent = 'Sent! Marking coin as transferred...';
+    // Mark coin as PENDING_TRANSFER
+    const idx = STATE.vault.findIndex(v => (v.coin_id||v.id) === (coin.coin_id||coin.id));
+    if (idx >= 0) STATE.vault[idx]._status = 'PENDING_TRANSFER';
+    save(); refreshVault(); refreshHome();
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      toast('Coin sent via NFC!');
+    }, 1500);
+  } catch (e) {
+    overlay.style.display = 'none';
+    if (e.name !== 'AbortError') toast('NFC error: ' + e.message, true, 4000);
+  }
+}
+
+async function startNFCReceive() {
+  if (!('NDEFReader' in window)) {
+    toast('NFC not supported on this device', true, 4000);
+    return;
+  }
+  const overlay = document.getElementById('nfc-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('nfc-status').textContent = 'Waiting for sender to tap...';
+  try {
+    const ndef = new NDEFReader();
+    _nfcController = new AbortController();
+    await ndef.scan({ signal: _nfcController.signal });
+    ndef.addEventListener('reading', ({ message }) => {
+      for (const record of message.records) {
+        if (record.recordType === 'text') {
+          try {
+            const coin = JSON.parse(new TextDecoder().decode(record.data));
+            overlay.style.display = 'none';
+            _pendingQRBundle = { coins: [coin] };
+            confirmNFCImport(coin);
+          } catch { toast('Invalid coin data received', true); }
+        }
+      }
+    });
+  } catch (e) {
+    overlay.style.display = 'none';
+    if (e.name !== 'AbortError') toast('NFC error: ' + e.message, true, 4000);
+  }
+}
+
+function confirmNFCImport(coin) {
+  const amt = fmtNaira(coin.amount || (coin.value_kobo/100));
+  if (confirm('Receive ' + amt + ' via NFC?')) {
+    STATE.vault.push({ ...coin, _status: 'PENDING_SYNC', receivedAt: new Date().toISOString() });
+    STATE.history.unshift({ type:'received', method:'nfc', amount_kobo: coin.value_kobo||coin.amount*100,
+      status:'PENDING_SYNC', ts: new Date().toISOString(), name:'NFC Transfer' });
+    save(); refreshHome(); refreshVault();
+    toast('Received ' + amt + ' via NFC!');
+    goTo('screen-home');
+    setTimeout(trySync, 2000);
+  }
+}
+
+function cancelNFC() {
+  if (_nfcController) _nfcController.abort();
+  document.getElementById('nfc-overlay').style.display = 'none';
+}
+
+// ================================================================
+// REQUEST MONEY SCREEN
+// ================================================================
+let _reqQRInstance = null;
+
+function updateRequestQR() {
+  const amt  = parseFloat(document.getElementById('req-amount').value) || 0;
+  const note = document.getElementById('req-note').value.trim();
+  const wrap = document.getElementById('req-qr-wrap');
+  const ph   = document.getElementById('req-placeholder');
+
+  if (amt < 100) { wrap.style.display='none'; ph.style.display='flex'; return; }
+
+  wrap.style.display = 'block';
+  ph.style.display   = 'none';
+  document.getElementById('req-amount-label').textContent = fmtNaira(amt);
+  document.getElementById('req-note-label').textContent   = note || '';
+
+  // Build request URL/payload
+  const payload = JSON.stringify({ type:'request', amount_kobo: amt*100,
+    phone: STATE.user?.phone || '', note, ts: Date.now() });
+  const qrData  = 'zlnreq:' + btoa(payload);
+
+  const canvas = document.getElementById('req-qr-canvas');
+  canvas.innerHTML = '';
+  if (window.QRCode) {
+    if (_reqQRInstance) { try { _reqQRInstance.clear(); } catch{} }
+    _reqQRInstance = new QRCode(canvas, { text: qrData, width:180, height:180,
+      correctLevel: QRCode.CorrectLevel.M });
+  }
+}
+
+function shareRequestQR() {
+  const amt  = parseFloat(document.getElementById('req-amount').value) || 0;
+  const note = document.getElementById('req-note').value.trim();
+  if (amt < 100) { toast('Enter an amount first', true); return; }
+  const msg = `💰 *Zillion Payment Request*\n\nAmount: *${fmtNaira(amt)}*${note?'\nNote: '+note:''}\n\nScan the QR code in your Zillion wallet to pay me instantly — no internet needed.`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function saveRequestQR() {
+  const canvas = document.querySelector('#req-qr-canvas canvas');
+  if (!canvas) { toast('Generate a QR first', true); return; }
+  const link = document.createElement('a');
+  link.download = 'zillion-request.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ================================================================
+// NFC RECEIVE TAB HANDLER
+// ================================================================
+const _origSwitchRecvTab = switchRecvTab;
+function switchRecvTab(tab) {
+  // Handle NFC tab
+  const nfcPanel = document.getElementById('recv-panel-nfc');
+  if (nfcPanel) nfcPanel.style.display = (tab === 'nfc') ? 'block' : 'none';
+  const nfcTabBtn = document.getElementById('recv-tab-nfc');
+  if (nfcTabBtn) nfcTabBtn.classList.toggle('active', tab === 'nfc');
+
+  if (tab === 'nfc') {
+    // Stop QR scanner if running
+    stopScanner();
+    // Auto-start NFC receive
+    startNFCReceive();
+    return;
+  }
+  // Delegate to original for qr/file tabs
+  _origSwitchRecvTab(tab);
+}
+
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     COIN ACTION BOTTOM SHEET
+══════════════════════════════════════════════════════════════ -->
+<div id="coin-sheet-overlay" onclick="closeCoinSheet()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;backdrop-filter:blur(2px)"></div>
+<div id="coin-sheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--w);border-radius:20px 20px 0 0;z-index:201;padding-bottom:env(safe-area-inset-bottom)">
+  <div style="width:40px;height:4px;background:var(--d3);border-radius:2px;margin:12px auto 0"></div>
+  <div style="padding:16px 20px 8px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div id="cs-id" style="font-size:10px;font-family:monospace;color:var(--gm);margin-bottom:4px"></div>
+        <div id="cs-amount" style="font-size:26px;font-weight:800;color:var(--tx)"></div>
+        <div id="cs-status" style="font-size:12px;margin-top:4px"></div>
+      </div>
+      <button onclick="copyCoinId()" style="padding:8px 14px;background:var(--d2);border:none;border-radius:10px;font-size:12px;color:var(--gm);cursor:pointer;font-family:inherit">📋 Copy ID</button>
+    </div>
+  </div>
+  <div id="cs-pending-banner" style="display:none;margin:0 16px 12px;padding:10px 14px;background:#FEF3C7;border-radius:10px;font-size:12px;color:#92400E;font-weight:600">
+    ⚡ This coin has a pending transfer. Choose an action below.
+  </div>
+  <!-- Transfer actions -->
+  <div style="padding:0 16px 8px">
+    <div style="font-size:11px;font-weight:700;color:var(--gm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">TRANSFER THIS COIN</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <button onclick="coinSheetQR()" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:var(--d2);border:none;border-radius:14px;cursor:pointer;font-family:inherit">
+        <span style="font-size:28px;margin-bottom:6px">📲</span>
+        <span style="font-size:13px;font-weight:700;color:var(--tx)">QR Code</span>
+        <span style="font-size:10px;color:var(--gm)">Scan to receive</span>
+      </button>
+      <button onclick="coinSheetWhatsApp()" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:#DCFCE7;border:none;border-radius:14px;cursor:pointer;font-family:inherit">
+        <span style="font-size:28px;margin-bottom:6px">📱</span>
+        <span style="font-size:13px;font-weight:700;color:#15803D">WhatsApp</span>
+        <span style="font-size:10px;color:#166534">Share .zil file</span>
+      </button>
+      <button onclick="coinSheetNFC()" id="cs-nfc-btn" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:var(--d2);border:none;border-radius:14px;cursor:pointer;font-family:inherit">
+        <span style="font-size:28px;margin-bottom:6px">📡</span>
+        <span style="font-size:13px;font-weight:700;color:var(--tx)">NFC Tap</span>
+        <span style="font-size:10px;color:var(--gm)">Tap phones together</span>
+      </button>
+      <button onclick="coinSheetFile()" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:var(--d2);border:none;border-radius:14px;cursor:pointer;font-family:inherit">
+        <span style="font-size:28px;margin-bottom:6px">📄</span>
+        <span style="font-size:13px;font-weight:700;color:var(--tx)">.zil File</span>
+        <span style="font-size:10px;color:var(--gm)">Save or share</span>
+      </button>
+    </div>
+  </div>
+  <!-- Danger actions -->
+  <div id="cs-pending-actions" style="display:none;padding:0 16px 8px">
+    <div style="font-size:11px;font-weight:700;color:#EF4444;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">PENDING TRANSFER</div>
+    <button onclick="coinSheetCancel()" style="width:100%;padding:13px;background:#FEE2E2;border:none;border-radius:12px;font-size:14px;font-weight:700;color:#DC2626;cursor:pointer;font-family:inherit;margin-bottom:8px">
+      ✕ Cancel Transfer & Reclaim Coin
+    </button>
+  </div>
+  <div style="height:16px"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     REQUEST MONEY SCREEN  
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-request" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="hdr-back" onclick="goBack()">‹</button>
+    <div class="hdr-title">Request Payment</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="ob-body">
+    <div class="field-group" style="margin-bottom:16px">
+      <label class="field-label">Amount (₦)</label>
+      <input class="field-input" type="number" id="req-amount" placeholder="e.g. 1000" inputmode="numeric" min="100" oninput="updateRequestQR()">
+    </div>
+    <div class="field-group" style="margin-bottom:20px">
+      <label class="field-label">Note (optional)</label>
+      <input class="field-input" type="text" id="req-note" placeholder="e.g. Rent payment" oninput="updateRequestQR()">
+    </div>
+    <div id="req-qr-wrap" style="display:none;background:var(--d2);border-radius:16px;padding:20px;text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--gm);font-weight:600;margin-bottom:12px">Scan to pay me</div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px">
+        <div id="req-qr-canvas" style="background:#fff;padding:10px;border-radius:10px"></div>
+      </div>
+      <div id="req-amount-label" style="font-size:22px;font-weight:800;color:#fff"></div>
+      <div id="req-note-label" style="font-size:12px;color:var(--gm);margin-top:4px"></div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button onclick="shareRequestQR()" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">📱 Share via WhatsApp</button>
+        <button onclick="saveRequestQR()" style="padding:11px 14px;background:var(--bll);color:var(--bl);border:none;border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">💾</button>
+      </div>
+    </div>
+    <div id="req-placeholder" class="wa-info">
+      <span class="wa-info-icon">💰</span>
+      <div class="wa-info-title">Request Payment</div>
+      <div class="wa-info-steps">
+        <li>✅ Enter the amount you want to receive</li>
+        <li>✅ A QR code appears instantly</li>
+        <li>✅ Share it via WhatsApp or let them scan</li>
+        <li>✅ Works completely offline</li>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NFC overlay -->
+<div id="nfc-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px">
+  <div style="font-size:72px;animation:pulse 1.2s infinite">📡</div>
+  <div style="color:#fff;font-size:22px;font-weight:800;margin-top:20px;text-align:center">Hold phones together</div>
+  <div style="color:#9CA3AF;font-size:14px;margin-top:10px;text-align:center">Keep touching until transfer completes</div>
+  <div id="nfc-status" style="color:#22C55E;font-size:14px;font-weight:700;margin-top:20px"></div>
+  <button onclick="cancelNFC()" style="margin-top:32px;padding:14px 32px;background:#374151;color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-family:inherit">Cancel</button>
+</div>
+
 </body>
 </html>
