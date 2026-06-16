@@ -6,7 +6,7 @@
 <title>Zillion — Admin Dashboard</title>
 <style>
 :root{
-  --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;
+  --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--gl2:#F0FAF4;
   --d:#0D1F1A;--d2:#162C20;
   --w:#FFFFFF;--bg:#F0F2F0;
   --gr:#555;--grl:#F4F4F4;--grb:#DDDDDD;
@@ -212,6 +212,12 @@ tr:hover td{background:var(--gl)}
   .user-grid{grid-template-columns:1fr}
   .sec{padding:14px 16px}
 }
+
+/* ── Float Top-Up form styles ───────────────────────────────── */
+.flabel{display:block;font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.finput{width:100%;padding:9px 12px;border:1.5px solid var(--d3);border-radius:8px;background:var(--bg);color:var(--tx);font-size:14px;font-family:inherit;box-sizing:border-box}
+.finput:focus{outline:none;border-color:var(--g)}
+.finput option{background:var(--w)}
 </style>
 </head>
 <body>
@@ -394,11 +400,11 @@ tr:hover td{background:var(--gl)}
       </div>
       <div>
         <label class="flabel">Cash Deposited (&#x20a6;)</label>
-        <input type="number" id="topup-amount" class="finput" placeholder="e.g. 5000" min="100" step="100" style="width:100%">
+        <input type="number" id="topup-amount" class="finput" placeholder="e.g. 5000" min="100" step="100" style="width:100%" oninput="updateTopUpPreviewLive()">
       </div>
       <div>
         <label class="flabel">Coin Denomination (&#x20a6;)</label>
-        <select id="topup-denom" class="finput" style="width:100%">
+        <select id="topup-denom" class="finput" style="width:100%" onchange="updateTopUpPreviewLive()">
           <option value="50000">&#x20a6;500</option>
           <option value="100000" selected>&#x20a6;1,000</option>
           <option value="200000">&#x20a6;2,000</option>
@@ -626,6 +632,7 @@ function showApp() {
   document.getElementById('app-screen').style.display   = 'block';
   loadOverview();
   checkSystem();
+  loadAgents(); // pre-load agents so Float Top-Up dropdown is ready immediately
 }
 
 // ── NAV ────────────────────────────────────────────────────────
@@ -868,7 +875,7 @@ function exportMerchants() {
 }
 
 // ── AGENTS ─────────────────────────────────────────────────────
-async function loadAgents() {
+async async function loadAgents() {
   showLoader('Loading agents...');
   try {
     const res  = await fetch(`${API}/admin-agents`, {headers:{'Authorization':'Bearer '+adminToken}});
@@ -876,6 +883,7 @@ async function loadAgents() {
     hideLoader();
     if (!res.ok) { notify('Agents: '+data.error, true); return; }
     allAgentsData = data.agents || [];
+    populateTopUpAgentSelect(allAgentsData);
     const el = document.getElementById('agent-cards-grid');
     el.innerHTML = allAgentsData.map(a => {
       const ini = a.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
@@ -1199,6 +1207,28 @@ async function confirmTopUp() {
   resultEl.style.display = 'block';
   btn.disabled = false;
   btn.textContent = '\u2705 Confirm & Mint Coins';
+}
+
+
+// Live preview update (amount/denom changes)
+function updateTopUpPreviewLive() {
+  const amtNaira  = parseFloat(document.getElementById('topup-amount').value) || 0;
+  const denomKobo = parseInt(document.getElementById('topup-denom').value) || 100000;
+  const amtKobo   = Math.round(amtNaira * 100);
+  const infoEl    = document.getElementById('topup-preview');
+  const btn       = document.getElementById('topup-confirm-btn');
+  if (amtNaira < 100 || !document.getElementById('topup-agent').value) {
+    if (infoEl) infoEl.style.display = 'none';
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+  const coinCount = amtKobo % denomKobo === 0 ? amtKobo / denomKobo : '—';
+  if (infoEl) {
+    infoEl.innerHTML = 'Will mint <strong>' + coinCount + ' coins</strong> of <strong>&#x20a6;' + (denomKobo/100) + '</strong> each &nbsp;&nbsp; | &nbsp;&nbsp; Total: <strong>&#x20a6;' + amtNaira.toLocaleString() + '</strong>';
+    infoEl.style.display = 'block';
+    infoEl.style.color = typeof coinCount === 'number' ? 'var(--g)' : 'var(--r)';
+  }
+  if (btn) btn.style.display = 'none'; // hide until Preview clicked
 }
 
 </script>
