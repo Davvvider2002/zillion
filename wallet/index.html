@@ -1680,7 +1680,7 @@ function tryRestoreSession() {
 
 // -- Home -------------------------------------------------------
 function refreshHome() {
-  const total = STATE.vault.reduce((s,c) => s+(c.amount||0), 0);
+  const total = STATE.vault.reduce((s,c) => s+(c.amount||c.value_kobo||0), 0);
   const held  = STATE.vault.filter(c => c._status !== 'PENDING_TRANSFER');
   document.getElementById('home-balance').textContent = fmtNaira(total);
   document.getElementById('home-coin-count').textContent = `${held.length} coin${held.length!==1?'s':''}`;
@@ -1704,7 +1704,7 @@ function refreshHome() {
 // -- Vault ------------------------------------------------------
 function refreshVault() {
   const coins = STATE.vault;
-  const total = coins.reduce((s,c)=>s+(c.amount||0),0);
+  const total = coins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   document.getElementById('vault-total').textContent = fmtNaira(total);
   document.getElementById('vault-coin-count').textContent = `${coins.length} coin${coins.length!==1?'s':''}`;
   const el = document.getElementById('vault-list');
@@ -1763,21 +1763,21 @@ async function sendViaWhatsApp(fileOnly=false) {
     errEl.textContent='Minimum send amount is ₦500.'; errEl.style.display='block'; return;
   }
   const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER');
-  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   if (amount > totalAvail) {
     errEl.textContent=`Insufficient balance. Available: ${fmtNaira(totalAvail)}.`; errEl.style.display='block'; return;
   }
 
   // Select coins greedy smallest-first
-  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
+  const sorted = [...available].sort((a,b)=>(a.amount||a.value_kobo||0)-(b.amount||b.value_kobo||0));
   let remain = amount; const selected=[];
-  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
-    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
   };
   const fname  = `zillion-${(bundle.total_kobo/100).toFixed(0)}NGN-${Date.now()}.zil`;
@@ -2153,13 +2153,20 @@ document.addEventListener('drop', async e => {
 
 // -- Receive tab switcher ---------------------------------------
 function switchRecvTab(tab) {
-  document.getElementById('recv-panel-qr').style.display   = tab==='qr'   ? 'flex' : 'none';
-  document.getElementById('recv-panel-file').style.display  = tab==='file' ? 'block': 'none';
-  document.getElementById('recv-panel-qr').style.flexDirection = 'column';
+  const qrPanel   = document.getElementById('recv-panel-qr');
+  const filePanel = document.getElementById('recv-panel-file');
+  const nfcPanel  = document.getElementById('recv-panel-nfc');
+  if (qrPanel)   qrPanel.style.display   = tab==='qr'   ? 'flex'  : 'none';
+  if (filePanel) filePanel.style.display  = tab==='file' ? 'block' : 'none';
+  if (nfcPanel)  nfcPanel.style.display   = tab==='nfc'  ? 'flex'  : 'none';
+  if (qrPanel)   qrPanel.style.flexDirection = 'column';
   document.getElementById('recv-tab-qr').classList.toggle('active',  tab==='qr');
   document.getElementById('recv-tab-file').classList.toggle('active', tab==='file');
+  const nfcTab = document.getElementById('recv-tab-nfc');
+  if (nfcTab) nfcTab.classList.toggle('active', tab==='nfc');
   if (tab === 'qr' && !window._scannerRunning) startScanner();
-  if (tab === 'file') stopScanner();
+  if (tab === 'file' || tab === 'nfc') stopScanner();
+  if (tab === 'nfc') startNFCReceive();
 }
 
 // -- QR Scanner (BarcodeDetector API) --------------------------
@@ -2394,22 +2401,22 @@ async function generateSendQR() {
     errEl.textContent = 'Minimum amount is ₦500'; errEl.style.display = 'block'; return;
   }
   const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER'&&c._status!=='PENDING_CASHOUT');
-  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   if (amount > totalAvail) {
     errEl.textContent = `Insufficient balance. Available: ${fmtNaira(totalAvail)}`;
     errEl.style.display = 'block'; return;
   }
   // Select coins
-  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
+  const sorted = [...available].sort((a,b)=>(a.amount||a.value_kobo||0)-(b.amount||b.value_kobo||0));
   let remain = amount; const selected = [];
-  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
     type:'cashin',
-    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
   };
   _sendQrBundle = bundle;
@@ -2647,8 +2654,7 @@ function coinSheetQR() {
   setTimeout(() => {
     const c = STATE.vault[_activeCoinIdx];
     if (!c) return;
-    const amt = c.amount || (c.value_kobo / 100);
-    STATE.sendAmount = amt * 100; // in kobo
+    STATE.sendAmount = c.amount || c.value_kobo || 0; // already in kobo
     goTo('screen-send');
     switchSendMethod('qr', document.querySelector('.method-tab'));
     setTimeout(() => generateSendQR(), 300);
@@ -2660,7 +2666,7 @@ function coinSheetWhatsApp() {
   setTimeout(() => {
     const c = STATE.vault[_activeCoinIdx];
     if (!c) return;
-    STATE.sendAmount = (c.amount || c.value_kobo/100) * 100;
+    STATE.sendAmount = c.amount || c.value_kobo || 0; // already in kobo
     sendViaWhatsApp();
   }, 350);
 }
@@ -2670,7 +2676,7 @@ function coinSheetFile() {
   setTimeout(() => {
     const c = STATE.vault[_activeCoinIdx];
     if (!c) return;
-    STATE.sendAmount = (c.amount || c.value_kobo/100) * 100;
+    STATE.sendAmount = c.amount || c.value_kobo || 0; // already in kobo
     sendViaWhatsApp(true);
   }, 350);
 }
@@ -2679,11 +2685,17 @@ function coinSheetCancel() {
   if (_activeCoinIdx === null) return;
   const c = STATE.vault[_activeCoinIdx];
   if (!c) return;
-  if (!confirm('Cancel this transfer and reclaim the coin?')) return;
+  if (!confirm('Cancel this transfer and reclaim \u20a6' + ((c.amount||c.value_kobo||0)/100).toFixed(2) + '?')) return;
   STATE.vault[_activeCoinIdx]._status = 'HELD';
-  save(); refreshVault(); refreshHome();
+  // Remove matching PENDING_SYNC history entry
+  const coinId = c.coin_id || c.id;
+  const hIdx = STATE.history.findIndex(h => h.status === 'PENDING_SYNC' && h.method && (h.method === 'qr' || h.method === 'whatsapp'));
+  if (hIdx >= 0) STATE.history.splice(hIdx, 1);
+  save();
+  refreshVault();
+  refreshHome();
   closeCoinSheet();
-  toast('Transfer cancelled — coin returned to vault');
+  toast('Transfer cancelled \u2014 \u20a6' + ((c.amount||c.value_kobo||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' returned to vault');
 }
 
 // ================================================================
@@ -2827,24 +2839,9 @@ function saveRequestQR() {
 // ================================================================
 // NFC RECEIVE TAB HANDLER
 // ================================================================
-const _origSwitchRecvTab = switchRecvTab;
-function switchRecvTab(tab) {
-  // Handle NFC tab
-  const nfcPanel = document.getElementById('recv-panel-nfc');
-  if (nfcPanel) nfcPanel.style.display = (tab === 'nfc') ? 'block' : 'none';
-  const nfcTabBtn = document.getElementById('recv-tab-nfc');
-  if (nfcTabBtn) nfcTabBtn.classList.toggle('active', tab === 'nfc');
-
-  if (tab === 'nfc') {
-    // Stop QR scanner if running
-    stopScanner();
-    // Auto-start NFC receive
-    startNFCReceive();
-    return;
-  }
-  // Delegate to original for qr/file tabs
-  _origSwitchRecvTab(tab);
-}
+// NFC tab wired directly in switchRecvTab - no override needed
+// switchRecvTab already handles 'nfc' via the extended HTML panel
+// Just wire the recv-tab-nfc button to show the panel directly
 
 </script>
 

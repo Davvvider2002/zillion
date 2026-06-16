@@ -189,6 +189,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
     <div class="hr">
       <span id="agent-conn-badge" style="font-size:11px;font-weight:600;margin-right:8px;color:#F59E0B">● Offline</span>
       <span style="font-size:13px;color:var(--gm)"><span class="hdot"></span><span id="haid">—</span></span>
+      <span id="queue-badge" style="display:none;background:#EF4444;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-right:4px">0 queued</span>
       <button class="lout" onclick="doLogout()">Logout</button>
     </div>
   </header>
@@ -493,6 +494,9 @@ async function doCashIn() {
     AP.float_balance_kobo -= amount;
     updateStats(); addH('CASH IN',amount,d.coin_count,'SUCCESS');
     notify('✅ Issued ₦'+n.toLocaleString());
+    // Show receipt share button
+    const receiptBtn = document.getElementById('ci-receipt-btn');
+    if (receiptBtn) receiptBtn.style.display = 'block';
   } catch(e) { hideL(); showRes('cires','err','❌ Network error','',e.message); }
 }
 
@@ -765,6 +769,7 @@ function agentQueueOp(type, payload) {
   const id = Date.now() + '-' + Math.random().toString(36).slice(2,6);
   _offlineQueue.push({ type, payload, id, ts: new Date().toISOString() });
   localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
+  updateQueueBadge();
   notify('Queued offline — will retry when connected', 'warn');
   return id;
 }
@@ -797,6 +802,7 @@ async function agentDrainQueue() {
   }
   if (retried) notify('✅ Synced ' + retried + ' offline transaction(s)');
   if (_offlineQueue.length) localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
+  updateQueueBadge();
 }
 
 // Restore queue from localStorage on load
@@ -825,6 +831,40 @@ window.addEventListener('offline', function() {
 document.addEventListener('DOMContentLoaded', function() {
   agentUpdateConnBadge(navigator.onLine);
 });
+
+
+
+// ── Receipt Generation ──────────────────────────────────────────
+function shareReceipt() {
+  const b = window._zilBundle;
+  const p = window._zilPhone;
+  if (!b) { notify('No transaction to share', 'err'); return; }
+  const amt  = '\u20a6' + (b.total_kobo/100).toLocaleString('en-NG', {minimumFractionDigits:2});
+  const ts   = new Date().toLocaleString('en-NG', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const text = [
+    '*ZILLION CASH RECEIPT*',
+    '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+    'Agent:    ' + (AP?.name || AP?.agent_id || '—'),
+    'Amount:   ' + amt,
+    'Coins:    ' + b.coin_count,
+    'Recipient:' + (p || '—'),
+    'Date:     ' + ts,
+    'Bundle:   ' + (b.bundle_id||'').slice(0,16) + '...',
+    '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+    'Secured by Ed25519 cryptography',
+    'Verify at zillion-mvp.netlify.app',
+  ].join('\n');
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+// Update queue badge whenever queue changes
+function updateQueueBadge() {
+  const badge = document.getElementById('queue-badge');
+  if (!badge) return;
+  const count = _offlineQueue ? _offlineQueue.length : 0;
+  badge.textContent = count + ' queued';
+  badge.style.display = count > 0 ? 'inline-block' : 'none';
+}
 
 </script>
 </body>

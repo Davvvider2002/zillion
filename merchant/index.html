@@ -1054,13 +1054,30 @@ function confirmPayment() {
     ts:new Date().toISOString(), status:'PENDING_SYNC',
     method:'qr', name:'Payment received via QR',
   });
-  // Add coins to vault if present
   const coins=(data.bundle?.coins||[]).filter(c=>!M.vault.find(v=>v.coin_id===c.coin_id));
   coins.forEach(c=>{c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();M.vault.push(c);});
   save(); _pendingPayment=null;
-  toast(fmt(amount)+' received! 💜');
+
+  try { if (navigator.vibrate) navigator.vibrate([100,50,100,50,200]); } catch(e){}
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523,659,784].forEach(function(freq, i) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.15);
+      osc.start(ctx.currentTime + i * 0.12);
+      osc.stop(ctx.currentTime + i * 0.12 + 0.2);
+    });
+  } catch(e){}
+
+  showToast(fmt(amount) + ' received!', false, 4000);
   refreshHome(); refreshCashout();
-  setTimeout(()=>goScreen('screen-home'),800);
+  setTimeout(function() { goScreen('screen-home'); }, 800);
+  setTimeout(merchantSync, 2000);
 }
 
 function resetScan() {
@@ -1072,7 +1089,7 @@ function resetScan() {
 
 // ── Cash-out QR ────────────────────────────────────────────────
 function refreshCashout() {
-  const bal = M.vault.reduce((s,c)=>s+(c.amount||0),0);
+  const bal = M.vault.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   setText('co-balance', fmt(bal));
   setText('co-coins',   M.vault.length+' coin'+(M.vault.length!==1?'s':'')+' available');
 }
