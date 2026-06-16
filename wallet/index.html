@@ -1296,7 +1296,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
 <!-- ═══════════════════════════════════════════════════════════════
      JAVASCRIPT — APP ENGINE
 ══════════════════════════════════════════════════════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 'use strict';
 
@@ -2471,6 +2470,10 @@ setInterval(() => {
 
 // ── Boot ───────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
+  // Load QRCode.js async — doesn't block initial render
+  const qrScript = document.createElement('script');
+  qrScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  document.head.appendChild(qrScript);
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
