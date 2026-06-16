@@ -2409,15 +2409,14 @@ function startSendQRTimer(exp) {
 async function shareSendQRWhatsApp() {
   if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
   const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
-  const msg = '💚 *Zillion Payment - '+fmt2+'*
+  const msg = `💚 *Zillion Payment - ${fmt2}*
 
-'+
-    'Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
+Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
 
-'+
-    _sendQrClaimUrl+'
+${_sendQrClaimUrl}
 
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/';
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
+
   if (_sendQrImgData && navigator.share) {
     try {
       const blob = await (await fetch(_sendQrImgData)).blob();
