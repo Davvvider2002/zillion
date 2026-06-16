@@ -3,12 +3,12 @@
 # ═══════════════════════════════════════════════════════════
 
 # ── Page routes ─────────────────────────────────────────────
-/wallet          /wallet/index.html          200
-/wallet/         /wallet/index.html          200
 /wallet/manifest.json  /wallet/manifest.json  200
 /wallet/sw.js          /wallet/sw.js          200
 /wallet/icon-192.png   /wallet/icon-192.png   200
 /wallet/icon-512.png   /wallet/icon-512.png   200
+/wallet          /wallet/index.html          200
+/wallet/         /wallet/index.html          200
 /agent           /agent/index.html           200
 /agent/          /agent/index.html           200
 /merchant        /merchant/index.html        200
