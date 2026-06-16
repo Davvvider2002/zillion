@@ -220,6 +220,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
   <div class="tabs">
     <button class="tab active" data-tab="cashin"    onclick="switchTab(this)">💵 Cash In</button>
     <button class="tab"        data-tab="cashout"   onclick="switchTab(this)">🏧 Cash Out</button>
+    <button class="tab"        data-tab="receive"   onclick="switchTab(this)">📥 Receive</button>
     <button class="tab"        data-tab="verify"    onclick="switchTab(this)">🔍 Verify</button>
     <button class="tab"        data-tab="statement" onclick="switchTab(this)">📊 Statement</button>
     <button class="tab"        data-tab="history"   onclick="switchTab(this)">📋 History</button>
@@ -270,17 +271,106 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
   <!-- CASH OUT -->
   <div id="tab-cashout" class="pn2">
     <div class="pi2">
-      <div class="pt">Cash Out — Redeem Customer's Zil</div>
-      <div class="ps2">Customer presents Zil. Verify, redeem, and pay them cash.</div>
-      <div class="fm"><label>Customer Owner Hash</label><input type="text" id="coh" placeholder="64-character hash from customer's Zillion app"></div>
-      <div class="fm"><label>Coin IDs to Redeem (one per line)</label><textarea id="coc" rows="5" placeholder="ZIL-20260601-A4F8C2D1-0000001&#10;ZIL-20260601-B5G9D3E2-0000002"></textarea></div>
-      <button class="btn br" onclick="doCashOut()">Redeem & Pay Customer →</button>
-      <div id="cores" class="res"></div>
+      <div class="pt">Cash Out — Accept Customer's Zil</div>
+      <div class="ps2">Scan the customer's QR, tap NFC, or import their .zil file. Then pay them cash.</div>
+
+      <!-- Method tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:20px">
+        <button id="co-tab-qr"   onclick="coSwitchTab('qr')"   style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--p);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+        <button id="co-tab-nfc"  onclick="coSwitchTab('nfc')"  style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
+        <button id="co-tab-file" onclick="coSwitchTab('file')" style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 .zil File</button>
+      </div>
+
+      <!-- QR Scan panel -->
+      <div id="co-panel-qr">
+        <div style="background:var(--b2);border-radius:14px;overflow:hidden;margin-bottom:12px">
+          <video id="co-scan-video" style="width:100%;max-height:260px;object-fit:cover;display:block" autoplay playsinline muted></video>
+        </div>
+        <div id="co-scan-status" style="font-size:13px;color:var(--gt);text-align:center;margin-bottom:10px">Camera off</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button onclick="coStartScan()" id="co-scan-start" class="btn br" style="flex:1">📷 Start Camera</button>
+          <button onclick="coStopScan()"  id="co-scan-stop"  class="btn"    style="flex:1;display:none">⏹ Stop</button>
+        </div>
+      </div>
+
+      <!-- NFC panel -->
+      <div id="co-panel-nfc" style="display:none;text-align:center;padding:16px 0">
+        <div style="font-size:56px;margin-bottom:14px">📡</div>
+        <div style="font-size:16px;font-weight:700;color:var(--tx);margin-bottom:8px">NFC Cash Out</div>
+        <div style="font-size:13px;color:var(--gt);margin-bottom:20px;line-height:1.6">Ask customer to hold their phone against yours.</div>
+        <button onclick="coStartNFC()" class="btn br" style="width:100%">📡 Start NFC</button>
+        <div id="co-nfc-status" style="margin-top:12px;font-size:13px;color:var(--p);font-weight:600;min-height:18px"></div>
+      </div>
+
+      <!-- File panel -->
+      <div id="co-panel-file" style="display:none">
+        <div style="background:var(--b2);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px">
+          <div style="font-size:40px;margin-bottom:10px">📄</div>
+          <div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:6px">Import .zil File</div>
+          <div style="font-size:13px;color:var(--gt);margin-bottom:16px">Customer shares their .zil file. Select it to redeem.</div>
+          <input type="file" id="co-zil-input" accept=".zil,application/octet-stream" style="display:none" onchange="coImportFile(this)">
+          <button onclick="document.getElementById('co-zil-input').click()" class="btn br" style="width:100%">📂 Choose .zil File</button>
+        </div>
+      </div>
+
+      <!-- Redeem result (shared across all methods) -->
+      <div id="co-result" class="res" style="display:none"></div>
+      <!-- Keep hidden inputs for legacy doCashOut -->
+      <input type="hidden" id="coh"><input type="hidden" id="coc">
+      <div id="cores" class="res" style="display:none"></div>
     </div>
   </div>
 
   <!-- VERIFY -->
-  <div id="tab-verify" class="pn2">
+  <div id="tab-receive" class="pn2">
+    <div class="pi2">
+      <div class="pt">Receive Payment</div>
+      <div class="ps2">Accept Zil from customers via QR scan, NFC, or .zil file.</div>
+
+      <!-- Method tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:20px">
+        <button id="ag-recv-tab-qr"   onclick="agSwitchRecv('qr')"   style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--p);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+        <button id="ag-recv-tab-nfc"  onclick="agSwitchRecv('nfc')"  style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
+        <button id="ag-recv-tab-file" onclick="agSwitchRecv('file')" style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 File</button>
+      </div>
+
+      <!-- QR Scan panel -->
+      <div id="ag-recv-panel-qr">
+        <div style="background:var(--b2);border-radius:14px;overflow:hidden;margin-bottom:14px">
+          <video id="ag-scan-video" style="width:100%;max-height:280px;object-fit:cover;display:block" autoplay playsinline muted></video>
+        </div>
+        <div id="ag-scan-status" style="font-size:13px;color:var(--gt);text-align:center;margin-bottom:12px">Camera off</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button onclick="agStartScan()" id="ag-scan-start" class="btn br" style="flex:1">📷 Start Camera</button>
+          <button onclick="agStopScan()"  id="ag-scan-stop"  class="btn"    style="flex:1;display:none">⏹ Stop</button>
+        </div>
+        <div id="ag-recv-result" class="res" style="display:none"></div>
+      </div>
+
+      <!-- NFC panel -->
+      <div id="ag-recv-panel-nfc" style="display:none;text-align:center;padding:20px 0">
+        <div style="font-size:56px;margin-bottom:16px">📡</div>
+        <div style="font-size:17px;font-weight:700;color:var(--tx);margin-bottom:8px">NFC Receive</div>
+        <div style="font-size:13px;color:var(--gt);margin-bottom:24px;line-height:1.6">Hold your phone against the customer's phone. Payment transfers automatically.</div>
+        <button onclick="agStartNFCReceive()" class="btn br" style="width:100%">📡 Start NFC Receive</button>
+        <div id="ag-nfc-status" style="margin-top:14px;font-size:13px;color:var(--p);font-weight:600;min-height:20px"></div>
+      </div>
+
+      <!-- File panel -->
+      <div id="ag-recv-panel-file" style="display:none">
+        <div style="background:var(--b2);border-radius:14px;padding:20px;text-align:center;margin-bottom:14px">
+          <div style="font-size:40px;margin-bottom:10px">📄</div>
+          <div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:6px">Import .zil File</div>
+          <div style="font-size:13px;color:var(--gt);margin-bottom:18px;line-height:1.5">Customer shares .zil file via WhatsApp. Select it to receive the coins.</div>
+          <input type="file" id="ag-zil-input" accept=".zil,application/octet-stream" style="display:none" onchange="agImportZilFile(this)">
+          <button onclick="document.getElementById('ag-zil-input').click()" class="btn br" style="width:100%">📂 Choose .zil File</button>
+        </div>
+        <div id="ag-file-result" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+<div id="tab-verify" class="pn2">
     <div class="pi2">
       <div class="pt">Verify Coin Online</div>
       <div class="ps2">Required for transactions above ₦5,000. Confirm a coin is valid before accepting.</div>
@@ -864,6 +954,379 @@ function updateQueueBadge() {
   const count = _offlineQueue ? _offlineQueue.length : 0;
   badge.textContent = count + ' queued';
   badge.style.display = count > 0 ? 'inline-block' : 'none';
+}
+
+
+
+// ================================================================
+// AGENT RECEIVE — QR scan + NFC + File import
+// ================================================================
+let _agScanStream    = null;
+let _agScanInterval  = null;
+let _agNFCController = null;
+
+function agSwitchRecv(tab) {
+  ['qr','nfc','file'].forEach(function(t) {
+    const panel = document.getElementById('ag-recv-panel-' + t);
+    const btn   = document.getElementById('ag-recv-tab-' + t);
+    if (panel) panel.style.display = (t === tab) ? 'block' : 'none';
+    if (btn) {
+      const active = t === tab;
+      btn.style.background = active ? 'var(--p)'  : 'var(--b2)';
+      btn.style.color      = active ? '#fff'       : 'var(--gt)';
+      btn.style.fontWeight = active ? '700'        : '600';
+    }
+  });
+  if (tab !== 'qr') agStopScan();
+  if (tab === 'nfc') agStartNFCReceive();
+}
+
+// ── QR Scanner ──────────────────────────────────────────────────
+async function agStartScan() {
+  document.getElementById('ag-scan-start').style.display = 'none';
+  document.getElementById('ag-scan-stop').style.display  = 'block';
+  document.getElementById('ag-scan-status').textContent  = 'Starting camera...';
+  try {
+    _agScanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+    const video = document.getElementById('ag-scan-video');
+    video.srcObject = _agScanStream;
+    await video.play();
+    document.getElementById('ag-scan-status').textContent = 'Scanning... point at QR code';
+
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      _agScanInterval = setInterval(async function() {
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length) {
+            clearInterval(_agScanInterval);
+            agStopScan();
+            agHandleQRData(codes[0].rawValue);
+          }
+        } catch(e) {}
+      }, 500);
+    } else {
+      document.getElementById('ag-scan-status').textContent = 'QR detection not supported. Use File or NFC instead.';
+    }
+  } catch(e) {
+    agStopScan();
+    document.getElementById('ag-scan-status').textContent = 'Camera error: ' + e.message;
+  }
+}
+
+function agStopScan() {
+  clearInterval(_agScanInterval);
+  if (_agScanStream) {
+    _agScanStream.getTracks().forEach(function(t) { t.stop(); });
+    _agScanStream = null;
+  }
+  const video = document.getElementById('ag-scan-video');
+  if (video) video.srcObject = null;
+  const startBtn = document.getElementById('ag-scan-start');
+  const stopBtn  = document.getElementById('ag-scan-stop');
+  if (startBtn) startBtn.style.display = 'block';
+  if (stopBtn)  stopBtn.style.display  = 'none';
+}
+
+async function agHandleQRData(rawValue) {
+  document.getElementById('ag-scan-status').textContent = 'QR detected! Fetching coins...';
+  try {
+    // Extract claim_id from URL
+    const url     = new URL(rawValue);
+    const claimId = url.searchParams.get('claim');
+    if (!claimId) throw new Error('Not a valid Zillion QR code');
+
+    const res  = await fetch('/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch claim');
+
+    agShowRecvResult(data.bundle, 'QR');
+  } catch(e) {
+    document.getElementById('ag-scan-status').textContent = 'Error: ' + e.message;
+  }
+}
+
+// ── NFC Receive ─────────────────────────────────────────────────
+async function agStartNFCReceive() {
+  const statusEl = document.getElementById('ag-nfc-status');
+  if (!('NDEFReader' in window)) {
+    if (statusEl) statusEl.textContent = 'NFC not supported on this device';
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Waiting for customer to tap...';
+  try {
+    const ndef = new NDEFReader();
+    _agNFCController = new AbortController();
+    await ndef.scan({ signal: _agNFCController.signal });
+    ndef.addEventListener('reading', function(event) {
+      for (const record of event.message.records) {
+        if (record.recordType === 'text') {
+          try {
+            const data = JSON.parse(new TextDecoder().decode(record.data));
+            if (statusEl) statusEl.textContent = 'Payment received!';
+            const bundle = data.coins ? data : { coins: [data] };
+            agShowRecvResult(bundle, 'NFC');
+          } catch(e) {
+            if (statusEl) statusEl.textContent = 'Error reading payment';
+          }
+        }
+      }
+    });
+  } catch(e) {
+    if (e.name !== 'AbortError' && statusEl) {
+      statusEl.textContent = 'NFC error: ' + e.message;
+    }
+  }
+}
+
+// ── File Import ─────────────────────────────────────────────────
+function agImportZilFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const bundle = JSON.parse(e.target.result);
+      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins in file');
+      agShowRecvResult(bundle, 'File');
+    } catch(err) {
+      const resultEl = document.getElementById('ag-file-result');
+      resultEl.innerHTML = '<div style="color:var(--r);padding:12px">Error: ' + err.message + '</div>';
+      resultEl.style.display = 'block';
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ── Show receive result + confirm ────────────────────────────────
+// Global pending bundle - avoids passing large JSON in onclick strings
+let _agPendingBundle = null;
+let _coPendingBundle = null;
+
+function agShowRecvResult(bundle, method) {
+  _agPendingBundle = bundle;
+  const coins  = bundle.coins || [];
+  const total  = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
+  const totalN = '₦' + (total/100).toLocaleString('en-NG', {minimumFractionDigits:2});
+  const resultEl = method === 'File'
+    ? document.getElementById('ag-file-result')
+    : document.getElementById('ag-recv-result');
+  if (!resultEl) return;
+  resultEl.className = 'res show ok';
+  resultEl.innerHTML =
+    '<div class="rt">' + totalN + ' received via ' + method + '</div>' +
+    '<div class="ra">' + totalN + '</div>' +
+    '<div class="rd2">' + coins.length + ' coin' + (coins.length!==1?'s':'') + ' · Tap Accept to confirm</div>' +
+    '<button onclick="agConfirmReceive()" style="width:100%;margin-top:12px;padding:13px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✅ Accept Payment</button>';
+  resultEl.style.display = 'block';
+}
+
+function agConfirmReceive() {
+  const bundle = _agPendingBundle;
+  if (!bundle) { notify('No pending payment', 'err'); return; }
+  _agPendingBundle = null;
+  const coins = bundle.coins || [];
+  const total = coins.reduce(function(s,c) { return s + (c.amount || c.value_kobo || 0); }, 0);
+  const ts = new Date().toISOString();
+  hlog.unshift({ type:'RECEIVE', amount:total, coins:coins.length, ts, status:'SETTLED' });
+  renderHistory();
+  ss.ci += total; updateStats();
+  notify('✅ ₦' + (total/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' received!');
+  ['ag-recv-result','ag-file-result'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) { el.style.display='none'; el.className='res'; }
+  });
+  const statusEl = document.getElementById('ag-scan-status');
+  if (statusEl) statusEl.textContent = 'Camera off';
+}
+
+
+
+// ================================================================
+// CASH OUT — QR Scan + NFC + File (modern scan-based redeem)
+// ================================================================
+let _coScanStream    = null;
+let _coScanInterval  = null;
+let _coNFCController = null;
+
+function coSwitchTab(tab) {
+  ['qr','nfc','file'].forEach(function(t) {
+    const panel = document.getElementById('co-panel-' + t);
+    const btn   = document.getElementById('co-tab-' + t);
+    if (panel) panel.style.display = (t === tab) ? 'block' : 'none';
+    if (btn) {
+      btn.style.background = (t === tab) ? 'var(--p)' : 'var(--b2)';
+      btn.style.color      = (t === tab) ? '#fff'     : 'var(--gt)';
+      btn.style.fontWeight = (t === tab) ? '700'      : '600';
+    }
+  });
+  if (tab !== 'qr') coStopScan();
+  if (tab === 'nfc') coStartNFC();
+}
+
+// ── QR Scan ─────────────────────────────────────────────────────
+async function coStartScan() {
+  document.getElementById('co-scan-start').style.display = 'none';
+  document.getElementById('co-scan-stop').style.display  = 'block';
+  document.getElementById('co-scan-status').textContent  = 'Starting camera...';
+  try {
+    _coScanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+    const video = document.getElementById('co-scan-video');
+    video.srcObject = _coScanStream;
+    await video.play();
+    document.getElementById('co-scan-status').textContent = 'Point at customer QR code';
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats:['qr_code'] });
+      _coScanInterval = setInterval(async function() {
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length) {
+            clearInterval(_coScanInterval);
+            coStopScan();
+            coHandleQR(codes[0].rawValue);
+          }
+        } catch(e) {}
+      }, 500);
+    } else {
+      document.getElementById('co-scan-status').textContent = 'QR not supported — use File or NFC';
+    }
+  } catch(e) {
+    coStopScan();
+    document.getElementById('co-scan-status').textContent = 'Camera error: ' + e.message;
+  }
+}
+
+function coStopScan() {
+  clearInterval(_coScanInterval);
+  if (_coScanStream) { _coScanStream.getTracks().forEach(function(t){t.stop();}); _coScanStream=null; }
+  const video = document.getElementById('co-scan-video');
+  if (video) video.srcObject = null;
+  const s = document.getElementById('co-scan-start');
+  const p = document.getElementById('co-scan-stop');
+  if (s) s.style.display = 'block';
+  if (p) p.style.display = 'none';
+}
+
+async function coHandleQR(rawValue) {
+  document.getElementById('co-scan-status').textContent = 'QR detected! Fetching coins...';
+  try {
+    const url     = new URL(rawValue);
+    const claimId = url.searchParams.get('claim');
+    if (!claimId) throw new Error('Not a Zillion QR code');
+    const res  = await fetch('/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId),
+      { headers:{ 'Authorization':'Bearer '+TK } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch claim');
+    coShowResult(data.bundle || { coins: data.coins || [] });
+  } catch(e) {
+    document.getElementById('co-scan-status').textContent = 'Error: ' + e.message;
+  }
+}
+
+// ── NFC ─────────────────────────────────────────────────────────
+async function coStartNFC() {
+  const statusEl = document.getElementById('co-nfc-status');
+  if (!('NDEFReader' in window)) {
+    if (statusEl) statusEl.textContent = 'NFC not supported on this device';
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Waiting for customer to tap...';
+  try {
+    const ndef = new NDEFReader();
+    _coNFCController = new AbortController();
+    await ndef.scan({ signal: _coNFCController.signal });
+    ndef.addEventListener('reading', function(event) {
+      for (const rec of event.message.records) {
+        if (rec.recordType === 'text') {
+          try {
+            const data   = JSON.parse(new TextDecoder().decode(rec.data));
+            const bundle = data.coins ? data : { coins:[data] };
+            if (statusEl) statusEl.textContent = 'Payment data received!';
+            coShowResult(bundle);
+          } catch(e) {
+            if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+          }
+        }
+      }
+    });
+  } catch(e) {
+    if (e.name !== 'AbortError' && statusEl) statusEl.textContent = 'NFC error: ' + e.message;
+  }
+}
+
+// ── File Import ─────────────────────────────────────────────────
+function coImportFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const bundle = JSON.parse(e.target.result);
+      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins in file');
+      coShowResult(bundle);
+    } catch(err) {
+      const el = document.getElementById('co-result');
+      el.className = 'res show err';
+      el.innerHTML = '<div class="rt">❌ Import Error</div><div class="rd2">' + err.message + '</div>';
+      el.style.display = 'block';
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ── Shared result + redeem flow ──────────────────────────────────
+function coShowResult(bundle) {
+  _coPendingBundle = bundle;
+  const coins  = bundle.coins || [];
+  const total  = coins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  const naira  = '₦'+(total/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+  const el     = document.getElementById('co-result');
+  el.className = 'res show ok';
+  el.innerHTML =
+    '<div class="rt">' + naira + ' to redeem</div>' +
+    '<div class="ra">' + naira + '</div>' +
+    '<div class="rd2">' + coins.length + ' coin'+(coins.length!==1?'s':'')+ ' · Pay customer cash after confirming</div>' +
+    '<button onclick="coConfirmRedeem()" style="width:100%;margin-top:12px;padding:13px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✅ Redeem & Pay Customer Cash</button>';
+  el.style.display = 'block';
+}
+
+async function coConfirmRedeem() {
+  const bundle = _coPendingBundle;
+  if (!bundle) { notify('No pending redemption', 'err'); return; }
+  _coPendingBundle = null;
+  const coins     = bundle.coins || [];
+  const coinIds   = coins.map(function(c){ return c.coin_id||c.id; }).filter(Boolean);
+  const holderHash= coins[0]?.owner_hash || '';
+  if (!coinIds.length) { notify('No valid coin IDs', 'err'); return; }
+  showL('Redeeming...');
+  try {
+    const r = await fetch(API+'/redeem', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+TK },
+      body: JSON.stringify({ agent_id:AP.agent_id, holder_hash:holderHash, coin_ids:coinIds })
+    });
+    const d = await r.json(); hideL();
+    if (!r.ok) {
+      notify('❌ '+(d.error||'Redeem failed'), 'err');
+      return;
+    }
+    const naira = '₦'+(d.total_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+    const el = document.getElementById('co-result');
+    el.className = 'res show ok';
+    el.innerHTML =
+      '<div class="rt">✅ PAY CUSTOMER CASH NOW</div>' +
+      '<div class="ra">' + naira + '</div>' +
+      '<div class="rd2">' + d.redeemed_count + ' redeemed · ' + (d.rejected_count||0) + ' rejected</div>';
+    ss.co += d.total_kobo; AP.float_balance_kobo += d.total_kobo;
+    updateStats(); addH('CASH OUT', d.total_kobo, d.redeemed_count, 'SUCCESS');
+    notify('✅ Redeemed ' + naira + ' — pay customer now');
+  } catch(e) { hideL(); notify('❌ Network error: '+e.message, 'err'); }
 }
 
 </script>
