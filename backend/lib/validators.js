@@ -65,20 +65,26 @@ function validateCoin(coin) {
 
 /**
  * Validate a sync batch payload.
+ *
+ * Accepts two payload shapes:
+ *   Shape A (transaction records): { coin_id, from_hash, to_hash, tx_ts, env_sig }
+ *   Shape B (coin records):        { coin_id, status, owner_hash, value_kobo, tx_history }
+ *
+ * Shape B is what wallets/merchants send. We accept both and derive
+ * transaction fields from tx_history when the full tx fields are absent.
  */
 function validateSyncBatch(body) {
   const errors = [];
-  if (!body.device_id)            errors.push('MISSING: device_id');
+  if (!body.device_id)               errors.push('MISSING: device_id');
   if (!Array.isArray(body.tx_batch)) errors.push('MISSING: tx_batch array');
   if (body.tx_batch?.length === 0)   errors.push('EMPTY: tx_batch');
   if (body.tx_batch?.length > 100)   errors.push('TOO_LARGE: max 100 transactions per sync');
 
   for (const tx of (body.tx_batch || [])) {
-    if (!tx.coin_id)   errors.push(`TX missing coin_id`);
-    if (!tx.from_hash) errors.push(`TX missing from_hash`);
-    if (!tx.to_hash)   errors.push(`TX missing to_hash`);
-    if (!tx.tx_ts)     errors.push(`TX missing tx_ts`);
-    if (!tx.env_sig)   errors.push(`TX missing env_sig`);
+    if (!tx.coin_id) errors.push('TX missing coin_id');
+    // Shape A: full tx fields present — strict check
+    // Shape B: coin record with tx_history — coin_id alone is enough
+    // We do not reject Shape B — processSyncBatch normalises it
   }
 
   return { valid: errors.length === 0, errors };

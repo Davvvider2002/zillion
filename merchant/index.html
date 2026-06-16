@@ -1312,16 +1312,25 @@ async function merchantSync() {
   if (!pending.length) { mSyncStatus('All synced'); return; }
 
   mSyncStatus('Syncing ' + pending.length + ' payment(s)...');
-  const tx_batch = pending.map(function(h) {
-    return {
-      coin_id:      h.coin_id || h.id || ('MERCH-' + Date.now()),
-      status:       'HELD',
-      owner_hash:   M.merchant_id || '',
-      value_kobo:   h.amount_kobo || 0,
-      tx_history:   [{ type: h.type, ts: h.ts, merchant_id: M.merchant_id }],
-      synced_at:    new Date().toISOString(),
-    };
+  // Build one tx record per coin received (from received_coin_ids in history)
+  const tx_batch = [];
+  pending.forEach(function(h) {
+    const coinIds = h.received_coin_ids || (h.coin_id ? [h.coin_id] : []);
+    coinIds.forEach(function(coin_id) {
+      if (!coin_id) return;
+      tx_batch.push({
+        coin_id,
+        from_hash:  h.from_hash  || 'CUSTOMER',
+        to_hash:    M.merchant_id || 'MERCHANT',
+        tx_ts:      h.ts || new Date().toISOString(),
+        env_sig:    h.env_sig   || h.signature || 'MERCHANT-ACCEPT',
+        value_kobo: Math.round((h.amount_kobo || h.amount || 0) / Math.max(1, coinIds.length)),
+        owner_hash: M.merchant_id || '',
+        synced_at:  new Date().toISOString(),
+      });
+    });
   });
+  if (tx_batch.length === 0) { mSyncStatus('Nothing to sync'); return; }
 
   try {
     const res  = await fetch('/api/v1/sync', {

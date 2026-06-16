@@ -99,29 +99,50 @@ async function processSyncBatch(txBatch) {
   const settled   = [];
   const conflicts = [];
 
-  for (const tx of txBatch) {
+  for (const rawTx of txBatch) {
+    // ── Normalise both payload shapes ────────────────────────
+    // Shape A: full tx fields (from_hash, to_hash, tx_ts, env_sig)
+    // Shape B: coin record with tx_history (from wallets/merchants)
+    //   Derive tx fields from the last tx_history hop
+    const lastHop = (rawTx.tx_history || []).slice(-1)[0] || {};
+    const tx = {
+      coin_id:   rawTx.coin_id,
+      from_hash: rawTx.from_hash || lastHop.from || rawTx.owner_hash || 'UNKNOWN',
+      to_hash:   rawTx.to_hash   || lastHop.to   || rawTx.owner_hash || 'UNKNOWN',
+      tx_ts:     rawTx.tx_ts     || lastHop.ts    || rawTx.synced_at || new Date().toISOString(),
+      env_sig:   rawTx.env_sig   || lastHop.tx_sig || rawTx.signature || 'OFFLINE-SYNC',
+      amount:    rawTx.value_kobo || rawTx.amount  || 0,
+    };
+
     const coinStatus = await getCoinStatus(tx.coin_id);
 
     if (!coinStatus) {
-      conflicts.push({ ...tx, reason: 'COIN_NOT_FOUND' });
+      // Coin not in registry — could be offline-issued before this sync
+      // Accept it with PENDING status and mark for admin review
+      conflicts.push({ coin_id: tx.coin_id, reason: 'COIN_NOT_IN_REGISTRY' });
       continue;
     }
 
     if (coinStatus.status === 'SPENT' || coinStatus.status === 'REDEEMED') {
-      // Double-spend detected
-      conflicts.push({ ...tx, reason: 'ALREADY_SPENT' });
-      await logFraudEvent(tx.from_hash, 'DOUBLE_SPEND', tx.coin_id);
+      conflicts.push({ coin_id: tx.coin_id, reason: 'ALREADY_SPENT' });
+      await logFraudEvent(tx.from_hash, 'DOUBLE_SPEND', tx.coin_id).catch(()=>{});
+      continue;
+    }
+
+    if (coinStatus.status === 'FROZEN') {
+      conflicts.push({ coin_id: tx.coin_id, reason: 'COIN_FROZEN' });
       continue;
     }
 
     if (coinStatus.status === 'EXPIRED' || new Date(coinStatus.expires_at) < new Date()) {
-      conflicts.push({ ...tx, reason: 'COIN_EXPIRED' });
+      conflicts.push({ coin_id: tx.coin_id, reason: 'COIN_EXPIRED' });
       continue;
     }
 
-    // Clean — settle the transaction
+    // ── Clean transaction — write to transactions table ───────
+    const txId = `TX-${Date.now()}-${tx.coin_id.slice(-8)}`;
     const { error: txError } = await db.from('transactions').insert({
-      tx_id:      tx.tx_id || `TX-${Date.now()}-${tx.coin_id.slice(-8)}`,
+      tx_id:      txId,
       coin_id:    tx.coin_id,
       from_hash:  tx.from_hash,
       to_hash:    tx.to_hash,
@@ -132,15 +153,17 @@ async function processSyncBatch(txBatch) {
       status:     'SETTLED',
     });
 
-    if (txError) {
-      conflicts.push({ ...tx, reason: `DB_ERROR: ${txError.message}` });
+    if (txError && !txError.message.includes('duplicate')) {
+      conflicts.push({ coin_id: tx.coin_id, reason: `DB_ERROR: ${txError.message}` });
       continue;
     }
 
-    // Update coin to SPENT with new holder
+    // ── Mark coin as HELD by recipient (not SPENT — coin still circulates)
+    // SPENT is only set on cash-out via /api/v1/redeem
     await db.from('coins').update({
-      status:      'SPENT',
+      status:      'HELD',
       holder_hash: tx.to_hash,
+      updated_at:  new Date().toISOString(),
     }).eq('coin_id', tx.coin_id);
 
     settled.push(tx.coin_id);

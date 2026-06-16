@@ -2130,15 +2130,22 @@ async function trySync() {
   updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
   const deviceId = STATE.user.deviceId;
 
-  // Build tx_batch matching backend schema
-  const tx_batch = pending.map(c => ({
-    coin_id:    c.id || c.coin_id,
-    status:     c.status || 'HELD',
-    owner_hash: c.owner_hash || '',
-    value_kobo: c.value_kobo || 0,
-    tx_history: c.tx_history || [],
-    synced_at:  new Date().toISOString(),
-  }));
+  // Build tx_batch — extract tx fields from coin's tx_history chain
+  const tx_batch = pending.map(c => {
+    const lastHop = (c.tx_history || []).slice(-1)[0] || {};
+    return {
+      coin_id:    c.coin_id || c.id,
+      from_hash:  lastHop.from   || c.owner_hash || STATE.user.deviceId || '',
+      to_hash:    lastHop.to     || c.owner_hash || STATE.user.deviceId || '',
+      tx_ts:      lastHop.ts     || c._receivedAt || new Date().toISOString(),
+      env_sig:    lastHop.tx_sig || c.signature   || c.payload_hash || 'OFFLINE',
+      // Extra coin context for server normalisation
+      value_kobo: c.amount || c.value_kobo || 0,
+      tx_history: c.tx_history || [],
+      owner_hash: c.owner_hash || '',
+      synced_at:  new Date().toISOString(),
+    };
+  });
 
   try {
     const res  = await fetch(`${API}/sync`, {

@@ -376,8 +376,50 @@ tr:hover td{background:var(--gl)}
 
 <!-- AGENTS -->
 <div id="sec-agents" class="sec">
+  <!-- ── FLOAT TOP-UP ─────────────────────────────────────────── -->
+  <div class="card" style="border:2px solid var(--g);background:var(--gl2)">
+    <div class="card-title" style="color:var(--g)">
+      &#x1F4B0; Float Top-Up
+      <span style="font-size:12px;font-weight:400;color:var(--gm)">Mint coins = cash deposited by agent</span>
+    </div>
+    <div class="card-sub" style="color:var(--gt);margin-bottom:16px">
+      This is the <strong>only</strong> way value enters the Zillion ecosystem. Every coin minted is backed 1:1 by physical cash held by admin.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <label class="flabel">Agent</label>
+        <select id="topup-agent" class="finput" style="width:100%">
+          <option value="">Select agent...</option>
+        </select>
+      </div>
+      <div>
+        <label class="flabel">Cash Deposited (&#x20a6;)</label>
+        <input type="number" id="topup-amount" class="finput" placeholder="e.g. 5000" min="100" step="100" style="width:100%">
+      </div>
+      <div>
+        <label class="flabel">Coin Denomination (&#x20a6;)</label>
+        <select id="topup-denom" class="finput" style="width:100%">
+          <option value="50000">&#x20a6;500</option>
+          <option value="100000" selected>&#x20a6;1,000</option>
+          <option value="200000">&#x20a6;2,000</option>
+          <option value="500000">&#x20a6;5,000</option>
+        </select>
+      </div>
+      <div>
+        <label class="flabel">Deposit Reference (optional)</label>
+        <input type="text" id="topup-ref" class="finput" placeholder="Bank teller slip / ref" style="width:100%">
+      </div>
+    </div>
+    <div id="topup-preview" style="display:none;background:var(--bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--gt)"></div>
+    <div style="display:flex;gap:10px">
+      <button class="rbtn" style="background:var(--g);color:#fff;padding:10px 20px;font-size:14px;font-weight:700" onclick="previewTopUp()">Preview</button>
+      <button id="topup-confirm-btn" class="rbtn" style="display:none;background:#15803D;color:#fff;padding:10px 20px;font-size:14px;font-weight:700" onclick="confirmTopUp()">&#x2705; Confirm &amp; Mint Coins</button>
+    </div>
+    <div id="topup-result" style="margin-top:12px;display:none"></div>
+  </div>
+  <!-- ── AGENT MANAGEMENT ──────────────────────────────────────── -->
   <div class="card">
-    <div class="card-title">Agent Management<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportAgents()">⬇ CSV</button><button class="rbtn" onclick="loadAgents()">↻</button></div></div>
+    <div class="card-title">Agent Management<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportAgents()">&#x2B07; CSV</button><button class="rbtn" onclick="loadAgents()">&#x21BB;</button></div></div>
     <div class="card-sub">All registered pilot agents. Use Tokens tab to generate JWT.</div>
     <div id="agent-cards-grid" class="user-grid"><div class="no-data">Loading...</div></div>
   </div>
@@ -1060,6 +1102,105 @@ function downloadCSV(rows,filename) {
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=filename; a.click();
   notify('CSV exported: '+filename);
 }
+
+
+// ================================================================
+// FLOAT TOP-UP — Admin mints coins equal to cash deposited by agent
+// ================================================================
+let _topupAgents = [];
+
+function populateTopUpAgentSelect(agents) {
+  _topupAgents = agents || [];
+  const sel = document.getElementById('topup-agent');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select agent...</option>' +
+    _topupAgents.map(function(a) {
+      const float = (a.float_balance_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+      return '<option value="' + a.agent_id + '">' + a.name + ' — Float: &#x20a6;' + float + '</option>';
+    }).join('');
+}
+
+function previewTopUp() {
+  const agentId = document.getElementById('topup-agent').value;
+  const amtNaira = parseFloat(document.getElementById('topup-amount').value) || 0;
+  const denomKobo = parseInt(document.getElementById('topup-denom').value);
+  const amtKobo = Math.round(amtNaira * 100);
+  const preview = document.getElementById('topup-preview');
+  const confirmBtn = document.getElementById('topup-confirm-btn');
+
+  if (!agentId) { alert('Please select an agent'); return; }
+  if (amtNaira < 100) { alert('Minimum top-up is \u20a6100'); return; }
+  if (amtKobo % denomKobo !== 0) {
+    alert('Amount must be divisible by denomination (\u20a6' + (denomKobo/100) + ')');
+    return;
+  }
+
+  const agent = _topupAgents.find(function(a){ return a.agent_id === agentId; });
+  const coinCount = amtKobo / denomKobo;
+  const newFloat  = ((agent.float_balance_kobo + amtKobo)/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+
+  preview.innerHTML =
+    '<strong>Minting Preview</strong><br><br>' +
+    'Agent: <strong>' + (agent ? agent.name : agentId) + '</strong><br>' +
+    'Cash deposited: <strong>\u20a6' + amtNaira.toLocaleString('en-NG',{minimumFractionDigits:2}) + '</strong><br>' +
+    'Coins to mint: <strong>' + coinCount + ' x \u20a6' + (denomKobo/100) + '</strong><br>' +
+    'Agent float after: <strong>\u20a6' + newFloat + '</strong><br>' +
+    '<br><span style="color:var(--g);font-weight:700">\u2705 Each coin will be Ed25519-signed by ZILLION-MINT-01</span><br>' +
+    '<span style="color:var(--gm);font-size:11px">coin_id will be ZIL-YYYYMMDD-XXXXXXXX-NNNNNNN, traceable to this deposit</span>';
+  preview.style.display = 'block';
+  confirmBtn.style.display = 'inline-block';
+}
+
+async function confirmTopUp() {
+  const agentId   = document.getElementById('topup-agent').value;
+  const amtNaira  = parseFloat(document.getElementById('topup-amount').value) || 0;
+  const denomKobo = parseInt(document.getElementById('topup-denom').value);
+  const ref       = document.getElementById('topup-ref').value.trim();
+  const amtKobo   = Math.round(amtNaira * 100);
+  const resultEl  = document.getElementById('topup-result');
+  const btn       = document.getElementById('topup-confirm-btn');
+
+  if (!confirm('Confirm minting \u20a6' + amtNaira.toLocaleString() + ' for agent ' + agentId + '?\n\nThis action is irreversible.')) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Minting...';
+  resultEl.style.display = 'none';
+
+  try {
+    const res  = await fetch('/api/v1/admin-float-topup', {
+      method:  'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + adminToken },
+      body:    JSON.stringify({ agent_id:agentId, amount_kobo:amtKobo, denomination_kobo:denomKobo, deposit_ref:ref }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      resultEl.innerHTML =
+        '<div style="background:#D1FAE5;border-radius:8px;padding:12px;color:#065F46">' +
+        '<strong>\u2705 Float Top-Up Successful!</strong><br>' +
+        'Minted: <strong>' + data.coin_count + ' coins</strong> totalling <strong>\u20a6' + (amtKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + '</strong><br>' +
+        'First coin: <code>' + data.first_coin_id + '</code><br>' +
+        'Last coin: <code>' + data.last_coin_id + '</code><br>' +
+        'New float: <strong>\u20a6' + (data.new_float_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + '</strong>' +
+        '</div>';
+      // Clear form
+      document.getElementById('topup-amount').value = '';
+      document.getElementById('topup-ref').value = '';
+      document.getElementById('topup-preview').style.display = 'none';
+      btn.style.display = 'none';
+      // Reload agents
+      loadAgents();
+    } else {
+      resultEl.innerHTML = '<div style="background:#FEE2E2;border-radius:8px;padding:12px;color:#991B1B">\u274c Error: ' + (data.error || 'Unknown error') + '</div>';
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<div style="background:#FEE2E2;border-radius:8px;padding:12px;color:#991B1B">\u274c Network error: ' + e.message + '</div>';
+  }
+  resultEl.style.display = 'block';
+  btn.disabled = false;
+  btn.textContent = '\u2705 Confirm & Mint Coins';
+}
+
 </script>
 </body>
 </html>
