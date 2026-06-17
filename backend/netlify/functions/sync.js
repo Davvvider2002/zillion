@@ -43,12 +43,20 @@ exports.handler = async (event) => {
     // Register / update device record (makes user visible in admin Customers tab)
     const deviceId  = body.device_id || auth.payload.sub;
     const phoneHash = auth.payload.phone_hash || auth.payload.sub;
-    await db.from('devices').upsert({
-      device_hash:   deviceId,
-      phone_hash:    phoneHash,
-      last_sync:     new Date().toISOString(),
-      status:        'ACTIVE',
-    }, { onConflict: 'device_hash' }).catch(() => {});
+    // Register device — makes user visible in admin Customers tab.
+    // public_key_hex is required by schema; we use a placeholder since the
+    // real device key isn't transmitted in sync. A future /register endpoint
+    // should update this with the actual Ed25519 public key.
+    const now = new Date().toISOString();
+    const { error: devErr } = await db.from('devices').upsert({
+      device_hash:     deviceId,
+      phone_hash:      phoneHash,
+      public_key_hex:  'PENDING',   // placeholder — schema requires NOT NULL
+      last_sync:       now,
+      registered_at:   now,
+      status:          'ACTIVE',
+    }, { onConflict: 'device_hash', ignoreDuplicates: false });
+    if (devErr) console.warn('Device upsert warn:', devErr.message);
 
     // Process transactions (may be empty heartbeat)
     const result = body.tx_batch && body.tx_batch.length

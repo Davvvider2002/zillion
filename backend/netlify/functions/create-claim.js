@@ -44,7 +44,11 @@ exports.handler = async (event) => {
       .from('claim_bundles')
       .insert({
         bundle_data: bundle,
-        agent_id:    (auth.valid ? (auth.payload.agent_id || auth.payload.sub) : null),
+        // Use JWT agent_id if present; otherwise use sender_device from bundle,
+        // or fall back to 'CUSTOMER' — never null (DB NOT NULL constraint).
+        agent_id:    auth.valid
+                       ? (auth.payload.agent_id || auth.payload.sub || 'CUSTOMER')
+                       : (bundle.sender_device || 'CUSTOMER'),
         amount_kobo: bundle.total_kobo,
         coin_count:  bundle.coin_count || bundle.coins.length,
         status:      'PENDING',
