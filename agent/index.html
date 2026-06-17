@@ -201,7 +201,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
       <div><div class="pn" id="pname">—</div><div class="pi" id="pid">—</div><div class="pl" id="ploc">—</div></div>
     </div>
     <div class="pcb">
-      <div class="ps"><div class="psl">Float</div><div class="psv green" id="pflot">—</div></div>
+      <div class="ps"><div class="psl">Float (available)</div><div class="psv green" id="pflot">—</div></div>
       <div class="ps"><div class="psl">Cash-In</div><div class="psv" id="pci">₦0</div></div>
       <div class="ps"><div class="psl">Cash-Out</div><div class="psv" id="pco">₦0</div></div>
       <div class="ps"><div class="psl">Coins</div><div class="psv" id="pcn">0</div></div>
@@ -384,7 +384,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
   <div id="tab-statement" class="pn2">
     <div class="pi2">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <div><div class="pt">Account Statement</div><div class="ps2" style="margin:0">Opening balance, all transactions, running balance</div></div>
+        <div><div class="pt">Account Statement</div><div class="ps2" style="margin:0">Opening balance &amp; float movement (DB). Cash-In = coins issued to customers. See note below for payments received.</div><div id="local-recv-note" style="display:none;margin:8px 0;padding:8px 12px;background:#E8F5EE;border-radius:8px;font-size:12px;color:#0A5C35"></div></div>
         <div style="display:flex;gap:8px">
           <button onclick="exportCSV()" style="padding:7px 14px;background:white;color:var(--g);border:1px solid var(--g);border-radius:6px;font-size:12px;cursor:pointer">⬇ CSV</button>
           <button onclick="loadStatement()" style="padding:7px 14px;background:var(--g);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer">↻ Refresh</button>
@@ -494,10 +494,10 @@ async function doLogin() {
   } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
 }
 
-async function silentLogin(id, tk) {
+async async function silentLogin(id, tk) {
   showL('Restoring session...');
   try { AP = await fetchProfile(id, tk); hideL(); TK = tk; showApp(); }
-  catch { hideL(); localStorage.removeItem('zs'); }
+  catch(e) { hideL(); localStorage.removeItem('zs'); console.warn('Session restore failed:', e.message); }
 }
 
 async function fetchProfile(id, tk) {
@@ -510,8 +510,9 @@ async function fetchProfile(id, tk) {
 function showApp() {
   document.getElementById('ls').style.display = 'none';
   document.getElementById('as').style.display = 'block';
-  fillProfile();
+  // MUST load hlog before fillProfile/updateStats — they depend on it
   hlog = JSON.parse(localStorage.getItem('zh_' + AP.agent_id) || '[]');
+  fillProfile(); // calls updateStats() which now has hlog ready
 }
 
 function fillProfile() {
@@ -789,6 +790,18 @@ async function loadStatement() {
         <td class="bc" style="text-align:right">${fmt(tx.balance_after)}</td>
       </tr>`).join('');
     sw.style.display='block';
+
+    // Also show local RECEIVE transactions from hlog (not yet in Supabase)
+    const recvLogs = (hlog||[]).filter(h=>h.type==='RECEIVE'&&h.amtKobo>0);
+    const noteEl   = document.getElementById('local-recv-note');
+    if (noteEl && recvLogs.length > 0) {
+      const totalRecv = recvLogs.reduce((s,h)=>s+(h.amtKobo||0),0);
+      const fmt2 = k => '₦'+(k/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+      noteEl.innerHTML = 'ℹ️ Local payments received (not in float): <strong>' +
+        fmt2(totalRecv) + '</strong> across ' + recvLogs.length + ' transaction(s). ' +
+        'These are customer payments accepted by this agent, tracked separately from float.';
+      noteEl.style.display = 'block';
+    }
   } catch(e) { ld.style.display='none'; se.textContent='Error: '+e.message; se.style.display='block'; }
 }
 
@@ -811,7 +824,22 @@ function addH(type,amtKobo,cnt,status) {
 function renderHistory() {
   const tb=document.getElementById('hbody');
   if(!hlog.length){tb.innerHTML='<tr><td colspan="5" class="nd">No transactions yet</td></tr>';return;}
-  tb.innerHTML=hlog.map(t=>`<tr><td>${new Date(t.ts).toLocaleTimeString()}</td><td><strong>${t.type}</strong></td><td>₦${(t.amtKobo/100).toLocaleString()}</td><td>${t.cnt}</td><td><span style="background:${t.status==='SUCCESS'?'var(--gl)':'var(--rl)'};color:${t.status==='SUCCESS'?'#0A5C35':'var(--r)'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold">${t.status}</span></td></tr>`).join('');
+  tb.innerHTML=hlog.map(function(t){
+    const bg = t.status==='SETTLED'||t.status==='SUCCESS' ? 'var(--gl)' :
+               t.status==='PENDING_SYNC' ? '#FEF3C7' :
+               t.status==='CONFLICT'     ? '#FEE2E2' : 'var(--rl)';
+    const fg = t.status==='SETTLED'||t.status==='SUCCESS' ? '#0A5C35' :
+               t.status==='PENDING_SYNC' ? '#92400E' :
+               t.status==='CONFLICT'     ? '#991B1B' : 'var(--r)';
+    const label = t.status==='PENDING_SYNC' ? 'SYNCING...' : t.status;
+    return '<tr>'
+      +'<td>'+new Date(t.ts).toLocaleTimeString()+'</td>'
+      +'<td><strong>'+t.type+'</strong></td>'
+      +'<td>\u20a6'+(t.amtKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2})+'</td>'
+      +'<td>'+(t.cnt||0)+'</td>'
+      +'<td><span style="background:'+bg+';color:'+fg+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold">'+label+'</span></td>'
+      +'</tr>';
+  }).join('');
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -832,6 +860,16 @@ function updateStats() {
   setText('pcn',   ss.cn);
   setText('pflot', fmt(AP?.float_balance_kobo||0));
   setText('prfloat',fmt(AP?.float_balance_kobo||0));
+  // Show breakdown: how much is from CASH IN vs RECEIVE
+  const ciOnly  = todayLogs.filter(h=>h.type==='CASH IN').reduce((s,h)=>s+(h.amtKobo||0),0);
+  const rcvOnly = todayLogs.filter(h=>h.type==='RECEIVE').reduce((s,h)=>s+(h.amtKobo||0),0);
+  const detail  = document.getElementById('pci-detail');
+  if (detail) {
+    const parts = [];
+    if (ciOnly)  parts.push(fmt(ciOnly)  + ' issued');
+    if (rcvOnly) parts.push(fmt(rcvOnly) + ' received');
+    detail.textContent = parts.join(' · ') || '';
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -918,6 +956,7 @@ window.addEventListener('online', function() {
   agentUpdateConnBadge(true);
   notify('Back online — syncing queued transactions...');
   setTimeout(agentDrainQueue, 1000);
+  setTimeout(agentDrainPendingReceives, 2000); // also sync pending receives
 });
 window.addEventListener('offline', function() {
   agentUpdateConnBadge(false);
@@ -1206,22 +1245,84 @@ async function agShowRecvResult(bundle, method) {
   resultEl.style.display = 'block';
 }
 
-function agConfirmReceive() {
+async function agConfirmReceive() {
   const bundle = _agPendingBundle;
   if (!bundle) { notify('No pending payment', 'err'); return; }
   _agPendingBundle = null;
-  const coins    = bundle.coins || [];
-  const rcIds    = bundle.received_coin_ids || coins.map(function(c){ return c.coin_id||c.id; });
-  const total    = coins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
-  const ts       = new Date().toISOString();
-  // Store received_coin_ids so Layer 1 dedup works across sessions
-  hlog.unshift({ type:'RECEIVE', amtKobo:total, cnt:coins.length, ts, status:'SETTLED',
-                 received_coin_ids: rcIds });
+  const coins  = bundle.coins || [];
+  const rcIds  = bundle.received_coin_ids || coins.map(function(c){ return c.coin_id||c.id; });
+  const total  = coins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  const ts     = new Date().toISOString();
+  const naira  = '\u20a6' + (total/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+
+  // ── Step 1: Record locally first (works offline) ────────────
+  hlog.unshift({ type:'RECEIVE', amtKobo:total, cnt:coins.length, ts,
+                 status:'PENDING_SYNC', received_coin_ids: rcIds });
   if (hlog.length > 200) hlog.pop();
   localStorage.setItem('zh_' + AP.agent_id, JSON.stringify(hlog));
   renderHistory();
-  ss.ci += total; updateStats();
-  notify('✅ ₦' + (total/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' received!');
+  updateStats();
+  notify(naira + ' recorded locally. Registering with server...');
+
+  // ── Step 2: Post to /api/v1/sync to register in Supabase ────
+  // This writes a transaction record and updates coin.holder_hash = agent
+  // so the transfer is traceable, auditable, and double-spend protected.
+  try {
+    const tx_batch = coins.map(function(c) {
+      const lastHop = (c.tx_history || []).slice(-1)[0] || {};
+      return {
+        coin_id:    c.coin_id || c.id,
+        from_hash:  c.owner_hash || lastHop.from || 'CUSTOMER',
+        to_hash:    AP.agent_id,            // coin now held by this agent
+        tx_ts:      lastHop.ts || ts,
+        env_sig:    c.signature || lastHop.tx_sig || c.payload_hash || 'AGENT-RECEIVE',
+        value_kobo: c.amount || c.value_kobo || 0,
+        tx_history: c.tx_history || [],
+        owner_hash: c.owner_hash || '',
+        synced_at:  ts,
+      };
+    });
+
+    const res  = await fetch(API + '/sync', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TK },
+      body:    JSON.stringify({ device_id: AP.agent_id, tx_batch }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      // Update hlog entry to SETTLED
+      const hIdx = hlog.findIndex(function(h){
+        return h.status === 'PENDING_SYNC' && h.received_coin_ids &&
+               h.received_coin_ids.some(function(id){ return rcIds.includes(id); });
+      });
+      if (hIdx >= 0) hlog[hIdx].status = 'SETTLED';
+
+      // Handle conflicts (e.g. already-spent coins)
+      if (data.conflicts && data.conflicts.length > 0) {
+        const reasons = data.conflicts.map(function(c){ return c.reason; }).join(', ');
+        hlog[Math.max(0,hIdx)].status = 'CONFLICT';
+        notify('\u26a0\ufe0f ' + data.conflicts.length + ' coin(s) rejected by registry: ' + reasons, 'err');
+      } else {
+        notify('\u2705 ' + naira + ' registered in registry. ' +
+               data.settled_count + ' coin(s) confirmed. Coin now linked to AGENT-' + AP.agent_id);
+      }
+    } else {
+      // Server rejected — keep as PENDING_SYNC (will retry when reconnected)
+      notify('\u26a0\ufe0f Saved locally. Server sync failed: ' + (data.error || res.status) +
+             '. Will retry when reconnected.', 'err');
+    }
+  } catch(e) {
+    // Offline — keep as PENDING_SYNC
+    notify('\u26a0\ufe0f Offline. ' + naira + ' saved locally. Will sync when connected.');
+  }
+
+  // Always save final hlog state and refresh UI
+  localStorage.setItem('zh_' + AP.agent_id, JSON.stringify(hlog));
+  renderHistory();
+  updateStats();
+
+  // Clear result panels
   ['ag-recv-result','ag-file-result'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) { el.style.display='none'; el.className='res'; }
@@ -1491,6 +1592,57 @@ async function coConfirmRedeem() {
     updateStats();
     notify('✅ Redeemed ' + naira + ' — pay customer now');
   } catch(e) { hideL(); notify('❌ Network error: '+e.message, 'err'); }
+}
+
+
+// ── Drain pending RECEIVE syncs when back online ────────────────
+async function agentDrainPendingReceives() {
+  if (!TK || !AP) return;
+  const pendingReceives = hlog.filter(function(h){
+    return h.type === 'RECEIVE' && h.status === 'PENDING_SYNC' && h.received_coin_ids && h.received_coin_ids.length;
+  });
+  if (!pendingReceives.length) return;
+
+  notify('Syncing ' + pendingReceives.length + ' pending receive(s) with registry...');
+
+  for (var i = 0; i < pendingReceives.length; i++) {
+    var h = pendingReceives[i];
+    try {
+      // Build minimal tx_batch for each pending receive
+      var tx_batch = h.received_coin_ids.map(function(coin_id) {
+        return {
+          coin_id:    coin_id,
+          from_hash:  'CUSTOMER',
+          to_hash:    AP.agent_id,
+          tx_ts:      h.ts,
+          env_sig:    'AGENT-RECEIVE-RETRY',
+          value_kobo: Math.round((h.amtKobo || 0) / Math.max(1, h.received_coin_ids.length)),
+          synced_at:  new Date().toISOString(),
+        };
+      });
+
+      var res  = await fetch(API + '/sync', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TK },
+        body:    JSON.stringify({ device_id: AP.agent_id, tx_batch: tx_batch }),
+      });
+      var data = await res.json();
+
+      if (res.ok && data.success) {
+        var hIdx = hlog.indexOf(h);
+        if (hIdx >= 0) hlog[hIdx].status = data.conflicts && data.conflicts.length ? 'CONFLICT' : 'SETTLED';
+      }
+    } catch(e) {
+      // Still offline — leave as PENDING_SYNC
+    }
+  }
+
+  localStorage.setItem('zh_' + AP.agent_id, JSON.stringify(hlog));
+  renderHistory();
+  updateStats();
+
+  var settled = pendingReceives.filter(function(h){ return h.status === 'SETTLED'; }).length;
+  if (settled) notify('\u2705 ' + settled + ' receive(s) registered with registry');
 }
 
 </script>
