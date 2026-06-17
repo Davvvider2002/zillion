@@ -494,7 +494,7 @@ async function doLogin() {
   } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
 }
 
-async async function silentLogin(id, tk) {
+async function silentLogin(id, tk) {
   showL('Restoring session...');
   try { AP = await fetchProfile(id, tk); hideL(); TK = tk; showApp(); }
   catch(e) { hideL(); localStorage.removeItem('zs'); console.warn('Session restore failed:', e.message); }
