@@ -1731,9 +1731,14 @@ function refreshHome() {
 // -- Vault ------------------------------------------------------
 function refreshVault() {
   const coins = STATE.vault;
-  const total = coins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  // Exclude SPENT_LOCAL (sent) coins from vault total display
+  const activeCoinsList = coins.filter(c => c._status !== 'SPENT_LOCAL');
+  const total = activeCoinsList.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   document.getElementById('vault-total').textContent = fmtNaira(total);
-  document.getElementById('vault-coin-count').textContent = `${coins.length} coin${coins.length!==1?'s':''}`;
+  const sentCount = coins.length - activeCoinsList.length;
+  let vaultLabel = `${activeCoinsList.length} coin${activeCoinsList.length!==1?'s':''}`;
+  if (sentCount) vaultLabel += ` · ${sentCount} sent (settling)`;
+  document.getElementById('vault-coin-count').textContent = vaultLabel;
   const el = document.getElementById('vault-list');
   if (!coins.length) {
     el.innerHTML=`<div class="empty-state" style="padding:36px 20px"><span class="empty-icon">🔐</span><div class="empty-title">Vault is empty</div><div class="empty-sub">Cash in at a Zillion agent or receive Zil via WhatsApp.</div></div>`;
@@ -2170,7 +2175,21 @@ async function trySync() {
   const pendingSync     = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
   const pendingTransfer = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER');
   const pending         = [...pendingSync, ...pendingTransfer];
-  if (!pending.length) { updateSyncStatus('All synced'); return; }
+  if (!pending.length) {
+    // Still send a heartbeat to register this device in the backend
+    // This is what makes the user appear in the admin Customers tab
+    try {
+      await fetch(`${API}/sync`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body: JSON.stringify({ device_id: deviceId, tx_batch: [], heartbeat: true }),
+      });
+    } catch(e) {}
+    STATE.lastSync = new Date().toISOString();
+    save(); refreshHome(); refreshProfile();
+    updateSyncStatus('All synced · ' + new Date().toLocaleTimeString());
+    return;
+  }
 
   updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
   const deviceId = STATE.user.deviceId;
@@ -2592,8 +2611,13 @@ async function generateSendQR() {
 
   showLoader('Creating QR code...');
   try {
+    const claimToken = STATE.user?.token || STATE.user?.agentToken || '';
     const res = await fetch('/api/v1/create-claim', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization': 'Bearer ' + claimToken,
+      },
       body: JSON.stringify({ bundle }),
     });
     const data = await res.json();

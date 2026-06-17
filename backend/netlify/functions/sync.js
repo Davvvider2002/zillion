@@ -37,7 +37,23 @@ exports.handler = async (event) => {
   }
 
   try {
-    const result = await processSyncBatch(body.tx_batch);
+    const { getServiceClient } = require('../../lib/supabase');
+    const db = getServiceClient();
+
+    // Register / update device record (makes user visible in admin Customers tab)
+    const deviceId  = body.device_id || auth.payload.sub;
+    const phoneHash = auth.payload.phone_hash || auth.payload.sub;
+    await db.from('devices').upsert({
+      device_hash:   deviceId,
+      phone_hash:    phoneHash,
+      last_sync:     new Date().toISOString(),
+      status:        'ACTIVE',
+    }, { onConflict: 'device_hash' }).catch(() => {});
+
+    // Process transactions (may be empty heartbeat)
+    const result = body.tx_batch && body.tx_batch.length
+      ? await processSyncBatch(body.tx_batch)
+      : { settled: [], conflicts: [] };
 
     return {
       statusCode: 200,
@@ -48,7 +64,7 @@ exports.handler = async (event) => {
         settled_count:    result.settled.length,
         conflict_count:   result.conflicts.length,
         settled_coin_ids: result.settled,
-        conflicts:        result.conflicts,  // includes reason per conflict
+        conflicts:        result.conflicts,
         sync_ts:          new Date().toISOString(),
       }),
     };

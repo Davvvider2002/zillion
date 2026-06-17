@@ -1466,16 +1466,21 @@ async function mProcessReceivedPayment(coinOrBundle, method) {
   const dupCount = coins.length - newCoins.length;
 
   if (newCoins.length === 0) {
-    // ALL coins already received — hard reject
+    // ALL coins already accepted by THIS merchant — hard reject
+    // This means: customer already paid this merchant with this exact file
     document.getElementById('pr-icon').textContent   = '\u274c';
     document.getElementById('pr-amount').textContent  = 'Already Received';
-    document.getElementById('pr-detail').textContent  = 'All ' + coins.length + ' coin' + (coins.length!==1?'s':'') +
-      ' in this file have already been accepted. This file cannot be used again.';
-    document.getElementById('pr-err').textContent     = '\u26a0\ufe0f FRAUD ALERT: Duplicate payment file rejected.';
+    document.getElementById('pr-detail').textContent  =
+      'All ' + coins.length + ' coin' + (coins.length!==1?'s':'') +
+      ' in this file were already accepted by this device.' +
+      ' Ask the customer for a different coin or QR code.';
+    document.getElementById('pr-err').textContent =
+      '\u26a0\ufe0f This exact file was previously accepted here. ' +
+      'The customer must obtain fresh coins from an agent if they want to pay again.';
     document.getElementById('pr-err').style.display   = 'block';
     document.getElementById('pr-accept-btn').style.display = 'none';
     document.getElementById('pay-result').classList.add('show');
-    toast('Duplicate file rejected!', true, 5000);
+    toast('Already received — customer needs fresh coins', true, 6000);
     try { if (navigator.vibrate) navigator.vibrate([200,100,200]); } catch(e){}
     return;
   }
