@@ -1691,14 +1691,18 @@ function tryRestoreSession() {
 
 // -- Home -------------------------------------------------------
 function refreshHome() {
-  const total = STATE.vault.reduce((s,c) => s+(c.amount||c.value_kobo||0), 0);
-  const held       = STATE.vault.filter(c => c._status !== 'PENDING_TRANSFER');
+  // Exclude SPENT_LOCAL coins from balance — they've been sent
+  const active = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
+  const total  = active.reduce((s,c) => s+(c.amount||c.value_kobo||0), 0);
+  const heldCoins  = active.filter(c => c._status === 'HELD').length;
   const pendingTx  = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER').length;
   const pendingSync= STATE.vault.filter(c => c._status === 'PENDING_SYNC').length;
+  const spentLocal = STATE.vault.filter(c => c._status === 'SPENT_LOCAL').length;
   document.getElementById('home-balance').textContent = fmtNaira(total);
-  let coinLabel = `${STATE.vault.length} coin${STATE.vault.length!==1?'s':''}`;
+  let coinLabel = `${active.length} coin${active.length!==1?'s':''}`;
   if (pendingTx)   coinLabel += ` · ${pendingTx} pending transfer`;
   if (pendingSync) coinLabel += ` · ${pendingSync} syncing`;
+  if (spentLocal)  coinLabel += ` · ${spentLocal} sent`;
   document.getElementById('home-coin-count').textContent = coinLabel;
   const syncEl = document.getElementById('home-sync-label');
   const hasToken = !!(STATE.user?.token || STATE.user?.agentToken);
@@ -1744,7 +1748,15 @@ function refreshVault() {
           <div class="coin-expiry">Expires ${fmtExpiry(c.expires_at)}</div>
         </div>
         <div class="coin-right" style="gap:6px;display:flex;flex-direction:column;align-items:flex-end">
-          <span class="pill ${c._status==='PENDING_TRANSFER'?'pill-am':c._status==='PENDING_SYNC'?'pill-am':'pill-g'}">${c._status||'HELD'}</span>
+          <span class="pill ${
+            c._status==='PENDING_TRANSFER'?'pill-am':
+            c._status==='SPENT_LOCAL'?'pill-r':
+            c._status==='PENDING_SYNC'?'pill-am':'pill-g'
+          }">${
+            c._status==='SPENT_LOCAL'?'SENT – SETTLING':
+            c._status==='PENDING_TRANSFER'?'PENDING TRANSFER':
+            c._status||'HELD'
+          }</span>
           <span class="pill pill-d" style="font-size:9px">Ed25519 ✓</span>
           <span style="font-size:18px;color:var(--gm);line-height:1">›</span>
         </div>
@@ -2146,12 +2158,18 @@ async function trySync() {
     // No JWT — settle locally so UI shows correct state
     STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
     STATE.vault.forEach(c => { if (c._status === 'PENDING_SYNC') c._status = 'HELD'; });
-    STATE.lastSync = new Date().toISOString(); // record local settle time
+    // PENDING_TRANSFER coins: mark as SPENT locally (sent, waiting for recipient to sync)
+    // They stay in vault as SPENT so user can see them in history but not spend again
+    STATE.vault.forEach(c => { if (c._status === 'PENDING_TRANSFER') c._status = 'SPENT_LOCAL'; });
+    STATE.lastSync = new Date().toISOString();
     save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
     updateSyncStatus('Synced locally · ' + new Date().toLocaleTimeString());
     return;
   }
-  const pending = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
+  // Include both PENDING_SYNC (received) and PENDING_TRANSFER (sent) coins
+  const pendingSync     = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
+  const pendingTransfer = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER');
+  const pending         = [...pendingSync, ...pendingTransfer];
   if (!pending.length) { updateSyncStatus('All synced'); return; }
 
   updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
@@ -2159,17 +2177,19 @@ async function trySync() {
 
   // Build tx_batch — extract tx fields from coin's tx_history chain
   const tx_batch = pending.map(c => {
-    const lastHop = (c.tx_history || []).slice(-1)[0] || {};
+    const lastHop  = (c.tx_history || []).slice(-1)[0] || {};
+    const isSent   = c._status === 'PENDING_TRANSFER';
     return {
       coin_id:    c.coin_id || c.id,
-      from_hash:  lastHop.from   || c.owner_hash || STATE.user.deviceId || '',
-      to_hash:    lastHop.to     || c.owner_hash || STATE.user.deviceId || '',
-      tx_ts:      lastHop.ts     || c._receivedAt || new Date().toISOString(),
+      // For sent coins: from=me, to=recipient. For received: from=sender, to=me.
+      from_hash:  isSent ? (c.owner_hash || deviceId) : (lastHop.from || c.owner_hash || ''),
+      to_hash:    isSent ? (lastHop.to   || 'RECIPIENT') : (c.owner_hash || deviceId),
+      tx_ts:      lastHop.ts     || c._receivedAt || c._sentAt || new Date().toISOString(),
       env_sig:    lastHop.tx_sig || c.signature   || c.payload_hash || 'OFFLINE',
-      // Extra coin context for server normalisation
       value_kobo: c.amount || c.value_kobo || 0,
       tx_history: c.tx_history || [],
       owner_hash: c.owner_hash || '',
+      is_sent:    isSent,   // tells backend this is a send, not receive
       synced_at:  new Date().toISOString(),
     };
   });
@@ -2185,13 +2205,30 @@ async function trySync() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      (data.settled_coin_ids || []).forEach(coin_id => {
-        const idx = STATE.vault.findIndex(v => (v.id || v.coin_id) === coin_id);
-        if (idx >= 0) STATE.vault[idx]._status = 'HELD';
+      // Settle received coins (PENDING_SYNC → HELD)
+      // Remove sent coins (PENDING_TRANSFER → gone from vault, they belong to recipient)
+      const settledIds = new Set(data.settled_coin_ids || []);
+      // Also treat conflicts that say ALREADY_SPENT as settled for sent coins
+      (data.conflicts || []).forEach(c => {
+        if (c.reason === 'ALREADY_SPENT') settledIds.add(c.coin_id);
       });
+
+      settledIds.forEach(coin_id => {
+        const vIdx = STATE.vault.findIndex(v => (v.id || v.coin_id) === coin_id);
+        if (vIdx < 0) return;
+        const coin = STATE.vault[vIdx];
+        if (coin._status === 'PENDING_TRANSFER') {
+          // Sent coin confirmed received — remove from vault entirely
+          STATE.vault.splice(vIdx, 1);
+        } else {
+          // Received coin settled — mark as HELD
+          STATE.vault[vIdx]._status = 'HELD';
+        }
+      });
+      // Settle all pending-sync history entries
       STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
       STATE.lastSync = new Date().toISOString();
-      save(); refreshHome();
+      save(); refreshHome(); refreshVault();
       updateSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
       updateConnBadge(true);
       if (data.conflicts && data.conflicts.length) {

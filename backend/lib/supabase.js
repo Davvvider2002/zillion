@@ -158,11 +158,14 @@ async function processSyncBatch(txBatch) {
       continue;
     }
 
-    // ── Mark coin as HELD by recipient (not SPENT — coin still circulates)
-    // SPENT is only set on cash-out via /api/v1/redeem
+    // ── Update coin status based on direction ─────────────────
+    // is_sent=true: sender syncing → coin changes hands, still HELD by recipient
+    // is_sent=false or absent: receiver syncing → confirm receipt, still HELD
+    // Either way: coin remains HELD until explicitly redeemed (SPENT via /redeem)
+    const newHolder = rawTx.is_sent ? tx.to_hash : tx.to_hash;
     await db.from('coins').update({
       status:      'HELD',
-      holder_hash: tx.to_hash,
+      holder_hash: newHolder || tx.to_hash,
       updated_at:  new Date().toISOString(),
     }).eq('coin_id', tx.coin_id);
 

@@ -469,7 +469,7 @@ function switchTab(el) {
   document.querySelectorAll('.pn2').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'history')   renderHistory();
+  if (name === 'history') { renderHistory(); updateStats(); }
   if (name === 'statement') loadStatement();
 }
 
@@ -816,15 +816,22 @@ function renderHistory() {
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 function updateStats() {
-  const fmt=k=>'₦'+(k/100).toLocaleString();
-  document.getElementById('sci').textContent  = fmt(ss.ci);
-  document.getElementById('sco').textContent  = fmt(ss.co);
-  document.getElementById('scn').textContent  = ss.cn;
-  document.getElementById('pci').textContent  = fmt(ss.ci);
-  document.getElementById('pco').textContent  = fmt(ss.co);
-  document.getElementById('pcn').textContent  = ss.cn;
-  document.getElementById('pflot').textContent= fmt(AP.float_balance_kobo);
-  document.getElementById('prfloat').textContent=fmt(AP.float_balance_kobo);
+  // Rebuild session stats from full hlog — never stale after tab switch
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const todayLogs  = (hlog || []).filter(h => new Date(h.ts) >= todayStart);
+  ss.ci = todayLogs.filter(h=>h.type==='CASH IN'||h.type==='RECEIVE').reduce((s,h)=>s+(h.amtKobo||0),0);
+  ss.co = todayLogs.filter(h=>h.type==='CASH OUT').reduce((s,h)=>s+(h.amtKobo||0),0);
+  ss.cn = todayLogs.filter(h=>h.type==='CASH IN').reduce((s,h)=>s+(h.cnt||0),0);
+  const fmt=k=>'\u20a6'+(k/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+  const setText=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  setText('sci',   fmt(ss.ci));
+  setText('sco',   fmt(ss.co));
+  setText('scn',   ss.cn);
+  setText('pci',   fmt(ss.ci));
+  setText('pco',   fmt(ss.co));
+  setText('pcn',   ss.cn);
+  setText('pflot', fmt(AP?.float_balance_kobo||0));
+  setText('prfloat',fmt(AP?.float_balance_kobo||0));
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
