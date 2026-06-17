@@ -15,10 +15,11 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode:405, body:JSON.stringify({error:'Method Not Allowed'}) };
   }
+  // Auth is OPTIONAL for claim creation.
+  // Customer wallets have no JWT — the coins are secured by Ed25519 mint signatures.
+  // If a valid JWT is present, we use it to associate the claim with an agent.
   const auth = verifyJWT(event.headers.authorization||event.headers.Authorization||'');
-  if (!auth.valid) {
-    return { statusCode:401, body:JSON.stringify({error:'Agent auth required'}) };
-  }
+  // Do NOT reject if auth is invalid — allow anonymous claim creation.
 
   let body;
   try { body = JSON.parse(event.body); }
@@ -43,7 +44,7 @@ exports.handler = async (event) => {
       .from('claim_bundles')
       .insert({
         bundle_data: bundle,
-        agent_id:    auth.payload.agent_id || auth.payload.sub,
+        agent_id:    (auth.valid ? (auth.payload.agent_id || auth.payload.sub) : null),
         amount_kobo: bundle.total_kobo,
         coin_count:  bundle.coin_count || bundle.coins.length,
         status:      'PENDING',

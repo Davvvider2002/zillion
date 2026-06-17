@@ -844,10 +844,12 @@ body{height:100%;height:100dvh;overflow:hidden;}
   <div class="scroll-body">
     <!-- Balance card -->
     <div class="balance-card">
-      <div class="bal-label">Wallet Balance</div>
+      <div class="bal-label">Available Balance</div>
       <div class="bal-amount" id="home-balance">₦0.00</div>
+      <div id="home-book-balance" style="display:none;font-size:12px;color:var(--gm);margin-top:2px;font-weight:500"></div>
       <div class="bal-sub">
         <span id="home-coin-count">0 coins</span>
+        <span id="home-sent-label" style="display:none;font-size:11px;color:var(--am);margin-left:4px"></span>
         <span>·</span>
         <span class="bal-sync" id="home-sync-label">Up to date</span>
       </div>
@@ -1691,18 +1693,47 @@ function tryRestoreSession() {
 
 // -- Home -------------------------------------------------------
 function refreshHome() {
-  // Exclude SPENT_LOCAL coins from balance — they've been sent
-  const active = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
-  const total  = active.reduce((s,c) => s+(c.amount||c.value_kobo||0), 0);
-  const heldCoins  = active.filter(c => c._status === 'HELD').length;
-  const pendingTx  = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER').length;
-  const pendingSync= STATE.vault.filter(c => c._status === 'PENDING_SYNC').length;
-  const spentLocal = STATE.vault.filter(c => c._status === 'SPENT_LOCAL').length;
-  document.getElementById('home-balance').textContent = fmtNaira(total);
-  let coinLabel = `${active.length} coin${active.length!==1?'s':''}`;
-  if (pendingTx)   coinLabel += ` · ${pendingTx} pending transfer`;
-  if (pendingSync) coinLabel += ` · ${pendingSync} syncing`;
-  if (spentLocal)  coinLabel += ` · ${spentLocal} sent`;
+  // ── Ledger-style balance ─────────────────────────────────────
+  // AVAILABLE = HELD coins only (confirmed, spendable right now)
+  // BOOK      = HELD + PENDING_SYNC (received, awaiting server confirm)
+  // SENT coins (PENDING_TRANSFER + SPENT_LOCAL) excluded from both
+  const sentStatuses = new Set(['PENDING_TRANSFER','SPENT_LOCAL']);
+  const heldCoins    = STATE.vault.filter(c => c._status === 'HELD');
+  const pendingSyncC = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
+  const sentCoins    = STATE.vault.filter(c => sentStatuses.has(c._status));
+
+  const availableTotal = heldCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  const bookTotal      = availableTotal + pendingSyncC.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  const sentTotal      = sentCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+
+  // Primary display: Available Balance
+  document.getElementById('home-balance').textContent = fmtNaira(availableTotal);
+
+  // Book balance line (only show if different from available)
+  const bookEl = document.getElementById('home-book-balance');
+  if (bookEl) {
+    if (bookTotal !== availableTotal) {
+      bookEl.textContent = 'Book balance ' + fmtNaira(bookTotal);
+      bookEl.style.display = 'block';
+    } else {
+      bookEl.style.display = 'none';
+    }
+  }
+
+  // Sent amount line (only show if coins are pending settlement)
+  const sentEl = document.getElementById('home-sent-label');
+  if (sentEl) {
+    if (sentTotal > 0) {
+      sentEl.textContent = fmtNaira(sentTotal) + ' sent · settling';
+      sentEl.style.display = 'inline';
+    } else {
+      sentEl.style.display = 'none';
+    }
+  }
+
+  const coinLabel = `${heldCoins.length} coin${heldCoins.length!==1?'s':''}` +
+    (pendingSyncC.length ? ` · ${pendingSyncC.length} syncing` : '') +
+    (sentCoins.length    ? ` · ${sentCoins.length} sent` : '');
   document.getElementById('home-coin-count').textContent = coinLabel;
   const syncEl = document.getElementById('home-sync-label');
   const hasToken = !!(STATE.user?.token || STATE.user?.agentToken);
@@ -1732,7 +1763,7 @@ function refreshHome() {
 function refreshVault() {
   const coins = STATE.vault;
   // Exclude SPENT_LOCAL (sent) coins from vault total display
-  const activeCoinsList = coins.filter(c => c._status !== 'SPENT_LOCAL');
+  const activeCoinsList = coins.filter(c => c._status !== 'SPENT_LOCAL' && c._status !== 'PENDING_TRANSFER');
   const total = activeCoinsList.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   document.getElementById('vault-total').textContent = fmtNaira(total);
   const sentCount = coins.length - activeCoinsList.length;
@@ -1754,12 +1785,12 @@ function refreshVault() {
         </div>
         <div class="coin-right" style="gap:6px;display:flex;flex-direction:column;align-items:flex-end">
           <span class="pill ${
-            c._status==='PENDING_TRANSFER'?'pill-am':
+            c._status==='PENDING_TRANSFER'?'pill-r':
             c._status==='SPENT_LOCAL'?'pill-r':
             c._status==='PENDING_SYNC'?'pill-am':'pill-g'
           }">${
             c._status==='SPENT_LOCAL'?'SENT – SETTLING':
-            c._status==='PENDING_TRANSFER'?'PENDING TRANSFER':
+            c._status==='PENDING_TRANSFER'?'SENT – SETTLING':
             c._status||'HELD'
           }</span>
           <span class="pill pill-d" style="font-size:9px">Ed25519 ✓</span>
