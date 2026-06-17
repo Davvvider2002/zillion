@@ -1677,18 +1677,38 @@ async function completeOnboarding() {
 
 // -- Session restore --------------------------------------------
 function tryRestoreSession() {
-  if (load() && STATE.user) { goTo('screen-home'); refreshHome(); }
-  else { toast('No account found - create one first', true); }
+  if (load() && STATE.user) {
+    goTo('screen-home');
+    refreshHome();
+    refreshProfile();
+    // Attempt sync immediately on restore — registers device, settles pending
+    setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+  } else {
+    toast('No account found — please set up a new account', true);
+    goTo('screen-phone'); // take them to phone entry, not just a toast
+  }
 }
 
 // -- Home -------------------------------------------------------
 function refreshHome() {
   const total = STATE.vault.reduce((s,c) => s+(c.amount||c.value_kobo||0), 0);
-  const held  = STATE.vault.filter(c => c._status !== 'PENDING_TRANSFER');
+  const held       = STATE.vault.filter(c => c._status !== 'PENDING_TRANSFER');
+  const pendingTx  = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER').length;
+  const pendingSync= STATE.vault.filter(c => c._status === 'PENDING_SYNC').length;
   document.getElementById('home-balance').textContent = fmtNaira(total);
-  document.getElementById('home-coin-count').textContent = `${held.length} coin${held.length!==1?'s':''}`;
+  let coinLabel = `${STATE.vault.length} coin${STATE.vault.length!==1?'s':''}`;
+  if (pendingTx)   coinLabel += ` · ${pendingTx} pending transfer`;
+  if (pendingSync) coinLabel += ` · ${pendingSync} syncing`;
+  document.getElementById('home-coin-count').textContent = coinLabel;
   const syncEl = document.getElementById('home-sync-label');
-  syncEl.textContent = STATE.isOnline ? (STATE.lastSync ? 'Synced '+fmtTime(STATE.lastSync) : 'Not synced yet') : 'Offline mode';
+  const hasToken = !!(STATE.user?.token || STATE.user?.agentToken);
+  if (!STATE.isOnline) {
+    syncEl.textContent = 'Offline mode';
+  } else if (STATE.lastSync) {
+    syncEl.textContent = (hasToken ? 'Synced ' : 'Settled locally ') + fmtTime(STATE.lastSync);
+  } else {
+    syncEl.textContent = hasToken ? 'Not synced yet' : 'Tap ↻ to sync';
+  }
   syncEl.style.color = STATE.isOnline ? 'var(--g)' : 'var(--am)';
   document.getElementById('offline-banner').style.display = STATE.isOnline ? 'none' : 'flex';
   const dot = document.getElementById('sync-dot');
@@ -2065,7 +2085,13 @@ function refreshProfile() {
   document.getElementById('settings-role').textContent = (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1);
   document.getElementById('settings-device').textContent = u.deviceId||'-';
   document.getElementById('settings-network').textContent = STATE.isOnline?'Online':'Offline';
-  document.getElementById('settings-last-sync').textContent = STATE.lastSync ? fmtTime(STATE.lastSync) : 'Never';
+  const hasToken2 = !!(STATE.user?.token || STATE.user?.agentToken);
+  if (STATE.lastSync) {
+    document.getElementById('settings-last-sync').textContent =
+      (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync);
+  } else {
+    document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
+  }
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
@@ -2117,11 +2143,12 @@ async function trySync() {
   if (!STATE.isOnline || !STATE.user) return;
   const token = STATE.user.token || STATE.user.agentToken || '';
   if (!token) {
-    // Existing session without JWT - mark history settled locally so user sees correct state
+    // No JWT — settle locally so UI shows correct state
     STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
     STATE.vault.forEach(c => { if (c._status === 'PENDING_SYNC') c._status = 'HELD'; });
-    save(); refreshHome(); refreshVault(); refreshHistory();
-    updateSyncStatus('Synced locally');
+    STATE.lastSync = new Date().toISOString(); // record local settle time
+    save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
+    updateSyncStatus('Synced locally · ' + new Date().toLocaleTimeString());
     return;
   }
   const pending = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
@@ -2798,8 +2825,11 @@ function coinSheetCancel() {
   save();
   refreshVault();
   refreshHome();
+  refreshProfile();
   closeCoinSheet();
-  toast('Transfer cancelled \u2014 \u20a6' + ((c.amount||c.value_kobo||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' returned to vault');
+  toast('Transfer cancelled — ₦' + ((c.amount||c.value_kobo||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' returned to vault');
+  // Attempt full sync now that coin is back in vault
+  setTimeout(() => { if (STATE.isOnline && STATE.user?.token) trySync(); else { updateSyncStatus('Ready to sync when online'); } }, 500);
 }
 
 // ================================================================
