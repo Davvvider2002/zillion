@@ -230,13 +230,63 @@ tr:hover td{background:var(--gl)}
   <div class="lbox">
     <div class="llogo">ZILLION</div>
     <div class="lsub">Admin Dashboard</div>
-    <div class="lbadge"><span>🔐 Restricted Access</span></div>
-    <div class="lf">
-      <label>Admin Secret</label>
-      <input type="password" id="l-secret" placeholder="Enter your admin secret">
+    <div class="lbadge"><span>&#x1F510; Restricted Access &mdash; 2FA Required</span></div>
+
+    <!-- STEP 1: Admin Secret -->
+    <div id="login-step1">
+      <div class="lf">
+        <label>Admin Secret</label>
+        <input type="password" id="l-secret" placeholder="Enter your admin secret"
+               onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="lbtn" id="lbtn" onclick="doLogin()">Continue &#x2192;</button>
+      <div class="lerr" id="lerr"></div>
     </div>
-    <button class="lbtn" id="lbtn" onclick="doLogin()">Access Dashboard →</button>
-    <div class="lerr" id="lerr"></div>
+
+    <!-- STEP 2: TOTP Code -->
+    <div id="login-step2" style="display:none">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:36px;margin-bottom:8px">&#x1F4F1;</div>
+        <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:6px">Two-Factor Authentication</div>
+        <div style="font-size:12px;color:var(--gr);line-height:1.5">
+          Open <strong>Google Authenticator</strong> (or Authy) on your phone<br>and enter the 6-digit code for <strong>Zillion Admin</strong>.
+        </div>
+      </div>
+      <div class="lf">
+        <label>6-Digit Code</label>
+        <input type="text" id="l-totp"
+               inputmode="numeric" pattern="[0-9]*"
+               maxlength="7"
+               placeholder="000 000"
+               style="font-size:28px;font-weight:700;letter-spacing:8px;text-align:center"
+               oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value.length===6)doTOTP()"
+               onkeydown="if(event.key==='Enter')doTOTP()">
+      </div>
+      <button class="lbtn" id="totp-btn" onclick="doTOTP()">Verify &amp; Enter &#x2192;</button>
+      <div class="lerr" id="totp-err"></div>
+      <div style="text-align:center;margin-top:14px">
+        <button onclick="backToStep1()"
+          style="background:none;border:none;color:var(--gr);font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit">
+          &larr; Back
+        </button>
+        <span style="color:var(--gr);font-size:11px;margin-left:8px">Code refreshes every 30 seconds</span>
+      </div>
+    </div>
+
+    <!-- TOTP Setup Info (shown first time) -->
+    <div id="login-setup-info" style="display:none;margin-top:16px;
+      background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);
+      border-radius:10px;padding:14px">
+      <div style="font-size:11px;font-weight:700;color:#F59E0B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
+        &#x26A0;&#xFE0F; First-time Setup Required
+      </div>
+      <div style="font-size:12px;color:var(--gr);line-height:1.6">
+        TOTP is not yet configured. Ask your system administrator to set<br>
+        <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px;font-size:11px">ADMIN_TOTP_SECRET</code>
+        in Netlify environment variables.
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -558,6 +608,39 @@ tr:hover td{background:var(--gl)}
 
 <!-- SYSTEM -->
 <div id="sec-system" class="sec">
+        <!-- TOTP Setup Card -->
+        <div class="card" style="border:2px solid var(--am);background:rgba(245,158,11,.04)" id="totp-setup-card">
+          <div class="card-title" style="color:var(--am)">
+            &#x1F510; Two-Factor Authentication Setup
+          </div>
+          <div class="card-sub" style="margin-bottom:16px">
+            Protect the admin dashboard with Google Authenticator (TOTP / RFC 6238).
+            Once configured, every login requires your secret <strong>plus</strong> a 6-digit code from your phone.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:12px">Step-by-step setup:</div>
+              <ol style="font-size:13px;color:var(--gr);line-height:2;padding-left:20px">
+                <li>Click <strong>Generate Secret</strong> below</li>
+                <li>Copy the secret shown</li>
+                <li>Go to <strong>Netlify → Site → Environment Variables</strong></li>
+                <li>Add <code style="background:var(--d2);padding:1px 6px;border-radius:4px">ADMIN_TOTP_SECRET</code> = the secret</li>
+                <li>Redeploy the site</li>
+                <li>Scan the QR code in <strong>Google Authenticator</strong> or Authy</li>
+                <li>Test with a 6-digit code before logging out</li>
+              </ol>
+            </div>
+            <div>
+              <div id="totp-qr-area" style="text-align:center">
+                <button class="rbtn" style="background:var(--am);color:#fff;width:100%;padding:12px;font-size:14px;font-weight:700"
+                  onclick="generateTOTPSetup()">
+                  &#x2699;&#xFE0F; Generate TOTP Secret
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
   <div class="grid2">
     <div class="card">
       <div class="card-title">System Health <button class="rbtn" onclick="checkSystem()">↻ Check</button></div>
@@ -597,25 +680,107 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('l-secret').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 });
 
+// ── 2FA Login flow ─────────────────────────────────────────────
+let _sessionToken = null; // holds session token between step 1 and step 2
+
 async function doLogin() {
   const secret = document.getElementById('l-secret').value.trim();
   const errEl  = document.getElementById('lerr');
   const btn    = document.getElementById('lbtn');
   errEl.className = 'lerr';
   if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
-  btn.disabled = true; btn.textContent = 'Verifying...';
-  showLoader('Authenticating...');
+  btn.disabled = true; btn.textContent = 'Checking...';
+  showLoader('Verifying secret...');
   try {
-    const res  = await fetch(`${API}/admin-login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_secret:secret}) });
-    const data = await res.json();
+    const res  = await fetch(`${API}/admin-login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_secret: secret }),
+    });
+    const rawText = await res.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch(e) {
+      errEl.textContent = '⚠️ Server error — check Netlify function logs';
+      errEl.className = 'lerr show'; return;
+    }
     hideLoader();
-    if (!res.ok) { errEl.textContent = '⚠️ ' + (data.error||'Invalid secret'); errEl.className = 'lerr show'; return; }
+    if (!res.ok) {
+      errEl.textContent = '⚠️ ' + (data.error || 'Invalid secret');
+      errEl.className = 'lerr show'; return;
+    }
+    // Step 1 passed
+    if (data.step === 'totp') {
+      // TOTP required — show step 2
+      _sessionToken = data.session_token;
+      localStorage.setItem('zil_admin_secret', secret);
+      document.getElementById('login-step1').style.display = 'none';
+      document.getElementById('login-step2').style.display = 'block';
+      setTimeout(function(){ document.getElementById('l-totp').focus(); }, 80);
+    } else {
+      // No TOTP configured — direct access (dev mode)
+      adminToken = data.token;
+      localStorage.setItem('zil_admin_token', adminToken);
+      localStorage.setItem('zil_admin_secret', secret);
+      showApp();
+    }
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = '⚠️ ' + e.message;
+    errEl.className = 'lerr show';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Continue →';
+  }
+}
+
+async function doTOTP() {
+  const code   = document.getElementById('l-totp').value.replace(/\s+/g,'');
+  const errEl  = document.getElementById('totp-err');
+  const btn    = document.getElementById('totp-btn');
+  errEl.className = 'lerr';
+  if (!code || code.length !== 6) {
+    errEl.textContent = 'Enter the 6-digit code from your authenticator app.';
+    errEl.className = 'lerr show'; return;
+  }
+  if (!_sessionToken) { backToStep1(); return; }
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  showLoader('Verifying code...');
+  try {
+    const res  = await fetch(`${API}/admin-login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ session_token: _sessionToken, totp_code: code }),
+    });
+    const rawText = await res.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch(e) {
+      errEl.textContent = '⚠️ Server error'; errEl.className = 'lerr show'; return;
+    }
+    hideLoader();
+    if (!res.ok) {
+      errEl.textContent = '⚠️ ' + (data.error || 'Invalid code');
+      errEl.className = 'lerr show';
+      document.getElementById('l-totp').value = '';
+      document.getElementById('l-totp').focus();
+      return;
+    }
+    // TOTP verified — store token and enter dashboard
+    _sessionToken = null;
     adminToken = data.token;
     localStorage.setItem('zil_admin_token', adminToken);
-    localStorage.setItem('zil_admin_secret', secret);
     showApp();
-  } catch(e) { hideLoader(); errEl.textContent = '⚠️ ' + e.message; errEl.className = 'lerr show'; }
-  finally { btn.disabled = false; btn.textContent = 'Access Dashboard →'; }
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = '⚠️ ' + e.message; errEl.className = 'lerr show';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Verify & Enter →';
+  }
+}
+
+function backToStep1() {
+  _sessionToken = null;
+  document.getElementById('login-step2').style.display = 'none';
+  document.getElementById('login-step1').style.display = 'block';
+  document.getElementById('l-totp').value = '';
+  document.getElementById('totp-err').className = 'lerr';
+  document.getElementById('l-secret').focus();
 }
 
 function doLogout() {
@@ -1242,6 +1407,43 @@ function updateTopUpPreviewLive() {
     infoEl.style.color = typeof coinCount === 'number' ? 'var(--g)' : 'var(--r)';
   }
   if (btn) btn.style.display = 'none'; // hide until Preview clicked
+}
+
+
+// ── TOTP Setup (System tab) ─────────────────────────────────────
+function generateTOTPSetup() {
+  // Generate a random base32 secret client-side for display
+  // The actual secret used in production must be set in Netlify env vars
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let secret  = '';
+  const arr   = new Uint8Array(20);
+  crypto.getRandomValues(arr);
+  arr.forEach(function(b) { secret += ALPHA[b % 32]; });
+
+  const label  = encodeURIComponent('Zillion Admin');
+  const issuer = encodeURIComponent('Zillion');
+  const otpUrl = 'otpauth://totp/' + label + '?secret=' + secret +
+                 '&issuer=' + issuer + '&digits=6&period=30&algorithm=SHA1';
+
+  // Show setup info
+  const area = document.getElementById('totp-qr-area');
+  area.innerHTML =
+    '<div style="margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Your TOTP Secret</div>' +
+      '<div style="font-family:monospace;font-size:13px;background:var(--d2);padding:10px 14px;border-radius:8px;word-break:break-all;color:var(--tx);letter-spacing:.05em">' +
+        secret +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">OTPAuth URL (manual entry)</div>' +
+      '<div style="font-size:10px;font-family:monospace;background:var(--d2);padding:8px 12px;border-radius:8px;word-break:break-all;color:var(--gr)">' +
+        otpUrl.replace(/&/g,'&amp;') +
+      '</div>' +
+    '</div>' +
+    '<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:12px;font-size:12px;color:var(--am)">' +
+      '⚠️ Copy this secret immediately. Add it to Netlify as <strong>ADMIN_TOTP_SECRET</strong> then scan the OTPAuth URL in Google Authenticator → + icon → Scan QR or manual entry.' +
+    '</div>' +
+    '<button onclick="generateTOTPSetup()" style="background:none;border:1px solid var(--d3);color:var(--gr);border-radius:6px;padding:7px 14px;margin-top:12px;cursor:pointer;font-family:inherit;font-size:12px">&#x21BB; Regenerate</button>';
 }
 
 </script>
