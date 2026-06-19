@@ -9,3 +9,12 @@ dist/
 .netlify/
 coverage/
 *.log
+Add-Content .gitignore "`n# AWS credential files — NEVER commit these"
+Add-Content .gitignore "*accessKeys.csv"
+Add-Content .gitignore "*.csv"
+Add-Content .gitignore "credentials"
+Add-Content .gitignore ".aws/"
+
+git add .gitignore
+git commit -m "security: ignore AWS credential files"
+git push origin main
