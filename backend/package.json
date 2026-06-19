@@ -1,0 +1,22 @@
+{
+  "name": "zillion-mvp",
+  "version": "0.1.0",
+  "description": "Zillion \u2014 Offline-First Digital Cash for the Unbanked. MVP / POC build.",
+  "private": true,
+  "scripts": {
+    "dev:backend": "netlify dev",
+    "test:tx": "node backend/tests/test-transaction.js",
+    "mint:keygen": "node mint/keygen.js",
+    "sim:transaction": "node mobile-sim/simulate-transaction.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.1",
+    "qrcode": "^1.5.4",
+    "tweetnacl": "^1.0.3",
+    "uuid": "^9.0.1",
+    "@aws-sdk/client-kms": "^3.600.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
