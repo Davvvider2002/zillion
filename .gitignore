@@ -18,3 +18,17 @@ Add-Content .gitignore ".aws/"
 git add .gitignore
 git commit -m "security: ignore AWS credential files"
 git push origin main
+
+# Delete the file
+Remove-Item "AWS Arn Keys.txt"
+
+# Add to .gitignore so it can never be committed again
+Add-Content .gitignore "`n# AWS secret files — never commit these"
+Add-Content .gitignore "*.txt"
+Add-Content .gitignore "*accessKeys*"
+Add-Content .gitignore "*Keys.txt"
+Add-Content .gitignore "AWS*.txt"
+
+git add .gitignore
+git commit -m "security: ignore AWS key files"
+git push origin main
