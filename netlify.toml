@@ -170,3 +170,8 @@
   from = "/admin/"
   to   = "/admin/index.html"
   status = 200
+
+[build]
+  command   = "npm install"
+  publish   = "."
+  environment = { SECRETS_SCAN_OMIT_KEYS = "ZILLION_KMS_KEY_ARN" }
