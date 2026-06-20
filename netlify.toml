@@ -2,6 +2,7 @@
   publish   = "."
   functions = "backend/netlify/functions"
   command   = "npm install"
+  environment = { SECRETS_SCAN_OMIT_KEYS = "ZILLION_KMS_KEY_ARN" }
 
 [functions]
   node_bundler          = "esbuild"
@@ -13,9 +14,8 @@
     X-Frame-Options        = "DENY"
     X-Content-Type-Options = "nosniff"
 
-# ── Redirects (authoritative — overrides _redirects files) ───────
+# ── Redirects ────────────────────────────────────────────────────
 
-# ── Root: always serve the landing page ─────────────────────────
 [[redirects]]
   from   = "/"
   to     = "/index.html"
@@ -170,8 +170,3 @@
   from = "/admin/"
   to   = "/admin/index.html"
   status = 200
-
-[build]
-  command   = "npm install"
-  publish   = "."
-  environment = { SECRETS_SCAN_OMIT_KEYS = "ZILLION_KMS_KEY_ARN" }
