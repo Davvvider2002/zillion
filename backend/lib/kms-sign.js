@@ -26,8 +26,12 @@ async function kmsSign(payloadHash) {
   const keyArn = process.env.ZILLION_KMS_KEY_ARN;
 
   // Region: explicit env var → extracted from ARN → hard fallback
+  // Validate region looks like a real AWS region (e.g. eu-north-1, us-east-1)
+  // Reject "Global", blank, or any other invalid value — extract from ARN instead
+  const rawRegion  = (process.env.ZILLION_AWS_REGION || '').trim();
+  const validRegex = /^[a-z]{2,}-[a-z]+-[0-9]+$/;
   const region =
-    process.env.ZILLION_AWS_REGION ||
+    (validRegex.test(rawRegion) ? rawRegion : null) ||
     regionFromArn(keyArn) ||
     'eu-north-1';
 
