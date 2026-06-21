@@ -47,7 +47,9 @@ exports.handler = async (event) => {
     if (amount_kobo % denomination_kobo !== 0)   return err(400, `amount_kobo (${amount_kobo}) must be divisible by denomination_kobo (${denomination_kobo})`);
 
     // ── Check env vars before attempting mint ─────────────────
-    if (!process.env.MINT_PRIVATE_KEY_HEX) return err(500, 'MINT_PRIVATE_KEY_HEX not configured in environment variables');
+    // Signing: KMS (ZILLION_KMS_KEY_ARN) takes priority over local key (MINT_PRIVATE_KEY_HEX)
+    if (!process.env.ZILLION_KMS_KEY_ARN && !process.env.MINT_PRIVATE_KEY_HEX)
+      return err(500, 'No signing method configured: set ZILLION_KMS_KEY_ARN (production) or MINT_PRIVATE_KEY_HEX (dev)');
     if (!process.env.SUPABASE_URL)         return err(500, 'SUPABASE_URL not configured');
     if (!process.env.SUPABASE_SERVICE_KEY) return err(500, 'SUPABASE_SERVICE_KEY not configured');
 
@@ -68,13 +70,13 @@ exports.handler = async (event) => {
     // ── 3. Mint coins ─────────────────────────────────────────
     let coins;
     try {
-      coins = issueCoinBatch({
+      coins = await issueCoinBatch({
         totalAmountKobo:  amount_kobo,
         coinValueKobo:    denomination_kobo,
         recipientPhone:   agent.phone || agent_id,
         recipientDevice:  agent_id,
         agentId:          agent_id,
-        mintPrivateKey:   process.env.MINT_PRIVATE_KEY_HEX,
+        mintPrivateKey:   process.env.MINT_PRIVATE_KEY_HEX, // undefined in prod — KMS used instead
         mintId:           process.env.MINT_ID || 'ZILLION-MINT-01',
         ownerSalt:        process.env.SUPABASE_SERVICE_KEY,
         sequenceStart,

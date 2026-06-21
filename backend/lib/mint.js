@@ -1,5 +1,4 @@
-/**const { KMSClient, SignCommand, GetPublicKeyCommand } = require("@aws-sdk/client-kms");
-
+/**
  * zillion/backend/lib/mint.js
  *
  * The Zillion Mint — creates and signs .zil coin files.
@@ -21,6 +20,8 @@ const {
   sha256,
 } = require('./crypto');
 
+const { signWithKMSOrKey } = require('./kms-sign');
+
 const COIN_VERSION  = '1.0';
 const CURRENCY      = 'NGN';
 
@@ -41,7 +42,7 @@ const CURRENCY      = 'NGN';
  *
  * @returns {object[]} array of signed .zil coin objects
  */
-function issueCoinBatch({
+async function issueCoinBatch({
   totalAmountKobo,
   coinValueKobo,
   recipientPhone,
@@ -86,18 +87,7 @@ function issueCoinBatch({
     };
 
     const payload_hash = computePayloadHash(coreFields);
-    const signature    = sign(async function kmsSign(payloadHash) {
-  const client  = new KMSClient({ region: process.env.AWS_REGION });
-  const command = new SignCommand({
-    KeyId:            process.env.KMS_KEY_ARN,
-    Message:          Buffer.from(payloadHash, "hex"),
-    MessageType:      "DIGEST",
-    SigningAlgorithm: "ECDSA_SHA_256",   // matches ECC_NIST_P256 key
-  });
-  const response = await client.send(command);
-  return Buffer.from(response.Signature).toString("hex");
-}
-);
+    const signature    = await signWithKMSOrKey(payload_hash, mintPrivateKey);
 
     const coin = {
       ...coreFields,

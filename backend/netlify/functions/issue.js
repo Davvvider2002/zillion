@@ -66,7 +66,7 @@ exports.handler = async (event) => {
 
   let coins;
   try {
-    coins = issueCoinBatch({
+    coins = await issueCoinBatch({
       totalAmountKobo:  body.amount,
       coinValueKobo:    denomination,
       recipientPhone:   body.recipient_phone   || 'UNKNOWN',
