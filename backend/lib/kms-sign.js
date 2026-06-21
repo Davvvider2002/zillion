@@ -2,33 +2,54 @@
  * zillion/backend/lib/kms-sign.js
  *
  * KMS-backed signing — replaces direct Ed25519 private key usage.
- * Called by mint.js instead of crypto.sign() when KMS env vars are set.
- *
- * Uses ZILLION_AWS_KEY_ID / ZILLION_AWS_SECRET / ZILLION_AWS_REGION
- * (not AWS_* prefix — those are reserved by Netlify)
+ * Env vars (must match exactly what is set in Netlify):
+ *   ZILLION_KMS_KEY_ARN        — full ARN e.g. arn:aws:kms:eu-north-1:873154291662:key/...
+ *   ZILLION_ACCESS_KEY_ID      — IAM access key for zillion-mint-signer
+ *   ZILLION_SECRET_ACCESS_KEY  — IAM secret key for zillion-mint-signer
+ *   ZILLION_AWS_REGION         — e.g. eu-north-1 (also extracted from ARN as fallback)
  */
 'use strict';
 
-const { createHash } = require('crypto');
-
 /**
- * Sign a payload hash using AWS KMS.
- * @param {string} payloadHash  — hex string (SHA-256 of coin fields)
- * @returns {Promise<string>}   — hex-encoded DER signature
+ * Extract region from a KMS ARN.
+ * arn:aws:kms:eu-north-1:873154291662:key/... → "eu-north-1"
  */
+function regionFromArn(arn) {
+  if (!arn || typeof arn !== 'string') return null;
+  const parts = arn.split(':');
+  return parts[3] || null;  // index 3 is always the region in an ARN
+}
+
 async function kmsSign(payloadHash) {
   const { KMSClient, SignCommand } = require('@aws-sdk/client-kms');
 
+  const keyArn = process.env.ZILLION_KMS_KEY_ARN;
+
+  // Region: explicit env var → extracted from ARN → hard fallback
+  const region =
+    process.env.ZILLION_AWS_REGION ||
+    regionFromArn(keyArn) ||
+    'eu-north-1';
+
+  // Credentials: match EXACTLY the names set in Netlify
+  const accessKeyId     = process.env.ZILLION_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.ZILLION_SECRET_ACCESS_KEY;
+
+  // Validate before making the call — surface missing config clearly
+  if (!region)         throw new Error('KMS config error: ZILLION_AWS_REGION not set and could not extract from ARN');
+  if (!keyArn)         throw new Error('KMS config error: ZILLION_KMS_KEY_ARN not set');
+  if (!accessKeyId)    throw new Error('KMS config error: ZILLION_ACCESS_KEY_ID not set');
+  if (!secretAccessKey)throw new Error('KMS config error: ZILLION_SECRET_ACCESS_KEY not set');
+
+  console.log('KMS sign: region=' + region + ' keyArn=' + keyArn.slice(0, 40) + '...');
+
   const client = new KMSClient({
-    region: process.env.ZILLION_AWS_REGION || process.env.AWS_REGION,
-    credentials: {
-      accessKeyId:     process.env.ZILLION_AWS_KEY_ID     || process.env.ZILLION_ACCESS_KEY_ID,
-      secretAccessKey: process.env.ZILLION_AWS_SECRET      || process.env.ZILLION_SECRET_ACCESS_KEY,
-    },
+    region,
+    credentials: { accessKeyId, secretAccessKey },
   });
 
   const command = new SignCommand({
-    KeyId:            process.env.ZILLION_KMS_KEY_ARN,
+    KeyId:            keyArn,
     Message:          Buffer.from(payloadHash, 'hex'),
     MessageType:      'DIGEST',
     SigningAlgorithm: 'ECDSA_SHA_256',
@@ -38,25 +59,16 @@ async function kmsSign(payloadHash) {
   return Buffer.from(response.Signature).toString('hex');
 }
 
-/**
- * Decide whether to use KMS or the local private key.
- * KMS is used when ZILLION_KMS_KEY_ARN is set.
- * Falls back to local key for dev/test.
- *
- * @param {string} payloadHash    — hex SHA-256 of coin fields
- * @param {string} mintPrivateKey — hex private key (used only if KMS not configured)
- * @returns {Promise<string>}     — hex signature
- */
 async function signWithKMSOrKey(payloadHash, mintPrivateKey) {
   if (process.env.ZILLION_KMS_KEY_ARN) {
     return await kmsSign(payloadHash);
   }
 
-  // Fallback: local Ed25519 key (dev/test only)
+  // Fallback: local Ed25519 key (dev / test only)
   if (!mintPrivateKey) {
     throw new Error(
-      'No signing method available: ZILLION_KMS_KEY_ARN not set and ' +
-      'MINT_PRIVATE_KEY_HEX not provided. Set one of these in Netlify env vars.'
+      'No signing method: set ZILLION_KMS_KEY_ARN (production) ' +
+      'or MINT_PRIVATE_KEY_HEX (dev) in Netlify environment variables.'
     );
   }
 
