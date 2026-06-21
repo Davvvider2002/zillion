@@ -72,6 +72,7 @@ exports.handler = async (event) => {
         settled_count:    result.settled.length,
         conflict_count:   result.conflicts.length,
         settled_coin_ids: result.settled,
+        confirmed_sent:   result.settled, // alias — sender uses this to remove PENDING_TRANSFER
         conflicts:        result.conflicts,
         sync_ts:          new Date().toISOString(),
       }),

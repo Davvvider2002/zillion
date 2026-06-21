@@ -77,7 +77,7 @@ function validateSyncBatch(body) {
   const errors = [];
   if (!body.device_id)               errors.push('MISSING: device_id');
   if (!Array.isArray(body.tx_batch)) errors.push('MISSING: tx_batch array');
-  if (body.tx_batch?.length === 0)   errors.push('EMPTY: tx_batch');
+  // Empty tx_batch is valid for heartbeat syncs (device registration with no pending coins)
   if (body.tx_batch?.length > 100)   errors.push('TOO_LARGE: max 100 transactions per sync');
 
   for (const tx of (body.tx_batch || [])) {

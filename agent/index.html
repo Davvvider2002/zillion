@@ -1645,6 +1645,36 @@ async function agentDrainPendingReceives() {
   if (settled) notify('\u2705 ' + settled + ' receive(s) registered with registry');
 }
 
+
+// ── Sprint 1: Offline coin expiry check ─────────────────────────
+// Checks expiry before accepting any coin, without a server call.
+// Called from processZilFile, handleQRResult, confirmNFCImport.
+function checkCoinExpiry(coin) {
+  if (!coin || !coin.expires_at) return { ok: true }; // no expiry field = accept
+  const now       = new Date();
+  const expiresAt = new Date(coin.expires_at);
+  const graceEnd  = new Date(expiresAt.getTime() + 7 * 24 * 3600 * 1000);
+  if (now <= expiresAt)  return { ok: true, status: 'valid' };
+  if (now <= graceEnd)   return { ok: false, grace: true,
+    message: 'This coin has expired but is in the 7-day grace period. Take it to any Zillion agent to redeem for cash before ' +
+      graceEnd.toLocaleDateString('en-NG', {day:'numeric',month:'short',year:'numeric'}) + '.' };
+  return { ok: false, grace: false,
+    message: 'This coin expired on ' + expiresAt.toLocaleDateString('en-NG') +
+      ' and the grace period has passed. This coin has no value.' };
+}
+
+function validateCoinBundle(coins) {
+  // Returns { valid: coin[], expired: coin[], grace: coin[], invalid: coin[] }
+  const valid = [], expired = [], grace = [], invalid = [];
+  for (const coin of (coins || [])) {
+    const check = checkCoinExpiry(coin);
+    if (check.ok)       valid.push(coin);
+    else if (check.grace) grace.push({...coin, _expiry_msg: check.message});
+    else                expired.push({...coin, _expiry_msg: check.message});
+  }
+  return { valid, expired, grace };
+}
+
 </script>
 </body>
 </html>

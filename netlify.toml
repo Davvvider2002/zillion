@@ -170,3 +170,23 @@
   from = "/admin/"
   to   = "/admin/index.html"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/health"
+  to   = "/.netlify/functions/health"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/mint-public-keys"
+  to   = "/.netlify/functions/mint-public-keys"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coins/grace"
+  to   = "/.netlify/functions/coins-grace"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coins/grace-redeem"
+  to   = "/.netlify/functions/coins-grace-redeem"
+  status = 200

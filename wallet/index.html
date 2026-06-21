@@ -3094,115 +3094,36 @@ function saveRequestQR() {
 // switchRecvTab already handles 'nfc' via the extended HTML panel
 // Just wire the recv-tab-nfc button to show the panel directly
 
+
+// ── Sprint 1: Offline coin expiry check ─────────────────────────
+// Checks expiry before accepting any coin, without a server call.
+// Called from processZilFile, handleQRResult, confirmNFCImport.
+function checkCoinExpiry(coin) {
+  if (!coin || !coin.expires_at) return { ok: true }; // no expiry field = accept
+  const now       = new Date();
+  const expiresAt = new Date(coin.expires_at);
+  const graceEnd  = new Date(expiresAt.getTime() + 7 * 24 * 3600 * 1000);
+  if (now <= expiresAt)  return { ok: true, status: 'valid' };
+  if (now <= graceEnd)   return { ok: false, grace: true,
+    message: 'This coin has expired but is in the 7-day grace period. Take it to any Zillion agent to redeem for cash before ' +
+      graceEnd.toLocaleDateString('en-NG', {day:'numeric',month:'short',year:'numeric'}) + '.' };
+  return { ok: false, grace: false,
+    message: 'This coin expired on ' + expiresAt.toLocaleDateString('en-NG') +
+      ' and the grace period has passed. This coin has no value.' };
+}
+
+function validateCoinBundle(coins) {
+  // Returns { valid: coin[], expired: coin[], grace: coin[], invalid: coin[] }
+  const valid = [], expired = [], grace = [], invalid = [];
+  for (const coin of (coins || [])) {
+    const check = checkCoinExpiry(coin);
+    if (check.ok)       valid.push(coin);
+    else if (check.grace) grace.push({...coin, _expiry_msg: check.message});
+    else                expired.push({...coin, _expiry_msg: check.message});
+  }
+  return { valid, expired, grace };
+}
+
 </script>
-
-<!-- ═══════════════════════════════════════════════════════════
-     COIN ACTION BOTTOM SHEET
-══════════════════════════════════════════════════════════════ -->
-<div id="coin-sheet-overlay" onclick="closeCoinSheet()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;backdrop-filter:blur(2px)"></div>
-<div id="coin-sheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--w);border-radius:20px 20px 0 0;z-index:201;padding-bottom:env(safe-area-inset-bottom)">
-  <div style="width:40px;height:4px;background:var(--d3);border-radius:2px;margin:12px auto 0"></div>
-  <div style="padding:16px 20px 8px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <div id="cs-id" style="font-size:10px;font-family:monospace;color:var(--gm);margin-bottom:4px"></div>
-        <div id="cs-amount" style="font-size:26px;font-weight:800;color:var(--tx)"></div>
-        <div id="cs-status" style="font-size:12px;margin-top:4px"></div>
-      </div>
-      <button onclick="copyCoinId()" style="padding:8px 14px;background:var(--d2);border:none;border-radius:10px;font-size:12px;color:var(--gm);cursor:pointer;font-family:inherit">📋 Copy ID</button>
-    </div>
-  </div>
-  <div id="cs-pending-banner" style="display:none;margin:0 16px 12px;padding:10px 14px;background:#FEF3C7;border-radius:10px;font-size:12px;color:#92400E;font-weight:600">
-    ⚡ This coin has a pending transfer. Choose an action below.
-  </div>
-  <!-- Transfer actions -->
-  <div style="padding:0 16px 8px">
-    <div style="font-size:11px;font-weight:700;color:var(--gm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">TRANSFER THIS COIN</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <button onclick="coinSheetQR()" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:var(--d2);border:none;border-radius:14px;cursor:pointer;font-family:inherit">
-        <span style="font-size:28px;margin-bottom:6px">📲</span>
-        <span style="font-size:13px;font-weight:700;color:var(--tx)">QR Code</span>
-        <span style="font-size:10px;color:var(--gm)">Scan to receive</span>
-      </button>
-      <button onclick="coinSheetWhatsApp()" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:#DCFCE7;border:none;border-radius:14px;cursor:pointer;font-family:inherit">
-        <span style="font-size:28px;margin-bottom:6px">📱</span>
-        <span style="font-size:13px;font-weight:700;color:#15803D">WhatsApp</span>
-        <span style="font-size:10px;color:#166534">Share .zil file</span>
-      </button>
-      <button onclick="coinSheetNFC()" id="cs-nfc-btn" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:var(--d2);border:none;border-radius:14px;cursor:pointer;font-family:inherit">
-        <span style="font-size:28px;margin-bottom:6px">📡</span>
-        <span style="font-size:13px;font-weight:700;color:var(--tx)">NFC Tap</span>
-        <span style="font-size:10px;color:var(--gm)">Tap phones together</span>
-      </button>
-      <button onclick="coinSheetFile()" class="cs-btn" style="display:flex;flex-direction:column;align-items:center;padding:16px 10px;background:var(--d2);border:none;border-radius:14px;cursor:pointer;font-family:inherit">
-        <span style="font-size:28px;margin-bottom:6px">📄</span>
-        <span style="font-size:13px;font-weight:700;color:var(--tx)">.zil File</span>
-        <span style="font-size:10px;color:var(--gm)">Save or share</span>
-      </button>
-    </div>
-  </div>
-  <!-- Danger actions -->
-  <div id="cs-pending-actions" style="display:none;padding:0 16px 8px">
-    <div style="font-size:11px;font-weight:700;color:#EF4444;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">PENDING TRANSFER</div>
-    <button onclick="coinSheetCancel()" style="width:100%;padding:13px;background:#FEE2E2;border:none;border-radius:12px;font-size:14px;font-weight:700;color:#DC2626;cursor:pointer;font-family:inherit;margin-bottom:8px">
-      ✕ Cancel Transfer & Reclaim Coin
-    </button>
-  </div>
-  <div style="height:16px"></div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════
-     REQUEST MONEY SCREEN  
-══════════════════════════════════════════════════════════════ -->
-<div id="screen-request" class="screen hidden">
-  <div class="sb"></div>
-  <div class="hdr">
-    <button class="hdr-back" onclick="goBack()">‹</button>
-    <div class="hdr-title">Request Payment</div>
-    <div style="width:40px"></div>
-  </div>
-  <div class="ob-body">
-    <div class="field-group" style="margin-bottom:16px">
-      <label class="field-label">Amount (₦)</label>
-      <input class="field-input" type="number" id="req-amount" placeholder="e.g. 1000" inputmode="numeric" min="100" oninput="updateRequestQR()">
-    </div>
-    <div class="field-group" style="margin-bottom:20px">
-      <label class="field-label">Note (optional)</label>
-      <input class="field-input" type="text" id="req-note" placeholder="e.g. Rent payment" oninput="updateRequestQR()">
-    </div>
-    <div id="req-qr-wrap" style="display:none;background:var(--d2);border-radius:16px;padding:20px;text-align:center;margin-bottom:16px">
-      <div style="font-size:13px;color:var(--gm);font-weight:600;margin-bottom:12px">Scan to pay me</div>
-      <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div id="req-qr-canvas" style="background:#fff;padding:10px;border-radius:10px"></div>
-      </div>
-      <div id="req-amount-label" style="font-size:22px;font-weight:800;color:#fff"></div>
-      <div id="req-note-label" style="font-size:12px;color:var(--gm);margin-top:4px"></div>
-      <div style="margin-top:14px;display:flex;gap:8px">
-        <button onclick="shareRequestQR()" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">📱 Share via WhatsApp</button>
-        <button onclick="saveRequestQR()" style="padding:11px 14px;background:var(--bll);color:var(--bl);border:none;border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">💾</button>
-      </div>
-    </div>
-    <div id="req-placeholder" class="wa-info">
-      <span class="wa-info-icon">💰</span>
-      <div class="wa-info-title">Request Payment</div>
-      <div class="wa-info-steps">
-        <li>✅ Enter the amount you want to receive</li>
-        <li>✅ A QR code appears instantly</li>
-        <li>✅ Share it via WhatsApp or let them scan</li>
-        <li>✅ Works completely offline</li>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- NFC overlay -->
-<div id="nfc-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px">
-  <div style="font-size:72px;animation:pulse 1.2s infinite">📡</div>
-  <div style="color:#fff;font-size:22px;font-weight:800;margin-top:20px;text-align:center">Hold phones together</div>
-  <div style="color:#9CA3AF;font-size:14px;margin-top:10px;text-align:center">Keep touching until transfer completes</div>
-  <div id="nfc-status" style="color:#22C55E;font-size:14px;font-weight:700;margin-top:20px"></div>
-  <button onclick="cancelNFC()" style="margin-top:32px;padding:14px 32px;background:#374151;color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-family:inherit">Cancel</button>
-</div>
-
 </body>
 </html>
