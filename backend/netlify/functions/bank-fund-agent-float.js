@@ -96,7 +96,8 @@ exports.handler = async (event) => {
   await db.from('agents').update({ float_balance_kobo: newFloat }).eq('agent_id', agent_id);
 
   // Audit log in float_topups
-  await db.from('float_topups').insert({
+  try {
+    await db.from('float_topups').insert({
     agent_id,
     amount_kobo,
     denomination_kobo,
@@ -106,7 +107,8 @@ exports.handler = async (event) => {
     deposit_ref:   bank_ref,
     approved_by:   `BANK:${auth.bank_id}:${gl_account}`,
     created_at:    now,
-  }).catch(() => {});
+  });
+  } catch(e) { console.warn('[supabase] non-fatal:', e.message); }
 
   console.log(`[bank-fund-float] ✅ ${auth.bank_id} funded ${agent_id} ₦${amount_kobo/100} ref=${bank_ref}`);
 

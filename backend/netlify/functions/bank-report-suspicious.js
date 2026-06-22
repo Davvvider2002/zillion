@@ -42,19 +42,23 @@ exports.handler = async (event) => {
     .select('coin_id, amount');
 
   // Deactivate device
-  await db.from('devices').update({ status: 'SUSPENDED' })
-    .eq('device_hash', customer_id).catch(() => {});
+  try {
+    await db.from('devices').update({ status: 'SUSPENDED' })
+      .eq('device_hash', customer_id);
+  } catch(e) { console.warn('[bank-suspicious] device suspend warn:', e.message); }
 
   // Log fraud event
   const caseId = `CASE-${Date.now()}-${customer_id.slice(0, 8)}`;
-  await db.from('fraud_events').insert({
-    device_hash: customer_id,
-    event_type:  'BANK_SUSPICIOUS_REPORT',
-    coin_id:     null,
-    reason:      `${reason} | Bank: ${auth.bank_id} | Ref: ${reference}`,
-    resolved:    false,
-    created_at:  now,
-  }).catch(() => {});
+  try {
+    await db.from('fraud_events').insert({
+      device_hash: customer_id,
+      event_type:  'BANK_SUSPICIOUS_REPORT',
+      coin_id:     null,
+      reason:      `${reason} | Bank: ${auth.bank_id} | Ref: ${reference}`,
+      resolved:    false,
+      created_at:  now,
+    });
+  } catch(e) { console.warn('[bank-suspicious] fraud_events warn:', e.message); }
 
   const frozenCount = frozen?.length || 0;
   const frozenKobo  = (frozen || []).reduce((s, c) => s + (c.amount || 0), 0);

@@ -60,7 +60,8 @@ exports.handler = async (event) => {
 
   // Log fraud event for each frozen coin
   if (frozenCount > 0) {
-    await db.from('fraud_events').insert(
+    try {
+      await db.from('fraud_events').insert(
       (frozen || []).map(c => ({
         device_hash: c.holder_hash || 'UNKNOWN',
         event_type:  'ADMIN_FREEZE',
@@ -68,8 +69,8 @@ exports.handler = async (event) => {
         reason,
         resolved:    false,
         created_at:  now,
-      }))
-    ).catch(() => {}); // non-fatal
+      })));
+    } catch(e) { console.warn('[supabase] non-fatal:', e.message); } // non-fatal
   }
 
   console.log(`[coins-freeze] Admin ${auth.payload.sub} froze ${frozenCount} coins. Reason: ${reason}`);
