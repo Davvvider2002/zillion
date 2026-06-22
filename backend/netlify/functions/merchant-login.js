@@ -1,50 +1,102 @@
 /**
  * POST /api/v1/merchant-login
- * Merchants register/login with phone + device.
- * Returns JWT with role=merchant.
+ * Sprint 4 fix: Merchants must authenticate with phone + password.
+ * Password verified against HMAC-SHA256 hash stored at registration.
+ * Returns JWT with role=merchant on success.
+ *
+ * Body: { phone, password, device_id?, business_name? }
  */
 'use strict';
+
 const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 
 function signJWT(payload) {
-  const secret  = process.env.JWT_SECRET || 'zillion-jwt-secret';
-  const header  = Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
-  const body    = Buffer.from(JSON.stringify({...payload, iat:Math.floor(Date.now()/1000), exp:Math.floor(Date.now()/1000)+31536000})).toString('base64url');
-  const sig     = createHmac('sha256',secret).update(`${header}.${body}`).digest('base64url');
+  const secret = process.env.JWT_SECRET || 'zillion-jwt-secret';
+  const header = Buffer.from(JSON.stringify({ alg:'HS256', typ:'JWT' })).toString('base64url');
+  const body   = Buffer.from(JSON.stringify({
+    ...payload,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 31536000, // 1 year
+  })).toString('base64url');
+  const sig = createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url');
   return `${header}.${body}.${sig}`;
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST')
-    return { statusCode:405, body:JSON.stringify({error:'Method Not Allowed'}) };
+  const hdr = { 'Content-Type': 'application/json' };
+  const ok  = b    => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
+  const err = (c,m)=> ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
+
+  if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
 
   let body;
-  try { body = JSON.parse(event.body); }
-  catch { return { statusCode:400, body:JSON.stringify({error:'Invalid JSON'}) }; }
+  try { body = JSON.parse(event.body || '{}'); }
+  catch { return err(400, 'Invalid JSON'); }
 
-  const { phone, device_id, business_name, location } = body;
-  if (!phone) return { statusCode:400, body:JSON.stringify({error:'phone required'}) };
+  const { phone, password, device_id, business_name } = body;
 
-  const merchantId = 'MERCH-' + phone.replace(/\D/g,'').slice(-8);
+  if (!phone)    return err(400, 'Phone number required');
+  if (!password) return err(400, 'Password required');
+
+  const normalised = phone.startsWith('+') ? phone
+    : phone.startsWith('0') ? '+234' + phone.slice(1)
+    : '+234' + phone;
+
+  const merchantId = 'MERCH-' + normalised.replace(/\D/g,'').slice(-8);
+
+  const db = getServiceClient();
+
+  // Look up merchant record
+  const { data: merchant, error } = await db
+    .from('merchants')
+    .select('merchant_id, phone, business_name, owner_name, location, password_hash')
+    .eq('merchant_id', merchantId)
+    .single();
+
+  if (error || !merchant) {
+    return err(401, 'No account found for this phone number. Please register first.');
+  }
+
+  // Verify password
+  if (!merchant.password_hash) {
+    // Legacy merchant created before password requirement — prompt re-registration
+    return err(401,
+      'Your account was created before password authentication was added. ' +
+      'Please register again to set a password.');
+  }
+
+  const providedHash = createHmac('sha256', process.env.JWT_SECRET || 'zillion-jwt')
+    .update(password).digest('hex');
+
+  // Constant-time compare
+  const expBuf = Buffer.from(merchant.password_hash, 'hex');
+  const prvBuf = Buffer.from(providedHash,            'hex');
+  const match  = expBuf.length === prvBuf.length &&
+    require('crypto').timingSafeEqual(expBuf, prvBuf);
+
+  if (!match) {
+    return err(401, 'Incorrect password. Please try again.');
+  }
+
   const token = signJWT({
-    sub:           merchantId,
-    merchant_id:   merchantId,
-    phone,
+    sub:           merchant.merchant_id,
+    merchant_id:   merchant.merchant_id,
+    phone:         normalised,
     device_id:     device_id || 'UNKNOWN',
-    business_name: business_name || 'Zillion Merchant',
-    location:      location || '',
+    business_name: merchant.business_name,
+    owner_name:    merchant.owner_name,
+    location:      merchant.location || '',
     role:          'merchant',
   });
 
-  return {
-    statusCode: 200,
-    headers:    {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      success:      true,
-      token,
-      merchant_id:  merchantId,
-      business_name: business_name || 'Zillion Merchant',
-    }),
-  };
+  console.log(`[merchant-login] ✅ ${merchant.merchant_id} authenticated`);
+
+  return ok({
+    success:       true,
+    token,
+    merchant_id:   merchant.merchant_id,
+    business_name: merchant.business_name,
+    owner_name:    merchant.owner_name,
+  });
 };

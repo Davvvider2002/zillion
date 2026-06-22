@@ -349,6 +349,18 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
         <input type="text" id="ob-loc" placeholder="e.g. Mushin Market, Lagos">
       </div>
 
+      <div class="ob-field">
+        <label>Create Password</label>
+        <input type="password" id="ob-password" placeholder="At least 6 characters" autocomplete="new-password">
+        <div style="font-size:11px;color:var(--pm);margin-top:4px">
+          You will use this password to log in. Keep it safe.
+        </div>
+      </div>
+      <div class="ob-field">
+        <label>Confirm Password</label>
+        <input type="password" id="ob-password2" placeholder="Repeat your password" autocomplete="new-password">
+      </div>
+
       <div class="ob-btn-row">
         <button class="ob-btn secondary" style="flex:0.6" onclick="showPanel('ob-step1')">‹ Back</button>
         <button class="ob-btn primary" onclick="validateStep2()">Next →</button>
@@ -395,8 +407,8 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
         <input type="tel" id="l-phone" placeholder="08012345678" inputmode="numeric">
       </div>
       <div class="ob-field">
-        <label>Business Name</label>
-        <input type="text" id="l-biz" placeholder="Your registered business name">
+        <label>Password</label>
+        <input type="password" id="l-password" placeholder="Your account password" autocomplete="current-password">
       </div>
 
       <div class="ob-err" id="l-err"></div>
@@ -756,10 +768,14 @@ function validateStep1() {
 
 // ── Validate step 2 ───────────────────────────────────────────
 function validateStep2() {
-  const biz = document.getElementById('ob-biz').value.trim();
-  const loc = document.getElementById('ob-loc').value.trim();
-  if (!biz) { alert('Please enter your business name'); return; }
-  if (!loc) { alert('Please enter your market or location'); return; }
+  const biz  = document.getElementById('ob-biz').value.trim();
+  const loc  = document.getElementById('ob-loc').value.trim();
+  const pwd  = document.getElementById('ob-password')?.value  || '';
+  const pwd2 = document.getElementById('ob-password2')?.value || '';
+  if (!biz)         { alert('Please enter your business name'); return; }
+  if (!loc)         { alert('Please enter your market or location'); return; }
+  if (pwd.length < 6)  { alert('Password must be at least 6 characters'); return; }
+  if (pwd !== pwd2) { alert('Passwords do not match. Please re-enter.'); return; }
   buildConfirmSummary();
   showPanel('ob-step3');
 }
@@ -797,7 +813,7 @@ async function doRegister() {
     const res  = await fetch(API+'/merchant-register', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ phone, owner_name:owner, business_name:biz, business_type:bizType, location:loc }),
+      body:JSON.stringify({ phone, owner_name:owner, business_name:biz, business_type:bizType, location:loc, password: document.getElementById('ob-password')?.value || '' }),
     });
     const data = await res.json();
     hideL();
@@ -830,12 +846,12 @@ async function doRegister() {
 // ── Login (returning) ──────────────────────────────────────────
 async function doLogin() {
   const rawPhone = document.getElementById('l-phone').value.trim();
-  const biz      = document.getElementById('l-biz').value.trim();
+  const password = document.getElementById('l-password')?.value || '';
   const errEl    = document.getElementById('l-err');
   errEl.className = 'ob-err';
 
-  if (!rawPhone) { errEl.textContent='Phone required'; errEl.className='ob-err show'; return; }
-  if (!biz)      { errEl.textContent='Business name required'; errEl.className='ob-err show'; return; }
+  if (!rawPhone)         { errEl.textContent='Phone required'; errEl.className='ob-err show'; return; }
+  if (password.length < 6) { errEl.textContent='Password required (min 6 chars)'; errEl.className='ob-err show'; return; }
 
   const phone = rawPhone.startsWith('+') ? rawPhone : rawPhone.startsWith('0') ? '+234'+rawPhone.slice(1) : '+234'+rawPhone;
   showL('Logging in...');
@@ -844,7 +860,7 @@ async function doLogin() {
     const res  = await fetch(API+'/merchant-login', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ phone, business_name:biz }),
+      body:JSON.stringify({ phone, password }),
     });
     const data = await res.json();
     hideL();

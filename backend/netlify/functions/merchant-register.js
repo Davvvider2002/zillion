@@ -29,10 +29,17 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body); }
   catch { return { statusCode:400, body:JSON.stringify({error:'Invalid JSON'}) }; }
 
-  const { phone, business_name, business_type, location, owner_name, device_id } = body;
+  const { phone, business_name, business_type, location, owner_name, device_id, password } = body;
   if (!phone)         return { statusCode:400, body:JSON.stringify({error:'phone required'}) };
   if (!business_name) return { statusCode:400, body:JSON.stringify({error:'business_name required'}) };
   if (!owner_name)    return { statusCode:400, body:JSON.stringify({error:'owner_name required'}) };
+  if (!password || password.length < 6)
+    return { statusCode:400, body:JSON.stringify({error:'Password must be at least 6 characters'}) };
+
+  // Hash password with HMAC-SHA256 — never store plaintext
+  const password_hash = require('crypto')
+    .createHmac('sha256', process.env.JWT_SECRET || 'zillion-jwt')
+    .update(password).digest('hex');
 
   const normalised = phone.startsWith('+') ? phone
     : phone.startsWith('0') ? '+234'+phone.slice(1)
@@ -49,6 +56,7 @@ exports.handler = async (event) => {
       .upsert({
         merchant_id:   merchantId,
         phone:         normalised,
+        password_hash: password_hash,
         owner_name,
         business_name,
         business_type: business_type || 'General',

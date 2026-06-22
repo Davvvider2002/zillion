@@ -557,6 +557,16 @@ async function doCashIn() {
   const denom  = parseInt(document.getElementById('cidn').value);
   clearRes('cires'); document.getElementById('ciqr').classList.remove('show');
   if (!phone || !amount) { showRes('cires','err','⚠️ Fill in phone and amount','',''); return; }
+  // Zero-float guard — cannot issue if float is empty
+  const agentFloat = AP.float_balance_kobo || 0;
+  if (agentFloat <= 0) {
+    showRes('cires','err','⚠️ Your float is empty. Request a float top-up from admin before issuing coins.','','');
+    return;
+  }
+  if (amount > agentFloat) {
+    showRes('cires','err',`⚠️ Insufficient float. You have ₦${(agentFloat/100).toLocaleString()} available but tried to issue ₦${(amount/100).toLocaleString()}.`,'','');
+    return;
+  }
   showL('Issuing coins...');
   try {
     const rh = await ownerHash(phone, device);

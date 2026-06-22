@@ -2598,6 +2598,7 @@ let _sendQrTimer    = null;
 let _sendQrBundle   = null;
 
 async function generateSendQR() {
+  if (!assertBalance('QR generate')) return;
   const errEl = document.getElementById('send-qr-error');
   errEl.style.display = 'none';
   const amount = STATE.sendAmount;
@@ -2873,6 +2874,7 @@ function copyCoinId() {
 }
 
 function coinSheetQR() {
+  if (!assertBalance('QR')) return;
   closeCoinSheet();
   setTimeout(() => {
     const c = STATE.vault[_activeCoinIdx];
@@ -2885,6 +2887,7 @@ function coinSheetQR() {
 }
 
 function coinSheetWhatsApp() {
+  if (!assertBalance('WhatsApp')) return;
   closeCoinSheet();
   setTimeout(() => {
     const c = STATE.vault[_activeCoinIdx];
@@ -3231,6 +3234,26 @@ async function loadKYCTier(token) {
   } catch (e) {
     console.warn('[kyc-limits] Could not load tier info:', e.message);
   }
+}
+
+
+// ── Zero-balance send guard ──────────────────────────────────────
+function getAvailableBalance() {
+  return (STATE.vault || [])
+    .filter(c => c._status === 'HELD')
+    .reduce((s,c) => s + (c.amount || c.value_kobo || 0), 0);
+}
+
+function assertBalance(action) {
+  const bal = getAvailableBalance();
+  if (bal <= 0) {
+    showToast(
+      'You have no available balance. Visit any Zillion agent to add funds first.',
+      'error'
+    );
+    return false;
+  }
+  return true;
 }
 
 </script>

@@ -189,7 +189,7 @@ check_html(f"{ROOT}/merchant/index.html", "MERCHANT", {
     'ids': ['ob-wrap','ob-splash','ob-step1','ob-step2','ob-step3','ob-login',
             'ob-owner','ob-phone','ob-biz','ob-type','ob-loc',
             'ob-confirm-summary','ob-reg-btn','ob-err',
-            'l-phone','l-biz','l-err',
+            'l-phone','l-password','l-err',
             'app-shell','screen-home','screen-scan','screen-myqr',
             'screen-cashout','screen-profile',
             'scan-video','pay-result','pr-accept-btn',
