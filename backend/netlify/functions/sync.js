@@ -63,6 +63,35 @@ exports.handler = async (event) => {
       ? await processSyncBatch(body.tx_batch)
       : { settled: [], conflicts: [] };
 
+    // ── Update merchant balance in DB if recipient is a merchant ──
+    if (result.settled && result.settled.length > 0 && body.device_id) {
+      const deviceId = body.device_id; // e.g. 'MERCHANT-MERCH-21685478'
+      if (deviceId.startsWith('MERCHANT-')) {
+        const merchantId = deviceId.replace('MERCHANT-', '');
+        // Sum settled amounts from this batch
+        const settledAmount = (body.tx_batch || [])
+          .filter(tx => result.settled.includes(tx.coin_id))
+          .reduce((s, tx) => s + (tx.value_kobo || tx.amount || 0), 0);
+        if (settledAmount > 0) {
+          try {
+            // Fetch current balance
+            const { data: merch } = await db.from('merchants')
+              .select('zil_balance_kobo, total_received_kobo')
+              .eq('merchant_id', merchantId).single();
+            if (merch) {
+              await db.from('merchants').update({
+                zil_balance_kobo:     (merch.zil_balance_kobo     || 0) + settledAmount,
+                total_received_kobo:  (merch.total_received_kobo  || 0) + settledAmount,
+                last_login:           new Date().toISOString(),
+              }).eq('merchant_id', merchantId);
+            }
+          } catch(e) {
+            console.warn('[sync] merchant balance update warn:', e.message);
+          }
+        }
+      }
+    }
+
     // ── Sprint 3: Write settled transactions to bank feed queue ──
     if (result.settled && result.settled.length > 0) {
       const feedItems = result.settled.map(coinId => {

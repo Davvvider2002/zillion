@@ -24,20 +24,34 @@ exports.handler = async (event) => {
 
     if (error) throw error;
 
-    // Get claim activity per merchant (payments received)
-    const { data:claims } = await db
-      .from('claim_bundles')
-      .select('agent_id, amount_kobo, status, created_at')
-      .like('agent_id', 'MERCH-%');
+    // Get recent transactions per merchant for accurate payment count
+    // The merchants table columns zil_balance_kobo and total_received_kobo
+    // are updated in real-time by sync.js after every settlement.
+    const { data:txData } = await db
+      .from('transactions')
+      .select('to_hash, amount, status, tx_ts')
+      .in('status', ['SETTLED'])
+      .order('tx_ts', { ascending: false });
 
     const enriched = (merchants||[]).map(m => {
-      const mClaims = (claims||[]).filter(c=>c.agent_id===m.merchant_id);
-      const received = mClaims.filter(c=>c.status==='CLAIMED');
+      // Match any to_hash variant that could be this merchant
+      const mTxns = (txData||[]).filter(t =>
+        t.to_hash === m.merchant_id ||
+        t.to_hash === 'MERCHANT-' + m.merchant_id ||
+        t.to_hash === (m.merchant_id||'').replace('MERCH-','MERCHANT-')
+      );
+      // Prefer live DB columns if populated (updated by sync.js)
+      const dbTotal    = m.total_received_kobo || 0;
+      const dbBalance  = m.zil_balance_kobo    || 0;
+      const txTotal    = mTxns.reduce((s,t)=>s+(t.amount||0),0);
+      const totalReceived = Math.max(dbTotal, txTotal);
+
       return {
         ...m,
-        total_payments:        received.length,
-        total_received_kobo:   received.reduce((s,c)=>s+c.amount_kobo,0),
-        pending_claims:        mClaims.filter(c=>c.status==='PENDING').length,
+        total_payments:       Math.max(m.total_payments||0, mTxns.length),
+        total_received_kobo:  totalReceived,
+        zil_balance_kobo:     dbBalance || txTotal,
+        last_payment_at:      mTxns.length ? mTxns[0].tx_ts : m.last_login || null,
       };
     });
 

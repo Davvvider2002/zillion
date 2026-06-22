@@ -686,6 +686,14 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
         <div style="background:var(--w);border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Net Balance</div><div id="hist-net" style="font-size:15px;font-weight:800;color:var(--tx)">&#x20a6;0.00</div></div>
       </div>
       <div id="hist-full-list" style="background:var(--w);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)"></div>
+
+      <!-- Vault Coins section -->
+      <div id="merchant-vault-section" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--grb)">
+        <div style="font-size:12px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
+          Coins in Vault <span id="vault-count" style="font-weight:400;color:var(--pm)"></span>
+        </div>
+        <div id="merchant-vault-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
     </div>
   </div>
   <div id="screen-profile" class="screen">
@@ -1284,20 +1292,27 @@ function saveCashoutImg(){if(!M.coQrImg){toast('No image',true);return;}const a=
 // ── Profile ────────────────────────────────────────────────────
 function refreshProfile() {
   const ini=(M.business_name||'ZL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  const bal=M.vault.reduce((s,c)=>s+(c.amount||0),0);
-  const total=M.history.filter(h=>h.type==='received').reduce((s,h)=>s+h.amount,0);
+  // Use same settled-history calc as home screen — NOT raw vault sum
+  // Vault sum ≠ available balance because vault may include partially cashed-out coins
+  const received   = M.history.filter(h => h.type === 'received');
+  const cashedOut  = M.history.filter(h => h.type === 'cashout');
+  const settledAmt = received.filter(h=>h.status==='SETTLED').reduce((s,h)=>s+h.amount,0);
+  const coAmt      = cashedOut.reduce((s,h)=>s+h.amount,0);
+  const availAmt   = Math.max(0, settledAmt - coAmt);  // matches home screen
+  const totalAmt   = received.reduce((s,h)=>s+h.amount,0); // all received incl pending
   setText('prof-avatar', ini);
   setText('prof-name',   M.business_name||'—');
   setText('prof-id',     M.merchant_id||'—');
   const rows=[
-    ['Owner',      M.owner_name||'—'],
-    ['Business',   M.business_name||'—'],
-    ['Type',       M.business_type||'—'],
-    ['Location',   M.location||'—'],
-    ['Phone',      M.phone||'—'],
-    ['Merchant ID',M.merchant_id||'—'],
-    ['Zil Balance',fmt(bal)],
-    ['Total Received',fmt(total)],
+    ['Owner',         M.owner_name||'—'],
+    ['Business',      M.business_name||'—'],
+    ['Type',          M.business_type||'—'],
+    ['Location',      M.location||'—'],
+    ['Phone',         M.phone||'—'],
+    ['Merchant ID',   M.merchant_id||'—'],
+    ['Available Bal', fmt(availAmt)],
+    ['Total Received',fmt(totalAmt)],
+    ['Coins in Vault',M.vault.length + ' coin' + (M.vault.length!==1?'s':'')],
   ];
   document.getElementById('prof-rows').innerHTML=rows.map(([k,v])=>
     '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--grb)">'+
@@ -1420,7 +1435,10 @@ async function merchantSync() {
       });
       save();
       mSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
-      if (typeof refreshHistory === 'function') refreshHistory();
+      refreshHome();
+      if (typeof refreshFullHistory === 'function') refreshFullHistory();
+      if (typeof refreshVaultList    === 'function') refreshVaultList();
+      if (typeof refreshProfile      === 'function') refreshProfile();
     } else {
       // Sync API rejected — show specific error, keep green dot (we're still online)
       const errMsg = data.error || ('Server error ' + res.status);
@@ -1686,6 +1704,7 @@ function refreshFullHistory() {
       + '<div style="font-size:14px;font-weight:700;'+amtClr+'">'+sign+fmt(h.amount)+'</div>'
       + '</div>';
   }).join('');
+  refreshVaultList();
 }
 
 
@@ -1716,6 +1735,53 @@ function validateCoinBundle(coins) {
     else                expired.push({...coin, _expiry_msg: check.message});
   }
   return { valid, expired, grace };
+}
+
+
+// ── Render vault coins in History tab ────────────────────────────
+function refreshVaultList() {
+  const countEl = document.getElementById('vault-count');
+  const listEl  = document.getElementById('merchant-vault-list');
+  if (!listEl) return;
+
+  const coins = M.vault || [];
+  if (countEl) countEl.textContent = '(' + coins.length + ')';
+
+  if (!coins.length) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--gr);font-size:13px">' +
+      'No coins in vault. Accept payments to receive coins.</div>';
+    return;
+  }
+
+  listEl.innerHTML = coins.map(function(c) {
+    const amt       = c.amount || c.value_kobo || 0;
+    const status    = c._status || 'HELD';
+    const coinId    = c.coin_id || c.id || '—';
+    const expiresAt = c.expires_at ? new Date(c.expires_at) : null;
+    const expired   = expiresAt && expiresAt < new Date();
+    const statusColor = status === 'HELD'        ? 'var(--g)'
+                      : status === 'PENDING_SYNC' ? 'var(--am)'
+                      : '#888';
+    const expiryText = expiresAt
+      ? (expired ? '⚠️ Expired ' : 'Expires ') + expiresAt.toLocaleDateString('en-NG')
+      : '';
+
+    return '<div style="display:flex;justify-content:space-between;align-items:center;' +
+      'padding:10px 14px;background:var(--w);border-radius:10px;' +
+      'border:1px solid var(--grb)">' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700">' + fmt(amt) + '</div>' +
+        '<div style="font-size:10px;color:var(--gr);margin-top:2px">' +
+          coinId.slice(0,24) + '…</div>' +
+        (expiryText ? '<div style="font-size:10px;color:' + (expired?'var(--rd)':'var(--gr)') +
+          ';margin-top:1px">' + expiryText + '</div>' : '') +
+      '</div>' +
+      '<div style="font-size:11px;font-weight:700;color:' + statusColor + '">' +
+        (status === 'HELD' ? '✓ Held' :
+         status === 'PENDING_SYNC' ? '⟳ Syncing' : status) +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 </script>
