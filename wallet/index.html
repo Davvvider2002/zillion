@@ -1733,7 +1733,7 @@ function refreshHome() {
 
   const coinLabel = `${heldCoins.length} coin${heldCoins.length!==1?'s':''}` +
     (pendingSyncC.length ? ` · ${pendingSyncC.length} syncing` : '') +
-    (sentCoins.length    ? ` · ${sentCoins.length} sent` : '');
+    (sentCoins.length    ? ` · ${sentCoins.length} sent (syncing…)` : '');
   document.getElementById('home-coin-count').textContent = coinLabel;
   const syncEl = document.getElementById('home-sync-label');
   const hasToken = !!(STATE.user?.token || STATE.user?.agentToken);
@@ -1768,7 +1768,7 @@ function refreshVault() {
   document.getElementById('vault-total').textContent = fmtNaira(total);
   const sentCount = coins.length - activeCoinsList.length;
   let vaultLabel = `${activeCoinsList.length} coin${activeCoinsList.length!==1?'s':''}`;
-  if (sentCount) vaultLabel += ` · ${sentCount} sent (settling)`;
+  if (sentCount) vaultLabel += ` · ${sentCount} sent (syncing…)`;
   document.getElementById('vault-coin-count').textContent = vaultLabel;
   const el = document.getElementById('vault-list');
   if (!coins.length) {
@@ -1797,7 +1797,14 @@ function refreshVault() {
           <span style="font-size:18px;color:var(--gm);line-height:1">›</span>
         </div>
       </div>
-      ${c._status==='PENDING_TRANSFER'?`<div style="padding:0 16px 12px;font-size:11px;color:var(--am);font-weight:600">⚡ Tap to transfer, cancel or resend</div>`:''}
+      ${c._status==='PENDING_TRANSFER'?
+        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--am)">
+          ⏳ Sent — waiting for server confirmation. Syncing automatically when online.
+         </div>` : ''}
+      ${c._status==='SPENT_LOCAL'?
+        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--gr)">
+          ✓ Delivered locally. Will confirm on next sync.
+         </div>` : ''}
     </div>`).join('');
 }
 
@@ -1814,10 +1821,43 @@ function onSendAmountInput(el) {
 function updateSendDisplay() {
   const kobo = STATE.sendAmount;
   document.getElementById('send-display').textContent = fmtNaira(kobo);
-  const denom = 100000; // ₦1,000 default
-  const count = Math.ceil(kobo/denom);
-  document.getElementById('send-coins-label').textContent =
-    kobo > 0 ? `${count} × ${fmtNaira(denom)} coin${count!==1?'s':''}` : 'Select an amount below';
+  if (!kobo || kobo <= 0) {
+    document.getElementById('send-coins-label').textContent = 'Select an amount below';
+    return;
+  }
+  // Select actual coins that will be used (smallest-first greedy)
+  const available = (STATE.vault || []).filter(
+    c => c._status === 'HELD' || c._status === 'PENDING_SYNC'
+  );
+  const totalAvail = available.reduce((s,c) => s + (c.amount||c.value_kobo||0), 0);
+  if (kobo > totalAvail) {
+    document.getElementById('send-coins-label').textContent =
+      `Insufficient balance (have ${fmtNaira(totalAvail)})`;
+    return;
+  }
+  const sorted = [...available].sort((a,b) =>
+    (a.amount||a.value_kobo||0) - (b.amount||b.value_kobo||0)
+  );
+  let remain = kobo; const selected = [];
+  for (const c of sorted) {
+    if (remain <= 0) break;
+    selected.push(c);
+    remain -= (c.amount || c.value_kobo || 0);
+  }
+  // Build human label: "1 × ₦1,000 coin" or "2 coins (₦500 + ₦500)"
+  let label;
+  if (selected.length === 1) {
+    const coinAmt = selected[0].amount || selected[0].value_kobo || 0;
+    if (coinAmt === kobo) {
+      label = `1 × ${fmtNaira(coinAmt)} coin`;
+    } else {
+      label = `1 × ${fmtNaira(coinAmt)} coin · ${fmtNaira(coinAmt - kobo)} change`;
+    }
+  } else {
+    const parts = selected.map(c => fmtNaira(c.amount||c.value_kobo||0)).join(' + ');
+    label = `${selected.length} coins (${parts})`;
+  }
+  document.getElementById('send-coins-label').textContent = label;
 }
 function switchSendMethod(method, el) {
   STATE.sendMethod = method;
@@ -2292,6 +2332,20 @@ async function trySync() {
     updateConnBadge(false);
     updateSyncStatus('Offline - will retry when connected');
   }
+  // Auto-clear very old PENDING_TRANSFER coins (> 30 min) even if server didn't confirm
+  // This prevents coins getting permanently stuck when the registry doesn't have them
+  const thirtyMinAgo = Date.now() - 30 * 60 * 1000;
+  STATE.vault.forEach(c => {
+    if (c._status === 'PENDING_TRANSFER' || c._status === 'SPENT_LOCAL') {
+      const sentAt = c._sentAt ? new Date(c._sentAt).getTime() : 0;
+      if (sentAt && sentAt < thirtyMinAgo) {
+        c._status = 'SPENT_LOCAL'; // treat as sent — remove from spendable
+      }
+    }
+  });
+  // Remove SPENT_LOCAL coins from vault (they've been delivered)
+  STATE.vault = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
+  save(); refreshHome(); refreshVault();
 }
 
 // Auto-sync every 30s when online

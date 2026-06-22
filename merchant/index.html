@@ -880,7 +880,7 @@ async function doLogin() {
     }
 
     M.token=data.token; M.merchant_id=data.merchant_id;
-    M.phone=phone; M.business_name=biz;
+    M.phone=phone; M.business_name=data.business_name||'';
     if (data.owner_name) M.owner_name=data.owner_name;
     save();
     showApp();

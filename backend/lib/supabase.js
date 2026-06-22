@@ -117,9 +117,16 @@ async function processSyncBatch(txBatch) {
     const coinStatus = await getCoinStatus(tx.coin_id);
 
     if (!coinStatus) {
-      // Coin not in registry — could be offline-issued before this sync
-      // Accept it with PENDING status and mark for admin review
-      conflicts.push({ coin_id: tx.coin_id, reason: 'COIN_NOT_IN_REGISTRY' });
+      // Coin not in registry — two possible causes:
+      // A) Sent coin (is_sent=true): sender's coin was issued before registry sync.
+      //    From sender's perspective, the coin is gone — settle it for them.
+      // B) Received coin (is_sent=false): suspicious — flag as conflict.
+      if (rawTx.is_sent) {
+        settled.push(tx.coin_id);  // sender confirmation: coin is gone from their vault
+        console.log('[sync] Settling unregistered sent coin:', tx.coin_id);
+      } else {
+        conflicts.push({ coin_id: tx.coin_id, reason: 'COIN_NOT_IN_REGISTRY' });
+      }
       continue;
     }
 
