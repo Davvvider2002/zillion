@@ -34,7 +34,7 @@ exports.handler = async (event) => {
     .select('event_id, device_hash, event_type, coin_id, detected_at, resolved, resolution_note, resolved_at')
     .gte('detected_at', fromDate.toISOString())
     .lte('detected_at', toDate.toISOString())
-    .order('created_at', { ascending: false });
+    .order('detected_at', { ascending: false });
 
   // Optional filter: only unresolved
   if (resolved === 'false') query = query.eq('resolved', false);
