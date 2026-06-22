@@ -40,6 +40,30 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Validation failed', errors }) };
   }
 
+  // ── Rate limit: max 10 issue calls per agent per minute (G14) ──
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+    const rdb = createClient(
+      process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY,
+      { auth: { persistSession: false } }
+    );
+    const oneMinAgo = new Date(Date.now() - 60000).toISOString();
+    const { count: recentIssues } = await rdb
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('from_hash', body.agent_id)
+      .gte('sync_ts', oneMinAgo);
+    if ((recentIssues || 0) >= 10) {
+      return { statusCode: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '60' },
+        body: JSON.stringify({ error: 'Rate limit: max 10 coin issuances per minute per agent',
+          retry_after: 60 }) };
+    }
+  } catch (rateErr) {
+    console.warn('[issue] Rate limit check failed (non-fatal):', rateErr.message);
+    // Non-fatal — proceed if rate limit check itself fails
+  }
+
   // Check agent float — agent must have sufficient balance
   try {
     const agent = await getAgentFloat(body.agent_id);

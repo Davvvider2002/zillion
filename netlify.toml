@@ -190,3 +190,23 @@
   from = "/api/v1/coins/grace-redeem"
   to   = "/.netlify/functions/coins-grace-redeem"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/register-device"
+  to   = "/.netlify/functions/register-device"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/kyc/verify-nin"
+  to   = "/.netlify/functions/kyc-verify-nin"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/customer/limits"
+  to   = "/.netlify/functions/customer-limits"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coins/freeze"
+  to   = "/.netlify/functions/coins-freeze"
+  status = 200
