@@ -227,7 +227,17 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/bank/agent-float"
+  to   = "/.netlify/functions/bank-agent-float"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/bank/customer/:phone"
+  to   = "/.netlify/functions/bank-customer"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/bank/customer"
   to   = "/.netlify/functions/bank-customer"
   status = 200
 
