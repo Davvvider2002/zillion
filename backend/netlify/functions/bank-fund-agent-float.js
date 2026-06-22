@@ -80,19 +80,21 @@ exports.handler = async (event) => {
 
   // Insert coins to Supabase
   if (coins.length > 0) {
-    await db.from('coins').insert(coins.map(c => ({
-      coin_id:          c.coin_id,
-      amount:           c.amount,
-      currency:         c.currency || 'NGN',
-      status:           'ISSUED',
-      issuer_id:        agent_id,
-      holder_hash:      agent_id,
-      owner_hash:       agent_id,
-      issued_at:        c.issued_at,
-      expires_at:       c.expires_at,
-      signature:        c.signature,
-      payload_hash:     c.payload_hash,
-    }))).catch(e => console.warn('Coin insert warn:', e.message));
+    try {
+      await db.from('coins').insert(coins.map(c => ({
+        coin_id:          c.coin_id,
+        amount:           c.amount,
+        currency:         c.currency || 'NGN',
+        status:           'ISSUED',
+        issuer_id:        agent_id,
+        holder_hash:      agent_id,
+        owner_hash:       agent_id,
+        issued_at:        c.issued_at,
+        expires_at:       c.expires_at,
+        signature:        c.signature,
+        payload_hash:     c.payload_hash,
+      })));
+    } catch(e) { console.warn('[bank-fund-float] Coin insert warn:', e.message); }
   }
 
   // Update agent float

@@ -1,110 +1,96 @@
 /**
  * POST /api/v1/verify-otp
- * Verifies the OTP submitted by the user.
- *
- * Body:   { phone, otp }
- * Returns: { success, verified, token }
- *
- * Note: Because Netlify Functions are stateless, OTP_STORE is shared
- * only within the same warm Lambda instance. For production, move
- * the store to a Supabase table: otp_requests(phone, hash, expires_at, attempts)
+ * Sprint 1: Reads OTP from Supabase otp_requests table.
+ * No more in-memory dependency on send-otp.js warm instance.
  */
-
 'use strict';
+
 const { createHmac } = require('crypto');
-// Import the store from send-otp (same Lambda warm instance)
-// If instances are different, store will be empty → use Supabase in production
-let OTP_STORE, hashOtp;
-try {
-  const sms = require('./send-otp');
-  OTP_STORE = sms.OTP_STORE;
-  hashOtp   = sms.hashOtp;
-} catch {
-  OTP_STORE = new Map();
-  hashOtp   = (otp, phone) => {
-    const secret = process.env.OTP_SECRET || 'zillion-otp-secret-change-in-prod';
-    return createHmac('sha256', secret).update(`${otp}:${phone}`).digest('hex');
-  };
+const { createClient } = require('@supabase/supabase-js');
+
+function hashOtp(otp, phone) {
+  const secret = process.env.OTP_SECRET;
+  if (!secret) throw new Error('OTP_SECRET not configured');
+  return createHmac('sha256', secret).update(`${otp}:${phone}`).digest('hex');
+}
+
+function normalisePhone(phone) {
+  let p = phone.trim().replace(/\s/g,'');
+  if (p.startsWith('+'))   return p;
+  if (p.startsWith('234')) return '+' + p;
+  if (p.startsWith('0'))   return '+234' + p.slice(1);
+  return '+234' + p;
+}
+
+function getDb() {
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY,
+    { auth: { persistSession: false } });
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  const hdr = { 'Content-Type': 'application/json' };
+  const ok  = b => ({ statusCode:200, headers:hdr, body:JSON.stringify(b) });
+  const err = (code,msg,extra={}) => ({ statusCode:code, headers:hdr,
+    body:JSON.stringify({ error:msg, ...extra }) });
+
+  if (event.httpMethod !== 'POST') return err(405,'Method Not Allowed');
+  if (!process.env.OTP_SECRET)    return err(500,'OTP_SECRET not configured');
 
   let body;
-  try { body = JSON.parse(event.body); }
-  catch { return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
+  try { body = JSON.parse(event.body||'{}'); }
+  catch { return err(400,'Invalid JSON'); }
 
-  const { phone, otp } = body;
-  if (!phone || !otp) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'phone and otp required' }) };
+  const { phone: rawPhone, otp } = body;
+  if (!rawPhone || !otp) return err(400,'phone and otp are required');
+
+  const phone = normalisePhone(rawPhone);
+  const db    = getDb();
+
+  // ── Find the most recent valid OTP for this phone ─────────
+  const { data: rows, error: fetchErr } = await db
+    .from('otp_requests')
+    .select('id, hashed_otp, expires_at, attempts, used')
+    .eq('phone', phone)
+    .eq('used', false)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (fetchErr) return err(500,`DB error: ${fetchErr.message}`);
+
+  if (!rows || rows.length === 0)
+    return err(400,'OTP expired or not found. Request a new code.');
+
+  const record = rows[0];
+
+  // ── Check attempt limit ────────────────────────────────────
+  if (record.attempts >= 5) {
+    await db.from('otp_requests').update({ used:true }).eq('id', record.id);
+    return err(429,'Too many failed attempts. Request a new code.');
   }
 
-  const stored = OTP_STORE.get(`otp:${phone}`);
+  // ── Verify hash ────────────────────────────────────────────
+  let submittedHash;
+  try { submittedHash = hashOtp(otp.trim(), phone); }
+  catch(e) { return err(500, e.message); }
 
-  // Handle serverless cold-start (different instance than send-otp)
-  // In this case we fall through to Supabase check (future) or accept in dev mode
-  if (!stored) {
-    // Production: check Supabase otp_requests table here
-    // For pilot MVP: allow dev bypass with env var
-    if (process.env.OTP_DEV_BYPASS === 'true') {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          success:  true,
-          verified: true,
-          message:  'Verified (dev bypass mode)',
-          phone,
-        }),
-      };
-    }
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        error: 'OTP expired or not found. Please request a new code.',
-        tip:   'Serverless cold-start may have cleared the in-memory store. Enable Supabase OTP storage for production.',
-      }),
-    };
+  if (submittedHash !== record.hashed_otp) {
+    const newAttempts = record.attempts + 1;
+    await db.from('otp_requests').update({ attempts:newAttempts }).eq('id', record.id);
+    const remaining = 5 - newAttempts;
+    return err(400,`Incorrect code. ${remaining} attempt${remaining!==1?'s':''} remaining.`,
+      { remaining });
   }
 
-  // Check expiry
-  if (Date.now() > stored.expires) {
-    OTP_STORE.delete(`otp:${phone}`);
-    return { statusCode: 400, body: JSON.stringify({ error: 'OTP has expired. Request a new code.' }) };
-  }
+  // ── Correct — mark as used ─────────────────────────────────
+  await db.from('otp_requests').update({ used:true }).eq('id', record.id);
 
-  // Check attempt limit
-  if (stored.attempts >= 5) {
-    OTP_STORE.delete(`otp:${phone}`);
-    return { statusCode: 429, body: JSON.stringify({ error: 'Too many failed attempts. Request a new code.' }) };
-  }
+  // Clean up other OTPs for this phone
+  await db.from('otp_requests').delete()
+    .eq('phone', phone).neq('id', record.id);
 
-  // Verify
-  const submittedHash = hashOtp(otp.trim(), phone);
-  if (submittedHash !== stored.hash) {
-    stored.attempts++;
-    const remaining = 5 - stored.attempts;
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        error:     `Incorrect code. ${remaining} attempt${remaining!==1?'s':''} remaining.`,
-        remaining,
-      }),
-    };
-  }
+  console.log(`[verify-otp] ✅ Phone verified: ${phone}`);
 
-  // Correct — clear OTP
-  OTP_STORE.delete(`otp:${phone}`);
-
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      success:  true,
-      verified: true,
-      phone,
-      message:  'Phone number verified successfully',
-    }),
-  };
+  return ok({ success:true, verified:true, phone,
+    message:'Phone number verified successfully' });
 };

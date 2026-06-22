@@ -179,7 +179,7 @@ exports.handler = async (event) => {
   } catch(e) {
     console.error(`[OTP] ❌ ${provider} failed for ${phone}: ${e.message}`);
     // Remove the stored OTP if SMS failed
-    await db.from('otp_requests').delete().eq('phone',phone).eq('hashed_otp',hashedOtp).catch(()=>{});
+    await db.from('otp_requests').delete().eq('phone',phone).eq('hashed_otp',hashedOtp);
     return err(502,'SMS delivery failed',{ detail:e.message, provider });
   }
 };

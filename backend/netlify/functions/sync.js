@@ -86,8 +86,9 @@ exports.handler = async (event) => {
           created_at:        now,
         };
       });
-      await db.from('bank_feed_queue').insert(feedItems)
-        .catch(e => console.warn('[sync] Feed queue insert warn:', e.message));
+      try {
+        await db.from('bank_feed_queue').insert(feedItems);
+      } catch(e) { console.warn('[sync] Feed queue insert warn:', e.message); }
     }
 
     return {
