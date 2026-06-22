@@ -1,50 +1,64 @@
 /**
  * zillion/backend/lib/bank-auth.js
  * Sprint 3: Bank partner authentication middleware.
- * Validates the BANK_API_KEY header from bank systems calling Zillion's Bank API.
- * In production this would be mTLS client certificate validation.
- * For now: shared API key per bank partner, set in Netlify env vars.
+ *
+ * Accepts the key via ANY of these — Netlify normalises headers to lowercase:
+ *   x-bank-api-key: <key>
+ *   authorization: Bearer <key>
+ *   x-api-key: <key>
+ *
+ * Also checks query param ?bank_key=<key> as last resort for testing.
  */
 'use strict';
 
-const { createHmac } = require('crypto');
-
-/**
- * Verify bank partner API key from Authorization header.
- * Header format: Authorization: Bearer BANK_API_KEY
- * OR: X-Bank-API-Key: BANK_API_KEY
- */
 function verifyBankAuth(event) {
   const BANK_API_KEY = process.env.BANK_API_KEY;
 
-  // If no BANK_API_KEY configured — allow in dev mode with warning
+  // No key configured — open dev mode
   if (!BANK_API_KEY) {
-    console.warn('[bank-auth] BANK_API_KEY not set — running in open dev mode');
+    console.warn('[bank-auth] BANK_API_KEY not set — DEV mode');
     return { valid: true, bank_id: 'DEV_BANK', dev_mode: true };
   }
 
-  const authHeader = event.headers['authorization'] ||
-                     event.headers['Authorization'] || '';
-  const keyHeader  = event.headers['x-bank-api-key'] || '';
+  // Netlify Lambda normalises ALL headers to lowercase
+  const h = event.headers || {};
 
-  const provided = authHeader.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : keyHeader;
+  // Try every possible source in priority order
+  const authHeader = h['authorization'] || '';
+  const provided =
+    h['x-bank-api-key']                             ||  // preferred
+    (authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7).trim() : '')              ||  // Bearer token
+    h['x-api-key']                                   ||  // generic API key header
+    (event.queryStringParameters || {})['bank_key']  ||  // ?bank_key= (testing only)
+    '';
 
-  if (!provided) {
-    return { valid: false, reason: 'Missing bank API key. Use Authorization: Bearer <key> or X-Bank-API-Key header.' };
+  // Debug log — visible in Netlify function logs
+  console.log('[bank-auth] headers received:', JSON.stringify(
+    Object.keys(h).filter(k =>
+      k.includes('auth') || k.includes('bank') || k.includes('api') || k.includes('key')
+    )
+  ));
+
+  if (!provided.trim()) {
+    return {
+      valid:  false,
+      reason: 'Missing bank API key. Send header: x-bank-api-key: <key>',
+    };
   }
 
   // Constant-time compare
-  const expBuf = Buffer.from(BANK_API_KEY);
-  const prvBuf = Buffer.from(provided);
+  const expBuf = Buffer.from(BANK_API_KEY.trim());
+  const prvBuf = Buffer.from(provided.trim());
   if (expBuf.length !== prvBuf.length ||
       !require('crypto').timingSafeEqual(expBuf, prvBuf)) {
+    console.warn('[bank-auth] Key mismatch. Provided length:', prvBuf.length,
+                 'Expected length:', expBuf.length);
     return { valid: false, reason: 'Invalid bank API key.' };
   }
 
-  // Extract bank_id from X-Bank-ID header (informational)
-  const bankId = event.headers['x-bank-id'] || 'UNKNOWN_BANK';
+  const bankId = h['x-bank-id'] || 'BANK';
+  console.log(`[bank-auth] ✅ Authenticated: ${bankId}`);
   return { valid: true, bank_id: bankId };
 }
 
