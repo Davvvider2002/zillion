@@ -63,6 +63,33 @@ exports.handler = async (event) => {
       ? await processSyncBatch(body.tx_batch)
       : { settled: [], conflicts: [] };
 
+    // ── Sprint 3: Write settled transactions to bank feed queue ──
+    if (result.settled && result.settled.length > 0) {
+      const feedItems = result.settled.map(coinId => {
+        const tx = (body.tx_batch || []).find(t => t.coin_id === coinId) || {};
+        const idKey = require('crypto').createHash('sha256')
+          .update(coinId + (result.settled_ts || now)).digest('hex');
+        return {
+          idempotency_key:   idKey,
+          event_type:        tx.is_sent ? 'TRANSFER' : 'RECEIVE',
+          zillion_tx_id:     `TX-${Date.now()}-${coinId.slice(-8)}`,
+          bank_ref_sender:   tx.from_hash || null,
+          bank_ref_receiver: tx.to_hash   || body.device_id,
+          amount_kobo:       tx.value_kobo || tx.amount || 0,
+          offline_ts:        tx.tx_ts     || null,
+          settled_ts:        now,
+          coin_ids:          [coinId],
+          agent_id:          body.device_id,
+          source:            'ZILLION_OFFLINE',
+          fraud_score:       0.0,
+          delivered:         false,
+          created_at:        now,
+        };
+      });
+      await db.from('bank_feed_queue').insert(feedItems)
+        .catch(e => console.warn('[sync] Feed queue insert warn:', e.message));
+    }
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -72,9 +99,9 @@ exports.handler = async (event) => {
         settled_count:    result.settled.length,
         conflict_count:   result.conflicts.length,
         settled_coin_ids: result.settled,
-        confirmed_sent:   result.settled, // alias — sender uses this to remove PENDING_TRANSFER
+        confirmed_sent:   result.settled,
         conflicts:        result.conflicts,
-        sync_ts:          new Date().toISOString(),
+        sync_ts:          now,
       }),
     };
   } catch (err) {

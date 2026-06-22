@@ -210,3 +210,53 @@
   from = "/api/v1/coins/freeze"
   to   = "/.netlify/functions/coins-freeze"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/bank/activate-customer"
+  to   = "/.netlify/functions/bank-activate-customer"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/bank/fund-agent-float"
+  to   = "/.netlify/functions/bank-fund-agent-float"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/bank/agent-float/:id"
+  to   = "/.netlify/functions/bank-agent-float"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/bank/customer/:phone"
+  to   = "/.netlify/functions/bank-customer"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/bank/report-suspicious"
+  to   = "/.netlify/functions/bank-report-suspicious"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/feed/pending"
+  to   = "/.netlify/functions/feed-pending"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/feed/acknowledge"
+  to   = "/.netlify/functions/feed-acknowledge"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/compliance/ctr"
+  to   = "/.netlify/functions/compliance-ctr"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/compliance/str"
+  to   = "/.netlify/functions/compliance-str"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coins/split"
+  to   = "/.netlify/functions/coins-split"
+  status = 200
