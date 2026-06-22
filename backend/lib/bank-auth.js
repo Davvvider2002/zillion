@@ -1,63 +1,71 @@
 /**
  * zillion/backend/lib/bank-auth.js
- * Sprint 3: Bank partner authentication middleware.
+ * Sprint 3: Bank partner authentication.
  *
- * Accepts the key via ANY of these — Netlify normalises headers to lowercase:
+ * Accepts key via (all lowercase — Netlify normalises headers):
  *   x-bank-api-key: <key>
  *   authorization: Bearer <key>
  *   x-api-key: <key>
- *
- * Also checks query param ?bank_key=<key> as last resort for testing.
+ *   ?bank_key=<key>  (testing only)
  */
 'use strict';
 
 function verifyBankAuth(event) {
-  const BANK_API_KEY = process.env.BANK_API_KEY;
+  // Strip ALL whitespace from stored key — Netlify UI can add trailing newlines
+  const BANK_API_KEY = (process.env.BANK_API_KEY || '').trim();
 
-  // No key configured — open dev mode
   if (!BANK_API_KEY) {
     console.warn('[bank-auth] BANK_API_KEY not set — DEV mode');
     return { valid: true, bank_id: 'DEV_BANK', dev_mode: true };
   }
 
-  // Netlify Lambda normalises ALL headers to lowercase
   const h = event.headers || {};
 
-  // Try every possible source in priority order
-  const authHeader = h['authorization'] || '';
-  const provided =
-    h['x-bank-api-key']                             ||  // preferred
-    (authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7).trim() : '')              ||  // Bearer token
-    h['x-api-key']                                   ||  // generic API key header
-    (event.queryStringParameters || {})['bank_key']  ||  // ?bank_key= (testing only)
+  // Collect provided key — strip ALL whitespace from whatever arrives
+  const authHeader = (h['authorization'] || '').trim();
+  const rawProvided =
+    h['x-bank-api-key']  ||
+    (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader) ||
+    h['x-api-key']       ||
+    (event.queryStringParameters || {})['bank_key'] ||
     '';
 
-  // Debug log — visible in Netlify function logs
-  console.log('[bank-auth] headers received:', JSON.stringify(
-    Object.keys(h).filter(k =>
-      k.includes('auth') || k.includes('bank') || k.includes('api') || k.includes('key')
-    )
-  ));
+  const provided = rawProvided.trim();
 
-  if (!provided.trim()) {
+  // Log what arrived (lengths only — never log key values)
+  console.log('[bank-auth] env key length:', BANK_API_KEY.length,
+              '| provided length:', provided.length,
+              '| headers:', JSON.stringify(
+                Object.keys(h).filter(k =>
+                  ['authorization','x-bank-api-key','x-api-key','x-bank-id']
+                    .includes(k)
+                )
+              ));
+
+  if (!provided) {
     return {
       valid:  false,
       reason: 'Missing bank API key. Send header: x-bank-api-key: <key>',
     };
   }
 
-  // Constant-time compare
-  const expBuf = Buffer.from(BANK_API_KEY.trim());
-  const prvBuf = Buffer.from(provided.trim());
-  if (expBuf.length !== prvBuf.length ||
-      !require('crypto').timingSafeEqual(expBuf, prvBuf)) {
-    console.warn('[bank-auth] Key mismatch. Provided length:', prvBuf.length,
-                 'Expected length:', expBuf.length);
+  // Pad shorter buffer so timingSafeEqual can always compare equal-length buffers
+  // (length difference reveals nothing because we check lengths first)
+  if (BANK_API_KEY.length !== provided.length) {
+    console.warn('[bank-auth] Length mismatch — env:', BANK_API_KEY.length,
+                 'provided:', provided.length);
     return { valid: false, reason: 'Invalid bank API key.' };
   }
 
-  const bankId = h['x-bank-id'] || 'BANK';
+  const expBuf = Buffer.from(BANK_API_KEY, 'utf8');
+  const prvBuf = Buffer.from(provided,     'utf8');
+
+  if (!require('crypto').timingSafeEqual(expBuf, prvBuf)) {
+    console.warn('[bank-auth] Key bytes do not match');
+    return { valid: false, reason: 'Invalid bank API key.' };
+  }
+
+  const bankId = (h['x-bank-id'] || 'BANK').trim();
   console.log(`[bank-auth] ✅ Authenticated: ${bankId}`);
   return { valid: true, bank_id: bankId };
 }
