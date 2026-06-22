@@ -1,0 +1,94 @@
+# Zillion Load Test — Artillery.io
+# Sprint 4: Simulate 10,000 concurrent wallets
+# Usage: npm install -g artillery && artillery run scripts/load_test.yml
+# Target: 95th percentile < 2000ms, error rate < 1%
+
+config:
+  target: "https://zillion-mvp.netlify.app"
+  phases:
+    - name: "Warm up"
+      duration: 30
+      arrivalRate: 10
+      rampTo: 50
+    - name: "Ramp up"
+      duration: 60
+      arrivalRate: 50
+      rampTo: 200
+    - name: "Peak load"
+      duration: 120
+      arrivalRate: 200
+    - name: "Cool down"
+      duration: 30
+      arrivalRate: 200
+      rampTo: 10
+  defaults:
+    headers:
+      Content-Type: "application/json"
+  plugins:
+    metrics-by-endpoint: {}
+
+scenarios:
+  # Scenario 1: Health check (20% of traffic)
+  - name: "Health Check"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/v1/health"
+          expect:
+            - statusCode: 200
+            - hasProperty: "status"
+
+  # Scenario 2: OTP send (30% of traffic — most common customer action)
+  - name: "OTP Send"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/v1/send-otp"
+          json:
+            phone: "{{ $randomString(11) }}"
+          expect:
+            - statusCode:
+                - 200
+                - 400  # invalid phone = expected
+
+  # Scenario 3: Validate a coin (25% — merchants receiving payments)
+  - name: "Coin Validate"
+    weight: 25
+    flow:
+      - post:
+          url: "/api/v1/validate"
+          json:
+            coin_id: "ZIL-20260601-AAAAAAAA-0000001"
+          expect:
+            - statusCode:
+                - 200
+                - 404
+
+  # Scenario 4: Feed pending (15% — bank polling)
+  - name: "Bank Feed Poll"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/v1/feed/pending"
+          headers:
+            x-bank-api-key: "{{ $env.BANK_API_KEY }}"
+          expect:
+            - statusCode:
+                - 200
+                - 401
+
+  # Scenario 5: Mint public keys (10% — wallet startup)
+  - name: "Mint Public Keys"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/mint-public-keys"
+          expect:
+            - statusCode: 200
+            - hasProperty: "keys"
+
+# Thresholds — build fails if these are exceeded
+ensure:
+  p95: 2000      # 95th percentile response < 2 seconds
+  p99: 5000      # 99th percentile response < 5 seconds
+  maxErrorRate: 1 # Error rate < 1%

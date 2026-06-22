@@ -28,15 +28,17 @@ def check_html(path, name, cfg):
     if not c.strip().endswith('</html>'): E(name,"Does not end with </html>")
 
     # Script tag counts
-    inline_opens  = [m.start() for m in re.finditer(r'<script>', c)]
+    inline_opens  = [m.start() for m in re.finditer(r'<script(?!\s[^>]*src=)(?:\s[^>]*)?>(?!--)', c)]
     inline_closes = [m.start() for m in re.finditer(r'</script>', c)]
     ext           = len(re.findall(r'<script\s+src=', c))
-    exp_closes    = 1 + ext
+    # Wallet has 2 inline scripts (early stub + main). Others have 1.
+    allowed = [1, 2] if name == 'WALLET' else [1]
+    exp_closes    = len(inline_opens) + ext
 
-    if len(inline_opens) != 1:
-        E(name, f"Expected 1 inline <script>, found {len(inline_opens)}")
+    if len(inline_opens) not in allowed:
+        E(name, f"Expected {allowed} inline <script>, found {len(inline_opens)}")
     else:
-        OK(name, "Exactly 1 inline script block")
+        OK(name, f"{len(inline_opens)} inline script block(s)")
 
     if len(inline_closes) != exp_closes:
         E(name, f"Expected {exp_closes} </script>, found {len(inline_closes)}")
@@ -294,6 +296,154 @@ for fname, token in [('create-claim.js','claim_bundles'),('fetch-claim.js','CLAI
         OK('QR_SYSTEM', f"{fname} has '{token}'")
     else:
         E('QR_SYSTEM', f"{fname} missing '{token}'")
+
+
+# ══════════════════════════════════════════════════════════════
+# SPRINT 4 ADDITIONS — takes total from 73 to 100 checks
+# ══════════════════════════════════════════════════════════════
+
+# ── 8. SPRINT 1 SECURITY ─────────────────────────────────────
+print("\n[8/14] SPRINT 1 SECURITY HARDENING")
+
+def check_security(fname, patterns, must_not=[]):
+    path = f"{ROOT}/backend/netlify/functions/{fname}"
+    if not os.path.exists(path):
+        E('SECURITY', f"Missing: {fname}"); return
+    c = open(path).read()
+    for p in patterns:
+        if p in c: OK('SECURITY', f"{fname}: has '{p[:40]}'")
+        else:       E('SECURITY', f"{fname}: missing '{p[:40]}'")
+    for p in must_not:
+        if p not in c: OK('SECURITY', f"{fname}: correctly excludes '{p[:40]}'")
+        else:           E('SECURITY', f"{fname}: must NOT contain '{p[:40]}'")
+
+def check_lib(fname, patterns, must_not=[]):
+    path = f"{ROOT}/backend/lib/{fname}"
+    if not os.path.exists(path):
+        E('SECURITY', f"Missing lib: {fname}"); return
+    c = open(path).read()
+    for p in patterns:
+        if p in c: OK('SECURITY', f"lib/{fname}: has '{p[:40]}'")
+        else:       E('SECURITY', f"lib/{fname}: missing '{p[:40]}'")
+    for p in must_not:
+        if p not in c: OK('SECURITY', f"lib/{fname}: correctly excludes '{p[:40]}'")
+        else:           E('SECURITY', f"lib/{fname}: must NOT contain '{p[:40]}'")
+
+check_security('send-otp.js',
+    ['otp_requests'],
+    ['process.env.OTP_DEV_BYPASS', "|| 'zillion-dev-secret'"])
+check_security('verify-otp.js', ['otp_requests', 'attempts >= 5'])
+check_security('admin-login.js',
+    ['admin_sessions', 'timingSafeEqual', 'consumeSessionToken'],
+    ['new Map('])
+check_security('health.js', ['REQUIRED_VARS', '503'])
+
+# ── 9. SPRINT 2 IDENTITY ─────────────────────────────────────
+print("\n[9/14] SPRINT 2 IDENTITY & KYC")
+check_security('register-device.js',
+    ['/^[0-9a-fA-F]', "from('devices').upsert"])
+check_security('kyc-verify-nin.js',
+    ['paystack.co', 'hashNIN', 'kyc_tier:        2'],
+    ['raw_nin', 'nin_plain'])
+check_security('customer-limits.js',
+    ['5000000', '20000000', 'remaining_kobo', 'reset_at'])
+check_security('coins-freeze.js',
+    ["role !== 'admin'", 'fraud_events', 'detected_at'],
+    ['created_at', 'reason:      reason'])
+check_security('issue.js', ['429', 'Retry-After', 'recentIssues'])
+check_lib('kms-sign.js',
+    ['ZILLION_ACCESS_KEY_ID', 'validRegex', 'regionFromArn', '.trim()'])
+
+# ── 10. SPRINT 3 BANK API ────────────────────────────────────
+print("\n[10/14] SPRINT 3 BANK PARTNER API")
+for fname, patterns in [
+    ('bank-activate-customer.js',  ['already_activated', 'kyc_tier', 'createHmac']),
+    ('bank-fund-agent-float.js',   ['totalAmountKobo', 'coinValueKobo', 'float_topups']),
+    ('bank-agent-float.js',        ['agent_id', 'float_kobo', 'agent.name']),
+    ('bank-customer.js',           ['createHmac', 'balance_kobo']),
+    ('bank-report-suspicious.js',  ['FROZEN', 'SUSPENDED', 'fraud_events', 'detected_at']),
+]:
+    check_security(fname, patterns)
+
+check_lib('bank-auth.js',
+    ['timingSafeEqual', 'x-bank-api-key', '.trim()', 'DEV_BANK'])
+
+# ── 11. SPRINT 3 FEED & COMPLIANCE ───────────────────────────
+print("\n[11/14] SPRINT 3 FEED & COMPLIANCE")
+check_security('feed-pending.js',    ['ascending: true', 'sync_lag_seconds'])
+check_security('feed-acknowledge.js',['delivered: true', 'idempotency_keys'])
+check_security('compliance-ctr.js',  ['100_000_000', "role !== 'admin'"])
+check_security('compliance-str.js',
+    ["gte('detected_at'", "order('detected_at'", 'event_id'],
+    ['created_at'])
+check_security('coins-split.js',
+    ['totalAmountKobo', 'VALID_DENOMS', 'sumOut !== coin.amount',
+     'Rollback', 'coin.expires_at'])
+check_security('sync.js',
+    ['bank_feed_queue', 'confirmed_sent', 'idempotency_key'])
+
+# ── 12. NO .catch() ON SUPABASE CHAINS ───────────────────────
+print("\n[12/14] SUPABASE ANTI-PATTERN CHECK")
+import re as _re
+_funcs_dir = f"{ROOT}/backend/netlify/functions"
+_lib_dir   = f"{ROOT}/backend/lib"
+_bad_catch = []
+for _d in [_funcs_dir, _lib_dir]:
+    for _f in os.listdir(_d):
+        if not _f.endswith('.js'): continue
+        _c = open(f"{_d}/{_f}").read()
+        for _m in _re.finditer(r'\)\.catch\s*\(', _c):
+            _ctx = _c[max(0,_m.start()-150):_m.start()+30]
+            if any(_k in _ctx for _k in ["from('","insert(","update(","select(","delete("]):
+                _bad_catch.append(_f)
+                break
+if _bad_catch:
+    for _f in _bad_catch:
+        E('SUPABASE', f".catch() on Supabase chain in {_f}")
+else:
+    OK('SUPABASE', "Zero .catch() anti-patterns on Supabase chains")
+
+# ── 13. V1 ROUTES COMPLETE ───────────────────────────────────
+print("\n[13/14] V1 ROUTES REGISTERED")
+_toml = open(f"{ROOT}/netlify.toml").read()
+_v1_routes = [
+    '/api/v1/health', '/api/v1/mint-public-keys',
+    '/api/v1/register-device', '/api/v1/kyc/verify-nin', '/api/v1/customer/limits',
+    '/api/v1/coins/freeze', '/api/v1/coins/grace', '/api/v1/coins/grace-redeem',
+    '/api/v1/coins/split',
+    '/api/v1/bank/activate-customer', '/api/v1/bank/fund-agent-float',
+    '/api/v1/bank/agent-float', '/api/v1/bank/customer',
+    '/api/v1/bank/report-suspicious',
+    '/api/v1/feed/pending', '/api/v1/feed/acknowledge',
+    '/api/v1/compliance/ctr', '/api/v1/compliance/str',
+]
+_missing_routes = [r for r in _v1_routes if r not in _toml]
+if _missing_routes:
+    for r in _missing_routes: E('V1_ROUTES', f"Missing: {r}")
+else:
+    OK('V1_ROUTES', f"All {len(_v1_routes)} V1 routes registered in netlify.toml")
+
+if _toml.count('\n[build]') == 0 and _toml.startswith('[build]'):
+    OK('V1_ROUTES', "netlify.toml: single [build] section")
+elif _toml.count('\n[build]') == 0:
+    OK('V1_ROUTES', "netlify.toml: single [build] section")
+else:
+    E('V1_ROUTES', "netlify.toml: duplicate [build] section detected")
+
+# ── 14. WALLET SPRINT FEATURES ───────────────────────────────
+print("\n[14/14] WALLET V1 FEATURES")
+_wallet = open(f"{ROOT}/wallet/index.html", encoding='utf-8').read()
+for _fn, _label in [
+    ('checkCoinExpiry',      'Offline coin expiry check'),
+    ('validateCoinBundle',   'Coin bundle validation'),
+    ('registerDeviceKey',    'Device key registration'),
+    ('loadKYCTier',          'KYC tier display'),
+    ('generateKey',          'SubtleCrypto key generation'),
+    ('indexedDB',            'IndexedDB key storage'),
+    ('kyc-tier-badge',       'KYC tier badge element'),
+]:
+    if _fn in _wallet: OK('WALLET_V1', _label)
+    else:               E('WALLET_V1', f"Missing: {_label} ({_fn})")
 
 # ══════════════════════════════════════════════════════════════
 # FINAL REPORT
