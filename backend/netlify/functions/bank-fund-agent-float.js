@@ -51,7 +51,7 @@ exports.handler = async (event) => {
 
   // Verify agent exists
   const { data: agent, error: agentErr } = await db.from('agents')
-    .select('agent_id, float_balance_kobo').eq('agent_id', agent_id).single();
+    .select('agent_id, float_balance_kobo, phone').eq('agent_id', agent_id).single();
   if (agentErr || !agent) return err(404, `Agent not found: ${agent_id}`);
 
   // Check for duplicate bank_ref (idempotency)
@@ -65,10 +65,14 @@ exports.handler = async (event) => {
   let coins;
   try {
     coins = await issueCoinBatch({
+      totalAmountKobo:  amount_kobo,
+      coinValueKobo:    denomination_kobo,
+      recipientPhone:   agent.phone || agent_id,
+      recipientDevice:  agent_id,
       agentId:          agent_id,
-      amountKobo:       amount_kobo,
-      denominationKobo: denomination_kobo,
       mintPrivateKey:   process.env.MINT_PRIVATE_KEY_HEX,
+      mintId:           process.env.MINT_ID || 'ZILLION-MINT-01',
+      ownerSalt:        process.env.SUPABASE_SERVICE_KEY,
     });
   } catch (e) {
     return err(500, `Mint failed: ${e.message}`);

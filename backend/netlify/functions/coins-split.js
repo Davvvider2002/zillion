@@ -70,10 +70,14 @@ exports.handler = async (event) => {
   for (const amount of amounts_kobo) {
     try {
       const batch = await issueCoinBatch({
+        totalAmountKobo:  amount,
+        coinValueKobo:    amount,
+        recipientPhone:   auth.payload.sub,
+        recipientDevice:  auth.payload.sub,
         agentId:          coin.issuer_id || 'SPLIT',
-        amountKobo:       amount,
-        denominationKobo: amount,
         mintPrivateKey:   process.env.MINT_PRIVATE_KEY_HEX,
+        mintId:           process.env.MINT_ID || 'ZILLION-MINT-01',
+        ownerSalt:        process.env.SUPABASE_SERVICE_KEY,
       });
       // Assign new coins directly to the requesting device
       const withHolder = batch.map(c => ({
