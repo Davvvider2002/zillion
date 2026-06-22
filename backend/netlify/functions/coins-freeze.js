@@ -66,9 +66,8 @@ exports.handler = async (event) => {
         device_hash: c.holder_hash || 'UNKNOWN',
         event_type:  'ADMIN_FREEZE',
         coin_id:     c.coin_id,
-        reason,
         resolved:    false,
-        created_at:  now,
+        detected_at: now,
       })));
     } catch(e) { console.warn('[supabase] non-fatal:', e.message); } // non-fatal
   }

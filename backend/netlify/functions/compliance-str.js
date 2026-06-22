@@ -31,9 +31,9 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   let query = db.from('fraud_events')
-    .select('*')
-    .gte('created_at', fromDate.toISOString())
-    .lte('created_at', toDate.toISOString())
+    .select('event_id, device_hash, event_type, coin_id, detected_at, resolved, resolution_note, resolved_at')
+    .gte('detected_at', fromDate.toISOString())
+    .lte('detected_at', toDate.toISOString())
     .order('created_at', { ascending: false });
 
   // Optional filter: only unresolved
@@ -44,13 +44,13 @@ exports.handler = async (event) => {
   if (error) return err(500, `STR query failed: ${error.message}`);
 
   const suspicious = (events || []).map(e => ({
-    case_id:         `STR-${e.id?.slice(0, 8).toUpperCase()}`,
+    case_id:         `STR-${(e.event_id || '').slice(0, 8).toUpperCase()}`,
     event_type:      e.event_type,
     device_hash:     e.device_hash,
     coin_id:         e.coin_id,
-    reason:          e.reason,
+    resolution_note: e.resolution_note || null,
     resolved:        e.resolved,
-    detected_at:     e.created_at,
+    detected_at:     e.detected_at,
     requires_str:    ['DOUBLE_SPEND','BANK_SUSPICIOUS_REPORT','ADMIN_FREEZE'].includes(e.event_type),
   }));
 

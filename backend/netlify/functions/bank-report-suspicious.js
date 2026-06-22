@@ -54,9 +54,8 @@ exports.handler = async (event) => {
       device_hash: customer_id,
       event_type:  'BANK_SUSPICIOUS_REPORT',
       coin_id:     null,
-      reason:      `${reason} | Bank: ${auth.bank_id} | Ref: ${reference}`,
       resolved:    false,
-      created_at:  now,
+      detected_at: now,
     });
   } catch(e) { console.warn('[bank-suspicious] fraud_events warn:', e.message); }
 
