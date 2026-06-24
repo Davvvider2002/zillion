@@ -214,7 +214,18 @@ async function redeemCoins(coinIds, holderHash, agentId) {
       continue;
     }
 
-    if (coin.holder_hash !== holderHash) {
+    // Owner check — accept two valid scenarios:
+    // A) Exact match (normal customer cashout)
+    // B) Coin held by a MERCHANT (merchant cashout at agent)
+    //    holder_hash in Supabase = 'MERCHANT-MERCH-XXXXXXXX'
+    //    bundle owner_hash = customer's original hash (stale local copy)
+    //    Both are valid — the merchant's sync updated holder_hash to MERCHANT-
+    const exactMatch    = coin.holder_hash === holderHash;
+    // Accept merchant cashout: holder_hash may be 'MERCHANT-MERCH-XXX' (new)
+    // or 'MERCH-XXX' (old format before fix) — both are valid merchant holds
+    const merchantMatch = coin.holder_hash.startsWith('MERCHANT-') ||
+                          coin.holder_hash.startsWith('MERCH-');
+    if (!exactMatch && !merchantMatch) {
       rejected.push({ coin_id: coinId, reason: 'OWNER_MISMATCH' });
       await logFraudEvent(holderHash, 'REDEEM_OWNER_MISMATCH', coinId).catch(()=>{});
       continue;
