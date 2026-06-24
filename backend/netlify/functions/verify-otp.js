@@ -48,6 +48,28 @@ exports.handler = async (event) => {
   const phone    = normalise(rawPhone);
   const otpStr   = String(otp).trim();
   const otpSalt  = process.env.OTP_SECRET || 'zillion-otp-salt';
+
+  // ── Demo bypass — set DEMO_OTP env var in Netlify to enable ──────────────
+  // Remove this block before going live. Any phone + DEMO_OTP code = instant login.
+  const DEMO_OTP = (process.env.DEMO_OTP || '').trim();
+  if (DEMO_OTP && otpStr === DEMO_OTP) {
+    const deviceId = createHash('sha256')
+      .update(phone + (process.env.SUPABASE_SERVICE_KEY || 'salt'))
+      .digest('hex').slice(0, 16);
+    const token = signJWT({
+      sub:        deviceId,
+      phone,
+      deviceId,
+      role:       'customer',
+      phone_hash: createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+        .update(phone).digest('hex'),
+    });
+    console.log(`[verify-otp] ✅ DEMO bypass — ${phone}`);
+    return ok({ success: true, verified: true, phone, token, deviceId,
+      message: 'Demo verification successful.' });
+  }
+  // ── End demo bypass ───────────────────────────────────────────────────────
+
   // hashOtp: consistent OTP hashing used by both send-otp and verify-otp
   const hashOtp = (code) => createHmac('sha256', otpSalt).update(String(code).trim()).digest('hex');
   const hashedInput = hashOtp(otpStr);
