@@ -60,24 +60,34 @@ exports.handler = async (event) => {
 
   // Verify password
   if (!merchant.password_hash) {
-    // Legacy merchant created before password requirement — prompt re-registration
-    return err(401,
-      'Your account was created before password authentication was added. ' +
-      'Please register again to set a password.');
-  }
+    // Legacy merchant — no password set yet. Accept any password >= 6 chars
+    // and save it as their new password (seamless migration, no re-registration needed).
+    if (password.length < 6) {
+      return err(401,
+        'First login: please set a password (min 6 characters). ' +
+        'Enter any password you want to use — it will be saved for future logins.');
+    }
+    // Save their chosen password
+    const newHash = createHmac('sha256', process.env.JWT_SECRET || 'zillion-jwt')
+      .update(password).digest('hex');
+    await db.from('merchants').update({ password_hash: newHash }).eq('merchant_id', merchantId);
+    console.log(`[merchant-login] ✅ Legacy account ${merchantId} — password set on first login`);
+    // Fall through to issue token below
+  } else {
 
-  const providedHash = createHmac('sha256', process.env.JWT_SECRET || 'zillion-jwt')
-    .update(password).digest('hex');
+    const providedHash = createHmac('sha256', process.env.JWT_SECRET || 'zillion-jwt')
+      .update(password).digest('hex');
 
-  // Constant-time compare
-  const expBuf = Buffer.from(merchant.password_hash, 'hex');
-  const prvBuf = Buffer.from(providedHash,            'hex');
-  const match  = expBuf.length === prvBuf.length &&
-    require('crypto').timingSafeEqual(expBuf, prvBuf);
+    // Constant-time compare
+    const expBuf = Buffer.from(merchant.password_hash, 'hex');
+    const prvBuf = Buffer.from(providedHash,            'hex');
+    const match  = expBuf.length === prvBuf.length &&
+      require('crypto').timingSafeEqual(expBuf, prvBuf);
 
-  if (!match) {
-    return err(401, 'Incorrect password. Please try again.');
-  }
+    if (!match) {
+      return err(401, 'Incorrect password. Please try again.');
+    }
+  } // end password check
 
   const token = signJWT({
     sub:           merchant.merchant_id,

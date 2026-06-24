@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<meta name="theme-color" content="#2D0D3A">
+<meta name="theme-color" content="#1A0A2E">
 <title>Zillion — Merchant Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
-  --p:#6B21A8;--pl:#F3E8FF;--pm:#D8B4FE;  /* purple - merchant brand */
+  --p:#6B21A8;--pl:#F3E8FF;--pm:#D8B4FE;
   --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;
-  --d:#1A0A2E;--d2:#2D1052;               /* dark purple */
+  --d:#1A0A2E;--d2:#2D1052;
   --w:#FFF;--bg:#F5F0FF;
   --gr:#555;--grl:#F4F4F4;--grb:#DDD;
   --r:#C0392B;--rl:#FDECEA;
@@ -19,300 +19,417 @@
   --tx:#1A1A1A;--tx2:#666;--tx3:#AAA;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg);}
-#app{width:100%;max-width:430px;min-height:100%;margin:0 auto;display:flex;flex-direction:column;background:var(--w);}
+html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
+#app{width:100%;max-width:430px;min-height:100%;margin:0 auto;background:var(--w);display:flex;flex-direction:column}
 
-/* ── Header ─────────────────────────────────────────── */
-.hdr{background:var(--d);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
-.hdr-logo{font-size:18px;font-weight:800;letter-spacing:3px;color:var(--w);}
-.hdr-badge{background:var(--p);color:var(--w);padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;}
-.hdr-right{display:flex;align-items:center;gap:10px;}
-.logout-btn{padding:5px 12px;background:transparent;color:#aaa;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer;}
+/* ── ONBOARDING WRAPPER ─────────────────────────────────────── */
+#ob-wrap{
+  min-height:100vh;min-height:100dvh;
+  width:100%;max-width:430px;
+  margin:0 auto;
+  background:linear-gradient(160deg,#1A0A2E 0%,#2D1052 50%,#1A0A2E 100%);
+  display:flex;flex-direction:column;
+  position:relative;
+}
+.ob-panel{display:none;flex:1;flex-direction:column;padding:0}
+.ob-panel.active{display:flex}
 
-/* ── Login screen ───────────────────────────────────── */
-#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#1A0A2E,#2D1052,#1A0A2E);padding:24px;}
-.lbox{background:var(--w);border-radius:16px;padding:36px 28px;width:100%;max-width:380px;}
-.llogo{font-size:32px;font-weight:800;letter-spacing:5px;color:var(--d);text-align:center;margin-bottom:4px;}
-.lsub{font-size:12px;color:var(--gr);text-align:center;margin-bottom:6px;}
-.lbadge{text-align:center;margin-bottom:24px;}
-.lbadge span{background:var(--pl);color:var(--p);padding:3px 12px;border-radius:10px;font-size:11px;font-weight:700;}
-.lf{margin-bottom:14px;}
-.lf label{display:block;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
-.lf input{width:100%;padding:11px 13px;border:1.5px solid var(--grb);border-radius:8px;font-size:14px;outline:none;transition:border .15s;font-family:inherit;}
-.lf input:focus{border-color:var(--p);}
-.lbtn{width:100%;padding:13px;background:var(--d);color:var(--w);border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
-.lbtn:hover{background:var(--d2);}
-.lerr{background:var(--rl);border-left:3px solid var(--r);border-radius:6px;padding:10px 13px;font-size:12px;color:var(--r);margin-top:10px;display:none;}
+/* Splash */
+#ob-splash{align-items:center;justify-content:space-between;padding:56px 28px 40px}
+.sp-logo{text-align:center}
+.sp-logo-text{font-size:42px;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:6px}
+.sp-logo-sub{font-size:12px;color:var(--pm);font-weight:500;letter-spacing:1px}
+.sp-icon{width:130px;height:130px;border-radius:50%;
+  background:rgba(107,33,168,.18);border:1px solid rgba(216,180,254,.2);
+  display:flex;align-items:center;justify-content:center;font-size:54px;
+  margin:8px auto}
+.sp-props{width:100%;background:rgba(255,255,255,.06);border-radius:14px;padding:18px 20px;margin-bottom:20px}
+.sp-prop{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(216,180,254,.1)}
+.sp-prop:last-child{border-bottom:none}
+.sp-prop-dot{width:28px;height:28px;border-radius:50%;background:var(--p);
+  display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.sp-prop-text{font-size:13px;color:var(--pm);line-height:1.4}
 
-/* ── Bottom Nav ─────────────────────────────────────── */
-.bnav{display:flex;background:var(--w);border-top:1px solid var(--grb);position:sticky;bottom:0;}
-.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;
-  background:none;border:none;cursor:pointer;font-family:Arial,sans-serif;}
-.bnav-icon{font-size:20px;margin-bottom:2px;}
-.bnav-label{font-size:10px;font-weight:600;color:var(--tx3);}
-.bnav-item.active .bnav-label{color:var(--p);}
+/* Step panels */
+.ob-step{padding:28px 24px;flex:1;overflow-y:auto}
+.ob-step-label{font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:10px}
+.ob-title{font-size:22px;font-weight:800;color:#fff;margin-bottom:6px}
+.ob-sub{font-size:13px;color:var(--pm);margin-bottom:24px;line-height:1.5}
 
-/* ── Screens ────────────────────────────────────────── */
-.screen{display:none;flex:1;flex-direction:column;}
-.screen.active{display:flex;}
-.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.scroll::-webkit-scrollbar{display:none;}
+/* Progress dots */
+.ob-dots{display:flex;gap:6px;justify-content:center;margin-bottom:24px}
+.ob-dot{width:6px;height:6px;border-radius:3px;background:rgba(216,180,254,.25);transition:all .3s}
+.ob-dot.active{width:20px;background:var(--pm)}
 
-/* ── Cards & Layout ─────────────────────────────────── */
-.card{background:var(--w);border-radius:12px;padding:16px 18px;box-shadow:0 1px 6px rgba(0,0,0,.08);margin-bottom:12px;}
-.card-title{font-size:14px;font-weight:700;margin-bottom:4px;}
-.card-sub{font-size:12px;color:var(--gr);margin-bottom:14px;}
-.section{padding:14px 16px;}
-.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-.stat-card{background:var(--w);border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:3px solid var(--p);}
-.stat-card.green{border-top-color:var(--g);}
-.stat-card.amber{border-top-color:var(--am);}
-.stat-label{font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;}
-.stat-value{font-size:20px;font-weight:800;color:var(--tx);}
-.stat-sub{font-size:10px;color:var(--tx3);margin-top:2px;}
+/* Fields in onboarding */
+.ob-field{margin-bottom:16px}
+.ob-field label{display:block;font-size:10px;font-weight:700;color:var(--pm);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.ob-field input,.ob-field select{
+  width:100%;padding:12px 14px;
+  background:rgba(255,255,255,.08);
+  border:1.5px solid rgba(216,180,254,.25);
+  border-radius:10px;font-size:15px;color:#fff;
+  outline:none;transition:border-color .2s;font-family:Arial,sans-serif;
+  -webkit-appearance:none;
+}
+.ob-field input::placeholder{color:rgba(216,180,254,.4)}
+.ob-field input:focus,.ob-field select:focus{border-color:var(--pm)}
+.ob-field select option{background:#2D1052;color:#fff}
 
-/* ── Buttons ────────────────────────────────────────── */
-.btn{width:100%;padding:13px;border:none;border-radius:20px;font-size:14px;font-weight:700;
-  cursor:pointer;font-family:Arial,sans-serif;transition:opacity .15s;}
-.btn:active{opacity:.85;}
-.btn:disabled{opacity:.45;cursor:not-allowed;}
-.btn-p{background:var(--p);color:var(--w);}
-.btn-g{background:var(--g);color:var(--w);}
-.btn-r{background:var(--r);color:var(--w);}
-.btn-wa{background:#25D366;color:var(--w);}
-.btn-outline{background:transparent;border:2px solid var(--p);color:var(--p);font-size:13px;}
-.btn-sm{padding:8px 16px;width:auto;font-size:12px;border-radius:16px;}
+/* Onboarding buttons */
+.ob-btn-row{display:flex;gap:10px;margin-top:8px}
+.ob-btn{flex:1;padding:13px;border:none;border-radius:20px;font-size:14px;
+  font-weight:700;cursor:pointer;font-family:Arial,sans-serif;transition:opacity .15s}
+.ob-btn:active{opacity:.85}
+.ob-btn.primary{background:var(--p);color:#fff}
+.ob-btn.primary:disabled{opacity:.5;cursor:not-allowed}
+.ob-btn.secondary{background:rgba(255,255,255,.1);color:var(--pm);border:1px solid rgba(216,180,254,.2)}
 
-/* ── QR Box ─────────────────────────────────────────── */
-.qr-box{background:var(--w);border-radius:14px;padding:20px;text-align:center;box-shadow:0 2px 12px rgba(107,33,168,.15);border:1px solid var(--pm);}
-.qr-wrap{display:flex;justify-content:center;margin:14px 0 10px;}
-.qr-wrap>div{background:var(--w);padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);}
-.qr-amount{font-size:24px;font-weight:800;color:var(--d);margin-bottom:4px;}
-.qr-sub{font-size:12px;color:var(--gr);margin-bottom:12px;}
-.qr-timer{font-size:12px;font-weight:700;color:var(--am);margin-bottom:14px;}
-.qr-actions{display:flex;gap:8px;}
-.qr-actions .btn{flex:1;}
+/* Confirm summary */
+.ob-summary{background:rgba(255,255,255,.06);border-radius:14px;padding:18px;margin-bottom:18px}
+.ob-summary-row{display:flex;justify-content:space-between;align-items:center;
+  padding:9px 0;border-bottom:1px solid rgba(216,180,254,.1)}
+.ob-summary-row:last-child{border-bottom:none}
+.ob-summary-key{font-size:12px;color:var(--pm)}
+.ob-summary-val{font-size:13px;font-weight:700;color:#fff;max-width:60%;text-align:right}
 
-/* ── Transaction row ────────────────────────────────── */
-.tx-list{background:var(--w);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);}
-.tx-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--grb);}
-.tx-row:last-child{border-bottom:none;}
-.tx-dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;}
-.tx-dot.in{background:var(--gl);color:var(--g);}
-.tx-dot.out{background:var(--rl);color:var(--r);}
-.tx-dot.pending{background:var(--al);color:var(--am);}
-.tx-info{flex:1;min-width:0;}
-.tx-name{font-size:13px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.tx-meta{font-size:11px;color:var(--tx3);margin-top:2px;}
-.tx-amount{font-size:13px;font-weight:700;flex-shrink:0;}
-.tx-amount.in{color:var(--g);}
-.tx-amount.out{color:var(--r);}
+/* Login panel */
+#ob-login .ob-step{justify-content:center}
+.ob-err{background:rgba(192,57,43,.15);border-left:3px solid var(--r);
+  border-radius:8px;padding:10px 13px;font-size:12px;color:#ff8a8a;
+  margin-top:12px;display:none}
+.ob-err.show{display:block}
 
-/* ── Form fields ────────────────────────────────────── */
-.field{margin-bottom:14px;}
-.field label{display:block;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
-.field input,.field select{width:100%;padding:11px 13px;border:1.5px solid var(--grb);border-radius:8px;font-size:14px;outline:none;font-family:inherit;background:var(--w);}
-.field input:focus,.field select:focus{border-color:var(--p);}
+/* ── APP SHELL ──────────────────────────────────────────────── */
+.hdr{background:var(--d);padding:13px 18px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:50;flex-shrink:0}
+.hdr-logo{font-size:17px;font-weight:800;letter-spacing:3px;color:#fff}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.hdr-badge{background:var(--p);color:#fff;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700}
+.logout-btn{padding:5px 12px;background:transparent;color:#aaa;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer}
 
-/* ── Alert ──────────────────────────────────────────── */
-.alert{border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.5;margin:10px 0;}
-.alert-g{background:var(--gl);border-left:3px solid var(--g);color:#0A5C35;}
-.alert-r{background:var(--rl);border-left:3px solid var(--r);color:var(--r);}
-.alert-am{background:var(--al);border-left:3px solid var(--am);color:var(--am);}
-.alert-p{background:var(--pl);border-left:3px solid var(--p);color:var(--p);}
+/* ── SCREENS ────────────────────────────────────────────────── */
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.scroll::-webkit-scrollbar{display:none}
 
-/* ── Profile banner ─────────────────────────────────── */
-.profile-banner{background:linear-gradient(135deg,var(--d),var(--d2));padding:24px 18px 20px;text-align:center;}
-.profile-avatar{width:60px;height:60px;border-radius:50%;background:var(--p);border:3px solid var(--pm);
-  display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--w);margin:0 auto 10px;}
-.profile-name{font-size:18px;font-weight:800;color:var(--w);margin-bottom:2px;}
-.profile-id{font-size:11px;color:var(--pm);}
+/* ── BOTTOM NAV ─────────────────────────────────────────────── */
+.bnav{display:flex;background:var(--w);border-top:1px solid var(--grb);flex-shrink:0}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:8px 4px 6px;background:none;border:none;cursor:pointer;font-family:Arial,sans-serif}
+.bnav-icon{font-size:19px;margin-bottom:2px}
+.bnav-label{font-size:10px;font-weight:600;color:var(--tx3)}
+.bnav-item.active .bnav-label,.bnav-item.active .bnav-icon{color:var(--p)}
 
-/* ── Empty state ────────────────────────────────────── */
-.empty{text-align:center;padding:40px 20px;}
-.empty-icon{font-size:44px;margin-bottom:12px;display:block;}
-.empty-title{font-size:16px;font-weight:700;color:var(--tx);margin-bottom:6px;}
-.empty-sub{font-size:13px;color:var(--tx2);line-height:1.5;}
+/* ── CARDS ──────────────────────────────────────────────────── */
+.card{background:var(--w);border-radius:12px;padding:16px 18px;
+  box-shadow:0 1px 6px rgba(0,0,0,.08);margin-bottom:12px}
+.section-pad{padding:14px 16px}
 
-/* ── Badge ──────────────────────────────────────────── */
-.badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;}
-.badge-g{background:var(--gl);color:#0A5C35;}
-.badge-am{background:var(--al);color:var(--am);}
-.badge-r{background:var(--rl);color:var(--r);}
-.badge-p{background:var(--pl);color:var(--p);}
+/* ── BUTTONS ────────────────────────────────────────────────── */
+.btn{width:100%;padding:13px;border:none;border-radius:20px;font-size:14px;
+  font-weight:700;cursor:pointer;font-family:Arial,sans-serif;transition:opacity .15s}
+.btn:active{opacity:.85}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-p{background:var(--p);color:#fff}
+.btn-g{background:var(--g);color:#fff}
+.btn-wa{background:#25D366;color:#fff}
+.btn-outline{background:transparent;border:2px solid var(--p);color:var(--p);font-size:13px}
+.btn-sm{padding:8px 16px;width:auto;font-size:12px;border-radius:16px}
 
-/* ── Toast / Loader ─────────────────────────────────── */
-#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
-  background:var(--d);color:var(--w);padding:10px 20px;border-radius:20px;font-size:13px;
-  font-weight:600;z-index:999;opacity:0;pointer-events:none;transition:all .3s;
-  white-space:nowrap;max-width:90vw;border-left:3px solid var(--p);}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-#toast.err{border-left-color:var(--r);}
-#loader{position:fixed;inset:0;background:rgba(26,10,46,.75);z-index:998;display:none;
-  align-items:center;justify-content:center;flex-direction:column;gap:12px;}
-#loader.show{display:flex;}
-.spinner{width:38px;height:38px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--pm);
-  border-radius:50%;animation:spin .7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.ltxt{color:var(--w);font-size:13px;}
+/* ── FIELDS ─────────────────────────────────────────────────── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:10px;font-weight:700;color:var(--tx3);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.field input,.field select{width:100%;padding:11px 13px;border:1.5px solid var(--grb);
+  border-radius:8px;font-size:14px;outline:none;font-family:Arial,sans-serif;
+  background:var(--w);transition:border-color .2s}
+.field input:focus,.field select:focus{border-color:var(--p)}
+
+/* ── HOME BANNER ────────────────────────────────────────────── */
+.home-banner{background:linear-gradient(135deg,var(--d),var(--d2));padding:20px 18px 18px;flex-shrink:0}
+.home-biz-row{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.home-avatar{width:48px;height:48px;border-radius:50%;background:var(--p);
+  border:2px solid var(--pm);display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:800;color:#fff;flex-shrink:0}
+.home-biz-name{font-size:15px;font-weight:700;color:#fff}
+.home-biz-loc{font-size:11px;color:var(--pm);margin-top:2px}
+.today-card{background:rgba(255,255,255,.08);border-radius:12px;padding:14px 16px}
+.today-label{font-size:11px;color:var(--pm);font-weight:600;margin-bottom:6px}
+.today-amount{font-size:28px;font-weight:800;color:#fff}
+.today-sub{font-size:11px;color:var(--pm);margin-top:3px}
+
+/* ── QUICK ACTIONS ──────────────────────────────────────────── */
+.quick-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px 16px 4px}
+.qa-btn{border:none;border-radius:12px;padding:14px 8px;cursor:pointer;font-family:Arial,sans-serif;text-align:center}
+.qa-icon{font-size:22px;margin-bottom:6px;display:block}
+.qa-label{font-size:11px;font-weight:700}
+
+/* ── TX LIST ────────────────────────────────────────────────── */
+.tx-list{background:var(--w);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.tx-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--grb)}
+.tx-row:last-child{border-bottom:none}
+.tx-dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.tx-dot.in{background:var(--gl);color:var(--g)}
+.tx-dot.out{background:var(--rl);color:var(--r)}
+.tx-info{flex:1;min-width:0}
+.tx-name{font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-meta{font-size:11px;color:var(--tx3);margin-top:2px}
+.tx-amount{font-size:13px;font-weight:700;flex-shrink:0}
+.tx-amount.in{color:var(--g)}
+.tx-amount.out{color:var(--r)}
+
+/* ── QR BOX ─────────────────────────────────────────────────── */
+.qr-box{background:var(--w);border-radius:14px;padding:20px;text-align:center;
+  box-shadow:0 2px 12px rgba(107,33,168,.15);border:1px solid var(--pm);margin-bottom:14px}
+.qr-canvas-wrap{display:flex;justify-content:center;margin:14px 0 10px}
+.qr-canvas-wrap>div{background:#fff;padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.qr-amount{font-size:22px;font-weight:800;color:var(--d);margin-bottom:4px}
+.qr-sub{font-size:12px;color:var(--gr);margin-bottom:4px}
+.qr-timer{font-size:12px;font-weight:700;color:var(--am);margin-bottom:14px}
+.qr-actions{display:flex;gap:8px}
+.qr-actions .btn{flex:1;padding:12px}
+
+/* ── SCANNER ────────────────────────────────────────────────── */
+.scan-video-wrap{position:relative;background:#000;flex-shrink:0}
+.scan-video{width:100%;display:block;max-height:280px;object-fit:cover}
+.scan-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-frame{width:200px;height:200px;position:relative}
+.scan-corner{position:absolute;width:28px;height:28px}
+.sc-tl{top:0;left:0;border-top:3px solid var(--p);border-left:3px solid var(--p);border-radius:4px 0 0 0}
+.sc-tr{top:0;right:0;border-top:3px solid var(--p);border-right:3px solid var(--p);border-radius:0 4px 0 0}
+.sc-bl{bottom:0;left:0;border-bottom:3px solid var(--p);border-left:3px solid var(--p);border-radius:0 0 0 4px}
+.sc-br{bottom:0;right:0;border-bottom:3px solid var(--p);border-right:3px solid var(--p);border-radius:0 0 4px 0}
+.scan-line{position:absolute;left:4px;right:4px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--p),transparent);
+  animation:scanline 1.8s ease-in-out infinite}
 @keyframes scanline{0%{top:4px;opacity:1}50%{top:188px;opacity:.8}100%{top:4px;opacity:1}}
+.scan-status{position:absolute;bottom:0;left:0;right:0;
+  background:rgba(0,0,0,.6);padding:8px 14px;font-size:12px;color:#fff;text-align:center}
+
+/* ── PAY RESULT ─────────────────────────────────────────────── */
+.pay-result{display:none;margin:0 16px 16px}
+.pay-result.show{display:block}
+.pay-result-inner{background:var(--d);border-radius:14px;overflow:hidden}
+.pay-result-top{padding:20px;text-align:center}
+.pay-result-icon{font-size:40px;margin-bottom:8px;display:block}
+.pay-result-amount{font-size:26px;font-weight:800;color:#fff;margin-bottom:4px}
+.pay-result-detail{font-size:13px;color:var(--pm)}
+.pay-result-body{background:var(--d2);padding:14px 18px}
+
+/* ── PROFILE BANNER ─────────────────────────────────────────── */
+.profile-banner{background:linear-gradient(135deg,var(--d),var(--d2));
+  padding:26px 18px 22px;text-align:center;flex-shrink:0}
+.profile-avatar{width:60px;height:60px;border-radius:50%;background:var(--p);
+  border:3px solid var(--pm);display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;color:#fff;margin:0 auto 10px}
+.profile-name{font-size:18px;font-weight:800;color:#fff;margin-bottom:3px}
+.profile-id{font-size:11px;color:var(--pm)}
+
+/* ── ALERTS ─────────────────────────────────────────────────── */
+.alert{border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.5;margin:10px 0}
+.alert-p{background:var(--pl);border-left:3px solid var(--p);color:var(--p)}
+.alert-g{background:var(--gl);border-left:3px solid var(--g);color:#0A5C35}
+.alert-am{background:var(--al);border-left:3px solid var(--am);color:var(--am)}
+
+/* ── EMPTY ──────────────────────────────────────────────────── */
+.empty{text-align:center;padding:36px 20px}
+.empty-icon{font-size:44px;margin-bottom:12px;display:block}
+.empty-title{font-size:16px;font-weight:700;color:var(--tx);margin-bottom:6px}
+.empty-sub{font-size:13px;color:var(--tx2);line-height:1.5}
+
+/* ── TOAST / LOADER ─────────────────────────────────────────── */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--d);color:#fff;padding:10px 20px;border-radius:20px;
+  font-size:13px;font-weight:600;z-index:999;opacity:0;pointer-events:none;
+  transition:all .3s;white-space:nowrap;max-width:90vw;border-left:3px solid var(--p)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{border-left-color:var(--r)}
+#loader{position:fixed;inset:0;background:rgba(26,10,46,.75);z-index:998;
+  display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+#loader.show{display:flex}
+.spinner{width:38px;height:38px;border:3px solid rgba(255,255,255,.15);
+  border-top-color:var(--pm);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-label{color:#fff;font-size:13px}
 </style>
 </head>
 <body>
 <div id="toast"></div>
-<div id="loader"><div class="spinner"></div><div class="ltxt" id="ltxt">Loading...</div></div>
+<div id="loader"><div class="spinner"></div><div class="loader-label" id="loader-label">Loading...</div></div>
 
-<!-- ══ ONBOARDING ════════════════════════════════════════════ -->
-<div id="login-screen" style="min-height:100vh;display:flex;flex-direction:column;
-  background:linear-gradient(135deg,#1A0A2E,#2D1052,#1A0A2E);overflow-y:auto">
+<!-- ════════════════════════════════════════════════════════════
+     ONBOARDING WRAPPER
+═══════════════════════════════════════════════════════════════ -->
+<div id="ob-wrap">
 
-  <!-- Onboarding screens (step-by-step) -->
-  <div id="ob-splash" style="flex:1;display:flex;flex-direction:column;align-items:center;
-    justify-content:space-between;padding:60px 28px 40px;min-height:100vh">
-    <div style="text-align:center">
-      <div style="font-size:44px;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:8px">ZILLION</div>
-      <div style="font-size:13px;color:var(--pm);font-weight:500">Merchant Portal</div>
+  <!-- SPLASH -->
+  <div id="ob-splash" class="ob-panel active">
+    <div class="sp-logo">
+      <div class="sp-logo-text">ZILLION</div>
+      <div class="sp-logo-sub">Merchant Portal</div>
     </div>
-    <div style="width:130px;height:130px;border-radius:50%;background:rgba(107,33,168,.2);
-      border:1px solid rgba(216,180,254,.2);display:flex;align-items:center;justify-content:center;font-size:52px">
-      🛒
-    </div>
+    <div class="sp-icon">🛒</div>
     <div style="width:100%">
-      <div style="background:rgba(255,255,255,.06);border-radius:14px;padding:20px;margin-bottom:20px">
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📲</div>
-            <div style="font-size:13px;color:var(--pm)">Accept Zil payments via QR code</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">⚡</div>
-            <div style="font-size:13px;color:var(--pm)">Works offline — no internet needed</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🏧</div>
-            <div style="font-size:13px;color:var(--pm)">Cash out at any Zillion agent</div>
-          </div>
-        </div>
+      <div class="sp-props">
+        <div class="sp-prop"><div class="sp-prop-dot">📲</div><div class="sp-prop-text">Accept Zil payments instantly via QR code</div></div>
+        <div class="sp-prop"><div class="sp-prop-dot">⚡</div><div class="sp-prop-text">Works offline — no internet needed</div></div>
+        <div class="sp-prop"><div class="sp-prop-dot">🏧</div><div class="sp-prop-text">Cash out Zil at any Zillion agent</div></div>
       </div>
-      <button class="lbtn" onclick="showObStep(2)" style="margin-bottom:10px">Register My Business →</button>
-      <button class="lbtn" onclick="showObStep('login')"
-        style="background:transparent;border:1px solid rgba(216,180,254,.3);color:var(--pm);font-weight:500">
+      <button class="ob-btn primary" style="width:100%;margin-bottom:10px" onclick="showPanel('ob-step1')">
+        Register My Business →
+      </button>
+      <button class="ob-btn secondary" style="width:100%" onclick="showPanel('ob-login')">
         I already have an account
       </button>
     </div>
   </div>
 
-  <!-- Step 2: Owner details -->
-  <div id="ob-step2" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
-    <div style="margin-bottom:24px">
-      <div style="font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Step 1 of 3</div>
-      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">About you</div>
-      <div style="font-size:13px;color:var(--pm)">Your personal details to secure your account</div>
-    </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Your Full Name</label>
-      <input type="text" id="ob-owner" placeholder="e.g. Ngozi Adeyemi" autocomplete="name"
-        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
-    </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Phone Number</label>
-      <input type="tel" id="ob-phone" placeholder="08012345678" inputmode="tel"
-        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
-    </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="lbtn" onclick="showObStep(1)" style="flex:1;background:rgba(255,255,255,.1);color:var(--pm)">‹ Back</button>
-      <button class="lbtn" onclick="validateStep2()" style="flex:2">Next →</button>
+  <!-- STEP 1: Owner details -->
+  <div id="ob-step1" class="ob-panel">
+    <div class="ob-step">
+      <div class="ob-dots">
+        <div class="ob-dot active"></div><div class="ob-dot"></div><div class="ob-dot"></div>
+      </div>
+      <div class="ob-step-label">Step 1 of 3</div>
+      <div class="ob-title">About you</div>
+      <div class="ob-sub">Your personal details to secure your merchant account</div>
+
+      <div class="ob-field">
+        <label>Your Full Name</label>
+        <input type="text" id="ob-owner" placeholder="e.g. Ngozi Adeyemi" autocomplete="name">
+      </div>
+      <div class="ob-field">
+        <label>Phone Number</label>
+        <input type="tel" id="ob-phone" placeholder="08012345678" inputmode="numeric">
+      </div>
+
+      <div class="ob-btn-row">
+        <button class="ob-btn secondary" style="flex:0.6" onclick="showPanel('ob-splash')">‹ Back</button>
+        <button class="ob-btn primary" onclick="validateStep1()">Next →</button>
+      </div>
     </div>
   </div>
 
-  <!-- Step 3: Business details -->
-  <div id="ob-step3" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
-    <div style="margin-bottom:24px">
-      <div style="font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Step 2 of 3</div>
-      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">Your business</div>
-      <div style="font-size:13px;color:var(--pm)">Tell customers who you are</div>
-    </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Business Name</label>
-      <input type="text" id="ob-biz" placeholder="e.g. Mama Ngozi Tomatoes"
-        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
-    </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Business Type</label>
-      <select id="ob-type" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(216,180,254,.3);
-        border-radius:8px;color:#fff;padding:11px 13px;width:100%;font-size:14px;font-family:Arial,sans-serif">
-        <option value="Food & Vegetables">🥬 Food &amp; Vegetables</option>
-        <option value="Clothing & Fashion">👗 Clothing &amp; Fashion</option>
-        <option value="Electronics">📱 Electronics</option>
-        <option value="Pharmacy & Health">💊 Pharmacy &amp; Health</option>
-        <option value="Transport">🚌 Transport</option>
-        <option value="Restaurant & Food">🍲 Restaurant &amp; Food</option>
-        <option value="Hardware & Tools">🔧 Hardware &amp; Tools</option>
-        <option value="General Retail">🏪 General Retail</option>
-        <option value="Services">⚙️ Services</option>
-        <option value="Other">📦 Other</option>
-      </select>
-    </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Market / Location</label>
-      <input type="text" id="ob-loc" placeholder="e.g. Mushin Market, Lagos"
-        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
-    </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="lbtn" onclick="showObStep(2)" style="flex:1;background:rgba(255,255,255,.1);color:var(--pm)">‹ Back</button>
-      <button class="lbtn" onclick="validateStep3()" style="flex:2">Next →</button>
+  <!-- STEP 2: Business details -->
+  <div id="ob-step2" class="ob-panel">
+    <div class="ob-step">
+      <div class="ob-dots">
+        <div class="ob-dot"></div><div class="ob-dot active"></div><div class="ob-dot"></div>
+      </div>
+      <div class="ob-step-label">Step 2 of 3</div>
+      <div class="ob-title">Your business</div>
+      <div class="ob-sub">Tell your customers who you are</div>
+
+      <div class="ob-field">
+        <label>Business Name</label>
+        <input type="text" id="ob-biz" placeholder="e.g. Mama Ngozi Tomatoes">
+      </div>
+      <div class="ob-field">
+        <label>Business Type</label>
+        <select id="ob-type">
+          <option value="Food & Vegetables">🥬 Food &amp; Vegetables</option>
+          <option value="Clothing & Fashion">👗 Clothing &amp; Fashion</option>
+          <option value="Electronics">📱 Electronics</option>
+          <option value="Pharmacy & Health">💊 Pharmacy &amp; Health</option>
+          <option value="Transport">🚌 Transport</option>
+          <option value="Restaurant & Food">🍲 Restaurant &amp; Food</option>
+          <option value="Hardware & Tools">🔧 Hardware &amp; Tools</option>
+          <option value="General Retail">🏪 General Retail</option>
+          <option value="Services">⚙️ Services</option>
+          <option value="Other">📦 Other</option>
+        </select>
+      </div>
+      <div class="ob-field">
+        <label>Market / Location</label>
+        <input type="text" id="ob-loc" placeholder="e.g. Mushin Market, Lagos">
+      </div>
+
+      <div class="ob-field">
+        <label>Create Password</label>
+        <input type="password" id="ob-password" placeholder="At least 6 characters" autocomplete="new-password">
+        <div style="font-size:11px;color:var(--pm);margin-top:4px">
+          You will use this password to log in. Keep it safe.
+        </div>
+      </div>
+      <div class="ob-field">
+        <label>Confirm Password</label>
+        <input type="password" id="ob-password2" placeholder="Repeat your password" autocomplete="new-password">
+      </div>
+
+      <div class="ob-btn-row">
+        <button class="ob-btn secondary" style="flex:0.6" onclick="showPanel('ob-step1')">‹ Back</button>
+        <button class="ob-btn primary" onclick="validateStep2()">Next →</button>
+      </div>
     </div>
   </div>
 
-  <!-- Step 4: Confirm & Register -->
-  <div id="ob-step4" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
-    <div style="margin-bottom:20px">
-      <div style="font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Step 3 of 3</div>
-      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">Confirm details</div>
-      <div style="font-size:13px;color:var(--pm)">Review before registering</div>
+  <!-- STEP 3: Confirm -->
+  <div id="ob-step3" class="ob-panel">
+    <div class="ob-step">
+      <div class="ob-dots">
+        <div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot active"></div>
+      </div>
+      <div class="ob-step-label">Step 3 of 3</div>
+      <div class="ob-title">Confirm details</div>
+      <div class="ob-sub">Review before registering your merchant account</div>
+
+      <div class="ob-summary" id="ob-confirm-summary"></div>
+
+      <div style="background:rgba(107,33,168,.15);border-radius:10px;padding:12px 14px;
+        margin-bottom:18px;border-left:3px solid var(--p);font-size:12px;color:var(--pm);line-height:1.6">
+        By registering you agree to Zillion merchant terms. Your Merchant ID is permanent and generated from your phone number.
+      </div>
+
+      <div class="ob-err" id="ob-err"></div>
+
+      <button class="ob-btn primary" id="ob-reg-btn" onclick="doRegister()" style="width:100%;margin-bottom:10px">
+        ✅ Register My Business
+      </button>
+      <button class="ob-btn secondary" style="width:100%" onclick="showPanel('ob-step2')">‹ Back</button>
     </div>
-    <div style="background:rgba(255,255,255,.06);border-radius:14px;padding:18px;margin-bottom:20px">
-      <div id="ob-summary" style="display:flex;flex-direction:column;gap:12px"></div>
-    </div>
-    <div style="background:rgba(107,33,168,.2);border-radius:10px;padding:12px 14px;margin-bottom:20px;
-      border-left:3px solid var(--p);font-size:12px;color:var(--pm);line-height:1.6">
-      By registering you agree to Zillion's merchant terms. Your Merchant ID will be generated from your phone number and is permanent.
-    </div>
-    <button class="lbtn" onclick="doRegister()" id="reg-btn" style="margin-bottom:10px">
-      ✅ Register My Business
-    </button>
-    <button class="lbtn" onclick="showObStep(3)" style="background:rgba(255,255,255,.1);color:var(--pm)">‹ Back</button>
-    <div class="lerr" id="ob-err" style="display:none;margin-top:10px"></div>
   </div>
 
-  <!-- Login screen (returning merchants) -->
-  <div id="ob-login" style="display:none;flex:1;padding:28px 24px;min-height:100vh">
-    <div style="text-align:center;margin-bottom:28px">
-      <div style="font-size:32px;font-weight:800;letter-spacing:5px;color:#fff;margin-bottom:4px">ZILLION</div>
-      <div style="font-size:12px;color:var(--pm)">Merchant Portal — Login</div>
+  <!-- LOGIN (returning merchants) -->
+  <div id="ob-login" class="ob-panel">
+    <div class="ob-step">
+      <div style="text-align:center;margin-bottom:28px;padding-top:20px">
+        <div style="font-size:30px;font-weight:800;letter-spacing:5px;color:#fff;margin-bottom:4px">ZILLION</div>
+        <div style="font-size:12px;color:var(--pm)">Merchant Login</div>
+      </div>
+
+      <div class="ob-field">
+        <label>Phone Number</label>
+        <input type="tel" id="l-phone" placeholder="08012345678" inputmode="numeric">
+      </div>
+      <div class="ob-field">
+        <label>Password</label>
+        <input type="password" id="l-password" placeholder="Your account password" autocomplete="current-password">
+      </div>
+
+      <div class="ob-err" id="l-err"></div>
+
+      <button class="ob-btn primary" style="width:100%;margin-bottom:10px;margin-top:8px" onclick="doLogin()">
+        Login →
+      </button>
+      <button class="ob-btn secondary" style="width:100%" onclick="showPanel('ob-splash')">
+        New merchant? Register
+      </button>
     </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Phone Number</label>
-      <input type="tel" id="l-phone" placeholder="08012345678" inputmode="tel"
-        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
-    </div>
-    <div class="lf">
-      <label style="color:var(--pm)">Business Name</label>
-      <input type="text" id="l-biz" placeholder="Your registered business name"
-        style="background:rgba(255,255,255,.08);border-color:rgba(216,180,254,.3);color:#fff;">
-    </div>
-    <button class="lbtn" onclick="doLogin()" style="margin-bottom:10px">Login →</button>
-    <button class="lbtn" onclick="showObStep(1)" style="background:rgba(255,255,255,.1);color:var(--pm)">
-      New merchant? Register
-    </button>
-    <div class="lerr" id="lerr" style="display:none;margin-top:10px"></div>
   </div>
 
-</div>
+</div><!-- end ob-wrap -->
 
-<!-- ══ APP ══════════════════════════════════════════════════ -->
-<div id="app" style="display:none">
+
+<!-- ════════════════════════════════════════════════════════════
+     APP (shown after login/register)
+═══════════════════════════════════════════════════════════════ -->
+<div id="app-shell" style="display:none;flex:1;flex-direction:column">
+
   <div class="hdr">
     <div class="hdr-logo">ZILLION</div>
     <div class="hdr-right">
@@ -321,267 +438,299 @@ html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg);}
     </div>
   </div>
 
-  <!-- ── HOME ─────────────────────────────────────────────── -->
+  <!-- HOME -->
   <div id="screen-home" class="screen active">
     <div class="scroll" style="background:var(--bg)">
-      <!-- Merchant banner -->
-      <div style="background:linear-gradient(135deg,var(--d),var(--d2));padding:20px 18px 18px">
-        <div style="display:flex;align-items:center;gap:14px">
-          <div style="width:48px;height:48px;border-radius:50%;background:var(--p);border:2px solid var(--pm);
-            display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--w);flex-shrink:0"
-            id="home-avatar">NG</div>
+      <div class="home-banner">
+        <div class="home-biz-row">
+          <div class="home-avatar" id="home-avatar">ZL</div>
           <div>
-            <div style="font-size:15px;font-weight:700;color:var(--w)" id="home-biz">Business Name</div>
-            <div style="font-size:11px;color:var(--pm)" id="home-loc">Location</div>
+            <div class="home-biz-name" id="home-biz-name">Business</div>
+            <div class="home-biz-loc" id="home-biz-loc">Location</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div id="m-conn-badge" style="font-size:11px;font-weight:700;color:#F59E0B">● Offline</div>
+              <button onclick="merchantSync()" title="Sync now" style="background:none;border:1px solid rgba(255,255,255,.25);border-radius:5px;color:rgba(255,255,255,.55);font-size:10px;padding:2px 6px;cursor:pointer;font-family:inherit">↻</button>
+            </div>
+            <div id="m-sync-status" style="font-size:10px;color:#9CA3AF;margin-top:2px">—</div>
           </div>
         </div>
-        <!-- Today earnings -->
-        <div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-top:14px">
-          <div style="font-size:11px;color:var(--pm);margin-bottom:6px;font-weight:600">TODAY'S EARNINGS</div>
-          <div style="font-size:28px;font-weight:800;color:var(--w)" id="home-today">₦0.00</div>
-          <div style="font-size:11px;color:var(--pm);margin-top:2px" id="home-tx-count">0 transactions</div>
+        <div class="today-card">
+          <div class="today-label">AVAILABLE BALANCE</div>
+          <div class="today-amount" id="today-amount">₦0.00</div>
+          <div id="merch-book-balance" style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;display:none"></div>
+          <div class="today-sub" id="today-count">0 payments today</div>
+          <div id="merch-pending-note" style="font-size:11px;color:rgba(255,200,50,.9);margin-top:4px;display:none"></div>
         </div>
       </div>
 
-      <!-- Quick actions -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px 16px 4px">
-        <button onclick="showScreen('screen-accept')"
-          style="background:var(--p);border:none;border-radius:12px;padding:14px 8px;cursor:pointer;font-family:Arial,sans-serif">
-          <div style="font-size:22px;margin-bottom:6px">📷</div>
-          <div style="font-size:11px;font-weight:700;color:var(--w)">Scan QR</div>
+      <div class="quick-actions">
+        <button class="qa-btn" style="background:var(--p)" onclick="goScreen('screen-scan')">
+          <span class="qa-icon">📷</span>
+          <span class="qa-label" style="color:#fff">Scan QR</span>
         </button>
-        <button onclick="showScreen('screen-myqr')"
-          style="background:var(--gl);border:1px solid var(--gm);border-radius:12px;padding:14px 8px;cursor:pointer;font-family:Arial,sans-serif">
-          <div style="font-size:22px;margin-bottom:6px">⬡</div>
-          <div style="font-size:11px;font-weight:700;color:var(--g)">My QR</div>
+        <button class="qa-btn" style="background:var(--gl);border:1px solid var(--gm)" onclick="goScreen('screen-myqr')">
+          <span class="qa-icon">⬡</span>
+          <span class="qa-label" style="color:var(--g)">My QR</span>
         </button>
-        <button onclick="showScreen('screen-cashout')"
-          style="background:var(--bll);border:1px solid #AABCFF;border-radius:12px;padding:14px 8px;cursor:pointer;font-family:Arial,sans-serif">
-          <div style="font-size:22px;margin-bottom:6px">🏧</div>
-          <div style="font-size:11px;font-weight:700;color:var(--bl)">Cash Out</div>
+        <button class="qa-btn" style="background:var(--bll);border:1px solid #AABCFF" onclick="goScreen('screen-cashout')">
+          <span class="qa-icon">🏧</span>
+          <span class="qa-label" style="color:var(--bl)">Cash Out</span>
         </button>
       </div>
 
-      <!-- Recent payments -->
-      <div style="padding:4px 16px 14px">
-        <div style="font-size:13px;font-weight:700;color:var(--tx);padding:10px 0 8px">Recent Payments</div>
+      <div class="section-pad">
+        <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:10px">Recent Payments</div>
         <div id="home-tx-list">
-          <div class="empty" style="padding:24px">
-            <span class="empty-icon">🛒</span>
-            <div class="empty-title">No payments yet</div>
-            <div class="empty-sub">Share your QR code or scan a customer's QR to accept Zil.</div>
-          </div>
+          <div class="empty"><span class="empty-icon">🛒</span><div class="empty-title">No payments yet</div><div class="empty-sub">Share your QR or scan a customer QR to receive Zil.</div></div>
         </div>
       </div>
     </div>
     <div class="bnav">
-      <button class="bnav-item active" onclick="showScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-accept')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+      <button class="bnav-item active" onclick="goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-history');refreshFullHistory()"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
 
-  <!-- ── ACCEPT PAYMENT (Scan Customer QR) ──────────────────── -->
-  <div id="screen-accept" class="screen">
-    <div style="background:var(--d);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
-      <button onclick="stopMerchScanner();showScreen('screen-home')" style="background:none;border:none;color:var(--w);font-size:22px;cursor:pointer">‹</button>
-      <div style="font-size:15px;font-weight:700;color:var(--w)">Accept Payment</div>
+  <!-- SCAN QR (accept payments) -->
+  <div id="screen-scan" class="screen">
+    <!-- Header -->
+    <div style="background:var(--d);padding:13px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="stopScan();goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer">‹</button>
+      <div style="font-size:15px;font-weight:700;color:#fff">Accept Payment</div>
     </div>
-    <div style="position:relative;background:#000;flex-shrink:0">
-      <video id="merch-video" autoplay playsinline muted style="width:100%;display:block;max-height:280px;object-fit:cover"></video>
-      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
-        <div style="width:200px;height:200px;position:relative">
-          <div style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:3px solid var(--p);border-left:3px solid var(--p);border-radius:4px 0 0 0"></div>
-          <div style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:3px solid var(--p);border-right:3px solid var(--p);border-radius:0 4px 0 0"></div>
-          <div style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:3px solid var(--p);border-left:3px solid var(--p);border-radius:0 0 0 4px"></div>
-          <div style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:3px solid var(--p);border-right:3px solid var(--p);border-radius:0 0 4px 0"></div>
-          <div style="position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,var(--p),transparent);animation:scanline 1.8s ease-in-out infinite"></div>
+
+    <!-- Receive method tabs -->
+    <div style="display:flex;background:var(--d);padding:0 16px 12px;gap:6px;flex-shrink:0">
+      <button id="m-recv-tab-qr"   onclick="mSwitchRecv('qr')"   style="flex:1;padding:8px 0;border:none;border-radius:8px;background:#2D1052;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+      <button id="m-recv-tab-nfc"  onclick="mSwitchRecv('nfc')"  style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
+      <button id="m-recv-tab-file" onclick="mSwitchRecv('file')" style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 File</button>
+    </div>
+
+    <!-- QR Scan panel -->
+    <div id="m-recv-panel-qr" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <div class="scan-video-wrap">
+        <video id="scan-video" class="scan-video" autoplay playsinline muted></video>
+        <div class="scan-overlay">
+          <div class="scan-frame">
+            <div class="scan-corner sc-tl"></div><div class="scan-corner sc-tr"></div>
+            <div class="scan-corner sc-bl"></div><div class="scan-corner sc-br"></div>
+            <div class="scan-line"></div>
+          </div>
         </div>
+        <div class="scan-status" id="scan-status">Tap Start Camera to scan</div>
       </div>
-      <div id="merch-scan-status" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);padding:8px 14px;font-size:12px;color:#fff;text-align:center">
-        Tap Start to scan customer QR
+      <div style="padding:12px 16px;display:flex;gap:10px;flex-shrink:0">
+        <button id="scan-start-btn" class="btn btn-p" onclick="startScan()">📷 Start Camera</button>
+        <button id="scan-stop-btn"  class="btn btn-outline" style="display:none" onclick="stopScan()">⏹ Stop</button>
+      </div>
+      <div style="padding:4px 18px 8px;font-size:12px;color:var(--tx2);text-align:center;flex-shrink:0">
+        Point camera at customer's Zillion QR code
       </div>
     </div>
-    <div style="padding:14px 16px;display:flex;gap:10px;flex-shrink:0">
-      <button id="merch-start-btn" class="btn btn-p" onclick="startMerchScanner()">📷 Start Camera</button>
-      <button id="merch-stop-btn" class="btn btn-outline" style="display:none" onclick="stopMerchScanner()">⏹ Stop</button>
+
+    <!-- NFC panel -->
+    <div id="m-recv-panel-nfc" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;background:var(--d)">
+      <div style="font-size:64px;margin-bottom:16px">📡</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">NFC Receive</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.7;margin-bottom:24px">
+        Ask customer to hold their Zillion wallet phone against yours. The payment transfers automatically.
+      </div>
+      <button onclick="mStartNFCReceive()" style="width:100%;padding:15px;background:#7C3AED;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+        📡 Start NFC Receive
+      </button>
+      <div id="m-nfc-status" style="margin-top:16px;font-size:13px;color:#A78BFA;font-weight:600;min-height:20px"></div>
     </div>
-    <!-- Payment result -->
-    <div id="merch-pay-result" style="display:none;flex:1;overflow-y:auto;padding:0 16px 16px">
-      <div style="background:var(--d);border-radius:14px;overflow:hidden">
-        <div style="padding:20px;text-align:center">
-          <div style="font-size:40px;margin-bottom:8px" id="merch-res-icon">⏳</div>
-          <div style="font-size:26px;font-weight:800;color:var(--w);margin-bottom:4px" id="merch-res-amount">—</div>
-          <div style="font-size:13px;color:var(--pm)" id="merch-res-detail">Processing...</div>
+
+    <!-- File import panel -->
+    <div id="m-recv-panel-file" style="display:none;flex:1;flex-direction:column;padding:20px;gap:14px;background:var(--d)">
+      <div style="background:rgba(255,255,255,.08);border-radius:16px;padding:24px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">📄</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:8px">Import .zil File</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:20px;line-height:1.6">
+          Customer shares their .zil file via WhatsApp or other apps. Select it below to accept the payment.
         </div>
-        <div style="background:var(--d2);padding:14px 18px">
-          <div id="merch-res-coins"></div>
-          <div id="merch-res-err" class="alert alert-r" style="display:none;margin-top:10px"></div>
+        <input type="file" id="m-zil-input" accept=".zil,application/octet-stream" style="display:none" onchange="mImportZilFile(this)">
+        <button onclick="document.getElementById('m-zil-input').click()" style="width:100%;padding:15px;background:#7C3AED;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+          📂 Choose .zil File
+        </button>
+      </div>
+    </div>
+
+    <!-- Unified payment result (shown for ALL methods: QR, NFC, File) -->
+    <div class="pay-result" id="pay-result">
+      <div class="pay-result-inner">
+        <div class="pay-result-top">
+          <span class="pay-result-icon" id="pr-icon">⏳</span>
+          <div class="pay-result-amount" id="pr-amount">—</div>
+          <div class="pay-result-detail" id="pr-detail">Processing...</div>
+        </div>
+        <div class="pay-result-body">
+          <div id="pr-coins"></div>
+          <div id="pr-err" class="alert" style="display:none;background:var(--rl);border-left-color:var(--r);color:var(--r);margin-top:10px"></div>
           <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
-            <button class="btn btn-g" id="merch-accept-btn" onclick="confirmMerchPayment()" style="display:none">
-              ✅ Accept Payment
-            </button>
-            <button class="btn" style="background:transparent;color:var(--pm);border:1px solid #3A2A5A;border-radius:20px" onclick="resetMerchScanner()">
-              Scan Another QR
-            </button>
+            <button class="btn btn-g" id="pr-accept-btn" onclick="confirmPayment()" style="display:none">✅ Accept Payment</button>
+            <button class="btn" style="background:transparent;color:var(--pm);border:1px solid var(--pm);margin-top:4px" onclick="resetScan()">Scan Another</button>
           </div>
         </div>
       </div>
     </div>
+
     <div class="bnav">
-      <button class="bnav-item" onclick="stopMerchScanner();showScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-      <button class="bnav-item active" onclick="showScreen('screen-accept')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+      <button class="bnav-item" onclick="stopScan();goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+      <button class="bnav-item active" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
 
-  <!-- ── MY QR (Static payment QR for customers to scan) ─────── -->
+  <!-- MY QR -->
   <div id="screen-myqr" class="screen">
-    <div style="background:var(--d);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
-      <button onclick="showScreen('screen-home')" style="background:none;border:none;color:var(--w);font-size:22px;cursor:pointer">‹</button>
-      <div style="font-size:15px;font-weight:700;color:var(--w)">My Payment QR</div>
+    <div style="background:var(--d);padding:13px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer">‹</button>
+      <div style="font-size:15px;font-weight:700;color:#fff">My Payment QR</div>
     </div>
     <div class="scroll" style="padding:16px;background:var(--bg)">
-      <div class="alert alert-p" style="margin-bottom:14px">
-        Show this QR to customers so they can pay you. Valid 24 hours — refresh daily.
-      </div>
+      <div class="alert alert-p">Show this QR to customers. They scan it in their Zillion wallet to pay you. Valid 24 hours.</div>
 
-      <!-- Static merchant QR -->
       <div class="qr-box">
-        <div style="font-size:16px;font-weight:700;color:var(--d)" id="myqr-bizname">Business Name</div>
-        <div style="font-size:12px;color:var(--gr);margin-bottom:4px" id="myqr-loc">Location</div>
-        <!-- Optional amount field -->
-        <div style="display:flex;gap:8px;margin:10px 0;align-items:center">
-          <div style="font-size:12px;color:var(--gr);white-space:nowrap">Amount (₦)</div>
-          <input type="number" id="myqr-amount" placeholder="Leave blank for any amount"
+        <div style="font-size:16px;font-weight:700;color:var(--d)" id="myqr-biz">Business Name</div>
+        <div style="font-size:12px;color:var(--gr);margin-bottom:10px" id="myqr-loc">Location</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <label style="font-size:12px;color:var(--gr);white-space:nowrap">Amount (optional ₦)</label>
+          <input type="number" id="myqr-amount" placeholder="Any amount"
             style="flex:1;padding:7px 10px;border:1px solid var(--grb);border-radius:8px;font-size:13px;outline:none;min-width:0"
             onchange="refreshMyQR()">
         </div>
-        <div class="qr-wrap"><div id="myqr-canvas"></div></div>
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:4px" id="myqr-id">—</div>
+        <div class="qr-canvas-wrap"><div id="myqr-canvas"></div></div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:4px" id="myqr-id">Generating...</div>
         <div class="qr-timer" id="myqr-timer">⏱ Valid 24 hours</div>
         <div class="qr-actions">
           <button class="btn btn-wa" onclick="shareMyQR()">📱 Share via WhatsApp</button>
-          <button class="btn btn-outline" onclick="saveMyQRImage()" style="flex:0;padding:12px 16px;border-color:var(--grb);color:var(--gr)">💾</button>
+          <button class="btn" style="background:var(--grl);color:var(--gr);border:1px solid var(--grb);flex:0;padding:12px 16px;border-radius:10px" onclick="saveMyQRImg()">💾</button>
         </div>
       </div>
-
-      <div class="alert alert-g" style="margin-top:14px">
-        <strong>Customer flow:</strong> Customer opens Zillion wallet → Send → enters amount → Scan QR → points camera here → payment goes through instantly.
-      </div>
+      <div class="alert alert-g">Customer flow: Open Zillion wallet → Send → enter amount → Scan QR → payment done.</div>
     </div>
     <div class="bnav">
-      <button class="bnav-item" onclick="showScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-accept')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
-      <button class="bnav-item active" onclick="showScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
+      <button class="bnav-item active" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
 
-  <!-- ── CASH OUT ─────────────────────────────────────────────── -->
+  <!-- CASH OUT -->
   <div id="screen-cashout" class="screen">
-    <div style="background:var(--d);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
-      <button onclick="showScreen('screen-home')" style="background:none;border:none;color:var(--w);font-size:22px;cursor:pointer">‹</button>
-      <div style="font-size:15px;font-weight:700;color:var(--w)">Cash Out</div>
+    <div style="background:var(--d);padding:13px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer">‹</button>
+      <div style="font-size:15px;font-weight:700;color:#fff">Cash Out</div>
     </div>
     <div class="scroll" style="padding:16px;background:var(--bg)">
       <div style="background:var(--d);border-radius:14px;padding:18px;margin-bottom:16px;text-align:center">
         <div style="font-size:11px;color:var(--pm);margin-bottom:6px;font-weight:600">ZIL BALANCE</div>
-        <div style="font-size:32px;font-weight:800;color:var(--w)" id="co-balance">₦0.00</div>
-        <div style="font-size:12px;color:var(--pm);margin-top:4px" id="co-coins">0 coins available</div>
+        <div style="font-size:32px;font-weight:800;color:#fff" id="co-balance">₦0.00</div>
+        <div style="font-size:12px;color:var(--pm);margin-top:4px" id="co-coins">0 coins</div>
       </div>
-
       <div class="card">
-        <div class="card-title">Generate Cash-Out QR</div>
-        <div class="card-sub">Take this to a Zillion agent to exchange for naira cash.</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Generate Cash-Out QR</div>
+        <div style="font-size:12px;color:var(--gr);margin-bottom:14px">Take this to a Zillion agent to get naira cash.</div>
         <div class="field">
           <label>Amount to cash out (₦)</label>
           <input type="number" id="co-amount" placeholder="e.g. 2000" min="500" step="500" inputmode="numeric">
         </div>
         <button class="btn btn-p" onclick="generateCashoutQR()">Generate QR for Agent →</button>
       </div>
-
-      <!-- Cashout QR -->
-      <div id="cashout-qr-wrap" style="display:none">
+      <div id="cashout-qr-box" style="display:none">
         <div class="qr-box">
           <div style="font-size:13px;font-weight:700;color:var(--d);margin-bottom:4px">Show this to the agent</div>
-          <div class="qr-wrap"><div id="cashout-qr-canvas"></div></div>
-          <div style="font-size:20px;font-weight:800;color:var(--p);margin-bottom:4px" id="cashout-qr-amount">₦0</div>
-          <div style="font-size:11px;color:var(--gr);margin-bottom:8px" id="cashout-qr-detail"></div>
-          <div class="qr-timer" id="cashout-qr-timer">⏱ Valid 15 minutes</div>
+          <div class="qr-canvas-wrap"><div id="co-qr-canvas"></div></div>
+          <div style="font-size:20px;font-weight:800;color:var(--p);margin-bottom:4px" id="co-qr-amount">₦0</div>
+          <div style="font-size:11px;color:var(--gr);margin-bottom:8px" id="co-qr-detail"></div>
+          <div class="qr-timer" id="co-qr-timer">⏱ Valid 15 minutes</div>
           <div class="qr-actions">
             <button class="btn btn-wa" onclick="shareCashoutQR()">📱 Share via WhatsApp</button>
-            <button class="btn btn-outline" onclick="saveCashoutQRImage()" style="flex:0;padding:12px 16px;border-color:var(--grb);color:var(--gr)">💾</button>
+            <button class="btn" style="background:var(--grl);color:var(--gr);border:1px solid var(--grb);flex:0;padding:12px 16px;border-radius:10px" onclick="saveCashoutImg()">💾</button>
           </div>
         </div>
       </div>
-
-      <div class="alert alert-am" style="margin-top:14px">
-        <strong>How to cash out:</strong> Generate QR above → visit any Zillion agent → they scan it → verify your coins → pay you naira.
-      </div>
+      <div class="alert alert-am">Visit a Zillion agent with this QR. They scan it, verify your coins, and pay you naira cash.</div>
     </div>
     <div class="bnav">
-      <button class="bnav-item" onclick="showScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-accept')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
-      <button class="bnav-item active" onclick="showScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
+      <button class="bnav-item active" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
 
-  <!-- ── PROFILE ──────────────────────────────────────────────── -->
+  <!-- PROFILE -->
+  <!-- HISTORY SCREEN -->
+  <div id="screen-history" class="screen" style="display:none;flex-direction:column">
+    <div style="background:var(--dp);padding:16px 20px 12px;display:flex;align-items:center;gap:12px">
+      <button onclick="goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0">&#x2039;</button>
+      <div style="font-size:17px;font-weight:700;color:#fff">Transaction History</div>
+    </div>
+    <div style="padding:16px;flex:1;overflow-y:auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+        <div style="background:var(--w);border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Total Received</div><div id="hist-total-in" style="font-size:15px;font-weight:800;color:var(--g)">&#x20a6;0.00</div></div>
+        <div style="background:var(--w);border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Cashed Out</div><div id="hist-total-out" style="font-size:15px;font-weight:800;color:var(--r)">&#x20a6;0.00</div></div>
+        <div style="background:var(--w);border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Net Balance</div><div id="hist-net" style="font-size:15px;font-weight:800;color:var(--tx)">&#x20a6;0.00</div></div>
+      </div>
+      <div id="hist-full-list" style="background:var(--w);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)"></div>
+
+      <!-- Vault Coins section -->
+      <div id="merchant-vault-section" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--grb)">
+        <div style="font-size:12px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
+          Coins in Vault <span id="vault-count" style="font-weight:400;color:var(--pm)"></span>
+        </div>
+        <div id="merchant-vault-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+  </div>
   <div id="screen-profile" class="screen">
     <div class="profile-banner">
-      <div class="profile-avatar" id="prof-avatar">NG</div>
-      <div class="profile-name" id="prof-name">Business Name</div>
+      <div class="profile-avatar" id="prof-avatar">ZL</div>
+      <div class="profile-name" id="prof-name">Business</div>
       <div class="profile-id" id="prof-id">MERCH-00000000</div>
     </div>
     <div class="scroll" style="padding:14px 16px;background:var(--bg)">
       <div class="card">
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--gr)">Business</span><span style="font-size:13px;font-weight:700" id="prof-biz">—</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--gr)">Location</span><span style="font-size:13px;font-weight:600" id="prof-loc">—</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--gr)">Phone</span><span style="font-size:13px;font-weight:600" id="prof-phone">—</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--gr)">Merchant ID</span><span style="font-size:12px;font-family:monospace" id="prof-mid">—</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--gr)">Zil Balance</span><span style="font-size:13px;font-weight:700;color:var(--g)" id="prof-balance">₦0.00</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--gr)">Total Received</span><span style="font-size:13px;font-weight:700;color:var(--p)" id="prof-total">₦0.00</span></div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:0">
-        <div style="font-size:13px;color:var(--gr);margin-bottom:10px">App</div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px;color:var(--tx)">Version</span><span style="font-size:13px;color:var(--gr)">PWA v1.0</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--tx)">Wallet</span><span style="font-size:13px;color:var(--g)">zillion-mvp.netlify.app/wallet/</span></div>
+        <div id="prof-rows" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <button class="btn btn-outline" style="margin-bottom:10px;color:var(--r);border-color:var(--r)" onclick="doLogout()">Log Out</button>
     </div>
     <div class="bnav">
-      <button class="bnav-item" onclick="showScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-accept')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
-      <button class="bnav-item" onclick="showScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
-      <button class="bnav-item active" onclick="showScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item active" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
-</div>
+
+</div><!-- end app-shell -->
 
 <script>
 'use strict';
-const API     = '/.netlify/functions';
-const DB_KEY  = 'zillion_merchant_v1';
+const API    = '/.netlify/functions';
+const DB_KEY = 'zillion_merchant_v1';
 
 // ── State ──────────────────────────────────────────────────────
-let M = {
-  merchant_id:  null, token: null, phone: null,
-  business_name:'', location:'',
-  vault: [],        // received coins held by merchant
-  history: [],      // payment history
-  myQrClaimUrl:  null, myQrImageData: null, myQrTimer: null,
-  cashoutQrUrl:  null, cashoutQrImgData: null, cashoutQrTimer: null,
+const M = {
+  merchant_id:'', token:'', phone:'', owner_name:'',
+  business_name:'', business_type:'', location:'',
+  vault:[], history:[],
+  myQrUrl:null, myQrExpires:null, myQrImg:null, myQrTimer:null,
+  coQrUrl:null, coQrExpires:null, coQrImg:null, coQrTimer:null,
 };
 
 // ── Persist ────────────────────────────────────────────────────
@@ -589,7 +738,8 @@ function save() { localStorage.setItem(DB_KEY, JSON.stringify(M)); }
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(DB_KEY)||'{}');
-    Object.assign(M, d); return !!M.token;
+    Object.keys(d).forEach(k => { if(k in M) M[k]=d[k]; });
+    return !!M.token;
   } catch { return false; }
 }
 
@@ -597,529 +747,1054 @@ function load() {
 let _toastT;
 function toast(msg, isErr=false, ms=3000) {
   const el = document.getElementById('toast');
-  el.textContent = msg; el.className = 'show' + (isErr?' err':'');
-  clearTimeout(_toastT); _toastT = setTimeout(()=>el.className='', ms);
+  el.textContent = msg;
+  el.className   = 'show' + (isErr?' err':'');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.className='', ms);
 }
-function showL(t='Processing...') { document.getElementById('ltxt').textContent=t; document.getElementById('loader').classList.add('show'); }
+function showL(t='Processing...') {
+  document.getElementById('loader-label').textContent = t;
+  document.getElementById('loader').classList.add('show');
+}
 function hideL() { document.getElementById('loader').classList.remove('show'); }
 
-// ── Screen nav ──────────────────────────────────────────────────
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  // Update bnav active state
-  const map={'screen-home':'Home','screen-accept':'Scan','screen-myqr':'My QR','screen-cashout':'Cash Out','screen-profile':'Profile'};
-  const label = map[id];
-  document.querySelectorAll('.bnav-label').forEach(l=>{
-    l.closest('.bnav-item').classList.toggle('active', l.textContent===label);
-  });
-  if (id==='screen-home')    refreshHome();
-  if (id==='screen-myqr')    ensureMyQR();
-  if (id==='screen-cashout') refreshCashout();
-  if (id==='screen-profile') refreshProfile();
-  if (id==='screen-accept')  startMerchScanner();
+// ── Onboarding panel nav ───────────────────────────────────────
+function showPanel(id) {
+  document.querySelectorAll('.ob-panel').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
 }
 
-// ── ONBOARDING FLOW ────────────────────────────────────────────
-const OB_STEPS = { 1:'ob-splash',2:'ob-step2',3:'ob-step3',4:'ob-step4','login':'ob-login' };
-function showObStep(step) {
-  Object.values(OB_STEPS).forEach(id => {
-    const el=document.getElementById(id);
-    if (el) el.style.display='none';
-  });
-  const el=document.getElementById(OB_STEPS[step]);
-  if (el) el.style.display='flex';
-  if (step===4) buildSummary();
-}
-
-function validateStep2() {
+// ── Validate step 1 ───────────────────────────────────────────
+function validateStep1() {
   const owner = document.getElementById('ob-owner').value.trim();
   const phone = document.getElementById('ob-phone').value.trim();
   if (!owner) { alert('Please enter your full name'); return; }
-  if (!phone) { alert('Please enter your phone number'); return; }
-  showObStep(3);
+  if (!phone || phone.length < 8) { alert('Please enter a valid phone number'); return; }
+  showPanel('ob-step2');
 }
 
-function validateStep3() {
-  const biz = document.getElementById('ob-biz').value.trim();
-  const loc = document.getElementById('ob-loc').value.trim();
-  if (!biz) { alert('Please enter your business name'); return; }
-  if (!loc) { alert('Please enter your market / location'); return; }
-  showObStep(4);
+// ── Validate step 2 ───────────────────────────────────────────
+function validateStep2() {
+  const biz  = document.getElementById('ob-biz').value.trim();
+  const loc  = document.getElementById('ob-loc').value.trim();
+  const pwd  = document.getElementById('ob-password')?.value  || '';
+  const pwd2 = document.getElementById('ob-password2')?.value || '';
+  if (!biz)         { alert('Please enter your business name'); return; }
+  if (!loc)         { alert('Please enter your market or location'); return; }
+  if (pwd.length < 6)  { alert('Password must be at least 6 characters'); return; }
+  if (pwd !== pwd2) { alert('Passwords do not match. Please re-enter.'); return; }
+  buildConfirmSummary();
+  showPanel('ob-step3');
 }
 
-function buildSummary() {
+function buildConfirmSummary() {
   const data = {
-    'Owner Name':    document.getElementById('ob-owner')?.value||'',
-    'Phone':         document.getElementById('ob-phone')?.value||'',
-    'Business':      document.getElementById('ob-biz')?.value||'',
-    'Business Type': document.getElementById('ob-type')?.value||'',
-    'Location':      document.getElementById('ob-loc')?.value||'',
+    'Owner Name':    document.getElementById('ob-owner').value,
+    'Phone':         document.getElementById('ob-phone').value,
+    'Business':      document.getElementById('ob-biz').value,
+    'Business Type': document.getElementById('ob-type').value,
+    'Location':      document.getElementById('ob-loc').value,
   };
-  const el = document.getElementById('ob-summary');
-  if (!el) return;
-  el.innerHTML = Object.entries(data).map(([k,v])=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;
-      padding:8px 0;border-bottom:1px solid rgba(216,180,254,.1)">
-      <span style="font-size:12px;color:var(--pm)">${k}</span>
-      <span style="font-size:13px;font-weight:700;color:#fff">${v||'—'}</span>
-    </div>`).join('');
+  document.getElementById('ob-confirm-summary').innerHTML = Object.entries(data).map(([k,v]) =>
+    '<div class="ob-summary-row"><span class="ob-summary-key">'+k+'</span><span class="ob-summary-val">'+v+'</span></div>'
+  ).join('');
 }
 
+// ── Register ───────────────────────────────────────────────────
 async function doRegister() {
-  const phone    = document.getElementById('ob-phone').value.trim();
+  const rawPhone = document.getElementById('ob-phone').value.trim();
+  const phone    = rawPhone.startsWith('+') ? rawPhone : rawPhone.startsWith('0') ? '+234'+rawPhone.slice(1) : '+234'+rawPhone;
   const owner    = document.getElementById('ob-owner').value.trim();
   const biz      = document.getElementById('ob-biz').value.trim();
   const bizType  = document.getElementById('ob-type').value;
   const loc      = document.getElementById('ob-loc').value.trim();
   const errEl    = document.getElementById('ob-err');
-  const btn      = document.getElementById('reg-btn');
-  errEl.style.display='none';
+  const btn      = document.getElementById('ob-reg-btn');
 
-  const normalised = phone.startsWith('+') ? phone
-    : phone.startsWith('0') ? '+234'+phone.slice(1) : '+234'+phone;
-
-  btn.disabled=true; btn.textContent='Registering...';
+  errEl.className = 'ob-err';
+  btn.disabled    = true;
+  btn.textContent = 'Registering...';
   showL('Creating your merchant account...');
+
   try {
-    const res = await fetch(`${API}/merchant-register`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ phone:normalised, owner_name:owner,
-        business_name:biz, business_type:bizType, location:loc }),
+    const res  = await fetch(API+'/merchant-register', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ phone, owner_name:owner, business_name:biz, business_type:bizType, location:loc, password: document.getElementById('ob-password')?.value || '' }),
     });
     const data = await res.json();
     hideL();
+
     if (!res.ok) {
-      errEl.textContent=data.error||'Registration failed'; errEl.style.display='block';
-      btn.disabled=false; btn.textContent='✅ Register My Business';
+      errEl.textContent = data.error || 'Registration failed. Please try again.';
+      errEl.className   = 'ob-err show';
+      btn.disabled      = false;
+      btn.textContent   = '✅ Register My Business';
       return;
     }
+
     // Save session
     M.token=data.token; M.merchant_id=data.merchant_id;
-    M.phone=normalised; M.owner_name=owner;
+    M.phone=phone; M.owner_name=owner;
     M.business_name=biz; M.business_type=bizType; M.location=loc;
-    save(); showApp();
+    save();
+    showApp();
     toast('Welcome to Zillion, '+owner+'! 🎉');
+    ensureMyQR();
   } catch(e) {
     hideL();
-    errEl.textContent='Network error: '+e.message; errEl.style.display='block';
-    btn.disabled=false; btn.textContent='✅ Register My Business';
+    errEl.textContent = 'Network error: ' + e.message;
+    errEl.className   = 'ob-err show';
+    btn.disabled      = false;
+    btn.textContent   = '✅ Register My Business';
   }
 }
 
-// ── LOGIN (returning merchants) ────────────────────────────────
+// ── Login (returning) ──────────────────────────────────────────
 async function doLogin() {
-  const phone = document.getElementById('l-phone').value.trim();
-  const biz   = document.getElementById('l-biz').value.trim();
-  const errEl = document.getElementById('lerr');
-  errEl.style.display='none';
-  if (!phone) { errEl.textContent='Phone number required'; errEl.style.display='block'; return; }
-  if (!biz)   { errEl.textContent='Business name required'; errEl.style.display='block'; return; }
+  const rawPhone = document.getElementById('l-phone').value.trim();
+  const password = document.getElementById('l-password')?.value || '';
+  const errEl    = document.getElementById('l-err');
+  errEl.className = 'ob-err';
+
+  if (!rawPhone)         { errEl.textContent='Phone required'; errEl.className='ob-err show'; return; }
+  if (password.length < 6) { errEl.textContent='Password required (min 6 chars)'; errEl.className='ob-err show'; return; }
+
+  const phone = rawPhone.startsWith('+') ? rawPhone : rawPhone.startsWith('0') ? '+234'+rawPhone.slice(1) : '+234'+rawPhone;
   showL('Logging in...');
+
   try {
-    const normalised = phone.startsWith('+') ? phone
-      : phone.startsWith('0') ? '+234'+phone.slice(1) : '+234'+phone;
-    const res = await fetch(`${API}/merchant-login`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ phone:normalised, business_name:biz }),
+    const res  = await fetch(API+'/merchant-login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ phone, password }),
     });
     const data = await res.json();
     hideL();
-    if (!res.ok) { errEl.textContent=data.error||'Login failed'; errEl.style.display='block'; return; }
+
+    if (!res.ok) {
+      const msg = data.error || 'Login failed';
+      errEl.textContent = msg;
+      errEl.className   = 'ob-err show';
+      // If first login (legacy account needs password), focus password field
+      if (msg.includes('First login') || msg.includes('set a password')) {
+        document.getElementById('l-password').focus();
+        document.getElementById('l-password').placeholder = 'Choose your new password (min 6 chars)';
+      }
+      return;
+    }
+
     M.token=data.token; M.merchant_id=data.merchant_id;
-    M.phone=normalised; M.business_name=biz;
-    save(); showApp();
-  } catch(e) { hideL(); errEl.textContent='Network error: '+e.message; errEl.style.display='block'; }
+    M.phone=phone; M.business_name=data.business_name||'';
+    if (data.owner_name) M.owner_name=data.owner_name;
+    save();
+    showApp();
+    ensureMyQR();
+  } catch(e) {
+    hideL();
+    errEl.textContent = 'Network error: '+e.message;
+    errEl.className   = 'ob-err show';
+  }
 }
 
+// ── Show app ───────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('ob-wrap').style.display        = 'none';
+  document.getElementById('app-shell').style.display      = 'flex';
+  document.getElementById('app-shell').style.flexDirection= 'column';
+  document.getElementById('app-shell').style.flex         = '1';
+  refreshHome();
+  refreshProfile();
+  refreshCashout();
+  refreshFullHistory();   // populate history tab immediately
+  // Sync immediately on login if online
+  if (_mOnline && M.token) {
+    setTimeout(merchantSync, 800);
+  }
+}
+
+// ── Logout ─────────────────────────────────────────────────────
 function doLogout() {
   if (!confirm('Log out? Vault data stays on this device.')) return;
-  M.token=null; save();
-  document.getElementById('app').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('login-screen').style.flexDirection='column';
-  showObStep(1);
-}
-function showApp() {
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('app').style.display='flex';
-  document.getElementById('app').style.flexDirection='column';
-  document.getElementById('app').style.minHeight='100%';
-  refreshHome(); ensureMyQR();
+  M.token=''; M.merchant_id='';
+  save();
+  stopScan();
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('ob-wrap').style.display   = 'flex';
+  document.getElementById('ob-wrap').style.flexDirection = 'column';
+  showPanel('ob-splash');
 }
 
-// ── HOME ───────────────────────────────────────────────────────
+// ── Screen navigation ──────────────────────────────────────────
+function goScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  // Update bnav
+  const map = {'screen-home':'Home','screen-scan':'Scan','screen-myqr':'My QR','screen-cashout':'Cash Out','screen-profile':'Profile'};
+  const label = map[id];
+  document.querySelectorAll('.bnav-label').forEach(el => {
+    el.closest('.bnav-item').classList.toggle('active', el.textContent===label);
+  });
+  if (id==='screen-home')     refreshHome();
+  if (id==='screen-cashout')  refreshCashout();
+  if (id==='screen-profile')  refreshProfile();
+  if (id==='screen-myqr')     ensureMyQR();
+  if (id==='screen-scan')     startScan();
+}
+
+// ── Home ───────────────────────────────────────────────────────
 function refreshHome() {
-  const initials = M.business_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'ZL';
-  document.getElementById('home-avatar').textContent = initials;
-  document.getElementById('home-biz').textContent    = M.business_name;
-  document.getElementById('home-loc').textContent    = M.location;
+  const ini = (M.business_name||'ZL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  setText('home-avatar',   ini);
+  setText('home-biz-name', M.business_name||'Business');
+  setText('home-biz-loc',  M.location||'Location');
+
+  // ── Ledger-style balance ───────────────────────────────────────
+  // Available = SETTLED received payments (confirmed by server)
+  // Book      = ALL received (SETTLED + PENDING_SYNC)
+  // Net       = Book minus cashed-out amounts
+  const received   = M.history.filter(h => h.type === 'received');
+  const cashedOut  = M.history.filter(h => h.type === 'cashout');
+  const settledAmt = received.filter(h=>h.status==='SETTLED').reduce((s,h)=>s+h.amount,0);
+  const bookAmt    = received.reduce((s,h)=>s+h.amount, 0);
+  const coAmt      = cashedOut.reduce((s,h)=>s+h.amount, 0);
+  const pendingAmt = bookAmt - settledAmt;
+
+  // Available = settled received minus cashouts
+  const availAmt = Math.max(0, settledAmt - coAmt);
+
+  setText('today-amount', fmt(availAmt));
+
+  // Book balance line
+  const bookEl = document.getElementById('merch-book-balance');
+  if (bookEl) {
+    if (bookAmt !== availAmt) {
+      bookEl.textContent = 'Book balance ' + fmt(bookAmt - coAmt);
+      bookEl.style.display = 'block';
+    } else {
+      bookEl.style.display = 'none';
+    }
+  }
+  // Pending note
+  const pendEl = document.getElementById('merch-pending-note');
+  if (pendEl) {
+    if (pendingAmt > 0) {
+      pendEl.textContent = fmt(pendingAmt) + ' pending sync';
+      pendEl.style.display = 'block';
+    } else { pendEl.style.display = 'none'; }
+  }
+
   const today   = new Date().toDateString();
-  const todayTx = M.history.filter(h=>new Date(h.ts).toDateString()===today && h.type==='received');
-  const todayAmt= todayTx.reduce((s,h)=>s+h.amount,0);
-  document.getElementById('home-today').textContent    = fmt(todayAmt);
-  document.getElementById('home-tx-count').textContent = todayTx.length + ' payment' + (todayTx.length!==1?'s':'') + ' today';
+  const todayTx = M.history.filter(h => new Date(h.ts).toDateString()===today && h.type==='received');
+  const todayAmt= todayTx.reduce((s,h) => s+h.amount, 0);
+  setText('today-count', todayTx.length + ' payment' + (todayTx.length!==1?'s':'') + ' today · ' + fmt(todayAmt) + ' received');
   const listEl = document.getElementById('home-tx-list');
   if (!M.history.length) {
-    listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="empty-icon">🛒</span><div class="empty-title">No payments yet</div><div class="empty-sub">Share your QR or scan a customer QR to accept Zil.</div></div>';
+    listEl.innerHTML = '<div class="empty"><span class="empty-icon">🛒</span><div class="empty-title">No payments yet</div><div class="empty-sub">Share your QR or scan a customer QR.</div></div>';
     return;
   }
-  listEl.innerHTML = '<div class="tx-list">' + M.history.slice(0,10).map(h=>`
-    <div class="tx-row">
-      <div class="tx-dot ${h.type==='received'?'in':'out'}">${h.type==='received'?'↓':'↑'}</div>
-      <div class="tx-info"><div class="tx-name">${h.name||'Transaction'}</div>
-        <div class="tx-meta">${relTime(h.ts)} · <span style="color:${h.status==='PENDING_SYNC'?'var(--am)':'var(--g)';}">${h.status==='PENDING_SYNC'?'Pending sync':'Settled'}</span></div></div>
-      <div class="tx-amount ${h.type==='received'?'in':'out'}">${h.type==='received'?'+':'-'}${fmt(h.amount)}</div>
-    </div>`).join('') + '</div>';
+  listEl.innerHTML = '<div class="tx-list">' + M.history.slice(0,10).map(h =>
+    '<div class="tx-row"><div class="tx-dot '+(h.type==='received'?'in':'out')+'">'+(h.type==='received'?'↓':'↑')+'</div>'+
+    '<div class="tx-info"><div class="tx-name">'+(h.name||'Transaction')+'</div>'+
+    '<div class="tx-meta">'+relTime(h.ts)+' · <span style="color:'+(h.status==='PENDING_SYNC'?'var(--am)':'var(--g)')+'">'+
+    (h.status==='PENDING_SYNC'?'Pending sync':'Settled')+'</span></div></div>'+
+    '<div class="tx-amount '+(h.type==='received'?'in':'out')+'">'+(h.type==='received'?'+':'-')+fmt(h.amount)+'</div></div>'
+  ).join('') + '</div>';
 }
 
-// ── MY STATIC QR (merchant displays, customer scans to pay) ──
+// ── My QR ──────────────────────────────────────────────────────
 async function ensureMyQR() {
-  const bizEl = document.getElementById('myqr-bizname');
-  const locEl = document.getElementById('myqr-loc');
-  if (bizEl) bizEl.textContent = M.business_name;
-  if (locEl) locEl.textContent = M.location;
-  // Generate/refresh if no QR or expired
-  if (!M.myQrClaimUrl || (M.myQrExpiresAt && new Date(M.myQrExpiresAt) < new Date())) {
+  setText('myqr-biz', M.business_name||'Business');
+  setText('myqr-loc', M.location||'');
+  if (!M.myQrUrl || (M.myQrExpires && new Date(M.myQrExpires) < new Date())) {
     await refreshMyQR();
   } else {
-    renderMyQR(M.myQrClaimUrl, M.myQrExpiresAt);
+    renderQR('myqr-canvas', M.myQrUrl, '#2D1052');
+    startMyQRTimer(new Date(M.myQrExpires));
+    const id = (M.myQrUrl.split('claim=')[1]||'').split('&')[0];
+    setText('myqr-id', 'ID: '+id.slice(0,12)+'...');
   }
 }
 
 async function refreshMyQR() {
-  const amountInput = document.getElementById('myqr-amount');
-  const amount      = amountInput ? parseInt(amountInput.value||0)*100 : 0;
+  const amount = parseInt(document.getElementById('myqr-amount')?.value||0)*100;
   try {
-    const res = await fetch(`${API}/create-payment-request`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        type:          'payment',
-        merchant_id:   M.merchant_id,
-        business_name: M.business_name,
-        location:      M.location,
-        amount_kobo:   amount,
-        label:         M.business_name + (amount ? ' — '+fmt(amount) : ''),
+    const res  = await fetch(API+'/create-payment-request', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        type:'payment', merchant_id:M.merchant_id,
+        business_name:M.business_name, location:M.location, amount_kobo:amount,
+        label:M.business_name+(amount?' — '+fmt(amount):''),
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    M.myQrClaimUrl   = data.claim_url;
-    M.myQrExpiresAt  = data.expires_at;
+    if (!res.ok) throw new Error(data.error||'QR failed');
+    M.myQrUrl     = data.claim_url;
+    M.myQrExpires = data.expires_at;
+    M.myQrImg     = null;
     save();
-    renderMyQR(data.claim_url, data.expires_at);
+    renderQR('myqr-canvas', data.claim_url, '#2D1052');
+    setTimeout(() => {
+      const c = document.querySelector('#myqr-canvas canvas');
+      if (c) M.myQrImg = c.toDataURL('image/png');
+    }, 120);
+    const id = data.claim_id?.slice(0,12)||'';
+    setText('myqr-id', 'ID: '+id+'...');
+    startMyQRTimer(new Date(data.expires_at));
     toast('QR code ready');
   } catch(e) { toast('QR error: '+e.message, true); }
-}
-
-function renderMyQR(url, expiresAt) {
-  const canvas = document.getElementById('myqr-canvas');
-  if (!canvas) return;
-  canvas.innerHTML = '';
-  const qr = new QRCode(canvas, {
-    text:url, width:180, height:180,
-    colorDark:'#2D1052', colorLight:'#FFFFFF',
-    correctLevel:QRCode.CorrectLevel.M,
-  });
-  setTimeout(()=>{
-    const c = canvas.querySelector('canvas');
-    if (c) M.myQrImageData = c.toDataURL('image/png');
-  }, 100);
-  const idEl = document.getElementById('myqr-id');
-  if (idEl) idEl.textContent = 'ID: ' + (url.split('claim=')[1]||'').split('&')[0].slice(0,12)+'...';
-  startMyQRTimer(new Date(expiresAt));
 }
 
 function startMyQRTimer(exp) {
   clearInterval(M.myQrTimer);
   const el = document.getElementById('myqr-timer');
-  const tick=()=>{
-    const s=Math.max(0,Math.floor((exp-Date.now())/1000));
-    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  const tick = () => {
     if (!el) return;
+    const s=Math.max(0,Math.floor((exp-Date.now())/1000));
+    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
     if (s>0) el.textContent='⏱ Expires in '+h+'h '+m+'m '+sec+'s';
-    else { el.textContent='⚠️ Expired — tap refresh'; el.style.color='var(--r)'; clearInterval(M.myQrTimer); }
+    else { el.textContent='⚠️ Expired — tap to refresh'; el.style.color='var(--r)'; clearInterval(M.myQrTimer); }
   };
-  tick(); M.myQrTimer=setInterval(tick,1000);
+  tick(); M.myQrTimer = setInterval(tick, 1000);
 }
 
 async function shareMyQR() {
-  if (!M.myQrImageData||!M.myQrClaimUrl) { toast('No QR to share','err'); return; }
-  const msg = '💜 *Pay ' + M.business_name + ' with Zillion*\n\n' +
-    'Open your Zillion wallet → Send → Scan QR → point at this image OR tap:\n\n' +
-    M.myQrClaimUrl + '\n\n⏱ Valid 24 hours';
-  if (navigator.share && M.myQrImageData) {
+  if (!M.myQrUrl) { toast('No QR to share', true); return; }
+  const msg = '💜 *Pay '+M.business_name+' with Zillion*\n\nOpen Zillion wallet → Send → Scan QR, OR tap:\n\n'+M.myQrUrl+'\n\n⏱ Valid 24 hours';
+  if (M.myQrImg && navigator.share) {
     try {
-      const blob = await (await fetch(M.myQrImageData)).blob();
+      const blob = await (await fetch(M.myQrImg)).blob();
       const file = new File([blob],'merchant-qr.png',{type:'image/png'});
-      if (navigator.canShare&&navigator.canShare({files:[file]})) {
+      if (navigator.canShare && navigator.canShare({files:[file]})) {
         await navigator.share({title:'Pay '+M.business_name,text:msg,files:[file]});
         return;
       }
-    } catch(e){if(e.name==='AbortError')return;}
+    } catch(e) { if(e.name==='AbortError') return; }
   }
-  if (navigator.share) { try{await navigator.share({title:'Pay '+M.business_name,text:msg});return;}catch(e){if(e.name==='AbortError')return;} }
+  if (navigator.share) { try { await navigator.share({title:'Pay '+M.business_name,text:msg}); return; } catch(e) { if(e.name==='AbortError') return; } }
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
-function saveMyQRImage() {
-  if (!M.myQrImageData){toast('No QR image','err');return;}
-  const a=document.createElement('a');a.href=M.myQrImageData;a.download='zillion-merchant-qr.png';a.click();
-  toast('QR image saved');
+
+function saveMyQRImg() {
+  if (!M.myQrImg) { toast('No QR image yet','err'); return; }
+  const a=document.createElement('a'); a.href=M.myQrImg; a.download='merchant-qr.png'; a.click();
+  toast('QR saved');
 }
 
-// ── MERCHANT SCANNER (accept customer payment QR) ──────────────
-let _msStream=null,_msInterval=null,_msDetector=null,_msPendingBundle=null;
+// ── QR Scanner ─────────────────────────────────────────────────
+let _stream=null, _scanInterval=null, _detector=null, _pendingPayment=null;
 
-async function startMerchScanner() {
-  const statusEl=document.getElementById('merch-scan-status');
-  const startBtn=document.getElementById('merch-start-btn');
-  const stopBtn =document.getElementById('merch-stop-btn');
-  if (!statusEl) return;
-  if (!('BarcodeDetector' in window)){
-    statusEl.textContent='⚠️ QR scanning requires Chrome on Android';
-    statusEl.style.background='rgba(192,57,43,.8)'; return;
+async function startScan() {
+  const statusEl = document.getElementById('scan-status');
+  const startBtn = document.getElementById('scan-start-btn');
+  const stopBtn  = document.getElementById('scan-stop-btn');
+  if (!('BarcodeDetector' in window)) {
+    statusEl.textContent = '⚠️ QR scanning requires Chrome on Android';
+    statusEl.style.background = 'rgba(192,57,43,.8)';
+    return;
   }
   try {
-    statusEl.textContent='Requesting camera...';
-    _msStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    const video=document.getElementById('merch-video');
-    video.srcObject=_msStream; await video.play();
-    _msDetector = new BarcodeDetector({formats:['qr_code']});
+    statusEl.textContent = 'Requesting camera...';
+    _stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video = document.getElementById('scan-video');
+    video.srcObject = _stream;
+    await video.play();
+    _detector = new BarcodeDetector({formats:['qr_code']});
     startBtn.style.display='none'; stopBtn.style.display='';
-    statusEl.textContent='📷 Scanning... Point at customer QR';
+    statusEl.textContent='📷 Scanning — point at customer QR';
     statusEl.style.background='rgba(107,33,168,.8)';
-    _msInterval=setInterval(async()=>{
+    _scanInterval = setInterval(async () => {
       try {
-        const bc=await _msDetector.detect(document.getElementById('merch-video'));
-        if (bc.length>0){await handleMerchQR(bc[0].rawValue);}
-      }catch(e){}
-    },400);
+        const bc = await _detector.detect(document.getElementById('scan-video'));
+        if (bc.length>0) await handleScanResult(bc[0].rawValue);
+      } catch(e) {}
+    }, 400);
   } catch(e) {
-    statusEl.textContent='❌ Camera: '+e.message;
+    statusEl.textContent = '❌ Camera error: '+e.message;
     statusEl.style.background='rgba(192,57,43,.8)';
   }
 }
 
-function stopMerchScanner() {
-  clearInterval(_msInterval);
-  if (_msStream){_msStream.getTracks().forEach(t=>t.stop());_msStream=null;}
-  const video=document.getElementById('merch-video');
+function stopScan() {
+  clearInterval(_scanInterval);
+  if (_stream) { _stream.getTracks().forEach(t=>t.stop()); _stream=null; }
+  const video=document.getElementById('scan-video');
   if (video) video.srcObject=null;
-  const startBtn=document.getElementById('merch-start-btn');
-  const stopBtn=document.getElementById('merch-stop-btn');
-  if (startBtn) startBtn.style.display='';
-  if (stopBtn)  stopBtn.style.display='none';
-  const statusEl=document.getElementById('merch-scan-status');
-  if (statusEl){statusEl.textContent='Camera stopped';statusEl.style.background='rgba(0,0,0,.6)';}
+  const sb=document.getElementById('scan-start-btn'); if(sb) sb.style.display='';
+  const st=document.getElementById('scan-stop-btn');  if(st) st.style.display='none';
+  const ss=document.getElementById('scan-status');    if(ss){ss.textContent='Camera stopped';ss.style.background='rgba(0,0,0,.6)';}
 }
 
-async function handleMerchQR(rawValue) {
-  stopMerchScanner();
-  const resEl=document.getElementById('merch-pay-result');
-  const iconEl=document.getElementById('merch-res-icon');
-  const amtEl=document.getElementById('merch-res-amount');
-  const detEl=document.getElementById('merch-res-detail');
-  const coinsEl=document.getElementById('merch-res-coins');
-  const errEl=document.getElementById('merch-res-err');
-  const acceptBtn=document.getElementById('merch-accept-btn');
-  resEl.style.display='block'; errEl.style.display='none'; acceptBtn.style.display='none';
-  iconEl.textContent='⏳'; amtEl.textContent='Fetching...'; detEl.textContent=''; coinsEl.innerHTML='';
+async function handleScanResult(raw) {
+  stopScan();
+  const pr    = document.getElementById('pay-result');
+  const prAcc = document.getElementById('pr-accept-btn');
+  pr.classList.add('show');
+  prAcc.style.display='none';
+  setText('pr-icon','⏳'); setText('pr-amount','Fetching...'); setText('pr-detail',''); 
+  document.getElementById('pr-coins').innerHTML='';
+  document.getElementById('pr-err').style.display='none';
 
-  // Extract claim_id
   let claimId=null;
-  try { const u=new URL(rawValue); claimId=u.searchParams.get('claim'); }
-  catch { if(/^[a-f0-9-]{36}$/.test(rawValue)) claimId=rawValue; }
+  try { const u=new URL(raw); claimId=u.searchParams.get('claim'); }
+  catch { if(/^[a-f0-9-]{36}$/.test(raw)) claimId=raw; }
 
-  if (!claimId){iconEl.textContent='❌';amtEl.textContent='Invalid QR';detEl.textContent='Not a Zillion QR code';return;}
+  if (!claimId) {
+    setText('pr-icon','❌'); setText('pr-amount','Invalid QR'); setText('pr-detail','Not a Zillion QR code');
+    return;
+  }
 
   showL('Fetching payment...');
   try {
-    const res=await fetch(`${API}/fetch-claim?claim_id=`+encodeURIComponent(claimId));
-    const data=await res.json();
+    const res  = await fetch(API+'/fetch-claim?claim_id='+encodeURIComponent(claimId));
+    const data = await res.json();
     hideL();
-    if (!res.ok){iconEl.textContent='❌';amtEl.textContent='Failed';detEl.textContent=data.error||'Error';errEl.textContent=data.detail||'';errEl.style.display=data.detail?'block':'none';return;}
-
+    if (!res.ok) {
+      setText('pr-icon','❌'); setText('pr-amount','Failed');
+      setText('pr-detail',data.error||'Error');
+      const errEl=document.getElementById('pr-err');
+      if (data.detail) { errEl.textContent=data.detail; errEl.style.display='block'; }
+      return;
+    }
     const bd=data.bundle||{};
     const type=data.type||bd.type||'cashin';
-    _msPendingBundle={...data,_claimId:claimId};
+    _pendingPayment = data;
 
-    // Check what type this QR is
-    if (type==='payment') {
-      // Customer is paying merchant
-      iconEl.textContent='💰'; amtEl.textContent=fmt(data.amount_kobo);
-      detEl.textContent='Payment from customer';
-      coinsEl.innerHTML=`<div style="font-size:13px;color:var(--pm);text-align:center;padding:8px 0">
-        ${data.coin_count} coin${data.coin_count!==1?'s':''} · ${fmt(data.amount_kobo)}<br>
-        <span style="font-size:11px;opacity:.7">Verify and accept below</span></div>`;
-      acceptBtn.style.display='block'; acceptBtn.textContent='✅ Accept Payment';
-    } else if (type==='cashout') {
-      // Customer wants cash (cash-out at agent — merchants shouldn't handle this)
-      iconEl.textContent='⚠️'; amtEl.textContent=fmt(data.amount_kobo);
-      detEl.textContent='This is a cash-out QR for an agent, not a payment QR.';
-      errEl.textContent='Direct customer to a Zillion cash-out agent for this transaction.';
-      errEl.style.display='block';
+    if (type==='cashout') {
+      setText('pr-icon','⚠️'); setText('pr-amount',fmt(data.amount_kobo||0));
+      setText('pr-detail','Cash-out QR — direct customer to an agent');
+      const e=document.getElementById('pr-err');
+      e.textContent='This QR is for agent cash-out, not merchant payment.'; e.style.display='block';
     } else {
-      // Agent-issued cashin QR — coins coming from agent to merchant
-      iconEl.textContent='✅'; amtEl.textContent=fmt(data.amount_kobo);
-      detEl.textContent=(data.coin_count||0)+' coin'+(data.coin_count!==1?'s':'')+' from agent';
-      coinsEl.innerHTML=(bd.coins||[]).slice(0,3).map(c=>`
-        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)">
-          <div style="font-size:12px;color:var(--pm);font-family:monospace">${c.coin_id?.slice(0,20)}...</div>
-          <div style="font-size:12px;font-weight:700;color:var(--w)">${fmt(c.amount)}</div>
-        </div>`).join('');
-      acceptBtn.style.display='block'; acceptBtn.textContent='✅ Add Coins to Vault';
+      setText('pr-icon','💜'); setText('pr-amount',fmt(data.amount_kobo||0));
+      setText('pr-detail',(data.coin_count||0)+' coin'+(data.coin_count!==1?'s':'')+' from customer');
+      prAcc.style.display='block';
+      prAcc.textContent='✅ Accept Payment';
     }
-  } catch(e){hideL();iconEl.textContent='❌';amtEl.textContent='Network Error';detEl.textContent=e.message;}
-}
-
-function confirmMerchPayment() {
-  if (!_msPendingBundle) return;
-  const data=_msPendingBundle;
-  const bd=data.bundle||{};
-  const type=data.type||bd.type||'cashin';
-  const coins=(bd.coins||[]);
-
-  if (type==='payment') {
-    // Mark payment received — coins came from customer wallet
-    M.history.unshift({id:'TX-'+Date.now(),type:'received',amount:data.amount_kobo,
-      ts:new Date().toISOString(),status:'PENDING_SYNC',method:'qr',name:'Payment received via QR'});
-    toast(fmt(data.amount_kobo)+' payment received! 💜');
-  } else {
-    // Add coins to merchant vault
-    const existing=new Set(M.vault.map(c=>c.coin_id));
-    const newCoins=coins.filter(c=>!existing.has(c.coin_id));
-    newCoins.forEach(c=>{c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();M.vault.push(c);});
-    const total=newCoins.reduce((s,c)=>s+(c.amount||0),0);
-    M.history.unshift({id:'TX-'+Date.now(),type:'received',amount:total,
-      ts:new Date().toISOString(),status:'PENDING_SYNC',method:'qr',name:'Received via QR'});
-    toast(fmt(total)+' added to vault! 💜');
+  } catch(e) {
+    hideL();
+    setText('pr-icon','❌'); setText('pr-amount','Network Error'); setText('pr-detail',e.message);
   }
-  save(); _msPendingBundle=null;
-  refreshHome();
-  setTimeout(()=>showScreen('screen-home'),800);
 }
 
-function resetMerchScanner() {
-  _msPendingBundle=null;
-  document.getElementById('merch-pay-result').style.display='none';
-  document.getElementById('merch-accept-btn').style.display='none';
-  startMerchScanner();
+function confirmPayment() {
+  if (!_pendingPayment) return;
+  const data   = _pendingPayment;
+  const amount = data.amount_kobo||0;
+  const rcIds = data.received_coin_ids || (data.bundle?.coins||[]).map(function(c){return c.coin_id||c.id;});
+  M.history.unshift({
+    id:'TX-'+Date.now(), type:'received', amount,
+    ts:new Date().toISOString(), status:'PENDING_SYNC',
+    method:(data.method||'qr'),
+    name:'Payment received via '+((data.method||'qr').toUpperCase()),
+    received_coin_ids: rcIds,  // persisted — blocks replay attacks on next import
+  });
+  const coins=(data.bundle?.coins||[]).filter(function(c){
+    return !M.vault.find(function(v){ return v.coin_id===(c.coin_id||c.id); });
+  });
+  coins.forEach(function(c){c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();M.vault.push(c);});
+  save(); _pendingPayment=null;
+
+  try { if (navigator.vibrate) navigator.vibrate([100,50,100,50,200]); } catch(e){}
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523,659,784].forEach(function(freq, i) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.15);
+      osc.start(ctx.currentTime + i * 0.12);
+      osc.stop(ctx.currentTime + i * 0.12 + 0.2);
+    });
+  } catch(e){}
+
+  toast(fmt(amount) + ' received!', false, 4000);
+  refreshHome(); refreshCashout();
+  setTimeout(function() { goScreen('screen-home'); }, 800);
+  setTimeout(merchantSync, 2000);
 }
 
-// ── CASHOUT QR ─────────────────────────────────────────────────
+function resetScan() {
+  _pendingPayment=null;
+  document.getElementById('pay-result').classList.remove('show');
+  document.getElementById('pr-accept-btn').style.display='none';
+  startScan();
+}
+
+// ── Cash-out QR ────────────────────────────────────────────────
 function refreshCashout() {
-  const bal=M.vault.reduce((s,c)=>s+(c.amount||0),0);
-  const el=document.getElementById('co-balance');
-  const cl=document.getElementById('co-coins');
-  if (el) el.textContent=fmt(bal);
-  if (cl) cl.textContent=M.vault.length+' coin'+(M.vault.length!==1?'s':'')+' available';
+  const bal = M.vault.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  setText('co-balance', fmt(bal));
+  setText('co-coins',   M.vault.length+' coin'+(M.vault.length!==1?'s':'')+' available');
 }
 
 async function generateCashoutQR() {
-  const amtNaira=parseInt(document.getElementById('co-amount').value||0);
-  if (!amtNaira||amtNaira<500){toast('Enter amount (min ₦500)','err');return;}
-  const amtKobo=amtNaira*100;
-  const bal=M.vault.reduce((s,c)=>s+(c.amount||0),0);
-  if (amtKobo>bal){toast('Insufficient balance: '+fmt(bal),'err');return;}
+  const amtNaira = parseInt(document.getElementById('co-amount').value||0);
+  if (!amtNaira||amtNaira<500) { toast('Enter amount (min ₦500)', true); return; }
+  const amtKobo  = amtNaira*100;
+  const bal      = M.vault.reduce((s,c)=>s+(c.amount||0),0);
+  if (amtKobo>bal) { toast('Insufficient balance: '+fmt(bal), true); return; }
 
-  // Select coins
   const sorted=[...M.vault].sort((a,b)=>a.amount-b.amount);
   let remain=amtKobo; const selected=[];
-  for (const c of sorted){if(remain<=0)break;selected.push(c);remain-=c.amount;}
+  for(const c of sorted){if(remain<=0)break;selected.push(c);remain-=c.amount;}
 
-  const bundle={zillion_version:'1.0',bundle_id:'BUNDLE-'+Date.now(),
-    created_at:new Date().toISOString(),type:'cashout',
-    merchant_id:M.merchant_id,owner_phone:M.phone,
+  const bundle={
+    zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
+    created_at:new Date().toISOString(), type:'cashout',
+    merchant_id:M.merchant_id, owner_phone:M.phone,
     total_kobo:selected.reduce((s,c)=>s+c.amount,0),
-    coin_count:selected.length,coins:selected};
-
+    coin_count:selected.length, coins:selected,
+  };
   showL('Creating cash-out QR...');
   try {
-    const res=await fetch(`${API}/create-payment-request`,{
+    const res  = await fetch(API+'/create-payment-request',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type:'cashout',bundle,amount_kobo:bundle.total_kobo,owner_phone:M.phone}),
     });
-    const data=await res.json();
+    const data = await res.json();
     hideL();
     if (!res.ok) throw new Error(data.error);
 
-    M.cashoutQrUrl=data.claim_url; M.cashoutQrImgData=null;
-    // Mark coins as pending
+    M.coQrUrl=data.claim_url; M.coQrImg=null;
     selected.forEach(c=>{const i=M.vault.findIndex(v=>v.coin_id===c.coin_id);if(i>=0)M.vault[i]._status='PENDING_CASHOUT';});
     save();
 
-    // Render QR
-    document.getElementById('cashout-qr-wrap').style.display='block';
-    const canvas=document.getElementById('cashout-qr-canvas');
-    canvas.innerHTML='';
-    new QRCode(canvas,{text:data.claim_url,width:180,height:180,colorDark:'#1A0A2E',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
-    setTimeout(()=>{const c=canvas.querySelector('canvas');if(c)M.cashoutQrImgData=c.toDataURL('image/png');},100);
-    document.getElementById('cashout-qr-amount').textContent=fmt(bundle.total_kobo);
-    document.getElementById('cashout-qr-detail').textContent=selected.length+' coin'+(selected.length!==1?'s':'')+' · Show to agent';
-    startCashoutTimer(new Date(data.expires_at));
-    toast('Cash-out QR ready — show to agent');
-  } catch(e){hideL();toast('QR error: '+e.message,true);}
+    document.getElementById('cashout-qr-box').style.display='block';
+    renderQR('co-qr-canvas',data.claim_url,'#1A0A2E');
+    setTimeout(()=>{const c=document.querySelector('#co-qr-canvas canvas');if(c)M.coQrImg=c.toDataURL('image/png');},120);
+    setText('co-qr-amount', fmt(bundle.total_kobo));
+    setText('co-qr-detail', selected.length+' coin'+(selected.length!==1?'s':'')+' · Show to agent');
+    startCoQRTimer(new Date(data.expires_at));
+    toast('Cash-out QR ready');
+  } catch(e) { hideL(); toast('QR error: '+e.message, true); }
 }
 
-function startCashoutTimer(exp) {
-  const el=document.getElementById('cashout-qr-timer');
-  clearInterval(M.cashoutQrTimer);
+function startCoQRTimer(exp) {
+  clearInterval(M.coQrTimer);
+  const el=document.getElementById('co-qr-timer');
   const tick=()=>{
+    if(!el)return;
     const s=Math.max(0,Math.floor((exp-Date.now())/1000));
     const m=Math.floor(s/60),sec=s%60;
-    if (!el) return;
-    if (s>0) el.textContent='⏱ Valid '+m+'m '+sec+'s';
-    else{el.textContent='⚠️ QR expired — generate new one';el.style.color='var(--r)';}
+    if(s>0) el.textContent='⏱ Valid '+m+'m '+sec+'s';
+    else{el.textContent='⚠️ Expired — generate new one';el.style.color='var(--r)';clearInterval(M.coQrTimer);}
   };
-  tick(); M.cashoutQrTimer=setInterval(tick,1000);
+  tick(); M.coQrTimer=setInterval(tick,1000);
 }
 
 async function shareCashoutQR() {
-  if (!M.cashoutQrUrl){toast('No QR to share','err');return;}
-  const msg='💜 *Zillion Cash-Out Request*\n\n'+
-    'Scan this QR to process cash-out for:\n'+M.business_name+'\n\n'+M.cashoutQrUrl+'\n\n⏱ Valid 15 minutes';
-  if (navigator.share&&M.cashoutQrImgData){
-    try{
-      const blob=await(await fetch(M.cashoutQrImgData)).blob();
-      const file=new File([blob],'cashout-qr.png',{type:'image/png'});
-      if (navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({title:'Cash Out QR',text:msg,files:[file]});return;
-      }
+  if(!M.coQrUrl){toast('No QR to share',true);return;}
+  const msg='💜 *Zillion Cash-Out*\n'+M.business_name+'\n\n'+M.coQrUrl+'\n\n⏱ Valid 15 min';
+  if(M.coQrImg&&navigator.share){
+    try{const b=await(await fetch(M.coQrImg)).blob();const f=new File([b],'cashout.png',{type:'image/png'});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({title:'Cash Out QR',text:msg,files:[f]});return;}
     }catch(e){if(e.name==='AbortError')return;}
   }
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
-function saveCashoutQRImage(){
-  if(!M.cashoutQrImgData){toast('No QR image','err');return;}
-  const a=document.createElement('a');a.href=M.cashoutQrImgData;a.download='cashout-qr.png';a.click();
-}
+function saveCashoutImg(){if(!M.coQrImg){toast('No image',true);return;}const a=document.createElement('a');a.href=M.coQrImg;a.download='cashout-qr.png';a.click();}
 
-// ── PROFILE ────────────────────────────────────────────────────
+// ── Profile ────────────────────────────────────────────────────
 function refreshProfile() {
-  const ini=M.business_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'ZL';
-  const bal=M.vault.reduce((s,c)=>s+(c.amount||0),0);
-  const totalRcv=M.history.filter(h=>h.type==='received').reduce((s,h)=>s+h.amount,0);
-  setText('prof-avatar',ini); setText('prof-name',M.business_name);
-  setText('prof-id',M.merchant_id); setText('prof-biz',M.business_name);
-  setText('prof-loc',M.location||'—'); setText('prof-phone',M.phone||'—');
-  setText('prof-mid',M.merchant_id); setText('prof-balance',fmt(bal));
-  setText('prof-total',fmt(totalRcv));
+  const ini=(M.business_name||'ZL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  // Use same settled-history calc as home screen — NOT raw vault sum
+  // Vault sum ≠ available balance because vault may include partially cashed-out coins
+  const received   = M.history.filter(h => h.type === 'received');
+  const cashedOut  = M.history.filter(h => h.type === 'cashout');
+  const settledAmt = received.filter(h=>h.status==='SETTLED').reduce((s,h)=>s+h.amount,0);
+  const coAmt      = cashedOut.reduce((s,h)=>s+h.amount,0);
+  const availAmt   = Math.max(0, settledAmt - coAmt);  // matches home screen
+  const totalAmt   = received.reduce((s,h)=>s+h.amount,0); // all received incl pending
+  setText('prof-avatar', ini);
+  setText('prof-name',   M.business_name||'—');
+  setText('prof-id',     M.merchant_id||'—');
+  const rows=[
+    ['Owner',         M.owner_name||'—'],
+    ['Business',      M.business_name||'—'],
+    ['Type',          M.business_type||'—'],
+    ['Location',      M.location||'—'],
+    ['Phone',         M.phone||'—'],
+    ['Merchant ID',   M.merchant_id||'—'],
+    ['Available Bal', fmt(availAmt)],
+    ['Total Received',fmt(totalAmt)],
+    ['Coins in Vault',M.vault.length + ' coin' + (M.vault.length!==1?'s':'')],
+  ];
+  document.getElementById('prof-rows').innerHTML=rows.map(([k,v])=>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--grb)">'+
+    '<span style="font-size:12px;color:var(--gr)">'+k+'</span>'+
+    '<span style="font-size:13px;font-weight:700">'+v+'</span></div>'
+  ).join('');
 }
 
-// ── UTILS ──────────────────────────────────────────────────────
+// ── QR render helper ───────────────────────────────────────────
+function renderQR(canvasId, url, dark='#0D1F1A') {
+  const el = document.getElementById(canvasId);
+  if (!el || !url) return;
+  el.innerHTML = '';
+  new QRCode(el, {
+    text:url, width:180, height:180,
+    colorDark:dark, colorLight:'#FFFFFF',
+    correctLevel:QRCode.CorrectLevel.M,
+  });
+}
+
+// ── Utils ──────────────────────────────────────────────────────
 function fmt(k){return '₦'+(k/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function relTime(iso){if(!iso)return'—';const d=Date.now()-new Date(iso);if(d<60000)return'just now';if(d<3600000)return Math.floor(d/60000)+'m ago';if(d<86400000)return Math.floor(d/3600000)+'h ago';return Math.floor(d/86400000)+'d ago';}
 function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
 
-// ── BOOT ───────────────────────────────────────────────────────
+// ── Boot ───────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   if (load() && M.token) {
-    showApp();
+    document.getElementById('ob-wrap').style.display   = 'none';
+    document.getElementById('app-shell').style.display = 'flex';
+    document.getElementById('app-shell').style.flexDirection='column';
+    document.getElementById('app-shell').style.flex='1';
+    refreshHome();
+    refreshProfile();
+    refreshCashout();
+    setTimeout(() => ensureMyQR(), 500);
   } else {
-    // Show splash/onboarding
-    showObStep(1);
+    showPanel('ob-splash');
   }
 });
+
+
+// ================================================================
+// MERCHANT SYNC ENGINE
+// Syncs PENDING_SYNC history items to backend
+// ================================================================
+let _mOnline = navigator.onLine;
+
+function mConnBadge(online) {
+  _mOnline = online;
+  const b  = document.getElementById('m-conn-badge');
+  if (b)  { b.textContent = online ? '● Online' : '● Offline';
+             b.style.color = online ? '#22C55E'  : '#F59E0B'; }
+  // Only update sync text on network change, not on every sync result
+  const st = document.getElementById('m-sync-status');
+  if (st && (st.textContent === 'Connected' || st.textContent === 'Offline — syncs when connected' || st.textContent === '')) {
+    st.textContent = online ? 'Connected' : 'Offline — syncs when connected';
+    st.style.color = '#9CA3AF';
+  }
+}
+
+function mSyncStatus(msg, isErr) {
+  const el = document.getElementById('m-sync-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isErr ? '#EF4444' : '#9CA3AF';
+  // Only auto-reset on SUCCESS — keep error visible until next sync attempt
+  if (!isErr) {
+    setTimeout(function() {
+      if (el.style.color !== '#EF4444') { // don't overwrite a subsequent error
+        el.textContent = _mOnline ? 'Connected' : 'Offline';
+        el.style.color = '#9CA3AF';
+      }
+    }, 5000);
+  }
+}
+
+async function merchantSync() {
+  if (!_mOnline || !M.token) return;
+  const pending = M.history.filter(function(h) { return h.status === 'PENDING_SYNC'; });
+  if (!pending.length) { mSyncStatus('All synced'); return; }
+
+  mSyncStatus('Syncing ' + pending.length + ' payment(s)...');
+  // Build one tx record per coin received (from received_coin_ids in history)
+  const tx_batch = [];
+  pending.forEach(function(h) {
+    const coinIds = h.received_coin_ids || (h.coin_id ? [h.coin_id] : []);
+    coinIds.forEach(function(coin_id) {
+      if (!coin_id) return;
+      tx_batch.push({
+        coin_id,
+        from_hash:  h.from_hash  || 'CUSTOMER',
+        to_hash:    M.merchant_id || 'MERCHANT',
+        tx_ts:      h.ts || new Date().toISOString(),
+        env_sig:    h.env_sig   || h.signature || 'MERCHANT-ACCEPT',
+        value_kobo: Math.round((h.amount_kobo || h.amount || 0) / Math.max(1, coinIds.length)),
+        owner_hash: M.merchant_id || '',
+        synced_at:  new Date().toISOString(),
+      });
+    });
+  });
+  if (tx_batch.length === 0) { mSyncStatus('Nothing to sync'); return; }
+
+  try {
+    const res  = await fetch('/api/v1/sync', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': 'Bearer ' + M.token,
+      },
+      body: JSON.stringify({
+        device_id: 'MERCHANT-' + M.merchant_id,
+        tx_batch,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      M.history.forEach(function(h) {
+        if (h.status === 'PENDING_SYNC') h.status = 'SETTLED';
+      });
+      save();
+      mSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
+      refreshHome();
+      if (typeof refreshFullHistory === 'function') refreshFullHistory();
+      if (typeof refreshVaultList    === 'function') refreshVaultList();
+      if (typeof refreshProfile      === 'function') refreshProfile();
+    } else {
+      // Sync API rejected — show specific error, keep green dot (we're still online)
+      const errMsg = data.error || ('Server error ' + res.status);
+      mSyncStatus('Sync failed: ' + errMsg, true);
+    }
+  } catch (e) {
+    // Network error — truly offline
+    mSyncStatus('Network error — will retry when online', true);
+    _mOnline = false;
+    mConnBadge(false);
+  }
+}
+
+// Auto-sync every 60s when online
+setInterval(function() {
+  if (_mOnline && M.token) merchantSync();
+}, 30000);
+
+// Network listeners
+window.addEventListener('online', function() {
+  mConnBadge(true);
+  toast('Back online — syncing payments...');
+  setTimeout(merchantSync, 1000);
+});
+window.addEventListener('offline', function() {
+  mConnBadge(false);
+  toast('Offline — payments saved locally');
+});
+
+// Boot
+document.addEventListener('DOMContentLoaded', function() {
+  mConnBadge(navigator.onLine);
+  if (!navigator.onLine) mSyncStatus('Offline — will sync when connected');
+});
+
+
+
+// ================================================================
+// MERCHANT RECEIVE - Tab switcher + NFC + File Import
+// ================================================================
+function mSwitchRecv(tab) {
+  // Hide pay-result when switching tabs
+  const pr = document.getElementById('pay-result');
+  if (pr) pr.classList.remove('show');
+
+  ['qr','nfc','file'].forEach(function(t) {
+    const panel = document.getElementById('m-recv-panel-' + t);
+    const btn   = document.getElementById('m-recv-tab-' + t);
+    if (panel) {
+      panel.style.display = (t === tab) ? (t === 'qr' ? 'flex' : 'flex') : 'none';
+    }
+    if (btn) {
+      btn.style.background = (t === tab) ? '#2D1052' : 'rgba(255,255,255,.1)';
+      btn.style.color      = (t === tab) ? '#fff'     : 'rgba(255,255,255,.7)';
+      btn.style.fontWeight = (t === tab) ? '700'      : '600';
+    }
+  });
+  if (tab !== 'qr') stopScan();
+  if (tab === 'nfc') mStartNFCReceive();
+}
+
+// NFC Receive for Merchant
+let _mNFCController = null;
+
+async function mStartNFCReceive() {
+  const statusEl = document.getElementById('m-nfc-status');
+  if (!('NDEFReader' in window)) {
+    if (statusEl) statusEl.textContent = 'NFC not supported on this device';
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Waiting for customer to tap...';
+  try {
+    const ndef = new NDEFReader();
+    _mNFCController = new AbortController();
+    await ndef.scan({ signal: _mNFCController.signal });
+    ndef.addEventListener('reading', function(event) {
+      for (const record of event.message.records) {
+        if (record.recordType === 'text') {
+          try {
+            const data = JSON.parse(new TextDecoder().decode(record.data));
+            if (statusEl) statusEl.textContent = 'Payment received! Processing...';
+            mProcessReceivedPayment(data);
+          } catch(e) {
+            if (statusEl) statusEl.textContent = 'Error reading payment data';
+          }
+        }
+      }
+    });
+  } catch(e) {
+    if (e.name !== 'AbortError' && statusEl) {
+      statusEl.textContent = 'NFC error: ' + e.message;
+    }
+  }
+}
+
+async function mProcessReceivedPayment(coinOrBundle, method) {
+  const coins = (coinOrBundle.coins || [coinOrBundle]);
+
+  // ── LAYER 1: Local deduplication ───────────────────────────
+  // Build set of ALL coin_ids already seen (vault + history)
+  const seenInVault   = new Set(M.vault.map(function(c){ return c.coin_id||c.id; }));
+  const seenInHistory = new Set(
+    M.history
+      .filter(function(h){ return h.received_coin_ids && h.received_coin_ids.length; })
+      .flatMap(function(h){ return h.received_coin_ids; })
+  );
+
+  const newCoins = coins.filter(function(c) {
+    const id = c.coin_id || c.id;
+    return id && !seenInVault.has(id) && !seenInHistory.has(id);
+  });
+  const dupCount = coins.length - newCoins.length;
+
+  if (newCoins.length === 0) {
+    // ALL coins already accepted by THIS merchant — hard reject
+    // This means: customer already paid this merchant with this exact file
+    document.getElementById('pr-icon').textContent   = '\u274c';
+    document.getElementById('pr-amount').textContent  = 'Already Received';
+    document.getElementById('pr-detail').textContent  =
+      'All ' + coins.length + ' coin' + (coins.length!==1?'s':'') +
+      ' in this file were already accepted by this device.' +
+      ' Ask the customer for a different coin or QR code.';
+    document.getElementById('pr-err').textContent =
+      '\u26a0\ufe0f This exact file was previously accepted here. ' +
+      'The customer must obtain fresh coins from an agent if they want to pay again.';
+    document.getElementById('pr-err').style.display   = 'block';
+    document.getElementById('pr-accept-btn').style.display = 'none';
+    document.getElementById('pay-result').classList.add('show');
+    toast('Already received — customer needs fresh coins', true, 6000);
+    try { if (navigator.vibrate) navigator.vibrate([200,100,200]); } catch(e){}
+    return;
+  }
+
+  // ── LAYER 2: Server validation (when online) ─────────────────
+  // Validate each new coin against the registry
+  let validationWarning = '';
+  if (_mOnline) {
+    try {
+      const validationResults = await Promise.all(
+        newCoins.map(function(c) {
+          const id = c.coin_id || c.id;
+          return fetch('/api/v1/validate?coin_id=' + encodeURIComponent(id))
+            .then(function(r){ return r.json(); })
+            .catch(function(){ return { valid: true, status: 'UNKNOWN' }; }); // fail open if validate unreachable
+        })
+      );
+
+      const invalidCoins = validationResults.filter(function(r){ return r.valid === false && r.reason !== 'NOT_FOUND'; });
+      const spentCoins   = validationResults.filter(function(r){ return r.status === 'SPENT' || r.status === 'REDEEMED'; });
+
+      if (spentCoins.length > 0) {
+        // Hard reject — coins already spent in registry
+        document.getElementById('pr-icon').textContent   = '\u274c';
+        document.getElementById('pr-amount').textContent  = 'Payment Rejected';
+        document.getElementById('pr-detail').textContent  = spentCoins.length + ' coin' + (spentCoins.length!==1?'s':'') + ' already spent in registry.';
+        document.getElementById('pr-err').textContent     = '\u26a0\ufe0f FRAUD: These coins have already been redeemed. Do not accept this payment.';
+        document.getElementById('pr-err').style.display   = 'block';
+        document.getElementById('pr-accept-btn').style.display = 'none';
+        document.getElementById('pay-result').classList.add('show');
+        toast('FRAUD: Coins already spent — reject!', true, 8000);
+        try { if (navigator.vibrate) navigator.vibrate([500,100,500,100,500]); } catch(e){}
+        return;
+      }
+
+      if (invalidCoins.length > 0) {
+        validationWarning = '\u26a0\ufe0f ' + invalidCoins.length + ' coin' + (invalidCoins.length!==1?'s':'') + ' could not be validated online.';
+      }
+    } catch(e) {
+      validationWarning = 'Online validation unavailable — accepting offline.';
+    }
+  }
+
+  // ── LAYER 3: Build confirmed pending payment ─────────────────
+  const total = newCoins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
+  _pendingPayment = {
+    amount_kobo:   total,
+    bundle:        { coins: newCoins },
+    method:        method || 'file',
+    received_coin_ids: newCoins.map(function(c){ return c.coin_id||c.id; }),
+  };
+
+  document.getElementById('pr-icon').textContent   = dupCount > 0 ? '\u26a0\ufe0f' : '\u2705';
+  document.getElementById('pr-amount').textContent  = fmt(total);
+  document.getElementById('pr-detail').textContent  =
+    newCoins.length + ' coin' + (newCoins.length!==1?'s':'') + ' via ' + (method||'File') +
+    (dupCount > 0 ? ' \u00b7 ' + dupCount + ' duplicate(s) skipped' : '');
+  const errEl = document.getElementById('pr-err');
+  if (validationWarning) {
+    errEl.textContent    = validationWarning;
+    errEl.style.display  = 'block';
+    errEl.style.color    = '#F59E0B';
+  } else {
+    errEl.style.display  = 'none';
+  }
+  document.getElementById('pr-accept-btn').style.display = 'block';
+  document.getElementById('pay-result').classList.add('show');
+}
+
+// File Import for Merchant
+function mImportZilFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  // Show loading immediately
+  document.getElementById('pr-icon').textContent   = '⏳';
+  document.getElementById('pr-amount').textContent  = 'Validating...';
+  document.getElementById('pr-detail').textContent  = 'Checking coins against registry...';
+  document.getElementById('pr-err').style.display   = 'none';
+  document.getElementById('pr-accept-btn').style.display = 'none';
+  document.getElementById('pay-result').classList.add('show');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const bundle = JSON.parse(e.target.result);
+      if (!bundle.coins || !bundle.coins.length) throw new Error('No coins found in file');
+      if (!bundle.zillion_version) throw new Error('Not a valid Zillion file');
+      if (!bundle.bundle_id)       throw new Error('Missing bundle ID');
+      mProcessReceivedPayment(bundle, 'File');
+    } catch(err) {
+      document.getElementById('pr-icon').textContent   = '❌';
+      document.getElementById('pr-amount').textContent  = 'Invalid File';
+      document.getElementById('pr-detail').textContent  = err.message;
+      document.getElementById('pr-err').textContent     = err.message;
+      document.getElementById('pr-err').style.display   = 'block';
+      document.getElementById('pr-accept-btn').style.display = 'none';
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+
+// ── Full transaction history screen ──────────────────────────────
+function refreshFullHistory() {
+  const totalIn  = M.history.filter(h=>h.type==='received').reduce((s,h)=>s+h.amount,0);
+  const totalOut = M.history.filter(h=>h.type==='cashout').reduce((s,h)=>s+h.amount,0);
+  const net      = totalIn - totalOut;
+  const setText2 = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+  setText2('hist-total-in',  fmt(totalIn));
+  setText2('hist-total-out', fmt(totalOut));
+  setText2('hist-net',       fmt(net));
+  const el = document.getElementById('hist-full-list');
+  if (!el) return;
+  if (!M.history.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gr)">No transactions yet</div>';
+    return;
+  }
+  el.innerHTML = M.history.map(function(h) {
+    const isIn   = h.type === 'received';
+    const isCo   = h.type === 'cashout';
+    const bgDot  = isIn ? 'background:#D1FAE5;color:#065F46' : 'background:#FEE2E2;color:#991B1B';
+    const amtClr = isIn ? 'color:#059669' : 'color:#DC2626';
+    const sign   = isIn ? '+' : '-';
+    const synced = h.status === 'SETTLED' || h.status === 'SUCCESS'
+      ? '<span style="color:var(--g);font-size:10px">&#x2713; Settled</span>'
+      : '<span style="color:var(--am);font-size:10px">&#x23F3; Pending</span>';
+    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--grb)">'
+      + '<div style="width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;'+bgDot+'">'+(isIn?'&#x2193;':'&#x2191;')+'</div>'
+      + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(h.name||h.type)+'</div>'
+        + '<div style="font-size:11px;color:var(--gr);margin-top:1px">'+relTime(h.ts)+' &#x00b7; '+synced+'</div>'
+      + '</div>'
+      + '<div style="font-size:14px;font-weight:700;'+amtClr+'">'+sign+fmt(h.amount)+'</div>'
+      + '</div>';
+  }).join('');
+  refreshVaultList();
+}
+
+
+// ── Sprint 1: Offline coin expiry check ─────────────────────────
+// Checks expiry before accepting any coin, without a server call.
+// Called from processZilFile, handleQRResult, confirmNFCImport.
+function checkCoinExpiry(coin) {
+  if (!coin || !coin.expires_at) return { ok: true }; // no expiry field = accept
+  const now       = new Date();
+  const expiresAt = new Date(coin.expires_at);
+  const graceEnd  = new Date(expiresAt.getTime() + 7 * 24 * 3600 * 1000);
+  if (now <= expiresAt)  return { ok: true, status: 'valid' };
+  if (now <= graceEnd)   return { ok: false, grace: true,
+    message: 'This coin has expired but is in the 7-day grace period. Take it to any Zillion agent to redeem for cash before ' +
+      graceEnd.toLocaleDateString('en-NG', {day:'numeric',month:'short',year:'numeric'}) + '.' };
+  return { ok: false, grace: false,
+    message: 'This coin expired on ' + expiresAt.toLocaleDateString('en-NG') +
+      ' and the grace period has passed. This coin has no value.' };
+}
+
+function validateCoinBundle(coins) {
+  // Returns { valid: coin[], expired: coin[], grace: coin[], invalid: coin[] }
+  const valid = [], expired = [], grace = [], invalid = [];
+  for (const coin of (coins || [])) {
+    const check = checkCoinExpiry(coin);
+    if (check.ok)       valid.push(coin);
+    else if (check.grace) grace.push({...coin, _expiry_msg: check.message});
+    else                expired.push({...coin, _expiry_msg: check.message});
+  }
+  return { valid, expired, grace };
+}
+
+
+// ── Render vault coins in History tab ────────────────────────────
+function refreshVaultList() {
+  const countEl = document.getElementById('vault-count');
+  const listEl  = document.getElementById('merchant-vault-list');
+  if (!listEl) return;
+
+  const coins = M.vault || [];
+  if (countEl) countEl.textContent = '(' + coins.length + ')';
+
+  if (!coins.length) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--gr);font-size:13px">' +
+      'No coins in vault. Accept payments to receive coins.</div>';
+    return;
+  }
+
+  listEl.innerHTML = coins.map(function(c) {
+    const amt       = c.amount || c.value_kobo || 0;
+    const status    = c._status || 'HELD';
+    const coinId    = c.coin_id || c.id || '—';
+    const expiresAt = c.expires_at ? new Date(c.expires_at) : null;
+    const expired   = expiresAt && expiresAt < new Date();
+    const statusColor = status === 'HELD'        ? 'var(--g)'
+                      : status === 'PENDING_SYNC' ? 'var(--am)'
+                      : '#888';
+    const expiryText = expiresAt
+      ? (expired ? '⚠️ Expired ' : 'Expires ') + expiresAt.toLocaleDateString('en-NG')
+      : '';
+
+    return '<div style="display:flex;justify-content:space-between;align-items:center;' +
+      'padding:10px 14px;background:var(--w);border-radius:10px;' +
+      'border:1px solid var(--grb)">' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700">' + fmt(amt) + '</div>' +
+        '<div style="font-size:10px;color:var(--gr);margin-top:2px">' +
+          coinId.slice(0,24) + '…</div>' +
+        (expiryText ? '<div style="font-size:10px;color:' + (expired?'var(--rd)':'var(--gr)') +
+          ';margin-top:1px">' + expiryText + '</div>' : '') +
+      '</div>' +
+      '<div style="font-size:11px;font-weight:700;color:' + statusColor + '">' +
+        (status === 'HELD' ? '✓ Held' :
+         status === 'PENDING_SYNC' ? '⟳ Syncing' : status) +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
 </script>
 </body>
 </html>
