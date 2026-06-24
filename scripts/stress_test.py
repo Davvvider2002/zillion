@@ -169,7 +169,7 @@ check_html(f"{ROOT}/wallet/index.html", "WALLET", {
 print("\n[2/7] AGENT PORTAL")
 check_html(f"{ROOT}/agent/index.html", "AGENT", {
     'sz': (25000, 120000),
-    'fns': ['doLogin','doLogout','showApp','doCashIn','doCashOut','doVerify',
+    'fns': ['doLogin','doLogout','showApp','doCashIn','coConfirmRedeem','doVerify',
             'generateQR','shareQRWhatsApp','saveQRImage','startQRCountdown',
             'loadStatement','switchTab','notify'],
     'apis': ['agent-login','issue','redeem','validate','create-claim'],
