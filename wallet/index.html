@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#0D1F1A">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Zillion">
@@ -46,18 +47,22 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
 
 /* ── App shell ────────────────────────────────────────────────── */
 #app{
-  width:100%;max-width:430px;height:100%;height:-webkit-fill-available;
+  width:100%;max-width:430px;
+  height:100vh;height:100dvh;
   margin:0 auto;display:flex;flex-direction:column;
   background:var(--w);position:relative;overflow:hidden;
 }
-html,body{height:100%;height:-webkit-fill-available;}
+html{height:100%;height:100dvh;}
+body{height:100%;height:100dvh;overflow:hidden;}
 
 /* ── Screen manager ───────────────────────────────────────────── */
 .screen{
   position:absolute;inset:0;display:flex;flex-direction:column;
   background:var(--w);transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;
-  will-change:transform;overflow:hidden;
+  will-change:transform;
 }
+/* Only lock overflow on screens that need it (prevents content cut-off) */
+#screen-home,#screen-vault,#screen-history,#screen-profile{overflow:hidden;}
 .screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none}
 .screen.slide-left{transform:translateX(-40%);opacity:0;pointer-events:none}
 .scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -200,8 +205,11 @@ html,body{height:100%;height:-webkit-fill-available;}
 #screen-splash{background:var(--d)}
 .splash-body{
   flex:1;display:flex;flex-direction:column;align-items:center;
-  justify-content:space-between;padding:60px 28px 40px;
+  justify-content:space-between;padding:40px 28px 36px;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  min-height:0;
 }
+#screen-splash{background:var(--d);overflow-y:auto;}
 .splash-brand{text-align:center}
 .splash-logo{
   font-size:48px;font-weight:800;letter-spacing:8px;color:var(--w);
@@ -568,19 +576,21 @@ html,body{height:100%;height:-webkit-fill-available;}
    RESPONSIVE
 ═══════════════════════════════════════════════════════════════ */
 @media(min-width:431px){
+  body{background:#1A1A2E;overflow:hidden;}
   #app{
     box-shadow:0 0 60px rgba(0,0,0,.3);
     border-radius:16px;
-    height:calc(100vh - 40px);
-    margin-top:20px;
+    height:100vh;height:100dvh;
+    margin-top:0;
+    max-width:430px;
+    position:relative;
   }
-  body{background:#1A1A2E;}
 }
 @media(max-width:430px){
-  body,html{overflow:hidden;}
   #app{
     border-radius:0;
     max-width:100%;
+    height:100vh;height:100dvh;
   }
 }
 @media(prefers-color-scheme:dark){
@@ -595,7 +605,7 @@ html,body{height:100%;height:-webkit-fill-available;}
   100%{ top:4px;   opacity:1; }
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
 </head>
 <body>
 <div id="app">
@@ -612,6 +622,7 @@ html,body{height:100%;height:-webkit-fill-available;}
     <div class="splash-brand">
       <div class="splash-logo">ZILLION</div>
       <div class="splash-tagline">Offline-First Digital Cash</div>
+    <!-- v1.4.1 -->
     </div>
 
     <div class="splash-icon-wrap">
@@ -643,11 +654,23 @@ html,body{height:100%;height:-webkit-fill-available;}
         <div class="splash-dot" id="sd2"></div>
         <div class="splash-dot" id="sd3"></div>
       </div>
-      <button class="btn btn-g" onclick="goTo('screen-phone')">Get Started</button>
-      <button class="btn btn-ghost" onclick="tryRestoreSession()">I already have an account</button>
+      <button class="btn btn-g" id="btn-get-started">Get Started</button>
+      <button class="btn btn-ghost" id="btn-restore">I already have an account</button>
     </div>
   </div>
 </div>
+<script charset="utf-8">
+(function(){
+  function bind(){
+    var b1=document.getElementById('btn-get-started');
+    var b2=document.getElementById('btn-restore');
+    if(b1)b1.onclick=function(){if(typeof goTo==='function')goTo('screen-phone');};
+    if(b2)b2.onclick=function(){if(typeof tryRestoreSession==='function')tryRestoreSession();};
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',bind);}
+  else{bind();}
+})();
+</script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 2 — PHONE VERIFICATION
@@ -822,10 +845,12 @@ html,body{height:100%;height:-webkit-fill-available;}
   <div class="scroll-body">
     <!-- Balance card -->
     <div class="balance-card">
-      <div class="bal-label">Wallet Balance</div>
+      <div class="bal-label">Available Balance</div>
       <div class="bal-amount" id="home-balance">₦0.00</div>
+      <div id="home-book-balance" style="display:none;font-size:12px;color:var(--gm);margin-top:2px;font-weight:500"></div>
       <div class="bal-sub">
         <span id="home-coin-count">0 coins</span>
+        <span id="home-sent-label" style="display:none;font-size:11px;color:var(--am);margin-left:4px"></span>
         <span>·</span>
         <span class="bal-sync" id="home-sync-label">Up to date</span>
       </div>
@@ -836,6 +861,10 @@ html,body{height:100%;height:-webkit-fill-available;}
       <button class="action-btn primary-action" onclick="goTo('screen-send')">
         <span class="action-icon">↑</span>
         <div class="action-label">Send Zil</div>
+      </button>
+      <button class="action-btn" onclick="goTo('screen-request')">
+        <span class="action-icon">💰</span>
+        <div class="action-label">Request</div>
       </button>
       <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
         <span class="action-icon">↓</span>
@@ -1044,6 +1073,7 @@ html,body{height:100%;height:-webkit-fill-available;}
   <!-- METHOD TABS -->
   <div style="display:flex;background:var(--grl);border-bottom:1px solid var(--grb);flex-shrink:0">
     <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">📷 Scan QR</button>
+    <button id="recv-tab-nfc"  class="method-tab"        onclick="switchRecvTab('nfc')">📡 NFC</button>
     <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">📂 Import File</button>
   </div>
 
@@ -1109,6 +1139,13 @@ html,body{height:100%;height:-webkit-fill-available;}
   </div>
 
   <!-- FILE IMPORT PANEL -->
+  <div id="recv-panel-nfc" style="display:none;padding:20px;flex-direction:column;align-items:center;text-align:center">
+    <span style="font-size:56px">📡</span>
+    <div style="font-size:18px;font-weight:800;color:var(--tx);margin-top:12px">NFC Receive</div>
+    <div style="font-size:13px;color:var(--gm);margin-top:8px;line-height:1.6">Hold your phone against the sender's.<br>The coin transfers automatically.</div>
+    <button onclick="startNFCReceive()" class="btn btn-g" style="margin-top:20px;width:100%">📡 Start NFC Receive</button>
+    <div style="font-size:11px;color:var(--gm);margin-top:12px">Requires Android Chrome with NFC enabled</div>
+  </div>
   <div id="recv-panel-file" style="display:none;flex:1;overflow-y:auto;background:var(--bg)">
     <div style="padding:14px 18px 0">
       <div class="alert alert-g" style="margin:0 0 14px">
@@ -1287,22 +1324,22 @@ html,body{height:100%;height:-webkit-fill-available;}
 <!-- ═══════════════════════════════════════════════════════════════
      JAVASCRIPT — APP ENGINE
 ══════════════════════════════════════════════════════════════ -->
-<script>
+<script charset="utf-8">
 'use strict';
 
-// ── Constants ─────────────────────────────────────────────────
+// -- Constants -------------------------------------------------
 const API    = '/.netlify/functions';
 const DB_KEY = 'zillion_pwa_v1';
 const MINT_PUBLIC_KEY = null; // loaded from env on first sync
 
-// ── State ─────────────────────────────────────────────────────
+// -- State -----------------------------------------------------
 let STATE = {
   screen:    'screen-splash',
   prevScreen:'screen-splash',
   user:      null,   // { phone, deviceId, role, agentId, agentToken, createdAt }
   vault:     [],     // array of .zil coin objects
   history:   [],     // transaction log
-  pin:       null,   // ephemeral — never persisted as plaintext
+  pin:       null,   // ephemeral - never persisted as plaintext
   pinConfirm:null,
   pinState:  'create', // 'create' | 'confirm' | 'verify'
   sendAmount:0,
@@ -1313,7 +1350,7 @@ let STATE = {
   settings:  { biometric:true, txpin:false, autosync:true },
 };
 
-// ── Persistence ────────────────────────────────────────────────
+// -- Persistence ------------------------------------------------
 function save() {
   const toSave = {
     user:     STATE.user,
@@ -1338,7 +1375,7 @@ function load() {
   } catch { return false; }
 }
 
-// ── Screen navigation ──────────────────────────────────────────
+// -- Screen navigation ------------------------------------------
 const screenHistory = [];
 function goTo(id) {
   const curr = document.getElementById(STATE.screen);
@@ -1381,7 +1418,7 @@ function onScreenEnter(id) {
   if (id === 'screen-profile') refreshProfile();
 }
 
-// ── Toast & Loader ─────────────────────────────────────────────
+// -- Toast & Loader ---------------------------------------------
 function toast(msg, isError=false, ms=3000) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -1395,7 +1432,7 @@ function showLoader(text='Processing...') {
 }
 function hideLoader() { document.getElementById('loader').classList.remove('show'); }
 
-// ── Phone OTP ──────────────────────────────────────────────────
+// -- Phone OTP --------------------------------------------------
 let otpTimer = null;
 function onPhoneInput(el) {
   el.value = el.value.replace(/\D/g,'');
@@ -1412,7 +1449,7 @@ async function submitPhone() {
     return;
   }
 
-  // Normalise: 08012345678 → +2348012345678
+  // Normalise: 08012345678 -> +2348012345678
   let phone = raw;
   if (phone.startsWith('0')) phone = '+234' + phone.slice(1);
   else if (!phone.startsWith('+')) phone = '+234' + phone;
@@ -1439,7 +1476,7 @@ async function submitPhone() {
       // Show code in visible banner
       const banner = document.getElementById('dev-otp-banner');
       if (banner) {
-        banner.textContent = '🔧 Dev Mode — Your code is: ' + data.dev_otp;
+        banner.textContent = '🔧 Dev Mode - Your code is: ' + data.dev_otp;
         banner.style.display = 'block';
       }
       toast('🔧 Dev code: ' + data.dev_otp, false, 12000);
@@ -1449,8 +1486,8 @@ async function submitPhone() {
     // Real SMS error
     if (!res.ok) {
       let msg = data.error || 'SMS delivery failed.';
-      if (data.detail) msg += ' — ' + data.detail;
-      if (data.tip)    msg += ' — ' + data.tip;
+      if (data.detail) msg += ' - ' + data.detail;
+      if (data.tip)    msg += ' - ' + data.tip;
       errEl.textContent = '⚠️ ' + msg;
       errEl.style.display = 'block';
       return;
@@ -1525,8 +1562,8 @@ async function verifyOtp() {
     if (!res.ok || !data.verified) {
       // Dev bypass: if server lost OTP (cold start), still allow if code looks valid
       if (data.error && data.error.includes('expired or not found') && code.length === 6) {
-        // Accept in dev mode — OTP store was cleared by serverless cold start
-        console.warn('[Dev] OTP store cleared by cold start — accepting locally');
+        // Accept in dev mode - OTP store was cleared by serverless cold start
+        console.warn('[Dev] OTP store cleared by cold start - accepting locally');
         STATE._verifiedPhone = STATE._pendingPhone;
         clearInterval(otpTimer);
         goTo('screen-pin');
@@ -1543,17 +1580,18 @@ async function verifyOtp() {
     }
 
     STATE._verifiedPhone = STATE._pendingPhone;
+    STATE._verifiedToken = data.token || '';   // save JWT for sync
     clearInterval(otpTimer);
     goTo('screen-pin');
 
   } catch(e) {
     hideLoader();
-    errEl.textContent = '⚠️ Network error — ' + e.message;
+    errEl.textContent = '⚠️ Network error - ' + e.message;
     errEl.style.display = 'block';
   }
 }
 
-// ── PIN flow ───────────────────────────────────────────────────
+// -- PIN flow ---------------------------------------------------
 let pinBuffer = '';
 let pinFirst  = '';
 STATE.pinState = 'create';
@@ -1584,11 +1622,11 @@ function processPinComplete() {
     if (pinBuffer !== pinFirst) {
       // Mismatch
       for (let i=0;i<6;i++) document.getElementById('pd'+i).className='pin-dot error';
-      toast("PINs don't match — try again", true);
+      toast("PINs don't match - try again", true);
       setTimeout(() => {
         pinBuffer=''; pinFirst=''; STATE.pinState='create';
         document.getElementById('pin-title').textContent='Create 6-digit PIN';
-        document.getElementById('pin-sub').textContent='Encrypts your coin vault. Never stored — only you know it.';
+        document.getElementById('pin-sub').textContent='Encrypts your coin vault. Never stored - only you know it.';
         updatePinDots('');
       }, 600);
     } else {
@@ -1599,7 +1637,7 @@ function processPinComplete() {
   }
 }
 
-// ── Role selection ─────────────────────────────────────────────
+// -- Role selection ---------------------------------------------
 let selectedRole = 'customer';
 function selectRole(role) {
   selectedRole = role;
@@ -1620,11 +1658,14 @@ async function completeOnboarding() {
     if (!agentId || !agentToken) { toast('Enter Agent ID and token', true); return; }
   }
   STATE.user = { phone, deviceId, role:selectedRole, agentId, agentToken,
-    name: phone, createdAt: new Date().toISOString() };
+    name: phone, createdAt: new Date().toISOString(),
+    token: STATE._verifiedToken || '' };   // JWT for sync auth
   save();
   toast('Welcome to Zillion! 🎉');
   goTo('screen-home');
   setTimeout(() => refreshHome(), 100);
+  // Register device by triggering a sync (even with empty vault)
+  setTimeout(() => { STATE.isOnline = navigator.onLine; if (STATE.isOnline) trySync(); }, 1500);
   // If user arrived via QR link, handle the claim now
   if (STATE._pendingClaimId) {
     const cid = STATE._pendingClaimId;
@@ -1637,20 +1678,73 @@ async function completeOnboarding() {
   }
 }
 
-// ── Session restore ────────────────────────────────────────────
+// -- Session restore --------------------------------------------
 function tryRestoreSession() {
-  if (load() && STATE.user) { goTo('screen-home'); refreshHome(); }
-  else { toast('No account found — create one first', true); }
+  if (load() && STATE.user) {
+    goTo('screen-home');
+    refreshHome();
+    refreshProfile();
+    // Attempt sync immediately on restore — registers device, settles pending
+    setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+  } else {
+    toast('No account found — please set up a new account', true);
+    goTo('screen-phone'); // take them to phone entry, not just a toast
+  }
 }
 
-// ── Home ───────────────────────────────────────────────────────
+// -- Home -------------------------------------------------------
 function refreshHome() {
-  const total = STATE.vault.reduce((s,c) => s+(c.amount||0), 0);
-  const held  = STATE.vault.filter(c => c._status !== 'PENDING_TRANSFER');
-  document.getElementById('home-balance').textContent = fmtNaira(total);
-  document.getElementById('home-coin-count').textContent = `${held.length} coin${held.length!==1?'s':''}`;
+  // ── Ledger-style balance ─────────────────────────────────────
+  // AVAILABLE = HELD coins only (confirmed, spendable right now)
+  // BOOK      = HELD + PENDING_SYNC (received, awaiting server confirm)
+  // SENT coins (PENDING_TRANSFER + SPENT_LOCAL) excluded from both
+  const sentStatuses = new Set(['PENDING_TRANSFER','SPENT_LOCAL']);
+  const heldCoins    = STATE.vault.filter(c => c._status === 'HELD');
+  const pendingSyncC = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
+  const sentCoins    = STATE.vault.filter(c => sentStatuses.has(c._status));
+
+  const availableTotal = heldCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  const bookTotal      = availableTotal + pendingSyncC.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  const sentTotal      = sentCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+
+  // Primary display: Available Balance
+  document.getElementById('home-balance').textContent = fmtNaira(availableTotal);
+
+  // Book balance line (only show if different from available)
+  const bookEl = document.getElementById('home-book-balance');
+  if (bookEl) {
+    if (bookTotal !== availableTotal) {
+      bookEl.textContent = 'Book balance ' + fmtNaira(bookTotal);
+      bookEl.style.display = 'block';
+    } else {
+      bookEl.style.display = 'none';
+    }
+  }
+
+  // Sent amount line (only show if coins are pending settlement)
+  const sentEl = document.getElementById('home-sent-label');
+  if (sentEl) {
+    if (sentTotal > 0) {
+      sentEl.textContent = fmtNaira(sentTotal) + ' sent · settling';
+      sentEl.style.display = 'inline';
+    } else {
+      sentEl.style.display = 'none';
+    }
+  }
+
+  const coinLabel = `${heldCoins.length} coin${heldCoins.length!==1?'s':''}` +
+    (pendingSyncC.length ? ` · ${pendingSyncC.length} syncing` : '') +
+    (sentCoins.length    ? ` · ${sentCoins.length} sent (syncing…)` : '');
+  document.getElementById('home-coin-count').textContent = coinLabel;
   const syncEl = document.getElementById('home-sync-label');
-  syncEl.textContent = STATE.isOnline ? (STATE.lastSync ? 'Synced '+fmtTime(STATE.lastSync) : 'Not synced yet') : 'Offline mode';
+  const hasToken = !!(STATE.user?.token || STATE.user?.agentToken);
+  if (!STATE.isOnline) {
+    syncEl.textContent = 'Offline mode';
+  } else if (STATE.lastSync) {
+    syncEl.textContent = (hasToken ? 'Synced ' : 'Settled locally ') + fmtTime(STATE.lastSync);
+  } else {
+    syncEl.textContent = hasToken ? 'Not synced yet' : 'Tap ↻ to sync';
+  }
   syncEl.style.color = STATE.isOnline ? 'var(--g)' : 'var(--am)';
   document.getElementById('offline-banner').style.display = STATE.isOnline ? 'none' : 'flex';
   const dot = document.getElementById('sync-dot');
@@ -1666,34 +1760,56 @@ function refreshHome() {
   }
 }
 
-// ── Vault ──────────────────────────────────────────────────────
+// -- Vault ------------------------------------------------------
 function refreshVault() {
   const coins = STATE.vault;
-  const total = coins.reduce((s,c)=>s+(c.amount||0),0);
+  // Exclude SPENT_LOCAL (sent) coins from vault total display
+  const activeCoinsList = coins.filter(c => c._status !== 'SPENT_LOCAL' && c._status !== 'PENDING_TRANSFER');
+  const total = activeCoinsList.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   document.getElementById('vault-total').textContent = fmtNaira(total);
-  document.getElementById('vault-coin-count').textContent = `${coins.length} coin${coins.length!==1?'s':''}`;
+  const sentCount = coins.length - activeCoinsList.length;
+  let vaultLabel = `${activeCoinsList.length} coin${activeCoinsList.length!==1?'s':''}`;
+  if (sentCount) vaultLabel += ` · ${sentCount} sent (syncing…)`;
+  document.getElementById('vault-coin-count').textContent = vaultLabel;
   const el = document.getElementById('vault-list');
   if (!coins.length) {
     el.innerHTML=`<div class="empty-state" style="padding:36px 20px"><span class="empty-icon">🔐</span><div class="empty-title">Vault is empty</div><div class="empty-sub">Cash in at a Zillion agent or receive Zil via WhatsApp.</div></div>`;
     return;
   }
-  el.innerHTML = coins.map(c => `
-    <div class="coin-card">
+  el.innerHTML = coins.map((c,i) => `
+    <div class="coin-card" onclick="openCoinSheet(${i})" style="cursor:pointer">
       <div class="coin-row">
         <div class="coin-left">
-          <div class="coin-id">${c.coin_id}</div>
-          <div class="coin-denom">${fmtNaira(c.amount)}</div>
+          <div class="coin-id">${(c.coin_id||c.id||'').slice(0,28)}...</div>
+          <div class="coin-denom">${fmtNaira(c.amount||c.value_kobo||0)}</div>
           <div class="coin-expiry">Expires ${fmtExpiry(c.expires_at)}</div>
         </div>
-        <div class="coin-right">
-          <span class="pill ${c._status==='PENDING_TRANSFER'?'pill-am':'pill-g'}">${c._status||'HELD'}</span>
+        <div class="coin-right" style="gap:6px;display:flex;flex-direction:column;align-items:flex-end">
+          <span class="pill ${
+            c._status==='PENDING_TRANSFER'?'pill-r':
+            c._status==='SPENT_LOCAL'?'pill-r':
+            c._status==='PENDING_SYNC'?'pill-am':'pill-g'
+          }">${
+            c._status==='SPENT_LOCAL'?'SENT – SETTLING':
+            c._status==='PENDING_TRANSFER'?'SENT – SETTLING':
+            c._status||'HELD'
+          }</span>
           <span class="pill pill-d" style="font-size:9px">Ed25519 ✓</span>
+          <span style="font-size:18px;color:var(--gm);line-height:1">›</span>
         </div>
       </div>
+      ${c._status==='PENDING_TRANSFER'?
+        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--am)">
+          ⏳ Sent — waiting for server confirmation. Syncing automatically when online.
+         </div>` : ''}
+      ${c._status==='SPENT_LOCAL'?
+        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--gr)">
+          ✓ Delivered locally. Will confirm on next sync.
+         </div>` : ''}
     </div>`).join('');
 }
 
-// ── Send / Export ──────────────────────────────────────────────
+// -- Send / Export ----------------------------------------------
 function setSendAmt(kobo) {
   STATE.sendAmount = kobo;
   document.getElementById('send-amount-input').value = kobo/100;
@@ -1706,10 +1822,35 @@ function onSendAmountInput(el) {
 function updateSendDisplay() {
   const kobo = STATE.sendAmount;
   document.getElementById('send-display').textContent = fmtNaira(kobo);
-  const denom = 100000; // ₦1,000 default
-  const count = Math.ceil(kobo/denom);
-  document.getElementById('send-coins-label').textContent =
-    kobo > 0 ? `${count} × ${fmtNaira(denom)} coin${count!==1?'s':''}` : 'Select an amount below';
+  if (!kobo || kobo <= 0) {
+    document.getElementById('send-coins-label').textContent = 'Select an amount below';
+    return;
+  }
+  // Select actual coins that will be used (smallest-first greedy)
+  const available = (STATE.vault || []).filter(
+    c => c._status === 'HELD' || c._status === 'PENDING_SYNC'
+  );
+  const totalAvail = available.reduce((s,c) => s + (c.amount||c.value_kobo||0), 0);
+  if (kobo > totalAvail) {
+    document.getElementById('send-coins-label').textContent =
+      `Insufficient balance (have ${fmtNaira(totalAvail)})`;
+    return;
+  }
+  const selected = selectCoinsForAmount(kobo);
+  // Build human label: "1 × ₦1,000 coin" or "2 coins (₦500 + ₦500)"
+  let label;
+  if (selected.length === 1) {
+    const coinAmt = selected[0].amount || selected[0].value_kobo || 0;
+    if (coinAmt === kobo) {
+      label = `1 × ${fmtNaira(coinAmt)} coin`;
+    } else {
+      label = `1 × ${fmtNaira(coinAmt)} coin · ${fmtNaira(coinAmt - kobo)} change`;
+    }
+  } else {
+    const parts = selected.map(c => fmtNaira(c.amount||c.value_kobo||0)).join(' + ');
+    label = `${selected.length} coins (${parts})`;
+  }
+  document.getElementById('send-coins-label').textContent = label;
 }
 function switchSendMethod(method, el) {
   STATE.sendMethod = method;
@@ -1726,43 +1867,44 @@ async function sendViaWhatsApp(fileOnly=false) {
     errEl.textContent='Minimum send amount is ₦500.'; errEl.style.display='block'; return;
   }
   const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER');
-  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   if (amount > totalAvail) {
     errEl.textContent=`Insufficient balance. Available: ${fmtNaira(totalAvail)}.`; errEl.style.display='block'; return;
   }
 
-  // Select coins greedy smallest-first
-  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
-  let remain = amount; const selected=[];
-  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+  // Smart coin selection — exact match first, then minimum overage
+  const selected = selectCoinsForAmount(amount);
+
+  // ── LOCK: mark coins BEFORE download to prevent double-send ──
+  selected.forEach(c => {
+    const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
+    if (i >= 0) { STATE.vault[i]._status = 'PENDING_TRANSFER'; STATE.vault[i]._sentAt = new Date().toISOString(); }
+  });
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'sent',
+    amount: selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
+    coin_count:selected.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'whatsapp', name:'Sent via WhatsApp',
+  });
+  save(); refreshHome(); // saves immediately so re-click sees PENDING_TRANSFER
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
-    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
   };
-  const fname  = `zillion-${(bundle.total_kobo/100).toFixed(0)}NGN-${Date.now()}.zil`;
-  const blob   = new Blob([JSON.stringify(bundle,null,2)], {type:'application/octet-stream'});
-  const file   = new File([blob], fname, {type:'application/octet-stream'});
+  const fname = `zillion-${(bundle.total_kobo/100).toFixed(0)}NGN-${Date.now()}.zil`;
+  const blob  = new Blob([JSON.stringify(bundle,null,2)], {type:'application/octet-stream'});
+  const file  = new File([blob], fname, {type:'application/octet-stream'});
 
-  // Mark coins as pending transfer
-  selected.forEach(c => {
-    const idx=STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
-    if (idx>=0) STATE.vault[idx]._status='PENDING_TRANSFER';
-  });
-  STATE.history.unshift({
-    id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
-    coin_count:selected.length, ts:new Date().toISOString(),
-    status:'PENDING_SYNC', method:'whatsapp', name:'Sent via WhatsApp',
-  });
-  save(); refreshHome();
+  // Disable send button to prevent double-tap
+  const waBtn = document.getElementById('wa-send-btn');
+  if (waBtn) { waBtn.disabled = true; waBtn.textContent = 'Sending...'; }
+  setTimeout(() => { if (waBtn) { waBtn.disabled=false; waBtn.textContent='Export & Share via WhatsApp →'; }}, 3000);
 
-  // Step 1: Always download the .zil file to device first
   downloadFile(blob, fname);
-
-  // Step 2: Show clear step-by-step instructions overlay
   showSendSuccessOverlay(bundle, fname, file);
 }
 
@@ -1812,7 +1954,7 @@ function showSendSuccessOverlay(bundle, fname, file) {
       </button>
       <button onclick="document.getElementById('send-overlay').remove();goTo('screen-home')"
         style="width:100%;padding:13px;background:transparent;color:#C8E6D4;border:1px solid #2A5A3A;border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">
-        Done — Return to Wallet
+        Done - Return to Wallet
       </button>
     </div>
   `;
@@ -1845,7 +1987,7 @@ function downloadFile(blob, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-// ── Receive / Import ───────────────────────────────────────────
+// -- Receive / Import -------------------------------------------
 function triggerFileImport() {
   document.getElementById('zil-file-input').click();
 }
@@ -1862,7 +2004,7 @@ async function processZilFile(file) {
     const bundle = JSON.parse(text);
     // Basic validation
     if (!bundle.coins || !Array.isArray(bundle.coins) || bundle.coins.length===0)
-      throw new Error('Invalid .zil file — no coins found');
+      throw new Error('Invalid .zil file - no coins found');
     if (!bundle.zillion_version)
       throw new Error('Not a Zillion file');
     // Check for already-received coins (local spent cache)
@@ -1870,8 +2012,47 @@ async function processZilFile(file) {
     const histIds = new Set(STATE.history.filter(h=>h.received_coin_ids).flatMap(h=>h.received_coin_ids));
     const newCoins = bundle.coins.filter(c => !existingIds.has(c.coin_id) && !histIds.has(c.coin_id));
     const dupCoins = bundle.coins.length - newCoins.length;
+
+    if (newCoins.length === 0) {
+      hideLoader();
+      document.getElementById('import-error').textContent =
+        '⚠ All coins in this file have already been received. Cannot reuse this file.';
+      document.getElementById('import-error').style.display = 'block';
+      document.getElementById('import-confirm-btn').disabled = true;
+      document.getElementById('import-result-wrap').style.display = 'block';
+      document.getElementById('import-zone').style.display = 'none';
+      toast('Duplicate file - all coins already in vault', true, 5000);
+      return;
+    }
+
+    const svStatuses = {};
+    let validationWarning = '';
+    if (STATE.isOnline) {
+      try {
+        const svResults = await Promise.all(
+          newCoins.map(c =>
+            fetch('/api/v1/validate?coin_id=' + encodeURIComponent(c.coin_id))
+              .then(r => r.json()).catch(() => ({ valid:true, status:'UNKNOWN', coin_id:c.coin_id }))
+          )
+        );
+        const spent = svResults.filter(r => r.status==='SPENT'||r.status==='REDEEMED');
+        svResults.forEach(r => { if(r.coin_id) svStatuses[r.coin_id] = r; });
+        if (spent.length > 0) {
+          hideLoader();
+          document.getElementById('import-error').textContent =
+            '⚠ FRAUD ALERT: ' + spent.length + ' coin(s) already spent in registry.';
+          document.getElementById('import-error').style.display = 'block';
+          document.getElementById('import-confirm-btn').disabled = true;
+          document.getElementById('import-result-wrap').style.display = 'block';
+          document.getElementById('import-zone').style.display = 'none';
+          toast('✖ Fraud detected - coins already spent!', true, 8000);
+          return;
+        }
+        if (svResults.some(r => r.status==='UNKNOWN')) validationWarning = '⚠ Some coins could not be verified.';
+      } catch(e) { validationWarning = 'Offline - registry check skipped.'; }
+    } else { validationWarning = 'Offline - coins will verify on sync.'; }
+
     hideLoader();
-    // Show preview
     STATE.pendingImport = {bundle, newCoins, dupCoins};
     const total = newCoins.reduce((s,c)=>s+(c.amount||0),0);
     document.getElementById('import-amount').textContent = fmtNaira(total);
@@ -1884,7 +2065,7 @@ async function processZilFile(file) {
           <div class="tx-name">${fmtNaira(c.amount)}</div>
           <div class="tx-meta" style="font-family:monospace">${c.coin_id?.slice(0,28)}...</div>
         </div>
-        <span class="pill pill-g">Valid</span>
+        <span class='pill pill-g'>Valid</span>
       </div>`).join('') +
       (newCoins.length>3?`<div class="tx-meta" style="padding:8px 0">...and ${newCoins.length-3} more coin${newCoins.length-3!==1?'s':''}</div>`:'') +
       (dupCoins>0?`<div class="alert alert-am" style="margin-top:10px">${dupCoins} duplicate coin${dupCoins!==1?'s':''} skipped (already in vault)</div>`:'');
@@ -1931,7 +2112,7 @@ function rejectImport() {
   document.getElementById('import-confirm-btn').disabled=false;
 }
 
-// ── History ────────────────────────────────────────────────────
+// -- History ----------------------------------------------------
 let histFilter = 'all';
 function filterHistory(f, el) {
   histFilter = f;
@@ -1971,19 +2152,25 @@ function txRow(tx) {
   </div>`;
 }
 
-// ── Profile ────────────────────────────────────────────────────
+// -- Profile ----------------------------------------------------
 function refreshProfile() {
   const u = STATE.user;
   if (!u) return;
   const initials = (u.phone||'?').slice(-4,-2)||'ZL';
   document.getElementById('profile-avatar').textContent = initials;
-  document.getElementById('profile-name').textContent = u.phone||'—';
-  document.getElementById('profile-phone').textContent = u.phone||'—';
-  document.getElementById('settings-phone').textContent = u.phone||'—';
+  document.getElementById('profile-name').textContent = u.phone||'-';
+  document.getElementById('profile-phone').textContent = u.phone||'-';
+  document.getElementById('settings-phone').textContent = u.phone||'-';
   document.getElementById('settings-role').textContent = (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1);
-  document.getElementById('settings-device').textContent = u.deviceId||'—';
+  document.getElementById('settings-device').textContent = u.deviceId||'-';
   document.getElementById('settings-network').textContent = STATE.isOnline?'Online':'Offline';
-  document.getElementById('settings-last-sync').textContent = STATE.lastSync ? fmtTime(STATE.lastSync) : 'Never';
+  const hasToken2 = !!(STATE.user?.token || STATE.user?.agentToken);
+  if (STATE.lastSync) {
+    document.getElementById('settings-last-sync').textContent =
+      (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync);
+  } else {
+    document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
+  }
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
@@ -1993,7 +2180,12 @@ function exportVaultBackup() {
   downloadFile(blob,'zillion-backup-'+Date.now()+'.json');
   toast('Backup exported');
 }
-function forceSync() { toast('Syncing...'); trySync(); }
+function forceSync() {
+  if (!STATE.isOnline) { toast('No connection - changes saved locally', true, 3000); return; }
+  if (!STATE.user)     { toast('Please log in first', true); return; }
+  toast('Syncing with network...');
+  trySync();
+}
 function logout() {
   if (!confirm('Log out? Your vault data stays on this device.')) return;
   STATE.user=null; STATE.pin=null;
@@ -2005,38 +2197,189 @@ function resetWallet() {
   location.reload();
 }
 
-// ── Sync ───────────────────────────────────────────────────────
-async function trySync() {
-  if (!STATE.isOnline || !STATE.user) return;
-  const pending = STATE.vault.filter(c=>c._status==='PENDING_SYNC');
-  if (!pending.length) return;
-  try {
-    const res = await fetch(`${API}/sync`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json',
-               ...(STATE.user.agentToken?{'Authorization':'Bearer '+STATE.user.agentToken}:{})},
-      body: JSON.stringify({ coins: pending.map(c=>c.coin_id),
-        device_id: STATE.user.deviceId, phone: STATE.user.phone }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      pending.forEach(c => {
-        const serverStatus = data.results?.find(r=>r.coin_id===c.coin_id)?.status||'HELD';
-        const idx = STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
-        if (idx>=0) STATE.vault[idx]._status = serverStatus;
-      });
-      STATE.history.forEach(h=>{ if(h.status==='PENDING_SYNC') h.status='SETTLED'; });
-      STATE.lastSync = new Date().toISOString();
-      save(); refreshHome();
-    }
-  } catch(e) { /* Offline or API unavailable — try again later */ }
+// -- Sync -------------------------------------------------------
+// -- Sync status helpers ---------------------------------------
+function updateConnBadge(online) {
+  const dot  = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  if (dot)  dot.style.background = online ? '#22C55E' : '#F59E0B';
+  if (text) text.textContent     = online ? 'Online'  : 'Offline';
+  const banner = document.getElementById('offline-banner');
+  if (banner) banner.style.display = online ? 'none' : 'flex';
+}
+function updateSyncStatus(msg, isErr) {
+  const text = document.getElementById('sync-text');
+  if (!text || !msg) return;
+  text.textContent = msg;
+  text.style.color = isErr ? '#EF4444' : '';
+  if (!isErr) setTimeout(function() {
+    text.textContent = navigator.onLine ? 'Online' : 'Offline';
+    text.style.color = '';
+  }, 4000);
 }
 
-// ── Online/offline detection ───────────────────────────────────
-window.addEventListener('online',  () => { STATE.isOnline=true;  refreshHome(); trySync(); toast('Back online — syncing...'); });
-window.addEventListener('offline', () => { STATE.isOnline=false; refreshHome(); toast('Offline mode — transfers still work','',2000); });
+async function trySync() {
+  if (!STATE.isOnline || !STATE.user) return;
+  const token = STATE.user.token || STATE.user.agentToken || '';
+  if (!token) {
+    // No JWT — settle locally so UI shows correct state
+    STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
+    STATE.vault.forEach(c => { if (c._status === 'PENDING_SYNC') c._status = 'HELD'; });
+    // Remove sent coins immediately (no server needed for local settlement)
+    STATE.vault = STATE.vault.filter(c =>
+      c._status !== 'PENDING_TRANSFER' && c._status !== 'SPENT_LOCAL'
+    );
+    STATE.lastSync = new Date().toISOString();
+    save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
+    updateSyncStatus('Settled locally · ' + new Date().toLocaleTimeString());
+    return;
+  }
+  // Include both PENDING_SYNC (received) and PENDING_TRANSFER (sent) coins
+  const pendingSync     = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
+  const pendingTransfer = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER');
+  const pending         = [...pendingSync, ...pendingTransfer];
+  const deviceId = STATE.user.deviceId || '';
 
-// ── Drag & drop for .zil files ─────────────────────────────────
+  if (!pending.length) {
+    // Still send a heartbeat to register this device in the backend
+    // This is what makes the user appear in the admin Customers tab
+    try {
+      await fetch(`${API}/sync`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body: JSON.stringify({ device_id: deviceId, tx_batch: [], heartbeat: true }),
+      });
+    } catch(e) {}
+    STATE.lastSync = new Date().toISOString();
+    save(); refreshHome(); refreshProfile();
+    updateSyncStatus('All synced · ' + new Date().toLocaleTimeString());
+    return;
+  }
+
+  updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
+
+  // Build tx_batch — extract tx fields from coin's tx_history chain
+  const tx_batch = pending.map(c => {
+    const lastHop  = (c.tx_history || []).slice(-1)[0] || {};
+    const isSent   = c._status === 'PENDING_TRANSFER';
+    return {
+      coin_id:    c.coin_id || c.id,
+      // For sent coins: from=me, to=recipient. For received: from=sender, to=me.
+      from_hash:  isSent ? (c.owner_hash || deviceId) : (lastHop.from || c.owner_hash || ''),
+      to_hash:    isSent ? (lastHop.to   || 'RECIPIENT') : (c.owner_hash || deviceId),
+      tx_ts:      lastHop.ts     || c._receivedAt || c._sentAt || new Date().toISOString(),
+      env_sig:    lastHop.tx_sig || c.signature   || c.payload_hash || 'OFFLINE',
+      value_kobo: c.amount || c.value_kobo || 0,
+      tx_history: c.tx_history || [],
+      owner_hash: c.owner_hash || '',
+      is_sent:    isSent,   // tells backend this is a send, not receive
+      synced_at:  new Date().toISOString(),
+    };
+  });
+
+  try {
+    const res  = await fetch(`${API}/sync`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ device_id: deviceId, tx_batch }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // Settle received coins (PENDING_SYNC → HELD)
+      // Remove sent coins (PENDING_TRANSFER → gone from vault, they belong to recipient)
+      const settledIds = new Set(data.settled_coin_ids || []);
+      // Also treat conflicts that say ALREADY_SPENT as settled for sent coins
+      (data.conflicts || []).forEach(c => {
+        if (c.reason === 'ALREADY_SPENT') settledIds.add(c.coin_id);
+      });
+
+      settledIds.forEach(coin_id => {
+        const vIdx = STATE.vault.findIndex(v => (v.id || v.coin_id) === coin_id);
+        if (vIdx < 0) return;
+        const coin = STATE.vault[vIdx];
+        if (coin._status === 'PENDING_TRANSFER') {
+          // Sent coin confirmed received — remove from vault entirely
+          STATE.vault.splice(vIdx, 1);
+        } else {
+          // Received coin settled — mark as HELD
+          STATE.vault[vIdx]._status = 'HELD';
+        }
+      });
+      // Settle all pending-sync history entries
+      STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
+
+      // Force-settle any sent coins that the server processed in this batch
+      // but didn't explicitly list (handles pre-registry coins and edge cases)
+      const conflictIds = new Set((data.conflicts||[]).map(c => c.coin_id));
+      tx_batch.forEach(tx => {
+        if (!tx.is_sent) return; // only sent coins
+        if (settledIds.has(tx.coin_id)) return; // already handled above
+        if (conflictIds.has(tx.coin_id)) return; // genuine conflict — keep
+        // Server processed our batch successfully — remove this sent coin
+        const vIdx = STATE.vault.findIndex(v => (v.id||v.coin_id) === tx.coin_id);
+        if (vIdx >= 0 && (STATE.vault[vIdx]._status === 'PENDING_TRANSFER' ||
+                          STATE.vault[vIdx]._status === 'SPENT_LOCAL')) {
+          STATE.vault.splice(vIdx, 1);
+        }
+      });
+
+      // Also remove all SPENT_LOCAL coins (already settled locally)
+      STATE.vault = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
+
+      STATE.lastSync = new Date().toISOString();
+      save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
+      updateSyncStatus('Synced · ' + new Date().toLocaleTimeString());
+      updateConnBadge(true);
+      if (data.conflicts && data.conflicts.length) {
+        toast('⚠️ ' + data.conflicts.length + ' conflict(s) — check history', true, 6000);
+      }
+    } else {
+      updateSyncStatus('Sync error: ' + (data.error || res.status), true);
+    }
+  } catch(e) {
+    STATE.isOnline = false;
+    updateConnBadge(false);
+    updateSyncStatus('Offline - will retry when connected');
+  }
+  // Auto-clear very old PENDING_TRANSFER coins (> 30 min) even if server didn't confirm
+  // This prevents coins getting permanently stuck when the registry doesn't have them
+  const thirtyMinAgo = Date.now() - 30 * 60 * 1000;
+  STATE.vault.forEach(c => {
+    if (c._status === 'PENDING_TRANSFER' || c._status === 'SPENT_LOCAL') {
+      const sentAt = c._sentAt ? new Date(c._sentAt).getTime() : 0;
+      if (sentAt && sentAt < thirtyMinAgo) {
+        c._status = 'SPENT_LOCAL'; // treat as sent — remove from spendable
+      }
+    }
+  });
+  // Remove SPENT_LOCAL coins from vault (they've been delivered)
+  STATE.vault = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
+  save(); refreshHome(); refreshVault();
+}
+
+// Auto-sync every 30s when online
+setInterval(function() { if (STATE.isOnline && STATE.user) trySync(); }, 30000);
+
+// -- Online/offline detection -----------------------------------
+window.addEventListener('online', function() {
+  STATE.isOnline = true;
+  updateConnBadge(true);
+  refreshHome();
+  toast('Back online - syncing...');
+  setTimeout(trySync, 1000);
+});
+window.addEventListener('offline', function() {
+  STATE.isOnline = false;
+  updateConnBadge(false);
+  updateSyncStatus('Offline - changes saved locally');
+  refreshHome();
+  toast('Offline - transfers still work locally', false, 3000);
+});
+
+// -- Drag & drop for .zil files ---------------------------------
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', async e => {
   e.preventDefault();
@@ -2048,18 +2391,25 @@ document.addEventListener('drop', async e => {
   }
 });
 
-// ── Receive tab switcher ───────────────────────────────────────
+// -- Receive tab switcher ---------------------------------------
 function switchRecvTab(tab) {
-  document.getElementById('recv-panel-qr').style.display   = tab==='qr'   ? 'flex' : 'none';
-  document.getElementById('recv-panel-file').style.display  = tab==='file' ? 'block': 'none';
-  document.getElementById('recv-panel-qr').style.flexDirection = 'column';
+  const qrPanel   = document.getElementById('recv-panel-qr');
+  const filePanel = document.getElementById('recv-panel-file');
+  const nfcPanel  = document.getElementById('recv-panel-nfc');
+  if (qrPanel)   qrPanel.style.display   = tab==='qr'   ? 'flex'  : 'none';
+  if (filePanel) filePanel.style.display  = tab==='file' ? 'block' : 'none';
+  if (nfcPanel)  nfcPanel.style.display   = tab==='nfc'  ? 'flex'  : 'none';
+  if (qrPanel)   qrPanel.style.flexDirection = 'column';
   document.getElementById('recv-tab-qr').classList.toggle('active',  tab==='qr');
   document.getElementById('recv-tab-file').classList.toggle('active', tab==='file');
+  const nfcTab = document.getElementById('recv-tab-nfc');
+  if (nfcTab) nfcTab.classList.toggle('active', tab==='nfc');
   if (tab === 'qr' && !window._scannerRunning) startScanner();
-  if (tab === 'file') stopScanner();
+  if (tab === 'file' || tab === 'nfc') stopScanner();
+  if (tab === 'nfc') startNFCReceive();
 }
 
-// ── QR Scanner (BarcodeDetector API) ──────────────────────────
+// -- QR Scanner (BarcodeDetector API) --------------------------
 let _scannerStream   = null;
 let _scannerInterval = null;
 let _scannerDetector = null;
@@ -2160,7 +2510,7 @@ async function handleQRResult(rawValue) {
     const url = new URL(rawValue);
     claimId = url.searchParams.get('claim');
   } catch {
-    // Not a URL — might be a raw claim ID
+    // Not a URL - might be a raw claim ID
     if (/^[a-f0-9-]{36}$/.test(rawValue)) claimId = rawValue;
   }
 
@@ -2189,14 +2539,46 @@ async function handleQRResult(rawValue) {
       return;
     }
 
-    // Success — show coin preview
-    const bundle = data.bundle;
-    _pendingQRBundle = bundle;
-    const fmt = fmtNaira(data.amount_kobo);
+    // Success - dedup + validate before showing Accept
+    const bundle = data.bundle || { coins: data.coins || [] };
+    const existingIds = new Set(STATE.vault.map(v => v.coin_id));
+    const histIds2 = new Set(
+      STATE.history.filter(h=>h.received_coin_ids).flatMap(h=>h.received_coin_ids)
+    );
+    const newCoins = (bundle.coins||[]).filter(c =>
+      !existingIds.has(c.coin_id) && !histIds2.has(c.coin_id)
+    );
+    const dupCount = (bundle.coins||[]).length - newCoins.length;
+    if (newCoins.length === 0) {
+      iconEl.textContent = '✖'; amountEl.textContent = 'Already Received';
+      detailEl.textContent = 'All coins from this QR are already in your vault.';
+      errorEl.textContent  = '⚠ DUPLICATE: This QR code has already been used.';
+      errorEl.style.display = 'block'; if (actionsEl) actionsEl.style.display = 'flex'; return;
+    }
+    const svQR = {};
+    let qrWarn = '';
+    try {
+      const svRes = await Promise.all(newCoins.map(c =>
+        fetch('/api/v1/validate?coin_id='+encodeURIComponent(c.coin_id))
+          .then(r=>r.json()).catch(()=>({valid:true,status:'UNKNOWN',coin_id:c.coin_id}))
+      ));
+      svRes.forEach(r=>{if(r.coin_id)svQR[r.coin_id]=r;});
+      const spent = svRes.filter(r=>r.status==='SPENT'||r.status==='REDEEMED');
+      if (spent.length > 0) {
+        iconEl.textContent = '✖'; amountEl.textContent = 'Payment Rejected';
+        detailEl.textContent = spent.length + ' coin(s) already spent.';
+        errorEl.textContent = '⚠ FRAUD: Coins already redeemed - do not accept!';
+        errorEl.style.display = 'block'; if(actionsEl)actionsEl.style.display='flex';
+        toast('✖ Fraud - coins already spent!', true, 8000); return;
+      }
+      if (svRes.some(r=>r.status==='UNKNOWN')) qrWarn = '⚠ Some coins unverified.';
+    } catch(e) { qrWarn = 'Could not verify registry.'; }
+    _pendingQRBundle = { ...bundle, coins: newCoins };
+    const fmt = fmtNaira(newCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0));
 
     iconEl.textContent   = '✅';
     amountEl.textContent = fmt;
-    detailEl.textContent = data.coin_count + ' coin' + (data.coin_count!==1?'s':'') + ' from agent ' + (data.agent_id||'—');
+    detailEl.textContent = data.coin_count + ' coin' + (data.coin_count!==1?'s':'') + ' from agent ' + (data.agent_id||'-');
 
     coinsEl.innerHTML = (bundle.coins||[]).slice(0,3).map(c => `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08)">
@@ -2205,7 +2587,7 @@ async function handleQRResult(rawValue) {
           <div style="font-size:13px;font-weight:600;color:#fff">${fmtNaira(c.amount)}</div>
           <div style="font-size:10px;color:var(--gm);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.coin_id}</div>
         </div>
-        <span style="background:var(--gl);color:var(--g);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">VALID</span>
+        <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:var(--gl);color:var(--g)">${svQR[c.coin_id]?(svQR[c.coin_id].valid?'OK':'!'): '?'}</span>
       </div>`).join('') +
       (bundle.coins.length > 3 ? `<div style="font-size:11px;color:var(--gm);padding:8px 0">...and ${bundle.coins.length-3} more coin${bundle.coins.length-3!==1?'s':''}</div>` : '');
 
@@ -2223,33 +2605,31 @@ async function handleQRResult(rawValue) {
 
 function confirmQRImport() {
   if (!_pendingQRBundle) return;
-  const bundle   = _pendingQRBundle;
-  const newCoins = (bundle.coins||[]).filter(c => {
-    const existingIds = new Set(STATE.vault.map(v=>v.coin_id));
-    return !existingIds.has(c.coin_id);
-  });
-
+  const bundle = _pendingQRBundle;
+  const histIds = new Set(
+    STATE.history.filter(h=>h.received_coin_ids).flatMap(h=>h.received_coin_ids)
+  );
+  const newCoins = (bundle.coins||[]).filter(c =>
+    !histIds.has(c.coin_id) && !STATE.vault.find(v => v.coin_id === c.coin_id)
+  );
+  if (newCoins.length === 0) {
+    toast('⚠ All coins already in vault - duplicate blocked', true, 4000);
+    _pendingQRBundle = null; return;
+  }
   newCoins.forEach(c => {
-    c._status = 'PENDING_SYNC';
-    c._receivedAt = new Date().toISOString();
-    c._method = 'qr';
+    c._status='PENDING_SYNC'; c._receivedAt=new Date().toISOString(); c._method='qr';
     STATE.vault.push(c);
   });
-
-  const total = newCoins.reduce((s,c)=>s+(c.amount||0),0);
+  const total = newCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   STATE.history.unshift({
     id:'TX-'+Date.now(), type:'received', amount:total,
     coin_count:newCoins.length, ts:new Date().toISOString(),
     status:'PENDING_SYNC', method:'qr', name:'Received via QR scan',
     received_coin_ids: newCoins.map(c=>c.coin_id),
   });
-
-  save();
-  _pendingQRBundle = null;
-  toast(fmtNaira(total) + ' added to your vault! 🎉');
-  goTo('screen-home');
-  refreshHome();
-  trySync();
+  save(); _pendingQRBundle = null;
+  toast(fmtNaira(total) + ' added to your vault!');
+  goTo('screen-home'); refreshHome(); trySync();
 }
 
 function resetQRScanner() {
@@ -2259,13 +2639,13 @@ function resetQRScanner() {
   startScanner();
 }
 
-// ── Check for ?claim= in URL on load ──────────────────────────
+// -- Check for ?claim= in URL on load --------------------------
 async function checkClaimParam() {
   const params  = new URLSearchParams(location.search);
   const claimId = params.get('claim');
   if (!claimId) return;
   // Remove param from URL without reload
-  window.history.replaceState({}, '', '/wallet/');
+  try{window.history.replaceState({},'','/wallet/');}catch(e){}
   // If not logged in yet, store and handle after onboarding
   if (!STATE.user) {
     STATE._pendingClaimId = claimId;
@@ -2277,13 +2657,14 @@ async function checkClaimParam() {
   await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + claimId);
 }
 
-// ── Customer QR Send Functions ────────────────────────────────
+// -- Customer QR Send Functions --------------------------------
 let _sendQrClaimUrl = null;
 let _sendQrImgData  = null;
 let _sendQrTimer    = null;
 let _sendQrBundle   = null;
 
 async function generateSendQR() {
+  if (!assertBalance('QR generate')) return;
   const errEl = document.getElementById('send-qr-error');
   errEl.style.display = 'none';
   const amount = STATE.sendAmount;
@@ -2291,49 +2672,69 @@ async function generateSendQR() {
     errEl.textContent = 'Minimum amount is ₦500'; errEl.style.display = 'block'; return;
   }
   const available = STATE.vault.filter(c=>c._status!=='PENDING_TRANSFER'&&c._status!=='PENDING_CASHOUT');
-  const totalAvail = available.reduce((s,c)=>s+(c.amount||0),0);
+  const totalAvail = available.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   if (amount > totalAvail) {
     errEl.textContent = `Insufficient balance. Available: ${fmtNaira(totalAvail)}`;
     errEl.style.display = 'block'; return;
   }
-  // Select coins
-  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
-  let remain = amount; const selected = [];
-  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=c.amount; }
+  // Smart coin selection — exact match first, then minimum overage
+  const selected = selectCoinsForAmount(amount);
+  if (!selected.length) {
+    errEl.textContent = 'No coins available for this amount'; errEl.style.display = 'block'; return;
+  }
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
     type:'cashin',
-    total_kobo:selected.reduce((s,c)=>s+c.amount,0),
+    total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
   };
   _sendQrBundle = bundle;
 
+  // ── LOCK: mark coins BEFORE API call to prevent double-tap ──
+  selected.forEach(c => {
+    const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
+    if (i >= 0) { STATE.vault[i]._status = 'PENDING_TRANSFER'; STATE.vault[i]._sentAt = new Date().toISOString(); }
+  });
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
+    coin_count:selected.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'qr', name:'Sent via QR code',
+  });
+  save(); refreshHome();
+
+  const qrBtn = document.getElementById('send-qr-btn');
+  if (qrBtn) { qrBtn.disabled = true; qrBtn.textContent = 'Creating QR...'; }
+
   showLoader('Creating QR code...');
   try {
+    const claimToken = STATE.user?.token || STATE.user?.agentToken || '';
     const res = await fetch('/api/v1/create-claim', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization': 'Bearer ' + claimToken,
+      },
       body: JSON.stringify({ bundle }),
     });
     const data = await res.json();
     hideLoader();
-    if (!res.ok) throw new Error(data.error||'Failed to create QR');
+    if (!res.ok) {
+      // Rollback: un-mark the coins since QR creation failed
+      selected.forEach(c => {
+        const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
+        if (i >= 0) STATE.vault[i]._status = 'HELD';
+      });
+      STATE.history.shift(); // remove the history entry we added
+      save(); refreshHome();
+      if (qrBtn) { qrBtn.disabled=false; qrBtn.textContent='📲 Generate QR Code →'; }
+      throw new Error(data.error||'Failed to create QR');
+    }
 
     _sendQrClaimUrl = data.claim_url;
-
-    // Mark coins as pending
-    selected.forEach(c=>{
-      const idx=STATE.vault.findIndex(v=>v.coin_id===c.coin_id);
-      if(idx>=0) STATE.vault[idx]._status='PENDING_TRANSFER';
-    });
-    STATE.history.unshift({
-      id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
-      coin_count:selected.length, ts:new Date().toISOString(),
-      status:'PENDING_SYNC', method:'qr', name:'Sent via QR code',
-    });
-    save(); refreshHome();
+    if (qrBtn) { qrBtn.disabled=false; qrBtn.textContent='↻ Generate New QR'; }
 
     // Render QR
     const canvas = document.getElementById('send-qr-canvas');
@@ -2356,7 +2757,7 @@ async function generateSendQR() {
     document.getElementById('send-qr-btn').textContent    = '↻ Generate New QR';
 
     startSendQRTimer(new Date(data.expires_at));
-    toast('QR ready — share with recipient 📲');
+    toast('QR ready - share with recipient 📲');
   } catch(e) {
     hideLoader();
     errEl.textContent = 'QR error: '+e.message; errEl.style.display='block';
@@ -2374,7 +2775,7 @@ function startSendQRTimer(exp) {
       el.textContent='⏱ '+m+'m '+String(sec).padStart(2,'0')+'s remaining';
       el.style.color = s<60?'var(--r)':'var(--am)';
     } else {
-      el.textContent='❌ Expired — generate a new QR';
+      el.textContent='❌ Expired - generate a new QR';
       el.style.color='var(--r)';
       const canvas=document.querySelector('#send-qr-canvas canvas');
       if(canvas) canvas.style.opacity='.3';
@@ -2387,15 +2788,14 @@ function startSendQRTimer(exp) {
 async function shareSendQRWhatsApp() {
   if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
   const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
-  const msg = '💚 *Zillion Payment — '+fmt2+'*
+  const msg = `💚 *Zillion Payment - ${fmt2}*
 
-'+
-    'Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
+Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
 
-'+
-    _sendQrClaimUrl+'
+${_sendQrClaimUrl}
 
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/';
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
+
   if (_sendQrImgData && navigator.share) {
     try {
       const blob = await (await fetch(_sendQrImgData)).blob();
@@ -2416,7 +2816,7 @@ function saveSendQRImage() {
   toast('QR image saved');
 }
 
-// ── Web Share Target (handle incoming .zil from WhatsApp) ──────
+// -- Web Share Target (handle incoming .zil from WhatsApp) ------
 async function checkShareTarget() {
   if (location.search.includes('share-target') || document.referrer.includes('whatsapp')) {
     // Handle via launchQueue if supported
@@ -2433,12 +2833,12 @@ async function checkShareTarget() {
   }
 }
 
-// ── Utilities ──────────────────────────────────────────────────
+// -- Utilities --------------------------------------------------
 function fmtNaira(kobo) {
   return '₦' + (kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function fmtTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   const now = new Date();
   const diff = now - d;
@@ -2452,19 +2852,25 @@ function fmtExpiry(iso) {
   return new Date(iso).toLocaleDateString([],{month:'short',year:'numeric'});
 }
 
-// ── Splash dot animation ───────────────────────────────────────
+// -- Splash dot animation ---------------------------------------
 let splashIdx = 0;
 setInterval(() => {
   document.querySelectorAll('.splash-dot').forEach((d,i)=>d.classList.toggle('active',i===splashIdx));
   splashIdx = (splashIdx+1)%4;
 }, 2000);
 
-// ── Boot ───────────────────────────────────────────────────────
+// -- Boot -------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
+  // Load QRCode.js async - doesn't block initial render
+  const qrScript = document.createElement('script');
+  qrScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  document.head.appendChild(qrScript);
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
   checkShareTarget();
+  updateConnBadge(navigator.onLine);
+  if (!navigator.onLine) updateSyncStatus('Offline - changes saved locally');
   if (load() && STATE.user) {
     document.getElementById('screen-splash').classList.add('hidden');
     document.getElementById('screen-home').classList.remove('hidden');
@@ -2474,14 +2880,490 @@ window.addEventListener('DOMContentLoaded', () => {
     // Check for QR claim in URL (customer scanned QR from WhatsApp link)
     setTimeout(() => checkClaimParam(), 800);
   } else {
-    // Check claim param — store for after onboarding
+    // Check claim param - store for after onboarding
     const params = new URLSearchParams(location.search);
     if (params.get('claim')) {
       STATE._pendingClaimId = params.get('claim');
-      window.history.replaceState({}, '', '/wallet/');
+      try{window.history.replaceState({},'','/wallet/');}catch(e){}
     }
   }
 });
+
+
+// ================================================================
+// COIN ACTION BOTTOM SHEET
+// ================================================================
+let _activeCoinIdx = null;
+
+function openCoinSheet(idx) {
+  _activeCoinIdx = idx;
+  const c = STATE.vault[idx];
+  if (!c) return;
+
+  document.getElementById('cs-id').textContent     = c.coin_id || c.id || '';
+  document.getElementById('cs-amount').textContent = fmtNaira(c.amount || (c.value_kobo/100));
+
+  const isPending = c._status === 'PENDING_TRANSFER';
+  const statusEl  = document.getElementById('cs-status');
+  statusEl.innerHTML = `<span class="pill ${isPending?'pill-am':'pill-g'}">${c._status||'HELD'}</span>`;
+
+  document.getElementById('cs-pending-banner').style.display  = isPending ? 'block' : 'none';
+  document.getElementById('cs-pending-actions').style.display = isPending ? 'block' : 'none';
+
+  // Show NFC button only if supported
+  const nfcBtn = document.getElementById('cs-nfc-btn');
+  if (nfcBtn) nfcBtn.style.display = ('NDEFReader' in window) ? 'flex' : 'none';
+
+  document.getElementById('coin-sheet-overlay').style.display = 'block';
+  const sheet = document.getElementById('coin-sheet');
+  sheet.style.display = 'block';
+  sheet.style.transform = 'translateX(-50%) translateY(100%)';
+  requestAnimationFrame(() => {
+    sheet.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1)';
+    sheet.style.transform  = 'translateX(-50%) translateY(0)';
+  });
+}
+
+function closeCoinSheet() {
+  const sheet = document.getElementById('coin-sheet');
+  sheet.style.transform = 'translateX(-50%) translateY(100%)';
+  setTimeout(() => {
+    sheet.style.display = 'none';
+    document.getElementById('coin-sheet-overlay').style.display = 'none';
+  }, 300);
+}
+
+function copyCoinId() {
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  const id = c.coin_id || c.id || '';
+  navigator.clipboard?.writeText(id).then(() => toast('Coin ID copied'));
+}
+
+function coinSheetQR() {
+  if (!assertBalance('QR')) return;
+  closeCoinSheet();
+  setTimeout(() => {
+    const c = STATE.vault[_activeCoinIdx];
+    if (!c) return;
+    STATE.sendAmount = c.amount || c.value_kobo || 0; // already in kobo
+    goTo('screen-send');
+    switchSendMethod('qr', document.querySelector('.method-tab'));
+    setTimeout(() => generateSendQR(), 300);
+  }, 350);
+}
+
+function coinSheetWhatsApp() {
+  if (!assertBalance('WhatsApp')) return;
+  closeCoinSheet();
+  setTimeout(() => {
+    const c = STATE.vault[_activeCoinIdx];
+    if (!c) return;
+    STATE.sendAmount = c.amount || c.value_kobo || 0; // already in kobo
+    sendViaWhatsApp();
+  }, 350);
+}
+
+function coinSheetFile() {
+  closeCoinSheet();
+  setTimeout(() => {
+    const c = STATE.vault[_activeCoinIdx];
+    if (!c) return;
+    STATE.sendAmount = c.amount || c.value_kobo || 0; // already in kobo
+    sendViaWhatsApp(true);
+  }, 350);
+}
+
+function coinSheetCancel() {
+  if (_activeCoinIdx === null) return;
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  if (!confirm('Cancel this transfer and reclaim \u20a6' + ((c.amount||c.value_kobo||0)/100).toFixed(2) + '?')) return;
+  STATE.vault[_activeCoinIdx]._status = 'HELD';
+  // Remove matching PENDING_SYNC history entry
+  const coinId = c.coin_id || c.id;
+  const hIdx = STATE.history.findIndex(h => h.status === 'PENDING_SYNC' && h.method && (h.method === 'qr' || h.method === 'whatsapp'));
+  if (hIdx >= 0) STATE.history.splice(hIdx, 1);
+  save();
+  refreshVault();
+  refreshHome();
+  refreshProfile();
+  closeCoinSheet();
+  toast('Transfer cancelled — ₦' + ((c.amount||c.value_kobo||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' returned to vault');
+  // Attempt full sync now that coin is back in vault
+  setTimeout(() => { if (STATE.isOnline && STATE.user?.token) trySync(); else { updateSyncStatus('Ready to sync when online'); } }, 500);
+}
+
+// ================================================================
+// NFC TRANSFER (Web NFC API - Android Chrome)
+// ================================================================
+let _nfcController = null;
+
+async function coinSheetNFC() {
+  if (!('NDEFReader' in window)) {
+    toast('NFC not supported on this device/browser', true, 4000);
+    return;
+  }
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  closeCoinSheet();
+  await startNFCSend(c);
+}
+
+async function startNFCSend(coin) {
+  const overlay = document.getElementById('nfc-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('nfc-status').textContent = 'Waiting for receiver...';
+  try {
+    const ndef = new NDEFReader();
+    _nfcController = new AbortController();
+    const coinData = JSON.stringify(coin);
+    await ndef.write({ records: [{ recordType: 'text', data: coinData }] },
+                     { signal: _nfcController.signal });
+    document.getElementById('nfc-status').textContent = 'Sent! Marking coin as transferred...';
+    // Mark coin as PENDING_TRANSFER
+    const idx = STATE.vault.findIndex(v => (v.coin_id||v.id) === (coin.coin_id||coin.id));
+    if (idx >= 0) { STATE.vault[idx]._status = 'PENDING_TRANSFER'; STATE.vault[idx]._sentAt = new Date().toISOString(); }
+    save(); refreshVault(); refreshHome();
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      toast('Coin sent via NFC!');
+    }, 1500);
+  } catch (e) {
+    overlay.style.display = 'none';
+    if (e.name !== 'AbortError') toast('NFC error: ' + e.message, true, 4000);
+  }
+}
+
+async function startNFCReceive() {
+  if (!('NDEFReader' in window)) {
+    toast('NFC not supported on this device', true, 4000);
+    return;
+  }
+  const overlay = document.getElementById('nfc-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('nfc-status').textContent = 'Waiting for sender to tap...';
+  try {
+    const ndef = new NDEFReader();
+    _nfcController = new AbortController();
+    await ndef.scan({ signal: _nfcController.signal });
+    ndef.addEventListener('reading', ({ message }) => {
+      for (const record of message.records) {
+        if (record.recordType === 'text') {
+          try {
+            const coin = JSON.parse(new TextDecoder().decode(record.data));
+            overlay.style.display = 'none';
+            _pendingQRBundle = { coins: [coin] };
+            confirmNFCImport(coin);
+          } catch { toast('Invalid coin data received', true); }
+        }
+      }
+    });
+  } catch (e) {
+    overlay.style.display = 'none';
+    if (e.name !== 'AbortError') toast('NFC error: ' + e.message, true, 4000);
+  }
+}
+
+async function confirmNFCImport(coin) {
+  const coinId = coin.coin_id || coin.id;
+  const amt    = fmtNaira(coin.amount || coin.value_kobo/100);
+  if (STATE.vault.find(v => v.coin_id === coinId)) {
+    toast('⚠ Duplicate: coin already in vault', true, 5000); return;
+  }
+  const histIds = new Set(
+    STATE.history.filter(h=>h.received_coin_ids).flatMap(h=>h.received_coin_ids)
+  );
+  if (histIds.has(coinId)) {
+    toast('⚠ Duplicate: coin already received', true, 5000); return;
+  }
+  if (STATE.isOnline && coinId) {
+    try {
+      const r = await fetch('/api/v1/validate?coin_id=' + encodeURIComponent(coinId));
+      const d = await r.json();
+      if (d.status === 'SPENT' || d.status === 'REDEEMED') {
+        toast('✖ FRAUD: Coin already spent - rejecting!', true, 8000);
+        try { if (navigator.vibrate) navigator.vibrate([500,100,500]); } catch(e){}
+        return;
+      }
+    } catch(e) {}
+  }
+  if (!confirm('Receive ' + amt + ' via NFC? (Coin verified)')) return;
+  const kobo = coin.amount || coin.value_kobo || 0;
+  STATE.vault.push({ ...coin, _status:'PENDING_SYNC', _receivedAt:new Date().toISOString(), _method:'nfc' });
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'received', amount:kobo,
+    coin_count:1, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:'nfc', name:'Received via NFC',
+    received_coin_ids: [coinId],
+  });
+  save(); refreshHome(); refreshVault();
+  toast('Received ' + amt + ' via NFC!');
+  goTo('screen-home');
+  setTimeout(trySync, 2000);
+}
+
+function cancelNFC() {
+  if (_nfcController) _nfcController.abort();
+  document.getElementById('nfc-overlay').style.display = 'none';
+}
+
+// ================================================================
+// REQUEST MONEY SCREEN
+// ================================================================
+let _reqQRInstance = null;
+
+function updateRequestQR() {
+  const amt  = parseFloat(document.getElementById('req-amount').value) || 0;
+  const note = document.getElementById('req-note').value.trim();
+  const wrap = document.getElementById('req-qr-wrap');
+  const ph   = document.getElementById('req-placeholder');
+
+  if (amt < 100) { wrap.style.display='none'; ph.style.display='flex'; return; }
+
+  wrap.style.display = 'block';
+  ph.style.display   = 'none';
+  document.getElementById('req-amount-label').textContent = fmtNaira(amt);
+  document.getElementById('req-note-label').textContent   = note || '';
+
+  // Build request URL/payload
+  const payload = JSON.stringify({ type:'request', amount_kobo: amt*100,
+    phone: STATE.user?.phone || '', note, ts: Date.now() });
+  const qrData  = 'zlnreq:' + btoa(payload);
+
+  const canvas = document.getElementById('req-qr-canvas');
+  canvas.innerHTML = '';
+  if (window.QRCode) {
+    if (_reqQRInstance) { try { _reqQRInstance.clear(); } catch{} }
+    _reqQRInstance = new QRCode(canvas, { text: qrData, width:180, height:180,
+      correctLevel: QRCode.CorrectLevel.M });
+  }
+}
+
+function shareRequestQR() {
+  const amt  = parseFloat(document.getElementById('req-amount').value) || 0;
+  const note = document.getElementById('req-note').value.trim();
+  if (amt < 100) { toast('Enter an amount first', true); return; }
+  const msg = `💰 *Zillion Payment Request*\n\nAmount: *${fmtNaira(amt)}*${note?'\nNote: '+note:''}\n\nScan the QR code in your Zillion wallet to pay me instantly — no internet needed.`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function saveRequestQR() {
+  const canvas = document.querySelector('#req-qr-canvas canvas');
+  if (!canvas) { toast('Generate a QR first', true); return; }
+  const link = document.createElement('a');
+  link.download = 'zillion-request.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ================================================================
+// NFC RECEIVE TAB HANDLER
+// ================================================================
+// NFC tab wired directly in switchRecvTab - no override needed
+// switchRecvTab already handles 'nfc' via the extended HTML panel
+// Just wire the recv-tab-nfc button to show the panel directly
+
+
+// ── Sprint 1: Offline coin expiry check ─────────────────────────
+// Checks expiry before accepting any coin, without a server call.
+// Called from processZilFile, handleQRResult, confirmNFCImport.
+function checkCoinExpiry(coin) {
+  if (!coin || !coin.expires_at) return { ok: true }; // no expiry field = accept
+  const now       = new Date();
+  const expiresAt = new Date(coin.expires_at);
+  const graceEnd  = new Date(expiresAt.getTime() + 7 * 24 * 3600 * 1000);
+  if (now <= expiresAt)  return { ok: true, status: 'valid' };
+  if (now <= graceEnd)   return { ok: false, grace: true,
+    message: 'This coin has expired but is in the 7-day grace period. Take it to any Zillion agent to redeem for cash before ' +
+      graceEnd.toLocaleDateString('en-NG', {day:'numeric',month:'short',year:'numeric'}) + '.' };
+  return { ok: false, grace: false,
+    message: 'This coin expired on ' + expiresAt.toLocaleDateString('en-NG') +
+      ' and the grace period has passed. This coin has no value.' };
+}
+
+function validateCoinBundle(coins) {
+  // Returns { valid: coin[], expired: coin[], grace: coin[], invalid: coin[] }
+  const valid = [], expired = [], grace = [], invalid = [];
+  for (const coin of (coins || [])) {
+    const check = checkCoinExpiry(coin);
+    if (check.ok)       valid.push(coin);
+    else if (check.grace) grace.push({...coin, _expiry_msg: check.message});
+    else                expired.push({...coin, _expiry_msg: check.message});
+  }
+  return { valid, expired, grace };
+}
+
+
+// ── Sprint 2: Device key generation + registration (G02, G04) ───
+// Generates an ECDSA P-256 key pair on first login using SubtleCrypto.
+// Private key stored in IndexedDB (never leaves device).
+// Public key sent to /api/v1/register-device for offline coin verification.
+
+const DEVICE_KEY_STORE = 'zillion-device-key';
+
+async function getOrCreateDeviceKeyPair() {
+  // Try IndexedDB first
+  const stored = await idbGet(DEVICE_KEY_STORE);
+  if (stored && stored.publicKeyHex) return stored;
+
+  // Generate new key pair
+  const keyPair = await crypto.subtle.generateKey(
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    true,    // extractable (needed to export public key)
+    ['sign', 'verify']
+  );
+
+  // Export public key as hex
+  const pubDer = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+  const pubHex = Array.from(new Uint8Array(pubDer))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // Export private key as JWK for storage
+  const privJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+
+  const pair = { publicKeyHex: pubHex, privateKeyJwk: privJwk };
+  await idbSet(DEVICE_KEY_STORE, pair);
+  console.log('[device-key] New key pair generated');
+  return pair;
+}
+
+// Minimal IndexedDB helpers
+function idbGet(key) {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('zillion-vault', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+    req.onsuccess = e => {
+      const tx = e.target.result.transaction('kv', 'readonly');
+      const r  = tx.objectStore('kv').get(key);
+      r.onsuccess = () => res(r.result);
+      r.onerror   = () => rej(r.error);
+    };
+    req.onerror = () => rej(req.error);
+  });
+}
+
+function idbSet(key, value) {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('zillion-vault', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+    req.onsuccess = e => {
+      const tx = e.target.result.transaction('kv', 'readwrite');
+      const r  = tx.objectStore('kv').put(value, key);
+      r.onsuccess = () => res();
+      r.onerror   = () => rej(r.error);
+    };
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function registerDeviceKey(token, deviceId) {
+  try {
+    const pair = await getOrCreateDeviceKeyPair();
+    const res  = await fetch(API + '/register-device', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        device_id:      deviceId,
+        public_key_hex: pair.publicKeyHex,
+        key_algorithm:  'ECDSA_P256',
+      }),
+    });
+    if (res.ok) console.log('[device-key] ✅ Registered with server');
+    else console.warn('[device-key] Registration failed:', res.status);
+  } catch (e) {
+    console.warn('[device-key] Registration error (non-fatal):', e.message);
+    // Non-fatal — wallet still works without server-registered key
+  }
+}
+
+// ── KYC tier badge on Profile screen ────────────────────────────
+async function loadKYCTier(token) {
+  try {
+    const res  = await fetch(API + '/customer/limits', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const badgeEl = document.getElementById('kyc-tier-badge');
+    if (badgeEl) {
+      badgeEl.textContent = data.tier_name + ' — ' + data.daily_limit_display + '/day';
+      badgeEl.style.display = 'inline-block';
+    }
+    const remainEl = document.getElementById('kyc-remaining');
+    if (remainEl) remainEl.textContent = data.remaining_display + ' remaining today';
+    const upgradeEl = document.getElementById('kyc-upgrade-hint');
+    if (upgradeEl && data.upgrade_available) {
+      upgradeEl.textContent = data.next_tier_action;
+      upgradeEl.style.display = 'block';
+    }
+  } catch (e) {
+    console.warn('[kyc-limits] Could not load tier info:', e.message);
+  }
+}
+
+
+// ── Zero-balance send guard ──────────────────────────────────────
+function getAvailableBalance() {
+  return (STATE.vault || [])
+    .filter(c => c._status === 'HELD')
+    .reduce((s,c) => s + (c.amount || c.value_kobo || 0), 0);
+}
+
+function assertBalance(action) {
+  const bal = getAvailableBalance();
+  if (bal <= 0) {
+    showToast(
+      'You have no available balance. Visit any Zillion agent to add funds first.',
+      'error'
+    );
+    return false;
+  }
+  return true;
+}
+
+function selectCoinsForAmount(kobo) {
+  // Smart coin selection: exact match first, then minimum single coin, then greedy
+  const available = (STATE.vault || []).filter(
+    c => c._status === 'HELD' || c._status === 'PENDING_SYNC'
+  );
+  if (!available.length || kobo <= 0) return [];
+
+  const getAmt = c => c.amount || c.value_kobo || 0;
+
+  // Step 1: exact single-coin match
+  const exact = available.find(c => getAmt(c) === kobo);
+  if (exact) return [exact];
+
+  // Step 2: smallest single coin >= amount (minimum overage, no change needed)
+  const overs = available.filter(c => getAmt(c) >= kobo)
+                         .sort((a,b) => getAmt(a) - getAmt(b));
+  if (overs.length) return [overs[0]];
+
+  // Step 3: greedy multiple coins — pick LARGEST first to minimise coin count
+  // and avoid undershooting. Sum must equal exactly kobo.
+  const sorted = [...available].sort((a,b) => getAmt(b) - getAmt(a));
+  let remain = kobo; const selected = [];
+  for (const c of sorted) {
+    if (remain <= 0) break;
+    selected.push(c);
+    remain -= getAmt(c);
+  }
+  // If we overshot or undershot, try smallest-first as fallback
+  if (remain > 0) {
+    const sf = [...available].sort((a,b) => getAmt(a) - getAmt(b));
+    let r2 = kobo; const sel2 = [];
+    for (const c of sf) {
+      if (r2 <= 0) break;
+      sel2.push(c);
+      r2 -= getAmt(c);
+    }
+    return sel2;
+  }
+  return selected;
+}
+
 </script>
 </body>
 </html>
