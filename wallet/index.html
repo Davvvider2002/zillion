@@ -678,6 +678,30 @@ body{height:100%;height:100dvh;overflow:hidden;}
   </div>
 </div>
 
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TRANSACTION DETAIL MODAL
+══════════════════════════════════════════════════════════════ -->
+<div id="txd-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600"
+  onclick="closeTxDetail()"></div>
+<div id="txd-modal" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;background:var(--w);border-radius:24px 24px 0 0;z-index:601;
+  max-height:85vh;overflow-y:auto;padding:0 0 32px">
+  <div style="width:40px;height:4px;background:rgba(0,0,0,.12);border-radius:2px;margin:12px auto 0"></div>
+  <div style="padding:16px 20px 0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700;color:var(--tx)">Transaction Details</div>
+      <button onclick="closeTxDetail()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gr);padding:0">✕</button>
+    </div>
+    <div id="txd-body"></div>
+    <button onclick="exportSingleTxCSV()" style="width:100%;margin-top:14px;padding:12px;
+      background:var(--g);color:#fff;border:none;border-radius:12px;font-size:13px;
+      font-weight:700;cursor:pointer;font-family:inherit">
+      ⬇ Export This Transaction (CSV)
+    </button>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 1 — SPLASH
 ══════════════════════════════════════════════════════════════ -->
@@ -1262,6 +1286,7 @@ body{height:100%;height:100dvh;overflow:hidden;}
   <div class="sb"></div>
   <div class="hdr">
     <div class="hdr-logo" style="font-size:14px">Transaction History</div>
+    <button onclick="exportAllHistoryCSV()" style="font-size:11px;padding:5px 10px;background:var(--g);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">⬇ CSV</button>
   </div>
   <div class="filter-tabs">
     <button class="filter-tab active" onclick="filterHistory('all',this)">All</button>
@@ -2243,22 +2268,23 @@ function refreshHistory() {
     el.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No transactions</div><div class="empty-sub">No ${histFilter==='all'?'':histFilter+' '}transactions yet.</div></div>`;
     return;
   }
-  el.innerHTML = `<div class="tx-card">${filtered.map(txRow).join('')}</div>`;
+  el.innerHTML = `<div class="tx-card">${filtered.map(function(tx){return txRow(tx, STATE.history.indexOf(tx));}).join('')}</div>`;
 }
-function txRow(tx) {
+function txRow(tx, idx) {
   const isIn = tx.type==='received' || tx.type==='cashin';
   const isPending = tx.status==='PENDING_SYNC';
   const dotClass = isPending?'pending':(isIn?'in':'out');
   const icon = isIn?'↓':'↑';
   const amtClass = isPending?'pending':(isIn?'in':'out');
   const prefix = isIn?'+':'−';
-  return `<div class="tx-row">
+  return `<div class="tx-row" onclick="openTxDetail(${idx})" style="cursor:pointer">
     <div class="tx-dot ${dotClass}">${icon}</div>
     <div class="tx-info">
       <div class="tx-name">${tx.name||'Transaction'}</div>
-      <div class="tx-meta">${fmtTime(tx.ts)}  ·  <span style="color:${isPending?'var(--am)':'var(--g)'};font-weight:600">${isPending?'Pending sync':'Settled'}</span></div>
+      <div class="tx-meta">${fmtTime(tx.ts)} · <span style="color:${isPending?'var(--am)':'var(--g)'};font-weight:600">${isPending?'Pending':'Settled'}</span></div>
     </div>
     <div class="tx-amount ${amtClass}">${prefix}${fmtNaira(tx.amount)}</div>
+    <div style="font-size:14px;color:var(--gr);padding-left:4px">›</div>
   </div>`;
 }
 
@@ -2421,18 +2447,19 @@ async function trySync() {
       // Settle all pending-sync history entries
       STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
 
-      // Force-settle any sent coins that the server processed in this batch
-      // but didn't explicitly list (handles pre-registry coins and edge cases)
+      // Only remove sent coins that server explicitly confirmed as settled
+      // DO NOT force-remove — coins stay PENDING_TRANSFER until server confirms
+      // This ensures the user can see and use Reclaim/Resend while pending
       const conflictIds = new Set((data.conflicts||[]).map(c => c.coin_id));
+      // Mark conflicts back to HELD (not sent after all)
       tx_batch.forEach(tx => {
-        if (!tx.is_sent) return; // only sent coins
-        if (settledIds.has(tx.coin_id)) return; // already handled above
-        if (conflictIds.has(tx.coin_id)) return; // genuine conflict — keep
-        // Server processed our batch successfully — remove this sent coin
-        const vIdx = STATE.vault.findIndex(v => (v.id||v.coin_id) === tx.coin_id);
-        if (vIdx >= 0 && (STATE.vault[vIdx]._status === 'PENDING_TRANSFER' ||
-                          STATE.vault[vIdx]._status === 'SPENT_LOCAL')) {
-          STATE.vault.splice(vIdx, 1);
+        if (!tx.is_sent) return;
+        if (conflictIds.has(tx.coin_id)) {
+          const vIdx = STATE.vault.findIndex(v => (v.id||v.coin_id) === tx.coin_id);
+          if (vIdx >= 0) {
+            STATE.vault[vIdx]._status = 'HELD';
+            delete STATE.vault[vIdx]._sentAt;
+          }
         }
       });
 
@@ -3568,6 +3595,118 @@ function closeCoinSheet() {
     sheet.style.transform  = 'translateX(-50%) translateY(100%)';
     setTimeout(() => { sheet.style.display = 'none'; }, 260);
   }
+}
+
+
+// ── Transaction detail + CSV export ─────────────────────────────────────────
+let _txDetailItem = null;
+
+function openTxDetail(idx) {
+  const tx = STATE.history[idx];
+  if (!tx) return;
+  _txDetailItem = tx;
+  const isIn = tx.type==='received'||tx.type==='cashin';
+  const sign = isIn ? '+' : '−';
+  const clr  = isIn ? 'var(--g)' : '#DC2626';
+  const status = tx.status === 'SETTLED' || tx.status === 'SUCCESS'
+    ? '<span style="color:var(--g);font-weight:700">✓ Settled</span>'
+    : tx.status === 'PENDING_SYNC'
+    ? '<span style="color:var(--am);font-weight:700">⏳ Pending Sync</span>'
+    : '<span style="color:var(--gr)">' + (tx.status||'Unknown') + '</span>';
+
+  const coinList = (tx.coin_ids || (tx.coin_id?[tx.coin_id]:[]));
+  const coinHtml = coinList.length
+    ? coinList.map(function(id){
+        return '<div style="font-family:monospace;font-size:10px;color:var(--gr);padding:3px 0;border-bottom:1px solid var(--grb)">' + id + '</div>';
+      }).join('')
+    : '<div style="color:var(--gr);font-size:11px">Not recorded locally</div>';
+
+  const rows = [
+    ['Amount',      sign + fmtNaira(tx.amount)],
+    ['Type',        (tx.type||'').replace(/_/g,' ')],
+    ['Status',      status],
+    ['Date / Time', new Date(tx.ts).toLocaleString('en-NG',{dateStyle:'long',timeStyle:'medium'})],
+    ['Transaction ID', tx.id || '—'],
+    ['Method',      tx.method || tx.name || '—'],
+    ['Coin Count',  tx.coin_count || coinList.length || '—'],
+    ['From',        tx.from_hash ? tx.from_hash.slice(0,16)+'…' : '—'],
+    ['To',          tx.to_hash   ? tx.to_hash.slice(0,16)+'…'   : '—'],
+  ];
+
+  const rowHtml = rows.map(function(r){
+    return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--grb)">'
+      + '<div style="font-size:12px;color:var(--gr);flex:0 0 110px">' + r[0] + '</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--tx);text-align:right;flex:1">' + r[1] + '</div>'
+      + '</div>';
+  }).join('');
+
+  document.getElementById('txd-body').innerHTML =
+    '<div style="text-align:center;margin-bottom:16px">'
+    + '<div style="font-size:32px;font-weight:800;color:' + clr + '">' + sign + fmtNaira(tx.amount) + '</div>'
+    + '<div style="font-size:12px;color:var(--gr);margin-top:2px">' + (tx.name||tx.type) + '</div>'
+    + '</div>'
+    + rowHtml
+    + (coinList.length ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Coin IDs</div>' + coinHtml + '</div>' : '');
+
+  document.getElementById('txd-overlay').style.display = 'block';
+  document.getElementById('txd-modal').style.display   = 'block';
+}
+
+function closeTxDetail() {
+  document.getElementById('txd-overlay').style.display = 'none';
+  document.getElementById('txd-modal').style.display   = 'none';
+  _txDetailItem = null;
+}
+
+function exportSingleTxCSV() {
+  const tx = _txDetailItem;
+  if (!tx) return;
+  const rows = [
+    ['Field','Value'],
+    ['Transaction ID', tx.id||''],
+    ['Type', tx.type||''],
+    ['Amount (₦)', (tx.amount||0)/100],
+    ['Status', tx.status||''],
+    ['Date', new Date(tx.ts).toLocaleString('en-NG')],
+    ['Method', tx.method||tx.name||''],
+    ['Coin Count', tx.coin_count||''],
+    ['Coin IDs', (tx.coin_ids||(tx.coin_id?[tx.coin_id]:[])).join('; ')],
+    ['From Hash', tx.from_hash||''],
+    ['To Hash', tx.to_hash||''],
+  ];
+  downloadCSV(rows, 'zillion_tx_' + (tx.id||Date.now()) + '.csv');
+}
+
+function exportAllHistoryCSV() {
+  const rows = [['ID','Date','Type','Amount (₦)','Status','Method','Coin Count','Coin IDs']];
+  STATE.history.forEach(function(tx) {
+    rows.push([
+      tx.id||'',
+      new Date(tx.ts).toLocaleString('en-NG'),
+      tx.type||'',
+      (tx.amount||0)/100,
+      tx.status||'',
+      tx.method||tx.name||'',
+      tx.coin_count||'',
+      (tx.coin_ids||(tx.coin_id?[tx.coin_id]:[])).join('; '),
+    ]);
+  });
+  downloadCSV(rows, 'zillion_history_' + new Date().toISOString().slice(0,10) + '.csv');
+}
+
+function downloadCSV(rows, filename) {
+  const csv = rows.map(function(r){
+    return r.map(function(v){
+      const s = String(v==null?'':v).replace(/"/g,'""');
+      return /[,\n"]/.test(s) ? '"'+s+'"' : s;
+    }).join(',');
+  }).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 </script>

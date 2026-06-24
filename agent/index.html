@@ -195,7 +195,25 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
   </header>
 
   <!-- Profile Card -->
-  <div class="pc">
+  
+<!-- Agent Transaction Detail Modal -->
+<div id="ag-txd-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600" onclick="closeAgTxDetail()"></div>
+<div id="ag-txd-modal" style="display:none;position:fixed;bottom:0;left:0;right:0;max-height:88vh;overflow-y:auto;background:#fff;border-radius:20px 20px 0 0;z-index:601;padding-bottom:28px">
+  <div style="width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:2px;margin:10px auto"></div>
+  <div style="padding:0 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700;color:#111">Transaction Details</div>
+      <button onclick="closeAgTxDetail()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9CA3AF;padding:0;line-height:1">&#x2715;</button>
+    </div>
+    <div id="ag-txd-body" style="margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="exportAgSingleCSV()" style="flex:1;padding:11px;background:#16A34A;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">&#x2B07; Export This (CSV)</button>
+      <button onclick="closeAgTxDetail()" style="flex:1;padding:11px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="pc">
     <div class="pct">
       <div class="pav" id="pav">?</div>
       <div><div class="pn" id="pname">—</div><div class="pi" id="pid">—</div><div class="pl" id="ploc">—</div></div>
@@ -409,10 +427,13 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
   <!-- HISTORY -->
   <div id="tab-history" class="pn2">
     <div class="pi2">
-      <div class="pt">Transaction History</div>
-      <div class="ps2">All transactions this session.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="pt" style="margin-bottom:0">Transaction History</div>
+        <button onclick="exportAgentCSV()" style="font-size:11px;padding:5px 12px;background:var(--p);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">⬇ Export CSV</button>
+      </div>
+      <div class="ps2">Click any row for full details. All amounts in ₦.</div>
       <table class="ht">
-        <thead><tr><th>Time</th><th>Type</th><th>Amount</th><th>Coins</th><th>Status</th></tr></thead>
+        <thead><tr><th>Time</th><th>Type</th><th>Amount</th><th>Coins</th><th>Balance</th><th>Status</th><th></th></tr></thead>
         <tbody id="hbody"><tr><td colspan="5" class="nd">No transactions yet</td></tr></tbody>
       </table>
     </div>
@@ -809,28 +830,38 @@ function exportCSV() {
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
-function addH(type,amtKobo,cnt,status) {
-  hlog.unshift({type,amtKobo,cnt,status,ts:new Date().toISOString()});
-  if(hlog.length>100)hlog.pop();
-  localStorage.setItem('zh_'+AP.agent_id,JSON.stringify(hlog));
+function addH(type,amtKobo,cnt,status,extra) {
+  // Compute running balance: float after this transaction
+  const floatAfter = AP.float_balance_kobo || 0;
+  hlog.unshift(Object.assign({
+    id: 'TXN-'+Date.now(),
+    type, amtKobo, cnt, status,
+    ts: new Date().toISOString(),
+    agent_id: AP.agent_id,
+    float_after_kobo: floatAfter,
+  }, extra||{}));
+  if(hlog.length>200) hlog.pop();
+  localStorage.setItem('zh_'+AP.agent_id, JSON.stringify(hlog));
+  renderHistory();
 }
 function renderHistory() {
-  const tb=document.getElementById('hbody');
-  if(!hlog.length){tb.innerHTML='<tr><td colspan="5" class="nd">No transactions yet</td></tr>';return;}
-  tb.innerHTML=hlog.map(function(t){
-    const bg = t.status==='SETTLED'||t.status==='SUCCESS' ? 'var(--gl)' :
-               t.status==='PENDING_SYNC' ? '#FEF3C7' :
-               t.status==='CONFLICT'     ? '#FEE2E2' : 'var(--rl)';
-    const fg = t.status==='SETTLED'||t.status==='SUCCESS' ? '#0A5C35' :
-               t.status==='PENDING_SYNC' ? '#92400E' :
-               t.status==='CONFLICT'     ? '#991B1B' : 'var(--r)';
-    const label = t.status==='PENDING_SYNC' ? 'SYNCING...' : t.status;
-    return '<tr>'
-      +'<td>'+new Date(t.ts).toLocaleTimeString()+'</td>'
+  var tb=document.getElementById('hbody');
+  if(!hlog.length){tb.innerHTML='<tr><td colspan="7" class="nd">No transactions yet</td></tr>';return;}
+  tb.innerHTML=hlog.map(function(t,i){
+    var bg=t.status==='SETTLED'||t.status==='SUCCESS'?'var(--gl)':t.status==='PENDING_SYNC'?'#FEF3C7':t.status==='CONFLICT'?'#FEE2E2':'var(--rl)';
+    var fg=t.status==='SETTLED'||t.status==='SUCCESS'?'#0A5C35':t.status==='PENDING_SYNC'?'#92400E':t.status==='CONFLICT'?'#991B1B':'var(--r)';
+    var label=t.status==='PENDING_SYNC'?'SYNCING':(t.status||'?');
+    var amt='₦'+(t.amtKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+    var bal=t.float_after_kobo!=null?'₦'+(t.float_after_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2}):'—';
+    var ts=new Date(t.ts).toLocaleString('en-NG',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
+    return '<tr onclick="openAgTxDetail('+i+')" style="cursor:pointer">'
+      +'<td>'+ts+'</td>'
       +'<td><strong>'+t.type+'</strong></td>'
-      +'<td>\u20a6'+(t.amtKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2})+'</td>'
+      +'<td>'+amt+'</td>'
       +'<td>'+(t.cnt||0)+'</td>'
-      +'<td><span style="background:'+bg+';color:'+fg+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold">'+label+'</span></td>'
+      +'<td style="color:#059669;font-weight:600">'+bal+'</td>'
+      +'<td><span style="background:'+bg+';color:'+fg+';padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700">'+label+'</span></td>'
+      +'<td style="color:#9CA3AF;font-size:13px">&#x203A;</td>'
       +'</tr>';
   }).join('');
 }
@@ -1555,7 +1586,12 @@ async function coConfirmRedeem() {
   _coPendingBundle = null;
   const coins     = bundle.coins || [];
   const coinIds   = coins.map(function(c){ return c.coin_id||c.id; }).filter(Boolean);
-  const holderHash= coins[0]?.owner_hash || '';
+  // For merchant cashout bundles, use MERCHANT- prefix identifier
+  // For customer cashout, use coin's owner_hash
+  const bundleMerchantId = bundle.merchant_id || null;
+  const holderHash = bundleMerchantId
+    ? 'MERCHANT-' + bundleMerchantId   // merchant cashout
+    : (coins[0]?.owner_hash || '');    // customer cashout
   if (!coinIds.length) { notify('No valid coin IDs', 'err'); return; }
   showL('Redeeming...');
   try {
@@ -1686,6 +1722,125 @@ function autoPickDenom(val) {
   }
   // Default to smallest available
   sel.value = '50000';
+}
+
+
+// ── Agent transaction detail + CSV ───────────────────────────────────────────
+var _agTxDetail = null;
+
+function openAgTxDetail(i) {
+  var t = hlog[i];
+  if (!t) return;
+  _agTxDetail = t;
+
+  var isIn    = t.type === 'CASH IN';
+  var isCo    = t.type === 'CASH OUT';
+  var clr     = isIn ? '#059669' : isCo ? '#DC2626' : '#2563EB';
+  var sign    = isIn ? '+' : (isCo ? '−' : '');
+  var amt     = (t.amtKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+  var bal     = t.float_after_kobo != null
+    ? '₦'+(t.float_after_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2})
+    : 'Not recorded';
+  var ts      = new Date(t.ts).toLocaleString('en-NG',{dateStyle:'full',timeStyle:'medium'});
+
+  var statusClr = t.status==='SUCCESS'||t.status==='SETTLED' ? '#059669' :
+                  t.status==='PENDING_SYNC' ? '#D97706' : '#DC2626';
+
+  var coinIds = t.redeemed_coin_ids || t.coin_ids || [];
+  var coinHtml = coinIds.length
+    ? coinIds.map(function(id){
+        return '<div style="font-family:monospace;font-size:10px;color:#6B7280;padding:3px 0;border-bottom:1px solid #F3F4F6;word-break:break-all">'+id+'</div>';
+      }).join('')
+    : '<div style="font-size:11px;color:#9CA3AF">No coin IDs recorded</div>';
+
+  var rows = [
+    {label:'Transaction ID', value: t.id || '—'},
+    {label:'Date & Time',    value: ts},
+    {label:'Type',           value: t.type},
+    {label:'Amount',         value: '<span style="color:'+clr+';font-weight:800;font-size:15px">'+sign+'₦'+amt+'</span>'},
+    {label:'Status',         value: '<span style="color:'+statusClr+';font-weight:700">'+(t.status||'?')+'</span>'},
+    {label:'Coins',          value: (t.cnt||0)+' coin'+((t.cnt||0)!==1?'s':'')},
+    {label:'Float After',    value: '<span style="color:#059669;font-weight:700">'+bal+'</span>'},
+    {label:'Agent ID',       value: t.agent_id || AP.agent_id || '—'},
+    {label:'Phone',          value: t.phone || '—'},
+  ];
+
+  var rowHtml = rows.map(function(r){
+    return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #F9FAFB">'
+      +'<div style="font-size:11px;color:#9CA3AF;flex:0 0 100px;padding-top:1px">'+r.label+'</div>'
+      +'<div style="font-size:13px;color:#111;text-align:right;flex:1;font-weight:500">'+r.value+'</div>'
+      +'</div>';
+  }).join('');
+
+  document.getElementById('ag-txd-body').innerHTML =
+    '<div style="text-align:center;padding:10px 0 16px;border-bottom:1px solid #F3F4F6;margin-bottom:10px">'
+    +'<div style="font-size:28px;font-weight:800;color:'+clr+'">'+sign+'₦'+amt+'</div>'
+    +'<div style="font-size:12px;color:#9CA3AF;margin-top:2px">'+t.type+'</div>'
+    +'</div>'
+    + rowHtml
+    + (coinIds.length ? '<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Coin IDs ('+coinIds.length+')</div>'+coinHtml+'</div>' : '');
+
+  document.getElementById('ag-txd-overlay').style.display = 'block';
+  document.getElementById('ag-txd-modal').style.display   = 'block';
+}
+
+function closeAgTxDetail() {
+  document.getElementById('ag-txd-overlay').style.display = 'none';
+  document.getElementById('ag-txd-modal').style.display   = 'none';
+  _agTxDetail = null;
+}
+
+function exportAgSingleCSV() {
+  var t = _agTxDetail;
+  if (!t) return;
+  var coinIds = t.redeemed_coin_ids || t.coin_ids || [];
+  agDownloadCSV([
+    ['Field','Value'],
+    ['Transaction ID',  t.id||''],
+    ['Date',            new Date(t.ts).toLocaleString('en-NG')],
+    ['Type',            t.type||''],
+    ['Amount (N)',      (t.amtKobo||0)/100],
+    ['Coins',           t.cnt||0],
+    ['Status',          t.status||''],
+    ['Float After (N)', t.float_after_kobo!=null?(t.float_after_kobo/100):''],
+    ['Agent ID',        t.agent_id||AP.agent_id||''],
+    ['Phone',           t.phone||''],
+    ['Coin IDs',        coinIds.join('; ')],
+  ], 'zillion_agent_tx_'+new Date(t.ts||Date.now()).toISOString().slice(0,10)+'.csv');
+}
+
+function exportAgentCSV() {
+  var rows = [['ID','Date','Type','Amount (N)','Coins','Float After (N)','Status','Agent ID','Coin IDs']];
+  hlog.forEach(function(t){
+    var coinIds = t.redeemed_coin_ids || t.coin_ids || [];
+    rows.push([
+      t.id||'',
+      new Date(t.ts).toLocaleString('en-NG'),
+      t.type||'',
+      (t.amtKobo||0)/100,
+      t.cnt||0,
+      t.float_after_kobo!=null?(t.float_after_kobo/100):'',
+      t.status||'',
+      t.agent_id||AP.agent_id||'',
+      coinIds.join('; '),
+    ]);
+  });
+  agDownloadCSV(rows, 'zillion_agent_'+AP.agent_id+'_'+new Date().toISOString().slice(0,10)+'.csv');
+}
+
+function agDownloadCSV(rows, filename) {
+  var csv = rows.map(function(r){
+    return r.map(function(v){
+      var s = String(v==null?'':v).replace(/"/g,'""');
+      return /[,\n"]/.test(s) ? '"'+s+'"' : s;
+    }).join(',');
+  }).join('\n');
+  var blob = new Blob([csv],{type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 </script>

@@ -265,6 +265,21 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
 <!-- ════════════════════════════════════════════════════════════
      ONBOARDING WRAPPER
 ═══════════════════════════════════════════════════════════════ -->
+<div id="m-txd-overlay" onclick="closeMTxDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600"></div>
+<div id="m-txd-modal" style="display:none;position:fixed;bottom:0;left:0;right:0;max-height:86vh;overflow-y:auto;background:#fff;border-radius:22px 22px 0 0;z-index:601;padding-bottom:28px">
+  <div style="width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:2px;margin:10px auto"></div>
+  <div style="padding:0 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700;color:#111">Transaction Details</div>
+      <button onclick="closeMTxDetail()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9CA3AF;padding:0">&#x2715;</button>
+    </div>
+    <div id="m-txd-body"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button onclick="exportMSingleCSV()" style="flex:1;padding:11px;background:#059669;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">&#x2B07; Export This (CSV)</button>
+      <button onclick="closeMTxDetail()" style="flex:1;padding:11px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Close</button>
+    </div>
+  </div>
+</div>
 <div id="ob-wrap">
 
   <!-- SPLASH -->
@@ -678,6 +693,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
     <div style="background:var(--dp);padding:16px 20px 12px;display:flex;align-items:center;gap:12px">
       <button onclick="goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0">&#x2039;</button>
       <div style="font-size:17px;font-weight:700;color:#fff">Transaction History</div>
+      <button onclick="exportAllMerchantCSV()" style="font-size:11px;padding:5px 10px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700;margin-left:auto">⬇ CSV</button>
     </div>
     <div style="padding:16px;flex:1;overflow-y:auto">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
@@ -1416,7 +1432,7 @@ async function merchantSync() {
       tx_batch.push({
         coin_id,
         from_hash:  h.from_hash  || 'CUSTOMER',
-        to_hash:    M.merchant_id || 'MERCHANT',
+        to_hash:    'MERCHANT-' + (M.merchant_id || 'UNKNOWN'),
         tx_ts:      h.ts || new Date().toISOString(),
         env_sig:    h.env_sig   || h.signature || 'MERCHANT-ACCEPT',
         value_kobo: Math.round((h.amount_kobo || h.amount || 0) / Math.max(1, coinIds.length)),
@@ -1443,6 +1459,17 @@ async function merchantSync() {
     if (res.ok && data.success) {
       M.history.forEach(function(h) {
         if (h.status === 'PENDING_SYNC') h.status = 'SETTLED';
+      });
+      // Update coin owner_hash in vault to merchant's identifier
+      // This ensures cashout QR bundles carry the correct holder reference
+      const merchantHolder = 'MERCHANT-' + M.merchant_id;
+      M.vault.forEach(function(c) {
+        if (c._status === 'PENDING_SYNC' || c._status === 'HELD') {
+          c.owner_hash = merchantHolder;
+        }
+      });
+      M.vault.forEach(function(c) {
+        if (c._status === 'PENDING_SYNC') c._status = 'HELD';
       });
       save();
       mSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
@@ -1706,13 +1733,15 @@ function refreshFullHistory() {
     const synced = h.status === 'SETTLED' || h.status === 'SUCCESS'
       ? '<span style="color:var(--g);font-size:10px">&#x2713; Settled</span>'
       : '<span style="color:var(--am);font-size:10px">&#x23F3; Pending</span>';
-    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--grb)">'
+    const hIdx = M.history.indexOf(h);
+    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--grb);cursor:pointer" onclick="openMTxDetail(' + hIdx + ')">'
       + '<div style="width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;'+bgDot+'">'+(isIn?'&#x2193;':'&#x2191;')+'</div>'
       + '<div style="flex:1;min-width:0">'
         + '<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(h.name||h.type)+'</div>'
         + '<div style="font-size:11px;color:var(--gr);margin-top:1px">'+relTime(h.ts)+' &#x00b7; '+synced+'</div>'
       + '</div>'
       + '<div style="font-size:14px;font-weight:700;'+amtClr+'">'+sign+fmt(h.amount)+'</div>'
+      + '<div style="font-size:14px;color:#9CA3AF;padding-left:6px">›</div>'
       + '</div>';
   }).join('');
   refreshVaultList();
@@ -1793,6 +1822,120 @@ function refreshVaultList() {
       '</div>' +
     '</div>';
   }).join('');
+}
+
+
+// ── Merchant transaction detail + CSV export ─────────────────────────────────
+let _mTxDetail = null;
+
+function openMTxDetail(idx) {
+  const h = M.history[idx];
+  if (!h) return;
+  _mTxDetail = h;
+  const isIn  = h.type === 'received';
+  const sign  = isIn ? '+' : '−';
+  const clr   = isIn ? 'var(--g)' : '#DC2626';
+  const synced = (h.status === 'SETTLED' || h.status === 'SUCCESS')
+    ? '<span style="color:var(--g);font-weight:700">✓ Settled</span>'
+    : '<span style="color:var(--am);font-weight:700">⏳ Pending</span>';
+
+  const coinIds = h.received_coin_ids || (h.coin_id?[h.coin_id]:[]);
+  const coinHtml = coinIds.length
+    ? coinIds.map(function(id){
+        return '<div style="font-family:monospace;font-size:10px;color:var(--gr);padding:3px 0;border-bottom:1px solid var(--grb)">' + id + '</div>';
+      }).join('')
+    : '<div style="font-size:11px;color:var(--gr)">Not recorded</div>';
+
+  const rows = [
+    ['Amount',      sign + fmt(h.amount)],
+    ['Type',        h.type||''],
+    ['Status',      synced],
+    ['Date / Time', new Date(h.ts).toLocaleString('en-NG',{dateStyle:'long',timeStyle:'medium'})],
+    ['Method',      h.method||h.name||'—'],
+    ['Coins',       coinIds.length + ' coin' + (coinIds.length!==1?'s':'')],
+    ['Merchant ID', M.merchant_id],
+    ['Business',    M.business_name],
+  ];
+
+  const rowHtml = rows.map(function(r){
+    return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--grb)">'
+      + '<div style="font-size:12px;color:var(--gr);flex:0 0 100px">' + r[0] + '</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--tx);text-align:right;flex:1">' + r[1] + '</div>'
+      + '</div>';
+  }).join('');
+
+  const modal = document.getElementById('m-txd-modal');
+  const overlay = document.getElementById('m-txd-overlay');
+  if (!modal) return;
+  document.getElementById('m-txd-body').innerHTML =
+    '<div style="text-align:center;margin-bottom:16px">'
+    + '<div style="font-size:30px;font-weight:800;color:' + clr + '">' + sign + fmt(h.amount) + '</div>'
+    + '<div style="font-size:12px;color:var(--gr);margin-top:2px">' + (h.name||h.type) + '</div>'
+    + '</div>'
+    + rowHtml
+    + (coinIds.length ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Coin IDs</div>' + coinHtml + '</div>' : '');
+  overlay.style.display = 'block';
+  modal.style.display = 'block';
+}
+
+function closeMTxDetail() {
+  const m = document.getElementById('m-txd-modal');
+  const o = document.getElementById('m-txd-overlay');
+  if (m) m.style.display = 'none';
+  if (o) o.style.display = 'none';
+  _mTxDetail = null;
+}
+
+function exportMSingleCSV() {
+  const h = _mTxDetail;
+  if (!h) return;
+  const coinIds = h.received_coin_ids || (h.coin_id?[h.coin_id]:[]);
+  const rows = [
+    ['Field','Value'],
+    ['Type', h.type||''],
+    ['Amount (₦)', (h.amount||0)/100],
+    ['Status', h.status||''],
+    ['Date', new Date(h.ts).toLocaleString('en-NG')],
+    ['Method', h.method||h.name||''],
+    ['Merchant ID', M.merchant_id],
+    ['Business', M.business_name],
+    ['Coin Count', coinIds.length],
+    ['Coin IDs', coinIds.join('; ')],
+  ];
+  mDownloadCSV(rows, 'zillion_tx_' + new Date(h.ts).toISOString().slice(0,10) + '.csv');
+}
+
+function exportAllMerchantCSV() {
+  const rows = [['Date','Type','Amount (₦)','Status','Method','Coin Count','Coin IDs','Merchant ID']];
+  M.history.forEach(function(h) {
+    const coinIds = h.received_coin_ids || (h.coin_id?[h.coin_id]:[]);
+    rows.push([
+      new Date(h.ts).toLocaleString('en-NG'),
+      h.type||'',
+      (h.amount||0)/100,
+      h.status||'',
+      h.method||h.name||'',
+      coinIds.length,
+      coinIds.join('; '),
+      M.merchant_id,
+    ]);
+  });
+  mDownloadCSV(rows, 'zillion_merchant_' + M.merchant_id + '_' + new Date().toISOString().slice(0,10) + '.csv');
+}
+
+function mDownloadCSV(rows, filename) {
+  const csv = rows.map(function(r){
+    return r.map(function(v){
+      const s = String(v==null?'':v).replace(/"/g,'""');
+      return /[,\n"]/.test(s) ? '"'+s+'"' : s;
+    }).join(',');
+  }).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 </script>
