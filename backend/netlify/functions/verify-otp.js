@@ -1,96 +1,138 @@
 /**
  * POST /api/v1/verify-otp
- * Sprint 1: Reads OTP from Supabase otp_requests table.
- * No more in-memory dependency on send-otp.js warm instance.
+ * Verifies a 6-digit OTP sent to phone.
+ * On success: returns a signed JWT for use in all subsequent API calls.
+ * Sprint 1: OTP stored in Supabase otp_requests (not in-memory).
+ *
+ * Body: { phone, otp }
  */
 'use strict';
 
-const { createHmac } = require('crypto');
+const { createHmac, createHash, timingSafeEqual } = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
-function hashOtp(otp, phone) {
-  const secret = process.env.OTP_SECRET;
-  if (!secret) throw new Error('OTP_SECRET not configured');
-  return createHmac('sha256', secret).update(`${otp}:${phone}`).digest('hex');
+function signJWT(payload) {
+  const secret = process.env.JWT_SECRET || 'zillion-jwt-secret';
+  const hdr = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const pay = Buffer.from(JSON.stringify({
+    ...payload,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 365 * 24 * 3600, // 1 year
+  })).toString('base64url');
+  const sig = createHmac('sha256', secret).update(`${hdr}.${pay}`).digest('base64url');
+  return `${hdr}.${pay}.${sig}`;
 }
 
-function normalisePhone(phone) {
-  let p = phone.trim().replace(/\s/g,'');
-  if (p.startsWith('+'))   return p;
-  if (p.startsWith('234')) return '+' + p;
-  if (p.startsWith('0'))   return '+234' + p.slice(1);
-  return '+234' + p;
-}
-
-function getDb() {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY,
-    { auth: { persistSession: false } });
+function normalise(phone) {
+  const d = phone.replace(/\D/g, '');
+  if (d.startsWith('234')) return '+' + d;
+  if (d.startsWith('0'))   return '+234' + d.slice(1);
+  return '+234' + d;
 }
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
-  const ok  = b => ({ statusCode:200, headers:hdr, body:JSON.stringify(b) });
-  const err = (code,msg,extra={}) => ({ statusCode:code, headers:hdr,
-    body:JSON.stringify({ error:msg, ...extra }) });
+  const ok  = b    => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
+  const err = (c,m)=> ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
 
-  if (event.httpMethod !== 'POST') return err(405,'Method Not Allowed');
-  if (!process.env.OTP_SECRET)    return err(500,'OTP_SECRET not configured');
+  if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
 
   let body;
-  try { body = JSON.parse(event.body||'{}'); }
-  catch { return err(400,'Invalid JSON'); }
+  try { body = JSON.parse(event.body || '{}'); }
+  catch { return err(400, 'Invalid JSON'); }
 
   const { phone: rawPhone, otp } = body;
-  if (!rawPhone || !otp) return err(400,'phone and otp are required');
+  if (!rawPhone) return err(400, 'Phone required');
+  if (!otp)      return err(400, 'OTP required');
 
-  const phone = normalisePhone(rawPhone);
-  const db    = getDb();
+  const phone    = normalise(rawPhone);
+  const otpStr   = String(otp).trim();
+  const otpSalt  = process.env.OTP_SECRET || 'zillion-otp-salt';
+  // hashOtp: consistent OTP hashing used by both send-otp and verify-otp
+  const hashOtp = (code) => createHmac('sha256', otpSalt).update(String(code).trim()).digest('hex');
+  const hashedInput = hashOtp(otpStr);
 
-  // ── Find the most recent valid OTP for this phone ─────────
-  const { data: rows, error: fetchErr } = await db
+  // ── Supabase lookup ───────────────────────────────────────
+  const db = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY,
+    { auth: { persistSession: false } }
+  );
+
+  const { data: rows, error } = await db
     .from('otp_requests')
     .select('id, hashed_otp, expires_at, attempts, used')
     .eq('phone', phone)
     .eq('used', false)
-    .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(1);
 
-  if (fetchErr) return err(500,`DB error: ${fetchErr.message}`);
+  if (error) {
+    console.error('[verify-otp] DB error:', error.message);
+    return err(500, 'Database error — please try again');
+  }
 
-  if (!rows || rows.length === 0)
-    return err(400,'OTP expired or not found. Request a new code.');
+  if (!rows || rows.length === 0) {
+    return err(400, 'No valid OTP found. Please request a new code.');
+  }
 
   const record = rows[0];
 
-  // ── Check attempt limit ────────────────────────────────────
+  // Expiry check
+  if (new Date(record.expires_at) < new Date()) {
+    return err(400, 'OTP has expired. Please request a new code.');
+  }
+
+  // Attempt limit
   if (record.attempts >= 5) {
-    await db.from('otp_requests').update({ used:true }).eq('id', record.id);
-    return err(429,'Too many failed attempts. Request a new code.');
+    return err(429, 'Too many attempts. Please request a new OTP.');
   }
 
-  // ── Verify hash ────────────────────────────────────────────
-  let submittedHash;
-  try { submittedHash = hashOtp(otp.trim(), phone); }
-  catch(e) { return err(500, e.message); }
+  // Increment attempts
+  await db.from('otp_requests').update({ attempts: record.attempts + 1 }).eq('id', record.id);
 
-  if (submittedHash !== record.hashed_otp) {
-    const newAttempts = record.attempts + 1;
-    await db.from('otp_requests').update({ attempts:newAttempts }).eq('id', record.id);
-    const remaining = 5 - newAttempts;
-    return err(400,`Incorrect code. ${remaining} attempt${remaining!==1?'s':''} remaining.`,
-      { remaining });
+  // Constant-time compare
+  let match = false;
+  try {
+    const expBuf = Buffer.from(record.hashed_otp, 'hex');
+    const prvBuf = Buffer.from(hashedInput,        'hex');
+    match = expBuf.length === prvBuf.length && timingSafeEqual(expBuf, prvBuf);
+  } catch { match = false; }
+
+  if (!match) {
+    return err(400, 'Incorrect OTP. Please check the code and try again.');
   }
 
-  // ── Correct — mark as used ─────────────────────────────────
-  await db.from('otp_requests').update({ used:true }).eq('id', record.id);
+  // Mark OTP as used
+  await db.from('otp_requests').update({ used: true }).eq('id', record.id);
 
-  // Clean up other OTPs for this phone
-  await db.from('otp_requests').delete()
-    .eq('phone', phone).neq('id', record.id);
+  // Generate device ID
+  const deviceId = createHash('sha256')
+    .update(phone + (process.env.SUPABASE_SERVICE_KEY || 'salt'))
+    .digest('hex')
+    .slice(0, 16);
 
-  console.log(`[verify-otp] ✅ Phone verified: ${phone}`);
+  // ── Issue JWT ─────────────────────────────────────────────
+  // This token is used by trySync, register-device, kyc, and all
+  // authenticated wallet endpoints. Without it, sync runs in
+  // "offline-local" mode and balances never update on the server.
+  const token = signJWT({
+    sub:      deviceId,
+    phone,
+    deviceId,
+    role:     'customer',
+    phone_hash: createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+      .update(phone).digest('hex'),
+  });
 
-  return ok({ success:true, verified:true, phone,
-    message:'Phone number verified successfully' });
+  console.log(`[verify-otp] ✅ ${phone} verified — JWT issued`);
+
+  return ok({
+    success:  true,
+    verified: true,
+    phone,
+    token,          // ← JWT for sync auth — was missing before this fix
+    deviceId,
+    message:  'Phone verified. Your wallet is ready.',
+  });
 };
