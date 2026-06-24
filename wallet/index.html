@@ -615,6 +615,70 @@ body{height:100%;height:100dvh;overflow:hidden;}
 <div id="loader"><div class="spinner"></div><div class="loader-text" id="loader-text">Loading...</div></div>
 
 <!-- ═══════════════════════════════════════════════════════════════
+     COIN SHEET — bottom sheet modal (opened when vault coin tapped)
+══════════════════════════════════════════════════════════════ -->
+<div id="coin-sheet-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500"
+  onclick="closeCoinSheet()"></div>
+<div id="coin-sheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;background:var(--d);border-radius:24px 24px 0 0;z-index:501;
+  padding:0 0 24px;max-height:85vh;overflow-y:auto">
+  <div style="width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:12px auto"></div>
+  <div style="padding:0 20px">
+    <div id="cs-id" style="font-size:10px;color:var(--gm);font-family:monospace;word-break:break-all;margin-bottom:8px"></div>
+    <div id="cs-amount" style="font-size:32px;font-weight:800;color:#fff;margin-bottom:8px"></div>
+    <div id="cs-status" style="margin-bottom:16px"></div>
+
+    <!-- Pending/sent banner -->
+    <div id="cs-pending-banner" style="display:none;background:rgba(180,90,0,.15);
+      border:1px solid var(--am);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--am)">⏳ Sent — awaiting scan</div>
+      <div style="font-size:12px;color:var(--gm);margin-top:4px">
+        Recipient has 16 hours to scan this QR. If they cannot scan it, reclaim the coin.
+      </div>
+    </div>
+
+    <!-- Pending actions: resend or reclaim -->
+    <div id="cs-pending-actions" style="display:none;margin-bottom:14px">
+      <button onclick="reclaimActiveCoin()" style="width:100%;padding:13px;background:var(--am);
+        color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;
+        cursor:pointer;font-family:inherit;margin-bottom:8px">
+        ↩ Reclaim This Coin
+      </button>
+      <button onclick="resendActiveCoin()" style="width:100%;padding:13px;background:var(--g);
+        color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;
+        cursor:pointer;font-family:inherit">
+        🔄 Resend (Generate New QR)
+      </button>
+    </div>
+
+    <!-- Standard actions for HELD coins -->
+    <div id="cs-held-actions">
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <button id="cs-qr-btn" onclick="coinSheetQR()" style="flex:1;padding:12px;background:var(--g);
+          color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+          📲 Send via QR
+        </button>
+        <button id="cs-wa-btn" onclick="coinSheetWhatsApp()" style="flex:1;padding:12px;background:#25D366;
+          color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+          📱 WhatsApp
+        </button>
+      </div>
+      <button id="cs-nfc-btn" onclick="coinSheetNFC()" style="width:100%;padding:12px;background:var(--bll);
+        color:var(--bl);border:none;border-radius:12px;font-size:13px;font-weight:700;
+        cursor:pointer;font-family:inherit;display:none">
+        📡 Send via NFC
+      </button>
+    </div>
+
+    <button onclick="closeCoinSheet()" style="width:100%;padding:12px;background:transparent;
+      color:var(--gm);border:1px solid var(--grb);border-radius:12px;font-size:13px;
+      cursor:pointer;font-family:inherit;margin-top:10px">
+      Close
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
      SCREEN 1 — SPLASH
 ══════════════════════════════════════════════════════════════ -->
 <div id="screen-splash" class="screen">
@@ -856,6 +920,11 @@ body{height:100%;height:100dvh;overflow:hidden;}
       </div>
     </div>
 
+    <!-- Pending sent coins banner -->
+    <div id="home-pending-banner" style="display:none;margin:0 0 10px;padding:10px 14px;
+      background:rgba(var(--am-rgb,180,90,0),.12);border:1px solid var(--am);
+      border-radius:12px;color:#fff"></div>
+
     <!-- Quick actions -->
     <div class="actions-grid">
       <button class="action-btn primary-action" onclick="goTo('screen-send')">
@@ -1016,7 +1085,12 @@ body{height:100%;height:100dvh;overflow:hidden;}
             </div>
             <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:2px" id="send-qr-amount">₦0</div>
             <div style="font-size:11px;color:var(--gm);margin-bottom:8px" id="send-qr-detail"></div>
-            <div style="font-size:12px;font-weight:700;color:var(--am)" id="send-qr-timer">⏱ Valid 15 minutes</div>
+            <div style="font-size:12px;font-weight:700;color:var(--am)" id="send-qr-timer">⏱ Valid 16 hours</div>
+          </div>
+          <div id="send-qr-regen" style="display:none;padding:8px 14px 0">
+            <button onclick="regenSendQR()" style="width:100%;padding:11px;background:var(--am);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              🔄 Regenerate QR (extend 16 hours)
+            </button>
           </div>
           <div style="padding:0 14px 14px;display:flex;gap:8px">
             <button onclick="shareSendQRWhatsApp()" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
@@ -1753,6 +1827,31 @@ function refreshHome() {
     syncEl.textContent = hasToken ? 'Not synced yet' : 'Tap ↻ to sync';
   }
   syncEl.style.color = STATE.isOnline ? 'var(--g)' : 'var(--am)';
+
+  // ── Pending sent coins banner on home screen ──────────────────────────────
+  const pendingBanner = document.getElementById('home-pending-banner');
+  if (pendingBanner) {
+    if (sentCoins.length > 0) {
+      const sentTotal = sentCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+      pendingBanner.style.display = 'block';
+      pendingBanner.innerHTML = [
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">',
+          '<div>',
+            '<div style="font-size:12px;font-weight:700;color:var(--am)">&#x23F3; ' + sentCoins.length + ' coin' + (sentCoins.length!==1?'s':'') + ' sent &#8212; awaiting scan</div>',
+            '<div style="font-size:11px;color:var(--gm);margin-top:2px">' + fmtNaira(sentTotal) + ' &middot; 16 hours to scan</div>',
+          '</div>',
+          '<div style="display:flex;gap:6px;flex-shrink:0">',
+            '<button onclick="goTo(&quot;screen-vault&quot;)" style="font-size:11px;padding:6px 10px;background:var(--am);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">View</button>',
+            '<button onclick="reclaimSentCoins()" style="font-size:11px;padding:6px 10px;background:rgba(255,255,255,.1);color:var(--am);border:1px solid var(--am);border-radius:8px;cursor:pointer;font-weight:700">&#x21A9; Reclaim</button>',
+          '</div>',
+        '</div>'
+      ].join('')
+    } else {
+      pendingBanner.style.display = 'none';
+      pendingBanner.innerHTML = '';
+    }
+  }
+
   document.getElementById('offline-banner').style.display = STATE.isOnline ? 'none' : 'flex';
   const dot = document.getElementById('sync-dot');
   dot.className = 'hdr-dot' + (STATE.isOnline ? '' : ' offline');
@@ -1806,8 +1905,12 @@ function refreshVault() {
         </div>
       </div>
       ${c._status==='PENDING_TRANSFER'?
-        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--am)">
-          ⏳ Sent — waiting for server confirmation. Syncing automatically when online.
+        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--am);display:flex;align-items:center;justify-content:space-between">
+          <span>⏳ Sent — waiting for recipient to scan</span>
+          <button onclick="event.stopPropagation();reclaimSentCoins()"
+            style="font-size:10px;padding:3px 8px;background:var(--am);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">
+            ↩ Reclaim
+          </button>
          </div>` : ''}
       ${c._status==='SPENT_LOCAL'?
         `<div style="padding:4px 16px 12px;font-size:11px;color:var(--gr)">
@@ -2669,6 +2772,7 @@ let _sendQrClaimUrl = null;
 let _sendQrImgData  = null;
 let _sendQrTimer    = null;
 let _sendQrBundle   = null;
+let _sendQrCoinIds  = [];
 
 async function generateSendQR() {
   if (!assertBalance('QR generate')) return;
@@ -2741,6 +2845,7 @@ async function generateSendQR() {
     }
 
     _sendQrClaimUrl = data.claim_url;
+    window._sendQrCoinIds = selected.map(c => c.coin_id || c.id);  // for regen
     if (qrBtn) { qrBtn.disabled=false; qrBtn.textContent='↻ Generate New QR'; }
 
     // Render QR
@@ -2758,7 +2863,7 @@ async function generateSendQR() {
 
     document.getElementById('send-qr-amount').textContent = fmtNaira(bundle.total_kobo);
     document.getElementById('send-qr-detail').textContent =
-      selected.length+' coin'+(selected.length!==1?'s':'')+' · Claim expires in 15 min';
+      selected.length+' coin'+(selected.length!==1?'s':'')+' · Claim expires in 16 hours';
     document.getElementById('send-qr-box').style.display  = 'block';
     document.getElementById('send-qr-info').style.display = 'none';
     document.getElementById('send-qr-btn').textContent    = '↻ Generate New QR';
@@ -2782,11 +2887,14 @@ function startSendQRTimer(exp) {
       el.textContent='⏱ '+m+'m '+String(sec).padStart(2,'0')+'s remaining';
       el.style.color = s<60?'var(--r)':'var(--am)';
     } else {
-      el.textContent='❌ Expired - generate a new QR';
+      el.textContent='❌ Expired — tap Regenerate to resend';
       el.style.color='var(--r)';
       const canvas=document.querySelector('#send-qr-canvas canvas');
       if(canvas) canvas.style.opacity='.3';
       clearInterval(_sendQrTimer);
+      // Show regenerate button
+      const regenEl = document.getElementById('send-qr-regen');
+      if (regenEl) regenEl.style.display='block';
     }
   };
   tick(); _sendQrTimer=setInterval(tick,1000);
@@ -2801,7 +2909,7 @@ Open your Zillion wallet → Receive → Scan QR → point camera at image OR ta
 
 ${_sendQrClaimUrl}
 
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
+⏱ Valid 16 hours. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
 
   if (_sendQrImgData && navigator.share) {
     try {
@@ -2916,6 +3024,8 @@ function openCoinSheet(idx) {
 
   document.getElementById('cs-pending-banner').style.display  = isPending ? 'block' : 'none';
   document.getElementById('cs-pending-actions').style.display = isPending ? 'block' : 'none';
+  const heldActionsEl = document.getElementById('cs-held-actions');
+  if (heldActionsEl) heldActionsEl.style.display = isPending ? 'none' : 'block';
 
   // Show NFC button only if supported
   const nfcBtn = document.getElementById('cs-nfc-btn');
@@ -3369,6 +3479,95 @@ function selectCoinsForAmount(kobo) {
     return sel2;
   }
   return selected;
+}
+
+
+// ── Regenerate QR — called when current QR has expired ───────────────────────
+// Restores the selected coins (currently PENDING_TRANSFER) back to HELD
+// then creates a fresh 16-hour claim so the recipient can still scan.
+async function regenSendQR() {
+  // 1. Restore PENDING_TRANSFER coins so selectCoinsForAmount can use them
+  //    We know which coins were sent because _sendQrCoinIds holds them
+  if (_sendQrCoinIds && _sendQrCoinIds.length) {
+    _sendQrCoinIds.forEach(coinId => {
+      const v = STATE.vault.find(c => (c.coin_id||c.id) === coinId);
+      if (v && v._status === 'PENDING_TRANSFER') v._status = 'HELD';
+    });
+  }
+  // 2. Hide the expired UI
+  const regenEl = document.getElementById('send-qr-regen');
+  if (regenEl) regenEl.style.display = 'none';
+  document.getElementById('send-qr-box').style.display = 'none';
+
+  // 3. Re-run generateSendQR with the same amount
+  const amount = STATE.sendAmount;
+  if (amount > 0) await generateSendQR();
+}
+
+// ── Reclaim expired sent coins (restore to vault) ────────────────────────────
+// Call this when recipient confirms they did NOT receive the coins.
+// Moves PENDING_TRANSFER coins back to HELD so they can be resent.
+function reclaimSentCoins() {
+  const pending = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER');
+  if (!pending.length) {
+    toast('No pending sent coins to reclaim', false, 3000);
+    return;
+  }
+  if (!confirm(`Reclaim ${pending.length} coin(s) totalling ₦${
+    (pending.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0)/100).toLocaleString()
+  }? Only do this if you are sure the recipient did NOT receive them.`)) return;
+
+  pending.forEach(c => {
+    c._status = 'HELD';
+    delete c._sentAt;
+  });
+  save();
+  refreshHome();
+  refreshVault();
+  toast('✅ Coins reclaimed — you can resend them now', false, 4000);
+}
+
+
+// ── Reclaim single active coin (from coin sheet) ─────────────────────────────
+function reclaimActiveCoin() {
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  if (!confirm('Reclaim ' + fmtNaira(c.amount||c.value_kobo||0) + '? Only do this if the recipient did NOT receive it.')) return;
+  c._status = 'HELD';
+  delete c._sentAt;
+  save();
+  closeCoinSheet();
+  refreshHome();
+  refreshVault();
+  toast('✅ Coin reclaimed — ready to resend', false, 3000);
+}
+
+// ── Resend active coin (from coin sheet) — generates new QR ──────────────────
+function resendActiveCoin() {
+  const c = STATE.vault[_activeCoinIdx];
+  if (!c) return;
+  // Restore to HELD so selectCoinsForAmount can pick it
+  c._status = 'HELD';
+  delete c._sentAt;
+  // Set send amount to this coin's value
+  STATE.sendAmount = c.amount || c.value_kobo || 0;
+  closeCoinSheet();
+  // Navigate to Send screen and generate QR immediately
+  goTo('screen-send');
+  updateSendDisplay();
+  setTimeout(() => generateSendQR(), 400);
+}
+
+// ── Close coin sheet ──────────────────────────────────────────────────────────
+function closeCoinSheet() {
+  const overlay = document.getElementById('coin-sheet-overlay');
+  const sheet   = document.getElementById('coin-sheet');
+  if (overlay) overlay.style.display = 'none';
+  if (sheet) {
+    sheet.style.transition = 'transform .25s ease';
+    sheet.style.transform  = 'translateX(-50%) translateY(100%)';
+    setTimeout(() => { sheet.style.display = 'none'; }, 260);
+  }
 }
 
 </script>
