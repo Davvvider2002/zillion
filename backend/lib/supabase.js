@@ -194,14 +194,29 @@ async function redeemCoins(coinIds, holderHash, agentId) {
   for (const coinId of coinIds) {
     const coin = await getCoinStatus(coinId);
 
-    if (!coin || coin.status !== 'HELD') {
-      rejected.push({ coin_id: coinId, reason: coin ? `STATUS_${coin.status}` : 'NOT_FOUND' });
+    if (!coin) {
+      // Coin not in registry — this is a pre-registry v0.1 coin
+      // Agent physically holds the coin file and customer presented it
+      // Trust the agent's submission — mark as unknown but process
+      console.warn('[redeem] Pre-registry coin:', coinId, '— accepting for agent redemption');
+      // We can't verify holder_hash for pre-registry coins, but we credit the agent
+      // Log as a special event for manual review
+      await logFraudEvent(holderHash, 'REDEEM_PRE_REGISTRY', coinId).catch(()=>{});
+      // Extract amount from coin_id format: ZIL-YYYYMMDD-XXXXXXXX-NNNNNNN
+      // We can't know the amount without the registry — agent must enter it manually
+      // Return as rejected with a clear reason so agent can handle manually
+      rejected.push({ coin_id: coinId, reason: 'PRE_REGISTRY_COIN' });
+      continue;
+    }
+
+    if (coin.status !== 'HELD') {
+      rejected.push({ coin_id: coinId, reason: `STATUS_${coin.status}` });
       continue;
     }
 
     if (coin.holder_hash !== holderHash) {
       rejected.push({ coin_id: coinId, reason: 'OWNER_MISMATCH' });
-      await logFraudEvent(holderHash, 'REDEEM_OWNER_MISMATCH', coinId);
+      await logFraudEvent(holderHash, 'REDEEM_OWNER_MISMATCH', coinId).catch(()=>{});
       continue;
     }
 
