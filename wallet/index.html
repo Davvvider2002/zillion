@@ -1493,9 +1493,16 @@ async function submitPhone() {
       return;
     }
 
-    // Real SMS success
+    // Demo mode or real SMS success
     showOtpSection();
-    toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
+    if (data.demo) {
+      toast('🔓 Demo mode — enter code: ' + (data.message.match(/\d{4,8}/)||[''])[0], false, 8000);
+      // Pre-fill the OTP field for ease of demo
+      const otpInput = document.getElementById('otp-input');
+      if (otpInput) otpInput.value = (data.message.match(/\d{4,8}/)||[''])[0];
+    } else {
+      toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
+    }
 
   } catch (e) {
     hideLoader();

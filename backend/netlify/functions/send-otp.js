@@ -161,6 +161,18 @@ exports.handler = async (event) => {
 
   console.log(`[OTP] Generated for ${phone}, expires ${expiresAt}`);
 
+  // ── Demo bypass ── set DEMO_OTP in Netlify env vars to skip SMS ──────────
+  if ((process.env.DEMO_OTP || '').trim()) {
+    console.log(`[send-otp] DEMO mode — skipping SMS for ${phone}`);
+    return ok({
+      success:  true,
+      demo:     true,
+      message:  `Demo mode: use code ${process.env.DEMO_OTP.trim()} to verify`,
+      phone,
+    });
+  }
+  // ── End demo bypass ──────────────────────────────────────────────────────
+
   const provider = (process.env.SMS_PROVIDER||'').trim().toLowerCase();
   if (!provider) return err(503,'SMS_PROVIDER not configured',
     { tip:'Set SMS_PROVIDER to: termii | africastalking | twilio' });
