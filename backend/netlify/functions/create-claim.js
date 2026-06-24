@@ -52,6 +52,7 @@ exports.handler = async (event) => {
         amount_kobo: bundle.total_kobo,
         coin_count:  bundle.coin_count || bundle.coins.length,
         status:      'PENDING',
+        expires_at:  new Date(Date.now() + 16 * 60 * 60 * 1000).toISOString(), // 16 hours
       })
       .select('claim_id, expires_at')
       .single();
@@ -69,7 +70,7 @@ exports.handler = async (event) => {
         claim_id:   data.claim_id,
         claim_url:  claimUrl,
         expires_at: data.expires_at,
-        expires_in: 900, // 15 minutes in seconds
+        expires_in: 57600, // 16 hours in seconds
       }),
     };
   } catch(err) {
