@@ -38,7 +38,7 @@ exports.handler = async (event) => {
       coin_count:   bundle?.coins?.length || 0,
       status:       'PENDING',
       // Payment requests can have longer expiry (merchant static QR = 24h)
-      expires_at:   new Date(Date.now() + (type==='payment' ? 86400000 : 900000)).toISOString(),
+      expires_at:   new Date(Date.now() + (type==='payment' ? 86400000 : 57600000)).toISOString(), // cashout = 16 hours
     };
 
     const { data, error } = await db
@@ -61,7 +61,7 @@ exports.handler = async (event) => {
         claim_url:  claimUrl,
         type,
         expires_at: data.expires_at,
-        expires_in: type==='payment' ? 86400 : 900,
+        expires_in: type==='payment' ? 86400 : 57600,
       }),
     };
   } catch(err) {

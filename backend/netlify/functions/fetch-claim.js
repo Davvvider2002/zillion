@@ -38,7 +38,7 @@ exports.handler = async (event) => {
         statusCode: 404,
         body: JSON.stringify({
           error:   'Claim not found or already used',
-          detail:  'This QR code may have already been scanned or has expired (15 min limit)',
+          detail:  'This QR code may have already been scanned or has expired',
         }),
       };
     }
@@ -61,7 +61,7 @@ exports.handler = async (event) => {
         statusCode: 410,
         body: JSON.stringify({
           error:  'This QR code has expired',
-          detail: 'QR codes are valid for 15 minutes. Ask the agent to generate a new one.',
+          detail: 'QR codes are valid for 16 hours. Ask the merchant to generate a new one.',
         }),
       };
     }
