@@ -604,112 +604,52 @@ body{height:100%;height:100dvh;overflow:hidden;}
   50% { top:188px; opacity:.8; }
   100%{ top:4px;   opacity:1; }
 }
-
-.kp-btn{
-  width:72px;height:72px;border-radius:50%;border:none;
-  background:rgba(255,255,255,.08);color:#fff;
-  font-size:22px;font-weight:600;cursor:pointer;
-  font-family:inherit;transition:background .1s;
-}
-.kp-btn:active{background:rgba(255,255,255,.22)}
-
+.kp-btn{width:70px;height:70px;border-radius:50%;border:none;background:rgba(255,255,255,.1);color:#fff;font-size:22px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .1s}.kp-btn:active{background:rgba(255,255,255,.25)}
 </style>
 
 </head>
 <body>
 <div id="app">
 
+<!-- PIN Entry Screen -->
+<div id="screen-claim-pin" class="screen hidden">
+  <div class="hdr" style="background:var(--d)">
+    <button class="hdr-back" onclick="goBack()">&#x2039;</button>
+    <div class="hdr-title" style="color:#fff">Enter PIN</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="scroll" style="background:var(--d);display:flex;flex-direction:column;align-items:center;padding:32px 24px">
+    <div style="font-size:44px;margin-bottom:16px">&#x1F510;</div>
+    <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:6px;text-align:center">Transaction PIN</div>
+    <div style="font-size:13px;color:var(--gm);text-align:center;margin-bottom:4px" id="cp-amount-label">Enter the PIN from the sender</div>
+    <div style="font-size:11px;color:var(--am);text-align:center;margin-bottom:24px" id="cp-attempts-label">3 attempts allowed</div>
+    <div id="cp-dots" style="display:flex;gap:12px;margin-bottom:24px"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,70px);gap:12px;margin-bottom:20px">
+      <button class="kp-btn" onclick="cpKey('1')">1</button>
+      <button class="kp-btn" onclick="cpKey('2')">2</button>
+      <button class="kp-btn" onclick="cpKey('3')">3</button>
+      <button class="kp-btn" onclick="cpKey('4')">4</button>
+      <button class="kp-btn" onclick="cpKey('5')">5</button>
+      <button class="kp-btn" onclick="cpKey('6')">6</button>
+      <button class="kp-btn" onclick="cpKey('7')">7</button>
+      <button class="kp-btn" onclick="cpKey('8')">8</button>
+      <button class="kp-btn" onclick="cpKey('9')">9</button>
+      <div></div>
+      <button class="kp-btn" onclick="cpKey('0')">0</button>
+      <button class="kp-btn" onclick="cpDel()">&#x232B;</button>
+    </div>
+    <button id="cp-submit-btn" onclick="submitClaimPin()" disabled
+      style="width:200px;padding:13px;background:var(--g);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;opacity:.4">
+      Confirm PIN
+    </button>
+    <button onclick="goBack()" style="margin-top:14px;background:none;border:none;color:var(--gm);font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+    <div id="cp-err" style="display:none;margin-top:14px;padding:10px 14px;background:rgba(220,38,38,.1);border:1px solid var(--r);border-radius:10px;color:var(--r);font-size:12px;text-align:center"></div>
+  </div>
+</div>
+
 <!-- ═══ TOAST & LOADER ══════════════════════════════════════════ -->
 <div id="toast"></div>
 <div id="loader"><div class="spinner"></div><div class="loader-text" id="loader-text">Loading...</div></div>
-
-<!-- ═══════════════════════════════════════════════════════════════
-     COIN SHEET — bottom sheet modal (opened when vault coin tapped)
-══════════════════════════════════════════════════════════════ -->
-<div id="coin-sheet-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500"
-  onclick="closeCoinSheet()"></div>
-<div id="coin-sheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);
-  width:100%;max-width:430px;background:var(--d);border-radius:24px 24px 0 0;z-index:501;
-  padding:0 0 24px;max-height:85vh;overflow-y:auto">
-  <div style="width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:12px auto"></div>
-  <div style="padding:0 20px">
-    <div id="cs-id" style="font-size:10px;color:var(--gm);font-family:monospace;word-break:break-all;margin-bottom:8px"></div>
-    <div id="cs-amount" style="font-size:32px;font-weight:800;color:#fff;margin-bottom:8px"></div>
-    <div id="cs-status" style="margin-bottom:16px"></div>
-
-    <!-- Pending/sent banner -->
-    <div id="cs-pending-banner" style="display:none;background:rgba(180,90,0,.15);
-      border:1px solid var(--am);border-radius:12px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:700;color:var(--am)">⏳ Sent — awaiting scan</div>
-      <div style="font-size:12px;color:var(--gm);margin-top:4px">
-        Recipient has 16 hours to scan this QR. If they cannot scan it, reclaim the coin.
-      </div>
-    </div>
-
-    <!-- Pending actions: resend or reclaim -->
-    <div id="cs-pending-actions" style="display:none;margin-bottom:14px">
-      <button onclick="reclaimActiveCoin()" style="width:100%;padding:13px;background:var(--am);
-        color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;
-        cursor:pointer;font-family:inherit;margin-bottom:8px">
-        ↩ Reclaim This Coin
-      </button>
-      <button onclick="resendActiveCoin()" style="width:100%;padding:13px;background:var(--g);
-        color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;
-        cursor:pointer;font-family:inherit">
-        🔄 Resend (Generate New QR)
-      </button>
-    </div>
-
-    <!-- Standard actions for HELD coins -->
-    <div id="cs-held-actions">
-      <div style="display:flex;gap:10px;margin-bottom:10px">
-        <button id="cs-qr-btn" onclick="coinSheetQR()" style="flex:1;padding:12px;background:var(--g);
-          color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
-          📲 Send via QR
-        </button>
-        <button id="cs-wa-btn" onclick="coinSheetWhatsApp()" style="flex:1;padding:12px;background:#25D366;
-          color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
-          📱 WhatsApp
-        </button>
-      </div>
-      <button id="cs-nfc-btn" onclick="coinSheetNFC()" style="width:100%;padding:12px;background:var(--bll);
-        color:var(--bl);border:none;border-radius:12px;font-size:13px;font-weight:700;
-        cursor:pointer;font-family:inherit;display:none">
-        📡 Send via NFC
-      </button>
-    </div>
-
-    <button onclick="closeCoinSheet()" style="width:100%;padding:12px;background:transparent;
-      color:var(--gm);border:1px solid var(--grb);border-radius:12px;font-size:13px;
-      cursor:pointer;font-family:inherit;margin-top:10px">
-      Close
-    </button>
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════════════════════
-     TRANSACTION DETAIL MODAL
-══════════════════════════════════════════════════════════════ -->
-<div id="txd-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600"
-  onclick="closeTxDetail()"></div>
-<div id="txd-modal" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);
-  width:100%;max-width:430px;background:var(--w);border-radius:24px 24px 0 0;z-index:601;
-  max-height:85vh;overflow-y:auto;padding:0 0 32px">
-  <div style="width:40px;height:4px;background:rgba(0,0,0,.12);border-radius:2px;margin:12px auto 0"></div>
-  <div style="padding:16px 20px 0">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div style="font-size:16px;font-weight:700;color:var(--tx)">Transaction Details</div>
-      <button onclick="closeTxDetail()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gr);padding:0">✕</button>
-    </div>
-    <div id="txd-body"></div>
-    <button onclick="exportSingleTxCSV()" style="width:100%;margin-top:14px;padding:12px;
-      background:var(--g);color:#fff;border:none;border-radius:12px;font-size:13px;
-      font-weight:700;cursor:pointer;font-family:inherit">
-      ⬇ Export This Transaction (CSV)
-    </button>
-  </div>
-</div>
 
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 1 — SPLASH
@@ -719,7 +659,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
     <div class="splash-brand">
       <div class="splash-logo">ZILLION</div>
       <div class="splash-tagline">Offline-First Digital Cash</div>
-    <!-- v1.4.1 -->
     </div>
 
     <div class="splash-icon-wrap">
@@ -768,73 +707,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
   else{bind();}
 })();
 </script>
-
-
-<!-- ═══════════════════════════════════════════════════════════════
-     SCREEN: CLAIM PIN ENTRY
-     Shown when receiver scans a QR that has a transaction PIN set
-══════════════════════════════════════════════════════════════ -->
-<div id="screen-claim-pin" class="screen hidden">
-  <div class="sb" style="background:var(--d)"></div>
-  <div class="hdr" style="background:var(--d)">
-    <button class="hdr-back" onclick="goBack()">‹</button>
-    <div class="hdr-title" style="color:#fff">Enter PIN</div>
-    <div style="width:40px"></div>
-  </div>
-  <div class="scroll" style="background:var(--d);display:flex;flex-direction:column;align-items:center;padding:32px 24px">
-    <div style="font-size:48px;margin-bottom:16px">🔐</div>
-    <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px;text-align:center">
-      Transaction PIN Required
-    </div>
-    <div style="font-size:14px;color:var(--gm);text-align:center;margin-bottom:8px" id="cp-amount-label">
-      The sender has secured this payment with a PIN
-    </div>
-    <div style="font-size:12px;color:var(--am);text-align:center;margin-bottom:28px" id="cp-attempts-label">
-      Enter the 4-6 digit PIN provided by the sender
-    </div>
-
-    <!-- PIN input dots display -->
-    <div id="cp-dots" style="display:flex;gap:12px;margin-bottom:24px"></div>
-
-    <!-- PIN input (hidden — we use keypad below) -->
-    <input type="tel" id="cp-pin-input" inputmode="numeric" maxlength="6"
-      style="position:absolute;opacity:0;width:1px;height:1px"
-      oninput="onClaimPinInput(this.value)">
-
-    <!-- Keypad -->
-    <div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px;margin-bottom:20px">
-      <button class="kp-btn" onclick="cpKey('1')">1</button>
-      <button class="kp-btn" onclick="cpKey('2')">2</button>
-      <button class="kp-btn" onclick="cpKey('3')">3</button>
-      <button class="kp-btn" onclick="cpKey('4')">4</button>
-      <button class="kp-btn" onclick="cpKey('5')">5</button>
-      <button class="kp-btn" onclick="cpKey('6')">6</button>
-      <button class="kp-btn" onclick="cpKey('7')">7</button>
-      <button class="kp-btn" onclick="cpKey('8')">8</button>
-      <button class="kp-btn" onclick="cpKey('9')">9</button>
-      <div></div>
-      <button class="kp-btn" onclick="cpKey('0')">0</button>
-      <button class="kp-btn" onclick="cpDel()">⌫</button>
-    </div>
-
-    <button id="cp-submit-btn" onclick="submitClaimPin()"
-      style="width:220px;padding:14px;background:var(--g);color:#fff;border:none;
-      border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;
-      opacity:.4" disabled>
-      Confirm PIN
-    </button>
-
-    <button onclick="goBack()"
-      style="margin-top:14px;background:none;border:none;color:var(--gm);
-      font-size:13px;cursor:pointer;font-family:inherit">
-      Cancel
-    </button>
-
-    <div id="cp-err" style="display:none;margin-top:16px;padding:12px 16px;
-      background:rgba(220,38,38,.1);border:1px solid var(--r);border-radius:10px;
-      color:var(--r);font-size:13px;text-align:center"></div>
-  </div>
-</div>
 
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 2 — PHONE VERIFICATION
@@ -1020,11 +892,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
       </div>
     </div>
 
-    <!-- Pending sent coins banner -->
-    <div id="home-pending-banner" style="display:none;margin:0 0 10px;padding:10px 14px;
-      background:rgba(var(--am-rgb,180,90,0),.12);border:1px solid var(--am);
-      border-radius:12px;color:#fff"></div>
-
     <!-- Quick actions -->
     <div class="actions-grid">
       <button class="action-btn primary-action" onclick="goTo('screen-send')">
@@ -1185,12 +1052,7 @@ body{height:100%;height:100dvh;overflow:hidden;}
             </div>
             <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:2px" id="send-qr-amount">₦0</div>
             <div style="font-size:11px;color:var(--gm);margin-bottom:8px" id="send-qr-detail"></div>
-            <div style="font-size:12px;font-weight:700;color:var(--am)" id="send-qr-timer">⏱ Valid 16 hours</div>
-          </div>
-          <div id="send-qr-regen" style="display:none;padding:8px 14px 0">
-            <button onclick="regenSendQR()" style="width:100%;padding:11px;background:var(--am);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
-              🔄 Regenerate QR (extend 16 hours)
-            </button>
+            <div style="font-size:12px;font-weight:700;color:var(--am)" id="send-qr-timer">⏱ Valid 15 minutes</div>
           </div>
           <div style="padding:0 14px 14px;display:flex;gap:8px">
             <button onclick="shareSendQRWhatsApp()" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
@@ -1213,6 +1075,26 @@ body{height:100%;height:100dvh;overflow:hidden;}
           </div>
         </div>
         <div id="send-qr-error" class="alert alert-r" style="display:none"></div>
+        <!-- Transaction PIN -->
+        <div style="margin-bottom:12px;padding:12px 14px;background:rgba(0,0,0,.04);border-radius:12px;border:1px solid #e5e7eb">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--tx)">&#x1F510; Add Transaction PIN</div>
+              <div style="font-size:11px;color:var(--gr);margin-top:2px">Recipient must enter PIN to collect coins</div>
+            </div>
+            <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;margin-left:10px">
+              <input type="checkbox" id="send-pin-toggle" onchange="toggleSendPin(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+              <span id="send-pin-slider" style="position:absolute;inset:0;background:#CBD5E1;border-radius:24px;transition:.3s;display:block;cursor:pointer"></span>
+              <span id="send-pin-knob" style="position:absolute;height:18px;width:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.3s;display:block;pointer-events:none"></span>
+            </label>
+          </div>
+          <div id="send-pin-input-wrap" style="display:none;margin-top:10px">
+            <input type="tel" id="send-pin-value" inputmode="numeric" maxlength="6" placeholder="Enter 4-6 digit PIN"
+              style="width:100%;box-sizing:border-box;padding:11px 14px;font-size:20px;letter-spacing:8px;border:2px solid var(--g);border-radius:10px;text-align:center;font-family:inherit;color:var(--tx);background:var(--w)"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'');updateSendPinLabel(this.value)">
+            <div id="send-pin-label" style="font-size:11px;margin-top:5px;text-align:center;color:var(--gr)">Share PIN verbally with recipient only</div>
+          </div>
+        </div>
         <button class="btn btn-g" id="send-qr-btn" onclick="generateSendQR()">
           📲 Generate QR Code →
         </button>
@@ -1362,7 +1244,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
   <div class="sb"></div>
   <div class="hdr">
     <div class="hdr-logo" style="font-size:14px">Transaction History</div>
-    <button onclick="exportAllHistoryCSV()" style="font-size:11px;padding:5px 10px;background:var(--g);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">⬇ CSV</button>
   </div>
   <div class="filter-tabs">
     <button class="filter-tab active" onclick="filterHistory('all',this)">All</button>
@@ -1668,16 +1549,9 @@ async function submitPhone() {
       return;
     }
 
-    // Demo mode or real SMS success
+    // Real SMS success
     showOtpSection();
-    if (data.demo) {
-      toast('🔓 Demo mode — enter code: ' + (data.message.match(/\d{4,8}/)||[''])[0], false, 8000);
-      // Pre-fill the OTP field for ease of demo
-      const otpInput = document.getElementById('otp-input');
-      if (otpInput) otpInput.value = (data.message.match(/\d{4,8}/)||[''])[0];
-    } else {
-      toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
-    }
+    toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
 
   } catch (e) {
     hideLoader();
@@ -1928,31 +1802,6 @@ function refreshHome() {
     syncEl.textContent = hasToken ? 'Not synced yet' : 'Tap ↻ to sync';
   }
   syncEl.style.color = STATE.isOnline ? 'var(--g)' : 'var(--am)';
-
-  // ── Pending sent coins banner on home screen ──────────────────────────────
-  const pendingBanner = document.getElementById('home-pending-banner');
-  if (pendingBanner) {
-    if (sentCoins.length > 0) {
-      const sentTotal = sentCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
-      pendingBanner.style.display = 'block';
-      pendingBanner.innerHTML = [
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">',
-          '<div>',
-            '<div style="font-size:12px;font-weight:700;color:var(--am)">&#x23F3; ' + sentCoins.length + ' coin' + (sentCoins.length!==1?'s':'') + ' sent &#8212; awaiting scan</div>',
-            '<div style="font-size:11px;color:var(--gm);margin-top:2px">' + fmtNaira(sentTotal) + ' &middot; 16 hours to scan</div>',
-          '</div>',
-          '<div style="display:flex;gap:6px;flex-shrink:0">',
-            '<button onclick="goTo(&quot;screen-vault&quot;)" style="font-size:11px;padding:6px 10px;background:var(--am);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">View</button>',
-            '<button onclick="reclaimSentCoins()" style="font-size:11px;padding:6px 10px;background:rgba(255,255,255,.1);color:var(--am);border:1px solid var(--am);border-radius:8px;cursor:pointer;font-weight:700">&#x21A9; Reclaim</button>',
-          '</div>',
-        '</div>'
-      ].join('')
-    } else {
-      pendingBanner.style.display = 'none';
-      pendingBanner.innerHTML = '';
-    }
-  }
-
   document.getElementById('offline-banner').style.display = STATE.isOnline ? 'none' : 'flex';
   const dot = document.getElementById('sync-dot');
   dot.className = 'hdr-dot' + (STATE.isOnline ? '' : ' offline');
@@ -2006,12 +1855,8 @@ function refreshVault() {
         </div>
       </div>
       ${c._status==='PENDING_TRANSFER'?
-        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--am);display:flex;align-items:center;justify-content:space-between">
-          <span>⏳ Sent — waiting for recipient to scan</span>
-          <button onclick="event.stopPropagation();reclaimSentCoins()"
-            style="font-size:10px;padding:3px 8px;background:var(--am);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">
-            ↩ Reclaim
-          </button>
+        `<div style="padding:4px 16px 12px;font-size:11px;color:var(--am)">
+          ⏳ Sent — waiting for server confirmation. Syncing automatically when online.
          </div>` : ''}
       ${c._status==='SPENT_LOCAL'?
         `<div style="padding:4px 16px 12px;font-size:11px;color:var(--gr)">
@@ -2047,7 +1892,15 @@ function updateSendDisplay() {
       `Insufficient balance (have ${fmtNaira(totalAvail)})`;
     return;
   }
-  const selected = selectCoinsForAmount(kobo);
+  const sorted = [...available].sort((a,b) =>
+    (a.amount||a.value_kobo||0) - (b.amount||b.value_kobo||0)
+  );
+  let remain = kobo; const selected = [];
+  for (const c of sorted) {
+    if (remain <= 0) break;
+    selected.push(c);
+    remain -= (c.amount || c.value_kobo || 0);
+  }
   // Build human label: "1 × ₦1,000 coin" or "2 coins (₦500 + ₦500)"
   let label;
   if (selected.length === 1) {
@@ -2083,13 +1936,15 @@ async function sendViaWhatsApp(fileOnly=false) {
     errEl.textContent=`Insufficient balance. Available: ${fmtNaira(totalAvail)}.`; errEl.style.display='block'; return;
   }
 
-  // Smart coin selection — exact match first, then minimum overage
-  const selected = selectCoinsForAmount(amount);
+  // Select coins greedy smallest-first
+  const sorted = [...available].sort((a,b)=>(a.amount||a.value_kobo||0)-(b.amount||b.value_kobo||0));
+  let remain = amount; const selected=[];
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
   // ── LOCK: mark coins BEFORE download to prevent double-send ──
   selected.forEach(c => {
     const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
-    if (i >= 0) { STATE.vault[i]._status = 'PENDING_TRANSFER'; STATE.vault[i]._sentAt = new Date().toISOString(); }
+    if (i >= 0) STATE.vault[i]._status = 'PENDING_TRANSFER';
   });
   STATE.history.unshift({
     id:'TX-'+Date.now(), type:'sent',
@@ -2099,13 +1954,16 @@ async function sendViaWhatsApp(fileOnly=false) {
   });
   save(); refreshHome(); // saves immediately so re-click sees PENDING_TRANSFER
 
-  const bundle = {
+  let bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
     total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
   };
+  // Attach offline PIN verifier if toggle enabled
+  try { bundle = await attachPinToBundle(bundle); }
+  catch(pinErr) { errEl.textContent='PIN error: '+pinErr.message; errEl.style.display='block'; return; }
   const fname = `zillion-${(bundle.total_kobo/100).toFixed(0)}NGN-${Date.now()}.zil`;
   const blob  = new Blob([JSON.stringify(bundle,null,2)], {type:'application/octet-stream'});
   const file  = new File([blob], fname, {type:'application/octet-stream'});
@@ -2344,23 +2202,22 @@ function refreshHistory() {
     el.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No transactions</div><div class="empty-sub">No ${histFilter==='all'?'':histFilter+' '}transactions yet.</div></div>`;
     return;
   }
-  el.innerHTML = `<div class="tx-card">${filtered.map(function(tx){return txRow(tx, STATE.history.indexOf(tx));}).join('')}</div>`;
+  el.innerHTML = `<div class="tx-card">${filtered.map(txRow).join('')}</div>`;
 }
-function txRow(tx, idx) {
+function txRow(tx) {
   const isIn = tx.type==='received' || tx.type==='cashin';
   const isPending = tx.status==='PENDING_SYNC';
   const dotClass = isPending?'pending':(isIn?'in':'out');
   const icon = isIn?'↓':'↑';
   const amtClass = isPending?'pending':(isIn?'in':'out');
   const prefix = isIn?'+':'−';
-  return `<div class="tx-row" onclick="openTxDetail(${idx})" style="cursor:pointer">
+  return `<div class="tx-row">
     <div class="tx-dot ${dotClass}">${icon}</div>
     <div class="tx-info">
       <div class="tx-name">${tx.name||'Transaction'}</div>
-      <div class="tx-meta">${fmtTime(tx.ts)} · <span style="color:${isPending?'var(--am)':'var(--g)'};font-weight:600">${isPending?'Pending':'Settled'}</span></div>
+      <div class="tx-meta">${fmtTime(tx.ts)}  ·  <span style="color:${isPending?'var(--am)':'var(--g)'};font-weight:600">${isPending?'Pending sync':'Settled'}</span></div>
     </div>
     <div class="tx-amount ${amtClass}">${prefix}${fmtNaira(tx.amount)}</div>
-    <div style="font-size:14px;color:var(--gr);padding-left:4px">›</div>
   </div>`;
 }
 
@@ -2437,21 +2294,18 @@ async function trySync() {
     // No JWT — settle locally so UI shows correct state
     STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
     STATE.vault.forEach(c => { if (c._status === 'PENDING_SYNC') c._status = 'HELD'; });
-    // Remove sent coins immediately (no server needed for local settlement)
-    STATE.vault = STATE.vault.filter(c =>
-      c._status !== 'PENDING_TRANSFER' && c._status !== 'SPENT_LOCAL'
-    );
+    // PENDING_TRANSFER coins: mark as SPENT locally (sent, waiting for recipient to sync)
+    // They stay in vault as SPENT so user can see them in history but not spend again
+    STATE.vault.forEach(c => { if (c._status === 'PENDING_TRANSFER') c._status = 'SPENT_LOCAL'; });
     STATE.lastSync = new Date().toISOString();
     save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
-    updateSyncStatus('Settled locally · ' + new Date().toLocaleTimeString());
+    updateSyncStatus('Synced locally · ' + new Date().toLocaleTimeString());
     return;
   }
   // Include both PENDING_SYNC (received) and PENDING_TRANSFER (sent) coins
   const pendingSync     = STATE.vault.filter(c => c._status === 'PENDING_SYNC');
   const pendingTransfer = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER');
   const pending         = [...pendingSync, ...pendingTransfer];
-  const deviceId = STATE.user.deviceId || '';
-
   if (!pending.length) {
     // Still send a heartbeat to register this device in the backend
     // This is what makes the user appear in the admin Customers tab
@@ -2469,6 +2323,7 @@ async function trySync() {
   }
 
   updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
+  const deviceId = STATE.user.deviceId;
 
   // Build tx_batch — extract tx fields from coin's tx_history chain
   const tx_batch = pending.map(c => {
@@ -2522,32 +2377,12 @@ async function trySync() {
       });
       // Settle all pending-sync history entries
       STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
-
-      // Only remove sent coins that server explicitly confirmed as settled
-      // DO NOT force-remove — coins stay PENDING_TRANSFER until server confirms
-      // This ensures the user can see and use Reclaim/Resend while pending
-      const conflictIds = new Set((data.conflicts||[]).map(c => c.coin_id));
-      // Mark conflicts back to HELD (not sent after all)
-      tx_batch.forEach(tx => {
-        if (!tx.is_sent) return;
-        if (conflictIds.has(tx.coin_id)) {
-          const vIdx = STATE.vault.findIndex(v => (v.id||v.coin_id) === tx.coin_id);
-          if (vIdx >= 0) {
-            STATE.vault[vIdx]._status = 'HELD';
-            delete STATE.vault[vIdx]._sentAt;
-          }
-        }
-      });
-
-      // Also remove all SPENT_LOCAL coins (already settled locally)
-      STATE.vault = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
-
       STATE.lastSync = new Date().toISOString();
-      save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
-      updateSyncStatus('Synced · ' + new Date().toLocaleTimeString());
+      save(); refreshHome(); refreshVault();
+      updateSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());
       updateConnBadge(true);
       if (data.conflicts && data.conflicts.length) {
-        toast('⚠️ ' + data.conflicts.length + ' conflict(s) — check history', true, 6000);
+        toast('Warning: ' + data.conflicts.length + ' conflict(s) detected', true, 6000);
       }
     } else {
       updateSyncStatus('Sync error: ' + (data.error || res.status), true);
@@ -2752,8 +2587,9 @@ async function handleQRResult(rawValue) {
       return;
     }
 
-    // ── PIN gate: if sender set a PIN, show PIN entry before releasing coins ──
-    if (data.pin_required === true) {
+        // Check bundle for offline PIN protection
+    var rcvBundle = data.bundle || {};
+    if (rcvBundle.pin_protected === true && rcvBundle.pin_verifier) {
       hideLoader();
       startClaimPinEntry(claimId, data);
       return;
@@ -2882,7 +2718,6 @@ let _sendQrClaimUrl = null;
 let _sendQrImgData  = null;
 let _sendQrTimer    = null;
 let _sendQrBundle   = null;
-let _sendQrCoinIds  = [];
 
 async function generateSendQR() {
   if (!assertBalance('QR generate')) return;
@@ -2898,11 +2733,10 @@ async function generateSendQR() {
     errEl.textContent = `Insufficient balance. Available: ${fmtNaira(totalAvail)}`;
     errEl.style.display = 'block'; return;
   }
-  // Smart coin selection — exact match first, then minimum overage
-  const selected = selectCoinsForAmount(amount);
-  if (!selected.length) {
-    errEl.textContent = 'No coins available for this amount'; errEl.style.display = 'block'; return;
-  }
+  // Select coins
+  const sorted = [...available].sort((a,b)=>(a.amount||a.value_kobo||0)-(b.amount||b.value_kobo||0));
+  let remain = amount; const selected = [];
+  for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
@@ -2917,7 +2751,7 @@ async function generateSendQR() {
   // ── LOCK: mark coins BEFORE API call to prevent double-tap ──
   selected.forEach(c => {
     const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
-    if (i >= 0) { STATE.vault[i]._status = 'PENDING_TRANSFER'; STATE.vault[i]._sentAt = new Date().toISOString(); }
+    if (i >= 0) STATE.vault[i]._status = 'PENDING_TRANSFER';
   });
   STATE.history.unshift({
     id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
@@ -2938,16 +2772,7 @@ async function generateSendQR() {
         'Content-Type':'application/json',
         'Authorization': 'Bearer ' + claimToken,
       },
-      body: JSON.stringify({
-          bundle,
-          tx_pin: (function(){
-            const tog = document.getElementById('send-pin-toggle');
-            const inp = document.getElementById('send-pin-value');
-            return (tog && tog.checked && inp && inp.value.length >= 4)
-              ? inp.value.trim()
-              : null;
-          })(),
-        }),
+      body: JSON.stringify({ bundle }),
     });
     const data = await res.json();
     hideLoader();
@@ -2964,7 +2789,6 @@ async function generateSendQR() {
     }
 
     _sendQrClaimUrl = data.claim_url;
-    window._sendQrCoinIds = selected.map(c => c.coin_id || c.id);  // for regen
     if (qrBtn) { qrBtn.disabled=false; qrBtn.textContent='↻ Generate New QR'; }
 
     // Render QR
@@ -2982,7 +2806,7 @@ async function generateSendQR() {
 
     document.getElementById('send-qr-amount').textContent = fmtNaira(bundle.total_kobo);
     document.getElementById('send-qr-detail').textContent =
-      selected.length+' coin'+(selected.length!==1?'s':'')+' · Claim expires in 16 hours';
+      selected.length+' coin'+(selected.length!==1?'s':'')+' · Claim expires in 15 min';
     document.getElementById('send-qr-box').style.display  = 'block';
     document.getElementById('send-qr-info').style.display = 'none';
     document.getElementById('send-qr-btn').textContent    = '↻ Generate New QR';
@@ -3006,14 +2830,11 @@ function startSendQRTimer(exp) {
       el.textContent='⏱ '+m+'m '+String(sec).padStart(2,'0')+'s remaining';
       el.style.color = s<60?'var(--r)':'var(--am)';
     } else {
-      el.textContent='❌ Expired — tap Regenerate to resend';
+      el.textContent='❌ Expired - generate a new QR';
       el.style.color='var(--r)';
       const canvas=document.querySelector('#send-qr-canvas canvas');
       if(canvas) canvas.style.opacity='.3';
       clearInterval(_sendQrTimer);
-      // Show regenerate button
-      const regenEl = document.getElementById('send-qr-regen');
-      if (regenEl) regenEl.style.display='block';
     }
   };
   tick(); _sendQrTimer=setInterval(tick,1000);
@@ -3028,7 +2849,7 @@ Open your Zillion wallet → Receive → Scan QR → point camera at image OR ta
 
 ${_sendQrClaimUrl}
 
-⏱ Valid 16 hours. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
 
   if (_sendQrImgData && navigator.share) {
     try {
@@ -3143,8 +2964,6 @@ function openCoinSheet(idx) {
 
   document.getElementById('cs-pending-banner').style.display  = isPending ? 'block' : 'none';
   document.getElementById('cs-pending-actions').style.display = isPending ? 'block' : 'none';
-  const heldActionsEl = document.getElementById('cs-held-actions');
-  if (heldActionsEl) heldActionsEl.style.display = isPending ? 'none' : 'block';
 
   // Show NFC button only if supported
   const nfcBtn = document.getElementById('cs-nfc-btn');
@@ -3259,7 +3078,7 @@ async function startNFCSend(coin) {
     document.getElementById('nfc-status').textContent = 'Sent! Marking coin as transferred...';
     // Mark coin as PENDING_TRANSFER
     const idx = STATE.vault.findIndex(v => (v.coin_id||v.id) === (coin.coin_id||coin.id));
-    if (idx >= 0) { STATE.vault[idx]._status = 'PENDING_TRANSFER'; STATE.vault[idx]._sentAt = new Date().toISOString(); }
+    if (idx >= 0) STATE.vault[idx]._status = 'PENDING_TRANSFER';
     save(); refreshVault(); refreshHome();
     setTimeout(() => {
       overlay.style.display = 'none';
@@ -3559,398 +3378,187 @@ function assertBalance(action) {
   return true;
 }
 
-function selectCoinsForAmount(kobo) {
-  // Smart coin selection: exact match first, then minimum single coin, then greedy
-  const available = (STATE.vault || []).filter(
-    c => c._status === 'HELD' || c._status === 'PENDING_SYNC'
+
+// ═══════════════════════════════════════════════════════════════
+// TRANSACTION PIN — 100% OFFLINE using WebCrypto HMAC-SHA256
+// No server call needed for PIN verification
+// ═══════════════════════════════════════════════════════════════
+
+// State
+var _claimPinValue = '';
+var _claimPinClaimId = '';
+var _claimPinBundle = null;
+var PIN_ATTEMPTS_KEY = 'zillion_pin_attempts';
+
+// Derive a 16-hex-char verifier from PIN + bundleId (offline)
+async function derivePinVerifier(pin, bundleId) {
+  var key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode('ZILLION-PIN-V1:' + bundleId),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
-  if (!available.length || kobo <= 0) return [];
+  var sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(String(pin).trim()));
+  return Array.from(new Uint8Array(sig)).map(function(b){return b.toString(16).padStart(2,'0');}).join('').slice(0,16);
+}
 
-  const getAmt = c => c.amount || c.value_kobo || 0;
+// Attach PIN verifier to bundle before QR generation (sender side)
+async function attachPinToBundle(bundle) {
+  var tog = document.getElementById('send-pin-toggle');
+  var inp = document.getElementById('send-pin-value');
+  if (!tog || !tog.checked || !inp) { bundle.pin_protected = false; return bundle; }
+  var pin = inp.value.trim();
+  if (!/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4-6 digits');
+  bundle.pin_verifier  = await derivePinVerifier(pin, bundle.bundle_id);
+  bundle.pin_protected = true;
+  return bundle;
+}
 
-  // Step 1: exact single-coin match
-  const exact = available.find(c => getAmt(c) === kobo);
-  if (exact) return [exact];
+// Attempt tracking
+function getPinAttempts(bundleId) {
+  try { return (JSON.parse(localStorage.getItem(PIN_ATTEMPTS_KEY)||'{}')[bundleId])||0; }
+  catch { return 0; }
+}
+function incrementPinAttempts(bundleId) {
+  try {
+    var s = JSON.parse(localStorage.getItem(PIN_ATTEMPTS_KEY)||'{}');
+    s[bundleId] = (s[bundleId]||0)+1;
+    localStorage.setItem(PIN_ATTEMPTS_KEY, JSON.stringify(s));
+    return s[bundleId];
+  } catch { return 1; }
+}
+function clearPinAttempts(bundleId) {
+  try {
+    var s = JSON.parse(localStorage.getItem(PIN_ATTEMPTS_KEY)||'{}');
+    delete s[bundleId]; localStorage.setItem(PIN_ATTEMPTS_KEY, JSON.stringify(s));
+  } catch {}
+}
 
-  // Step 2: smallest single coin >= amount (minimum overage, no change needed)
-  const overs = available.filter(c => getAmt(c) >= kobo)
-                         .sort((a,b) => getAmt(a) - getAmt(b));
-  if (overs.length) return [overs[0]];
-
-  // Step 3: greedy multiple coins — pick LARGEST first to minimise coin count
-  // and avoid undershooting. Sum must equal exactly kobo.
-  const sorted = [...available].sort((a,b) => getAmt(b) - getAmt(a));
-  let remain = kobo; const selected = [];
-  for (const c of sorted) {
-    if (remain <= 0) break;
-    selected.push(c);
-    remain -= getAmt(c);
+// Toggle PIN section UI
+function toggleSendPin(enabled) {
+  var wrap   = document.getElementById('send-pin-input-wrap');
+  var slider = document.getElementById('send-pin-slider');
+  var knob   = document.getElementById('send-pin-knob');
+  if (wrap)   wrap.style.display      = enabled ? 'block' : 'none';
+  if (slider) slider.style.background = enabled ? 'var(--g)' : '#CBD5E1';
+  if (knob)   knob.style.transform    = enabled ? 'translateX(20px)' : 'translateX(0)';
+  if (!enabled) {
+    var inp = document.getElementById('send-pin-value');
+    if (inp) inp.value = '';
+    var lbl = document.getElementById('send-pin-label');
+    if (lbl) lbl.textContent = 'Share PIN verbally with recipient only';
   }
-  // If we overshot or undershot, try smallest-first as fallback
-  if (remain > 0) {
-    const sf = [...available].sort((a,b) => getAmt(a) - getAmt(b));
-    let r2 = kobo; const sel2 = [];
-    for (const c of sf) {
-      if (r2 <= 0) break;
-      sel2.push(c);
-      r2 -= getAmt(c);
-    }
-    return sel2;
-  }
-  return selected;
+}
+function updateSendPinLabel(val) {
+  var lbl = document.getElementById('send-pin-label');
+  if (!lbl) return;
+  if (!val||val.length===0) { lbl.textContent='Share PIN verbally with recipient only'; lbl.style.color='var(--gr)'; }
+  else if (val.length<4)   { lbl.textContent='Need at least 4 digits'; lbl.style.color='var(--r)'; }
+  else if (val.length===4) { lbl.textContent='4-digit PIN ready (6 digits stronger)'; lbl.style.color='var(--am)'; }
+  else                     { lbl.textContent=val.length+'-digit PIN set - Secure'; lbl.style.color='var(--g)'; }
 }
 
-
-// ── Regenerate QR — called when current QR has expired ───────────────────────
-// Restores the selected coins (currently PENDING_TRANSFER) back to HELD
-// then creates a fresh 16-hour claim so the recipient can still scan.
-async function regenSendQR() {
-  // 1. Restore PENDING_TRANSFER coins so selectCoinsForAmount can use them
-  //    We know which coins were sent because _sendQrCoinIds holds them
-  if (_sendQrCoinIds && _sendQrCoinIds.length) {
-    _sendQrCoinIds.forEach(coinId => {
-      const v = STATE.vault.find(c => (c.coin_id||c.id) === coinId);
-      if (v && v._status === 'PENDING_TRANSFER') v._status = 'HELD';
-    });
-  }
-  // 2. Hide the expired UI
-  const regenEl = document.getElementById('send-qr-regen');
-  if (regenEl) regenEl.style.display = 'none';
-  document.getElementById('send-qr-box').style.display = 'none';
-
-  // 3. Re-run generateSendQR with the same amount
-  const amount = STATE.sendAmount;
-  if (amount > 0) await generateSendQR();
-}
-
-// ── Reclaim expired sent coins (restore to vault) ────────────────────────────
-// Call this when recipient confirms they did NOT receive the coins.
-// Moves PENDING_TRANSFER coins back to HELD so they can be resent.
-function reclaimSentCoins() {
-  const pending = STATE.vault.filter(c => c._status === 'PENDING_TRANSFER');
-  if (!pending.length) {
-    toast('No pending sent coins to reclaim', false, 3000);
-    return;
-  }
-  if (!confirm(`Reclaim ${pending.length} coin(s) totalling ₦${
-    (pending.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0)/100).toLocaleString()
-  }? Only do this if you are sure the recipient did NOT receive them.`)) return;
-
-  pending.forEach(c => {
-    c._status = 'HELD';
-    delete c._sentAt;
-  });
-  save();
-  refreshHome();
-  refreshVault();
-  toast('✅ Coins reclaimed — you can resend them now', false, 4000);
-}
-
-
-// ── Reclaim single active coin (from coin sheet) ─────────────────────────────
-function reclaimActiveCoin() {
-  const c = STATE.vault[_activeCoinIdx];
-  if (!c) return;
-  if (!confirm('Reclaim ' + fmtNaira(c.amount||c.value_kobo||0) + '? Only do this if the recipient did NOT receive it.')) return;
-  c._status = 'HELD';
-  delete c._sentAt;
-  save();
-  closeCoinSheet();
-  refreshHome();
-  refreshVault();
-  toast('✅ Coin reclaimed — ready to resend', false, 3000);
-}
-
-// ── Resend active coin (from coin sheet) — generates new QR ──────────────────
-function resendActiveCoin() {
-  const c = STATE.vault[_activeCoinIdx];
-  if (!c) return;
-  // Restore to HELD so selectCoinsForAmount can pick it
-  c._status = 'HELD';
-  delete c._sentAt;
-  // Set send amount to this coin's value
-  STATE.sendAmount = c.amount || c.value_kobo || 0;
-  closeCoinSheet();
-  // Navigate to Send screen and generate QR immediately
-  goTo('screen-send');
-  updateSendDisplay();
-  setTimeout(() => generateSendQR(), 400);
-}
-
-// ── Close coin sheet ──────────────────────────────────────────────────────────
-
-
-
-// ── Transaction detail + CSV export ─────────────────────────────────────────
-let _txDetailItem = null;
-
-function openTxDetail(idx) {
-  const tx = STATE.history[idx];
-  if (!tx) return;
-  _txDetailItem = tx;
-  const isIn = tx.type==='received'||tx.type==='cashin';
-  const sign = isIn ? '+' : '−';
-  const clr  = isIn ? 'var(--g)' : '#DC2626';
-  const status = tx.status === 'SETTLED' || tx.status === 'SUCCESS'
-    ? '<span style="color:var(--g);font-weight:700">✓ Settled</span>'
-    : tx.status === 'PENDING_SYNC'
-    ? '<span style="color:var(--am);font-weight:700">⏳ Pending Sync</span>'
-    : '<span style="color:var(--gr)">' + (tx.status||'Unknown') + '</span>';
-
-  const coinList = (tx.coin_ids || (tx.coin_id?[tx.coin_id]:[]));
-  const coinHtml = coinList.length
-    ? coinList.map(function(id){
-        return '<div style="font-family:monospace;font-size:10px;color:var(--gr);padding:3px 0;border-bottom:1px solid var(--grb)">' + id + '</div>';
-      }).join('')
-    : '<div style="color:var(--gr);font-size:11px">Not recorded locally</div>';
-
-  const rows = [
-    ['Amount',      sign + fmtNaira(tx.amount)],
-    ['Type',        (tx.type||'').replace(/_/g,' ')],
-    ['Status',      status],
-    ['Date / Time', new Date(tx.ts).toLocaleString('en-NG',{dateStyle:'long',timeStyle:'medium'})],
-    ['Transaction ID', tx.id || '—'],
-    ['Method',      tx.method || tx.name || '—'],
-    ['Coin Count',  tx.coin_count || coinList.length || '—'],
-    ['From',        tx.from_hash ? tx.from_hash.slice(0,16)+'…' : '—'],
-    ['To',          tx.to_hash   ? tx.to_hash.slice(0,16)+'…'   : '—'],
-  ];
-
-  const rowHtml = rows.map(function(r){
-    return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--grb)">'
-      + '<div style="font-size:12px;color:var(--gr);flex:0 0 110px">' + r[0] + '</div>'
-      + '<div style="font-size:13px;font-weight:600;color:var(--tx);text-align:right;flex:1">' + r[1] + '</div>'
-      + '</div>';
-  }).join('');
-
-  document.getElementById('txd-body').innerHTML =
-    '<div style="text-align:center;margin-bottom:16px">'
-    + '<div style="font-size:32px;font-weight:800;color:' + clr + '">' + sign + fmtNaira(tx.amount) + '</div>'
-    + '<div style="font-size:12px;color:var(--gr);margin-top:2px">' + (tx.name||tx.type) + '</div>'
-    + '</div>'
-    + rowHtml
-    + (coinList.length ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Coin IDs</div>' + coinHtml + '</div>' : '');
-
-  document.getElementById('txd-overlay').style.display = 'block';
-  document.getElementById('txd-modal').style.display   = 'block';
-}
-
-function closeTxDetail() {
-  document.getElementById('txd-overlay').style.display = 'none';
-  document.getElementById('txd-modal').style.display   = 'none';
-  _txDetailItem = null;
-}
-
-function exportSingleTxCSV() {
-  const tx = _txDetailItem;
-  if (!tx) return;
-  const rows = [
-    ['Field','Value'],
-    ['Transaction ID', tx.id||''],
-    ['Type', tx.type||''],
-    ['Amount (₦)', (tx.amount||0)/100],
-    ['Status', tx.status||''],
-    ['Date', new Date(tx.ts).toLocaleString('en-NG')],
-    ['Method', tx.method||tx.name||''],
-    ['Coin Count', tx.coin_count||''],
-    ['Coin IDs', (tx.coin_ids||(tx.coin_id?[tx.coin_id]:[])).join('; ')],
-    ['From Hash', tx.from_hash||''],
-    ['To Hash', tx.to_hash||''],
-  ];
-  downloadCSV(rows, 'zillion_tx_' + (tx.id||Date.now()) + '.csv');
-}
-
-function exportAllHistoryCSV() {
-  const rows = [['ID','Date','Type','Amount (₦)','Status','Method','Coin Count','Coin IDs']];
-  STATE.history.forEach(function(tx) {
-    rows.push([
-      tx.id||'',
-      new Date(tx.ts).toLocaleString('en-NG'),
-      tx.type||'',
-      (tx.amount||0)/100,
-      tx.status||'',
-      tx.method||tx.name||'',
-      tx.coin_count||'',
-      (tx.coin_ids||(tx.coin_id?[tx.coin_id]:[])).join('; '),
-    ]);
-  });
-  downloadCSV(rows, 'zillion_history_' + new Date().toISOString().slice(0,10) + '.csv');
-}
-
-function downloadCSV(rows, filename) {
-  const csv = rows.map(function(r){
-    return r.map(function(v){
-      const s = String(v==null?'':v).replace(/"/g,'""');
-      return /[,\n"]/.test(s) ? '"'+s+'"' : s;
-    }).join(',');
-  }).join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-
-// ── Claim PIN flow ─────────────────────────────────────────────────────────
-let _claimPinValue   = '';
-let _claimPinClaimId = '';
-let _claimPinData    = null;   // the partial fetch-claim response
-
-function startClaimPinEntry(claimId, fetchData) {
+// Start PIN entry for receiver (called when bundle has pin_protected=true)
+function startClaimPinEntry(claimId, bundleOrData) {
   _claimPinClaimId = claimId;
-  _claimPinData    = fetchData;
+  _claimPinBundle  = bundleOrData.bundle || bundleOrData;
   _claimPinValue   = '';
   updateCpDots();
-
-  const amtEl = document.getElementById('cp-amount-label');
-  const errEl = document.getElementById('cp-err');
-  if (amtEl) amtEl.textContent =
-    fetchData.amount_kobo
-      ? 'Receiving ' + fmtNaira(fetchData.amount_kobo) +
-        (fetchData.business_name ? ' from ' + fetchData.business_name : '')
-      : 'The sender has secured this payment with a PIN';
-  if (errEl) errEl.style.display = 'none';
-
-  const attEl = document.getElementById('cp-attempts-label');
-  if (attEl) attEl.textContent = 'Enter the 4-6 digit PIN provided by the sender';
-
+  var bundleId = _claimPinBundle.bundle_id || claimId || 'UNK';
+  var left     = Math.max(0, 3 - getPinAttempts(bundleId));
+  var amtEl = document.getElementById('cp-amount-label');
+  var attEl = document.getElementById('cp-attempts-label');
+  var errEl = document.getElementById('cp-err');
+  var btn   = document.getElementById('cp-submit-btn');
+  var amt   = bundleOrData.amount_kobo || (_claimPinBundle.total_kobo)||0;
+  if (amtEl) amtEl.textContent = amt ? 'Receiving '+fmtNaira(amt) : 'Secured payment';
+  if (attEl) { attEl.textContent = left+' attempt'+(left!==1?'s':'')+' remaining'; attEl.style.color=left<=1?'var(--r)':'var(--am)'; }
+  if (errEl) errEl.style.display='none';
+  if (btn)   { btn.disabled=true; btn.style.opacity='.4'; btn.textContent='Confirm PIN'; }
   goTo('screen-claim-pin');
 }
 
+// Keypad handlers
 function cpKey(digit) {
   if (_claimPinValue.length >= 6) return;
   _claimPinValue += digit;
   updateCpDots();
-  // Auto-submit at 6 digits
   if (_claimPinValue.length === 6) submitClaimPin();
 }
-
-function cpDel() {
-  _claimPinValue = _claimPinValue.slice(0, -1);
-  updateCpDots();
-}
-
+function cpDel() { _claimPinValue = _claimPinValue.slice(0,-1); updateCpDots(); }
 function updateCpDots() {
-  const el  = document.getElementById('cp-dots');
-  const btn = document.getElementById('cp-submit-btn');
+  var el  = document.getElementById('cp-dots');
+  var btn = document.getElementById('cp-submit-btn');
   if (!el) return;
-  const len = _claimPinValue.length;
-  // Show 6 dots — filled or empty
-  el.innerHTML = Array.from({ length: 6 }, (_, i) =>
-    '<div style="width:14px;height:14px;border-radius:50%;background:' +
-    (i < len ? 'var(--g)' : 'rgba(255,255,255,.2)') + '"></div>'
-  ).join('');
-  if (btn) {
-    btn.disabled = len < 4;
-    btn.style.opacity = len < 4 ? '.4' : '1';
-  }
+  var len = _claimPinValue.length;
+  el.innerHTML = Array.from({length:6},function(_,i){
+    return '<div style="width:14px;height:14px;border-radius:50%;background:'+(i<len?'var(--g)':'rgba(255,255,255,.2)')+';transition:background .15s"></div>';
+  }).join('');
+  if (btn) { var ready=len>=4; btn.disabled=!ready; btn.style.opacity=ready?'1':'.4'; }
 }
 
+// Verify PIN offline (no network)
 async function submitClaimPin() {
-  if (_claimPinValue.length < 4) return;
-  const errEl  = document.getElementById('cp-err');
-  const attEl  = document.getElementById('cp-attempts-label');
-  const btn    = document.getElementById('cp-submit-btn');
-  if (errEl) errEl.style.display = 'none';
-  if (btn)   { btn.disabled = true; btn.textContent = 'Checking...'; }
+  if (_claimPinValue.length < 4 || !_claimPinBundle) return;
+  var errEl = document.getElementById('cp-err');
+  var attEl = document.getElementById('cp-attempts-label');
+  var btn   = document.getElementById('cp-submit-btn');
+  if (errEl) errEl.style.display='none';
+  if (btn)   { btn.disabled=true; btn.textContent='Checking...'; }
 
-  try {
-    const res = await fetch('/api/v1/verify-claim-pin', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ claim_id: _claimPinClaimId, pin: _claimPinValue }),
-    });
-    const data = await res.json();
+  var bundleId    = _claimPinBundle.bundle_id || _claimPinClaimId || 'UNK';
+  var pinVerifier = _claimPinBundle.pin_verifier || '';
 
-    if (data.verified && data.claim_token) {
-      // PIN correct — now fetch the actual coins
-      if (btn) { btn.textContent = 'PIN accepted ✓'; }
-      await fetchClaimWithToken(_claimPinClaimId, data.claim_token);
+  if (!pinVerifier) {
+    if (btn)   { btn.disabled=false; btn.textContent='Confirm PIN'; }
+    if (errEl) { errEl.textContent='No PIN verifier. Ask sender for new QR.'; errEl.style.display='block'; }
+    return;
+  }
+
+  var computed;
+  try { computed = await derivePinVerifier(_claimPinValue, bundleId); }
+  catch(e) {
+    if (btn)   { btn.disabled=false; btn.textContent='Confirm PIN'; }
+    if (errEl) { errEl.textContent='Crypto error: '+e.message; errEl.style.display='block'; }
+    return;
+  }
+
+  if (computed === pinVerifier) {
+    clearPinAttempts(bundleId);
+    if (btn) btn.textContent = 'PIN accepted!';
+    setTimeout(function(){ acceptPinBundle(_claimPinBundle, _claimPinClaimId); }, 500);
+  } else {
+    var attempts = incrementPinAttempts(bundleId);
+    var left     = Math.max(0, 3 - attempts);
+    _claimPinValue = '';
+    updateCpDots();
+    if (left <= 0) {
+      if (errEl) { errEl.textContent='PIN locked - 3 failed attempts. Ask sender for new QR.'; errEl.style.display='block'; }
+      if (btn)   { btn.disabled=true; btn.textContent='Locked'; }
+      setTimeout(function(){ goBack(); }, 4000);
     } else {
-      // Wrong PIN
-      _claimPinValue = '';
-      updateCpDots();
-      if (btn) { btn.disabled = false; btn.textContent = 'Confirm PIN'; }
-      if (errEl) {
-        errEl.textContent = data.message || 'Incorrect PIN';
-        errEl.style.display = 'block';
-      }
-      if (attEl && data.attempts_left !== undefined) {
-        attEl.textContent = data.attempts_left + ' attempt(s) remaining';
-        attEl.style.color = data.attempts_left <= 1 ? 'var(--r)' : 'var(--am)';
-      }
-      if (res.status === 423) {
-        // Locked
-        if (errEl) errEl.textContent = data.error || 'QR locked. Ask sender for a new QR.';
-        if (btn)   { btn.disabled = true; btn.textContent = 'Locked'; }
-      }
+      if (btn)   { btn.disabled=true; btn.style.opacity='.4'; btn.textContent='Confirm PIN'; }
+      if (errEl) { errEl.textContent='Wrong PIN - '+left+' attempt'+(left!==1?'s':'')+' left'; errEl.style.display='block'; }
+      if (attEl) { attEl.textContent=left+' attempt'+(left!==1?'s':'')+' remaining'; attEl.style.color=left<=1?'var(--r)':'var(--am)'; }
     }
-  } catch (e) {
-    if (btn)   { btn.disabled = false; btn.textContent = 'Confirm PIN'; }
-    if (errEl) { errEl.textContent = 'Network error. Try again.'; errEl.style.display = 'block'; }
   }
 }
 
-async function fetchClaimWithToken(claimId, claimToken) {
-  try {
-    const res  = await fetch(
-      '/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId) +
-      '&claim_token=' + encodeURIComponent(claimToken)
-    );
-    const data = await res.json();
-    if (!res.ok) {
-      toast('❌ ' + (data.error || 'Failed to collect coins'), true, 5000);
-      goBack();
-      return;
-    }
-    // Hand off to the normal claim processing flow
-    processClaimData(data);
-  } catch (e) {
-    toast('⚠️ Network error collecting coins', true, 4000);
-  }
-}
-
-// Called by both PIN flow and direct (no-PIN) claim flow
-function processClaimData(data) {
-  if (!data.success) { toast(data.error || 'Claim failed', true); return; }
-  const bundle = data.bundle || {};
-  const coins  = bundle.coins || [];
-  if (!coins.length) { toast('No coins in claim', true); return; }
-
-  // Add coins to vault
-  const newCoins = coins.filter(c =>
-    !STATE.vault.find(v => (v.coin_id||v.id) === (c.coin_id||c.id))
-  );
-  newCoins.forEach(c => { c._status = 'PENDING_SYNC'; STATE.vault.push(c); });
+// Accept coins after PIN verified
+function acceptPinBundle(bundle, claimId) {
+  var coins = bundle.coins || [];
+  if (!coins.length) { toast('No coins in bundle', true); goBack(); return; }
+  var existingIds = new Set(STATE.vault.map(function(v){return v.coin_id||v.id;}));
+  var newCoins = coins.filter(function(c){return !existingIds.has(c.coin_id||c.id);});
+  newCoins.forEach(function(c){ c._status='PENDING_SYNC'; STATE.vault.push(c); });
   STATE.history.unshift({
-    id:     'RX-' + Date.now(),
-    type:   'received',
-    amount: data.amount_kobo || bundle.total_kobo || 0,
-    status: 'PENDING_SYNC',
-    ts:     new Date().toISOString(),
-    name:   'Received via QR' + (data.business_name ? ' from ' + data.business_name : ''),
-    method: 'qr',
-    coin_ids: newCoins.map(c => c.coin_id || c.id),
+    id:'RX-'+Date.now(), type:'received', amount:bundle.total_kobo||0,
+    status:'PENDING_SYNC', ts:new Date().toISOString(),
+    name:'Received via PIN-secured QR'+(bundle.business_name?' from '+bundle.business_name:''),
+    method:'qr-pin', coin_ids:newCoins.map(function(c){return c.coin_id||c.id;})
   });
-  save();
-  goTo('screen-home');
-  refreshHome();
-  toast('✅ ₦' + ((data.amount_kobo||bundle.total_kobo||0)/100).toLocaleString() + ' received!', false, 4000);
+  save(); goTo('screen-home'); refreshHome();
+  toast('Unlocked! '+fmtNaira(bundle.total_kobo||0)+' received!', false, 4000);
   setTimeout(trySync, 1500);
-}
-
-
-function toggleSendPin(enabled) {
-  const wrap   = document.getElementById('send-pin-input-wrap');
-  const slider = document.getElementById('send-pin-slider');
-  if (wrap)   wrap.style.display  = enabled ? 'block' : 'none';
-  if (slider) slider.style.background = enabled ? 'var(--g)' : '#ccc';
-  if (!enabled) {
-    const inp = document.getElementById('send-pin-value');
-    if (inp) inp.value = '';
-  }
+  _claimPinBundle=null; _claimPinClaimId=''; _claimPinValue='';
 }
 
 </script>
