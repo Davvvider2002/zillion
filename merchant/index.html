@@ -689,7 +689,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
 
   <!-- PROFILE -->
   <!-- HISTORY SCREEN -->
-  <div id="screen-history" class="screen" style="display:none;flex-direction:column">
+  <div id="screen-history" class="screen" style="flex-direction:column">
     <div style="background:var(--dp);padding:16px 20px 12px;display:flex;align-items:center;gap:12px">
       <button onclick="goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0">&#x2039;</button>
       <div style="font-size:17px;font-weight:700;color:#fff">Transaction History</div>
@@ -1480,11 +1480,50 @@ async function merchantSync() {
       // Update coin owner_hash and remove redeemed cashout coins
       const merchantHolder = 'MERCHANT-' + M.merchant_id;
       const settledIds = new Set(data.settled_coin_ids || data.confirmed_sent || []);
-      // Remove PENDING_CASHOUT coins that server confirmed as REDEEMED
+
+      // ALSO treat ALREADY_SPENT conflicts as confirmed cashouts:
+      // When agent redeems via /redeem, coins become SPENT in Supabase.
+      // When merchant then syncs those same coins, server returns ALREADY_SPENT.
+      // That IS the correct cashout confirmation — remove them from vault.
+      const alreadySpentIds = new Set(
+        (data.conflicts || [])
+          .filter(function(c){ return c.reason === 'ALREADY_SPENT'; })
+          .map(function(c){ return c.coin_id; })
+      );
+
+      // Merge both sets: settled + already-spent cashout coins
+      const confirmedCashoutIds = new Set([...settledIds, ...alreadySpentIds]);
+
+      // Remove PENDING_CASHOUT coins that are confirmed spent
+      const cashoutCoinsBefore = M.vault.filter(function(c){return c._status==='PENDING_CASHOUT';});
       M.vault = M.vault.filter(function(c) {
-        if (c._status === 'PENDING_CASHOUT' && settledIds.has(c.coin_id)) return false;
+        if (c._status === 'PENDING_CASHOUT' && confirmedCashoutIds.has(c.coin_id)) return false;
         return true;
       });
+      const cashoutCoinsRemoved = cashoutCoinsBefore.length - M.vault.filter(function(c){return c._status==='PENDING_CASHOUT';}).length;
+
+      // Ensure cashout history entries exist for removed coins
+      if (cashoutCoinsRemoved > 0) {
+        const hasCashoutEntry = M.history.some(function(h){return h.type==='cashout';});
+        if (!hasCashoutEntry) {
+          // Add reconciliation cashout entry for previously redeemed coins
+          const cashoutAmt = cashoutCoinsBefore
+            .filter(function(c){return confirmedCashoutIds.has(c.coin_id);})
+            .reduce(function(s,c){return s+(c.amount||0);},0);
+          if (cashoutAmt > 0) {
+            M.history.unshift({
+              id: 'CO-RECON-'+Date.now(),
+              type: 'cashout',
+              amount: cashoutAmt,
+              status: 'SETTLED',
+              ts: new Date().toISOString(),
+              name: 'Cash out reconciled',
+              method: 'qr',
+              coin_count: cashoutCoinsRemoved,
+            });
+          }
+        }
+      }
       // Update remaining coins
       M.vault.forEach(function(c) {
         if (c._status === 'PENDING_SYNC' || c._status === 'HELD') {

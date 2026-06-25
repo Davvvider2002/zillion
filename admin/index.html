@@ -1013,7 +1013,7 @@ function renderMerchantCards(merchants) {
 }
 function renderMerchantTable(merchants) {
   document.getElementById('merchant-table-body').innerHTML = merchants.length
-    ? merchants.map(m => `<tr>
+    ? merchants.map((m) => { const mIdx = allMerchantsData.indexOf(m); return `<tr onclick="openAdmDetail('merchant',${mIdx})" style="cursor:pointer" title="Click for full details">
         <td style="font-family:monospace;font-size:10px">${m.merchant_id}</td>
         <td style="font-weight:600">${m.owner_name||'—'}</td>
         <td style="font-weight:600;color:var(--pu)">${m.business_name}</td>
@@ -1027,7 +1027,7 @@ function renderMerchantTable(merchants) {
         <td><button onclick="suspendMerchant('${m.merchant_id}','${m.status}')"
           style="padding:4px 10px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};border:1px solid currentColor;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer">
           ${m.status==='ACTIVE'?'Suspend':'Activate'}</button></td>
-      </tr>`).join('')
+      </tr>`; }).join('')
     : '<tr><td colspan="11" class="no-data">No merchants found</td></tr>';
 }
 function suspendMerchant(id, status) {
@@ -1073,7 +1073,7 @@ async function loadAgents() {
         </div>
       </div>`;
     }).join('') || '<div class="no-data">No agents found</div>';
-    document.getElementById('agent-table-body').innerHTML = allAgentsData.map(a => `<tr>
+    document.getElementById('agent-table-body').innerHTML = allAgentsData.map((a,i) => `<tr onclick="openAdmDetail('agent',${i})" style="cursor:pointer" title="Click for full details">
       <td style="font-weight:bold">${a.agent_id}</td><td>${a.name}</td>
       <td style="font-size:11px">${a.location_name||'—'}</td>
       <td style="font-weight:bold;color:${(a.float_balance_kobo||0)<200000?'var(--r)':'var(--g)'}">${fmt(a.float_balance_kobo||0)}</td>
