@@ -1436,6 +1436,57 @@ function mSyncStatus(msg, isErr) {
 
 async function merchantSync() {
   if (!_mOnline || !M.token) return;
+
+  // ── Check PENDING_CASHOUT coins against Supabase ─────────────────────────
+  // These coins were sent out in a cashout QR but we never confirmed redemption.
+  // Call /validate for each one — if REDEEMED or SPENT, remove from vault and
+  // add a reconciliation cashout history entry so balance reflects correctly.
+  const pendingCashout = M.vault.filter(function(c){ return c._status === 'PENDING_CASHOUT'; });
+  if (pendingCashout.length > 0) {
+    let reconAmt = 0;
+    const reconCoinIds = [];
+    for (const coin of pendingCashout) {
+      try {
+        const vr = await fetch('/api/v1/validate?coin_id=' + encodeURIComponent(coin.coin_id || coin.id));
+        const vd = await vr.json();
+        if (vd.status === 'REDEEMED' || vd.status === 'SPENT') {
+          // Coin confirmed redeemed by agent — remove from vault
+          reconAmt    += (coin.amount || coin.value_kobo || 0);
+          reconCoinIds.push(coin.coin_id || coin.id);
+        }
+      } catch(e) { /* offline — skip */ }
+    }
+    if (reconCoinIds.length > 0) {
+      // Remove confirmed-redeemed coins from vault
+      M.vault = M.vault.filter(function(c){
+        return !reconCoinIds.includes(c.coin_id || c.id);
+      });
+      // Ensure cashout history entry exists
+      const hasCashout = M.history.some(function(h){ return h.type === 'cashout'; });
+      if (!hasCashout && reconAmt > 0) {
+        M.history.unshift({
+          id:     'CO-RECON-' + Date.now(),
+          type:   'cashout',
+          amount: reconAmt,
+          status: 'SETTLED',
+          ts:     new Date().toISOString(),
+          name:   'Cash out to agent (reconciled)',
+          method: 'qr',
+          coin_count:           reconCoinIds.length,
+          received_coin_ids:    reconCoinIds,
+        });
+      } else if (hasCashout) {
+        // Mark any existing PENDING_SYNC cashout as SETTLED
+        M.history.forEach(function(h){
+          if (h.type === 'cashout' && h.status === 'PENDING_SYNC') h.status = 'SETTLED';
+        });
+      }
+      save();
+      refreshHome();
+      if (typeof refreshFullHistory === 'function') refreshFullHistory();
+    }
+  }
+
   const pending = M.history.filter(function(h) { return h.status === 'PENDING_SYNC'; });
   if (!pending.length) { mSyncStatus('All synced'); return; }
 
@@ -1870,19 +1921,28 @@ function refreshVaultList() {
       ? (expired ? '⚠️ Expired ' : 'Expires ') + expiresAt.toLocaleDateString('en-NG')
       : '';
 
+    const isPendingCO = status === 'PENDING_CASHOUT';
     return '<div style="display:flex;justify-content:space-between;align-items:center;' +
       'padding:10px 14px;background:var(--w);border-radius:10px;' +
-      'border:1px solid var(--grb)">' +
-      '<div>' +
+      'border:1px solid ' + (isPendingCO ? 'var(--am)' : 'var(--grb)') + '">' +
+      '<div style="flex:1;min-width:0">' +
         '<div style="font-size:13px;font-weight:700">' + fmt(amt) + '</div>' +
-        '<div style="font-size:10px;color:var(--gr);margin-top:2px">' +
-          coinId.slice(0,24) + '…</div>' +
-        (expiryText ? '<div style="font-size:10px;color:' + (expired?'var(--rd)':'var(--gr)') +
+        '<div style="font-size:10px;color:var(--gr);margin-top:2px;word-break:break-all">' +
+          coinId.slice(0,28) + '…</div>' +
+        (expiryText ? '<div style="font-size:10px;color:' + (expired?'var(--r)':'var(--gr)') +
           ';margin-top:1px">' + expiryText + '</div>' : '') +
+        (isPendingCO ? '<div style="font-size:10px;color:var(--am);margin-top:4px">' +
+          '⏳ Sent to agent — awaiting confirmation</div>' : '') +
       '</div>' +
-      '<div style="font-size:11px;font-weight:700;color:' + statusColor + '">' +
-        (status === 'HELD' ? '✓ Held' :
-         status === 'PENDING_SYNC' ? '⟳ Syncing' : status) +
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;margin-left:8px">' +
+        '<div style="font-size:11px;font-weight:700;color:' + statusColor + '">' +
+          (status === 'HELD' ? '✓ Held' :
+           status === 'PENDING_SYNC' ? '⟳ Syncing' :
+           status === 'PENDING_CASHOUT' ? '⟳ Pending' : status) +
+        '</div>' +
+        (isPendingCO ? '<button onclick="reconcilePendingCoin(' + JSON.stringify(coinId) + ')" ' +
+          'style="font-size:10px;padding:3px 8px;background:var(--am);color:#fff;border:none;' +
+          'border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">↻ Reconcile</button>' : '') +
       '</div>' +
     '</div>';
   }).join('');
@@ -2000,6 +2060,48 @@ function mDownloadCSV(rows, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+
+// ── Manually reconcile a single PENDING_CASHOUT coin ─────────────────────────
+async function reconcilePendingCoin(coinId) {
+  if (!coinId) return;
+  toast('Checking coin status…', false, 2000);
+  try {
+    const r  = await fetch('/api/v1/validate?coin_id=' + encodeURIComponent(coinId));
+    const d  = await r.json();
+    if (d.status === 'REDEEMED' || d.status === 'SPENT') {
+      // Remove from vault
+      const coin = M.vault.find(function(c){ return (c.coin_id||c.id) === coinId; });
+      const amt  = coin ? (coin.amount || coin.value_kobo || 0) : 0;
+      M.vault = M.vault.filter(function(c){ return (c.coin_id||c.id) !== coinId; });
+      // Add or update cashout history
+      const existing = M.history.find(function(h){
+        return h.type === 'cashout' && (h.received_coin_ids||[]).includes(coinId);
+      });
+      if (existing) {
+        existing.status = 'SETTLED';
+      } else if (amt > 0) {
+        M.history.unshift({
+          id: 'CO-RECON-'+Date.now(), type: 'cashout', amount: amt,
+          status: 'SETTLED', ts: new Date().toISOString(),
+          name: 'Cash out to agent (reconciled)', method: 'qr',
+          coin_count: 1, received_coin_ids: [coinId],
+        });
+      }
+      save();
+      refreshHome();
+      if (typeof refreshFullHistory === 'function') refreshFullHistory();
+      if (typeof refreshVaultList    === 'function') refreshVaultList();
+      toast('✅ Coin confirmed redeemed — balance updated', false, 4000);
+    } else if (d.status === 'HELD') {
+      toast('Coin not yet redeemed (status: HELD). Ask agent to rescan.', true, 4000);
+    } else {
+      toast('Coin status: ' + (d.status||'unknown'), false, 3000);
+    }
+  } catch(e) {
+    toast('⚠️ Could not check coin: ' + e.message, true, 4000);
+  }
 }
 
 </script>
