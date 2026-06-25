@@ -604,6 +604,15 @@ body{height:100%;height:100dvh;overflow:hidden;}
   50% { top:188px; opacity:.8; }
   100%{ top:4px;   opacity:1; }
 }
+
+.kp-btn{
+  width:72px;height:72px;border-radius:50%;border:none;
+  background:rgba(255,255,255,.08);color:#fff;
+  font-size:22px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:background .1s;
+}
+.kp-btn:active{background:rgba(255,255,255,.22)}
+
 </style>
 
 </head>
@@ -759,6 +768,73 @@ body{height:100%;height:100dvh;overflow:hidden;}
   else{bind();}
 })();
 </script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN: CLAIM PIN ENTRY
+     Shown when receiver scans a QR that has a transaction PIN set
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-claim-pin" class="screen hidden">
+  <div class="sb" style="background:var(--d)"></div>
+  <div class="hdr" style="background:var(--d)">
+    <button class="hdr-back" onclick="goBack()">‹</button>
+    <div class="hdr-title" style="color:#fff">Enter PIN</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="scroll" style="background:var(--d);display:flex;flex-direction:column;align-items:center;padding:32px 24px">
+    <div style="font-size:48px;margin-bottom:16px">🔐</div>
+    <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px;text-align:center">
+      Transaction PIN Required
+    </div>
+    <div style="font-size:14px;color:var(--gm);text-align:center;margin-bottom:8px" id="cp-amount-label">
+      The sender has secured this payment with a PIN
+    </div>
+    <div style="font-size:12px;color:var(--am);text-align:center;margin-bottom:28px" id="cp-attempts-label">
+      Enter the 4-6 digit PIN provided by the sender
+    </div>
+
+    <!-- PIN input dots display -->
+    <div id="cp-dots" style="display:flex;gap:12px;margin-bottom:24px"></div>
+
+    <!-- PIN input (hidden — we use keypad below) -->
+    <input type="tel" id="cp-pin-input" inputmode="numeric" maxlength="6"
+      style="position:absolute;opacity:0;width:1px;height:1px"
+      oninput="onClaimPinInput(this.value)">
+
+    <!-- Keypad -->
+    <div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px;margin-bottom:20px">
+      <button class="kp-btn" onclick="cpKey('1')">1</button>
+      <button class="kp-btn" onclick="cpKey('2')">2</button>
+      <button class="kp-btn" onclick="cpKey('3')">3</button>
+      <button class="kp-btn" onclick="cpKey('4')">4</button>
+      <button class="kp-btn" onclick="cpKey('5')">5</button>
+      <button class="kp-btn" onclick="cpKey('6')">6</button>
+      <button class="kp-btn" onclick="cpKey('7')">7</button>
+      <button class="kp-btn" onclick="cpKey('8')">8</button>
+      <button class="kp-btn" onclick="cpKey('9')">9</button>
+      <div></div>
+      <button class="kp-btn" onclick="cpKey('0')">0</button>
+      <button class="kp-btn" onclick="cpDel()">⌫</button>
+    </div>
+
+    <button id="cp-submit-btn" onclick="submitClaimPin()"
+      style="width:220px;padding:14px;background:var(--g);color:#fff;border:none;
+      border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;
+      opacity:.4" disabled>
+      Confirm PIN
+    </button>
+
+    <button onclick="goBack()"
+      style="margin-top:14px;background:none;border:none;color:var(--gm);
+      font-size:13px;cursor:pointer;font-family:inherit">
+      Cancel
+    </button>
+
+    <div id="cp-err" style="display:none;margin-top:16px;padding:12px 16px;
+      background:rgba(220,38,38,.1);border:1px solid var(--r);border-radius:10px;
+      color:var(--r);font-size:13px;text-align:center"></div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 2 — PHONE VERIFICATION
@@ -2676,6 +2752,13 @@ async function handleQRResult(rawValue) {
       return;
     }
 
+    // ── PIN gate: if sender set a PIN, show PIN entry before releasing coins ──
+    if (data.pin_required === true) {
+      hideLoader();
+      startClaimPinEntry(claimId, data);
+      return;
+    }
+
     // Success - dedup + validate before showing Accept
     const bundle = data.bundle || { coins: data.coins || [] };
     const existingIds = new Set(STATE.vault.map(v => v.coin_id));
@@ -2855,7 +2938,16 @@ async function generateSendQR() {
         'Content-Type':'application/json',
         'Authorization': 'Bearer ' + claimToken,
       },
-      body: JSON.stringify({ bundle }),
+      body: JSON.stringify({
+          bundle,
+          tx_pin: (function(){
+            const tog = document.getElementById('send-pin-toggle');
+            const inp = document.getElementById('send-pin-value');
+            return (tog && tog.checked && inp && inp.value.length >= 4)
+              ? inp.value.trim()
+              : null;
+          })(),
+        }),
     });
     const data = await res.json();
     hideLoader();
@@ -3707,6 +3799,167 @@ function downloadCSV(rows, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+
+// ── Claim PIN flow ─────────────────────────────────────────────────────────
+let _claimPinValue   = '';
+let _claimPinClaimId = '';
+let _claimPinData    = null;   // the partial fetch-claim response
+
+function startClaimPinEntry(claimId, fetchData) {
+  _claimPinClaimId = claimId;
+  _claimPinData    = fetchData;
+  _claimPinValue   = '';
+  updateCpDots();
+
+  const amtEl = document.getElementById('cp-amount-label');
+  const errEl = document.getElementById('cp-err');
+  if (amtEl) amtEl.textContent =
+    fetchData.amount_kobo
+      ? 'Receiving ' + fmtNaira(fetchData.amount_kobo) +
+        (fetchData.business_name ? ' from ' + fetchData.business_name : '')
+      : 'The sender has secured this payment with a PIN';
+  if (errEl) errEl.style.display = 'none';
+
+  const attEl = document.getElementById('cp-attempts-label');
+  if (attEl) attEl.textContent = 'Enter the 4-6 digit PIN provided by the sender';
+
+  goTo('screen-claim-pin');
+}
+
+function cpKey(digit) {
+  if (_claimPinValue.length >= 6) return;
+  _claimPinValue += digit;
+  updateCpDots();
+  // Auto-submit at 6 digits
+  if (_claimPinValue.length === 6) submitClaimPin();
+}
+
+function cpDel() {
+  _claimPinValue = _claimPinValue.slice(0, -1);
+  updateCpDots();
+}
+
+function updateCpDots() {
+  const el  = document.getElementById('cp-dots');
+  const btn = document.getElementById('cp-submit-btn');
+  if (!el) return;
+  const len = _claimPinValue.length;
+  // Show 6 dots — filled or empty
+  el.innerHTML = Array.from({ length: 6 }, (_, i) =>
+    '<div style="width:14px;height:14px;border-radius:50%;background:' +
+    (i < len ? 'var(--g)' : 'rgba(255,255,255,.2)') + '"></div>'
+  ).join('');
+  if (btn) {
+    btn.disabled = len < 4;
+    btn.style.opacity = len < 4 ? '.4' : '1';
+  }
+}
+
+async function submitClaimPin() {
+  if (_claimPinValue.length < 4) return;
+  const errEl  = document.getElementById('cp-err');
+  const attEl  = document.getElementById('cp-attempts-label');
+  const btn    = document.getElementById('cp-submit-btn');
+  if (errEl) errEl.style.display = 'none';
+  if (btn)   { btn.disabled = true; btn.textContent = 'Checking...'; }
+
+  try {
+    const res = await fetch('/api/v1/verify-claim-pin', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ claim_id: _claimPinClaimId, pin: _claimPinValue }),
+    });
+    const data = await res.json();
+
+    if (data.verified && data.claim_token) {
+      // PIN correct — now fetch the actual coins
+      if (btn) { btn.textContent = 'PIN accepted ✓'; }
+      await fetchClaimWithToken(_claimPinClaimId, data.claim_token);
+    } else {
+      // Wrong PIN
+      _claimPinValue = '';
+      updateCpDots();
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm PIN'; }
+      if (errEl) {
+        errEl.textContent = data.message || 'Incorrect PIN';
+        errEl.style.display = 'block';
+      }
+      if (attEl && data.attempts_left !== undefined) {
+        attEl.textContent = data.attempts_left + ' attempt(s) remaining';
+        attEl.style.color = data.attempts_left <= 1 ? 'var(--r)' : 'var(--am)';
+      }
+      if (res.status === 423) {
+        // Locked
+        if (errEl) errEl.textContent = data.error || 'QR locked. Ask sender for a new QR.';
+        if (btn)   { btn.disabled = true; btn.textContent = 'Locked'; }
+      }
+    }
+  } catch (e) {
+    if (btn)   { btn.disabled = false; btn.textContent = 'Confirm PIN'; }
+    if (errEl) { errEl.textContent = 'Network error. Try again.'; errEl.style.display = 'block'; }
+  }
+}
+
+async function fetchClaimWithToken(claimId, claimToken) {
+  try {
+    const res  = await fetch(
+      '/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId) +
+      '&claim_token=' + encodeURIComponent(claimToken)
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      toast('❌ ' + (data.error || 'Failed to collect coins'), true, 5000);
+      goBack();
+      return;
+    }
+    // Hand off to the normal claim processing flow
+    processClaimData(data);
+  } catch (e) {
+    toast('⚠️ Network error collecting coins', true, 4000);
+  }
+}
+
+// Called by both PIN flow and direct (no-PIN) claim flow
+function processClaimData(data) {
+  if (!data.success) { toast(data.error || 'Claim failed', true); return; }
+  const bundle = data.bundle || {};
+  const coins  = bundle.coins || [];
+  if (!coins.length) { toast('No coins in claim', true); return; }
+
+  // Add coins to vault
+  const newCoins = coins.filter(c =>
+    !STATE.vault.find(v => (v.coin_id||v.id) === (c.coin_id||c.id))
+  );
+  newCoins.forEach(c => { c._status = 'PENDING_SYNC'; STATE.vault.push(c); });
+  STATE.history.unshift({
+    id:     'RX-' + Date.now(),
+    type:   'received',
+    amount: data.amount_kobo || bundle.total_kobo || 0,
+    status: 'PENDING_SYNC',
+    ts:     new Date().toISOString(),
+    name:   'Received via QR' + (data.business_name ? ' from ' + data.business_name : ''),
+    method: 'qr',
+    coin_ids: newCoins.map(c => c.coin_id || c.id),
+  });
+  save();
+  goTo('screen-home');
+  refreshHome();
+  toast('✅ ₦' + ((data.amount_kobo||bundle.total_kobo||0)/100).toLocaleString() + ' received!', false, 4000);
+  setTimeout(trySync, 1500);
+}
+
+
+function toggleSendPin(enabled) {
+  const wrap   = document.getElementById('send-pin-input-wrap');
+  const slider = document.getElementById('send-pin-slider');
+  if (wrap)   wrap.style.display  = enabled ? 'block' : 'none';
+  if (slider) slider.style.background = enabled ? 'var(--g)' : '#ccc';
+  if (!enabled) {
+    const inp = document.getElementById('send-pin-value');
+    if (inp) inp.value = '';
+  }
 }
 
 </script>

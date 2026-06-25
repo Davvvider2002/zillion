@@ -1,3 +1,8 @@
+# ════════════════════════════════════════════════════════════════
+#  ZILLION — netlify.toml
+#  Priority 2: Full security headers added
+# ════════════════════════════════════════════════════════════════
+
 [build]
   publish   = "."
   functions = "backend/netlify/functions"
@@ -8,11 +13,52 @@
   node_bundler          = "esbuild"
   external_node_modules = ["@supabase/supabase-js"]
 
+# ── Security Headers (Priority 2) ───────────────────────────────
+
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options        = "DENY"
+    # Prevent this site being embedded in iframes (clickjacking)
+    X-Frame-Options = "DENY"
+
+    # Prevent MIME-type sniffing
     X-Content-Type-Options = "nosniff"
+
+    # Legacy XSS filter for older browsers
+    X-XSS-Protection = "1; mode=block"
+
+    # Don't leak the full URL to third parties
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # HTTPS only for 2 years, include subdomains
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+
+    # Allow camera for QR scanning, block everything else
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()"
+
+    # Content Security Policy
+    # - default-src 'self'        : only load resources from own domain
+    # - script-src + unsafe-inline: required for inline JS in PWA HTML files
+    # - cdnjs: QRCode.js library
+    # - connect-src: Supabase + Netlify functions
+    # - img-src data: blob:       : QR codes generated as data URIs
+    # - frame-ancestors 'none'    : belt-and-suspenders against framing
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' *.supabase.co *.netlify.app app.zillion.ng zillion-mvp.netlify.app; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+# ── API function headers — never cache, never index ─────────────
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    Pragma        = "no-cache"
+    X-Robots-Tag  = "noindex, nofollow"
+
+[[headers]]
+  for = "/api/v1/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    Pragma        = "no-cache"
 
 # ── Redirects ────────────────────────────────────────────────────
 
@@ -114,6 +160,11 @@
 [[redirects]]
   from = "/api/v1/fetch-claim"
   to   = "/.netlify/functions/fetch-claim"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/verify-claim-pin"
+  to   = "/.netlify/functions/verify-claim-pin"
   status = 200
 
 [[redirects]]
