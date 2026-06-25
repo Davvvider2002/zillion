@@ -1978,7 +1978,7 @@ async function sendViaWhatsApp(fileOnly=false) {
   showSendSuccessOverlay(bundle, fname, file);
 }
 
-function showSendSuccessOverlay(bundle, fname, file) {
+async function showSendSuccessOverlay(bundle, fname, file) {
   const fmt  = fmtNaira(bundle.total_kobo);
   // Remove any existing overlay
   document.getElementById('send-overlay')?.remove();
@@ -2800,10 +2800,18 @@ async function generateSendQR() {
       colorDark:'#0D1F1A', colorLight:'#FFFFFF',
       correctLevel:QRCode.CorrectLevel.M,
     });
-    setTimeout(()=>{
-      const c=canvas.querySelector('canvas');
-      if(c) _sendQrImgData=c.toDataURL('image/png');
-    },100);
+    // Capture QR as image — retry up to 3 times in case canvas renders slowly
+    (function captureQR(attempts) {
+      setTimeout(function() {
+        var c = canvas.querySelector('canvas') || canvas.querySelector('img');
+        if (c && c.tagName === 'CANVAS') {
+          try { _sendQrImgData = c.toDataURL('image/png'); } catch(e) {}
+        } else if (c && c.tagName === 'IMG') {
+          _sendQrImgData = c.src;
+        }
+        if (!_sendQrImgData && attempts > 0) captureQR(attempts - 1);
+      }, attempts === 3 ? 200 : 500);
+    })(3);
 
     document.getElementById('send-qr-amount').textContent = fmtNaira(bundle.total_kobo);
     document.getElementById('send-qr-detail').textContent =
@@ -2852,15 +2860,22 @@ ${_sendQrClaimUrl}
 
 ⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
 
+  // Convert QR data URL to blob for sharing (no fetch needed for data URLs)
   if (_sendQrImgData && navigator.share) {
     try {
-      const blob = await (await fetch(_sendQrImgData)).blob();
-      const file = new File([blob],'zillion-payment-qr.png',{type:'image/png'});
-      if (navigator.canShare && navigator.canShare({files:[file]})) {
-        await navigator.share({title:'Zillion '+fmt2,text:msg,files:[file]});
+      var parts  = _sendQrImgData.split(',');
+      var mime   = parts[0].match(/:(.*?);/)[1];
+      var bstr   = atob(parts[1]);
+      var n      = bstr.length;
+      var u8arr  = new Uint8Array(n);
+      while(n--) u8arr[n] = bstr.charCodeAt(n);
+      var imgBlob = new Blob([u8arr], {type: mime});
+      var imgFile = new File([imgBlob], 'zillion-qr-'+(_sendQrBundle?.total_kobo||0)+'.png', {type:'image/png'});
+      if (navigator.canShare && navigator.canShare({files:[imgFile]})) {
+        await navigator.share({title:'Zillion Payment '+fmt2, text:msg, files:[imgFile]});
         return;
       }
-    } catch(e){if(e.name==='AbortError')return;}
+    } catch(e) { if(e.name==='AbortError') return; }
   }
   if (navigator.share){try{await navigator.share({title:'Zillion '+fmt2,text:msg});return;}catch(e){if(e.name==='AbortError')return;}}
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
