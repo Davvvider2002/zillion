@@ -1010,13 +1010,16 @@ function refreshHome() {
     listEl.innerHTML = '<div class="empty"><span class="empty-icon">🛒</span><div class="empty-title">No payments yet</div><div class="empty-sub">Share your QR or scan a customer QR.</div></div>';
     return;
   }
-  listEl.innerHTML = '<div class="tx-list">' + M.history.slice(0,10).map(h =>
-    '<div class="tx-row"><div class="tx-dot '+(h.type==='received'?'in':'out')+'">'+(h.type==='received'?'↓':'↑')+'</div>'+
-    '<div class="tx-info"><div class="tx-name">'+(h.name||'Transaction')+'</div>'+
-    '<div class="tx-meta">'+relTime(h.ts)+' · <span style="color:'+(h.status==='PENDING_SYNC'?'var(--am)':'var(--g)')+'">'+
-    (h.status==='PENDING_SYNC'?'Pending sync':'Settled')+'</span></div></div>'+
-    '<div class="tx-amount '+(h.type==='received'?'in':'out')+'">'+(h.type==='received'?'+':'-')+fmt(h.amount)+'</div></div>'
-  ).join('') + '</div>';
+  listEl.innerHTML = '<div class="tx-list">' + M.history.slice(0,10).map(function(h,i){
+    return '<div class="tx-row" onclick="openMTxDetail('+i+')" style="cursor:pointer">'+
+      '<div class="tx-dot '+(h.type==='received'?'in':'out')+'">'+(h.type==='received'?'↓':'↑')+'</div>'+
+      '<div class="tx-info"><div class="tx-name">'+(h.name||'Transaction')+'</div>'+
+      '<div class="tx-meta">'+relTime(h.ts)+' · <span style="color:'+(h.status==='PENDING_SYNC'?'var(--am)':'var(--g)')+'">'+
+      (h.status==='PENDING_SYNC'?'Pending':'Settled')+'</span></div></div>'+
+      '<div class="tx-amount '+(h.type==='received'?'in':'out')+'">'+(h.type==='received'?'+':'-')+fmt(h.amount)+'</div>'+
+      '<div style="font-size:14px;color:#9CA3AF">›</div>'+
+      '</div>';
+  }).join('') + '</div>';
 }
 
 // ── My QR ──────────────────────────────────────────────────────
@@ -1244,7 +1247,7 @@ function resetScan() {
 
 // ── Cash-out QR ────────────────────────────────────────────────
 function refreshCashout() {
-  const bal = M.vault.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  const bal = M.vault.filter(function(c){return c._status!=='PENDING_CASHOUT';}).reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   setText('co-balance', fmt(bal));
   setText('co-coins',   M.vault.length+' coin'+(M.vault.length!==1?'s':'')+' available');
 }
@@ -1278,8 +1281,22 @@ async function generateCashoutQR() {
     if (!res.ok) throw new Error(data.error);
 
     M.coQrUrl=data.claim_url; M.coQrImg=null;
+    // Mark selected coins as PENDING_CASHOUT in vault
     selected.forEach(c=>{const i=M.vault.findIndex(v=>v.coin_id===c.coin_id);if(i>=0)M.vault[i]._status='PENDING_CASHOUT';});
+    // Add cashout debit to history so balance immediately reflects the outflow
+    M.history.unshift({
+      id: 'CO-'+Date.now(),
+      type: 'cashout',
+      amount: bundle.total_kobo,
+      status: 'PENDING_SYNC',
+      ts: new Date().toISOString(),
+      name: 'Cash out to agent',
+      method: 'qr',
+      received_coin_ids: selected.map(c=>c.coin_id),
+      coin_count: selected.length,
+    });
     save();
+    refreshHome(); // update balance display immediately
 
     document.getElementById('cashout-qr-box').style.display='block';
     renderQR('co-qr-canvas',data.claim_url,'#1A0A2E');
@@ -1460,16 +1477,24 @@ async function merchantSync() {
       M.history.forEach(function(h) {
         if (h.status === 'PENDING_SYNC') h.status = 'SETTLED';
       });
-      // Update coin owner_hash in vault to merchant's identifier
-      // This ensures cashout QR bundles carry the correct holder reference
+      // Update coin owner_hash and remove redeemed cashout coins
       const merchantHolder = 'MERCHANT-' + M.merchant_id;
+      const settledIds = new Set(data.settled_coin_ids || data.confirmed_sent || []);
+      // Remove PENDING_CASHOUT coins that server confirmed as REDEEMED
+      M.vault = M.vault.filter(function(c) {
+        if (c._status === 'PENDING_CASHOUT' && settledIds.has(c.coin_id)) return false;
+        return true;
+      });
+      // Update remaining coins
       M.vault.forEach(function(c) {
         if (c._status === 'PENDING_SYNC' || c._status === 'HELD') {
           c.owner_hash = merchantHolder;
         }
-      });
-      M.vault.forEach(function(c) {
         if (c._status === 'PENDING_SYNC') c._status = 'HELD';
+      });
+      // Mark cashout history entries as SETTLED
+      M.history.forEach(function(h) {
+        if (h.type === 'cashout' && h.status === 'PENDING_SYNC') h.status = 'SETTLED';
       });
       save();
       mSyncStatus('Synced ' + (data.settled_count || 0) + ' · ' + new Date().toLocaleTimeString());

@@ -374,7 +374,7 @@ tr:hover td{background:var(--gl)}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Device ID</th><th>Phone Hash</th><th>Status</th><th>Registered</th><th>Last Active</th><th>Balance</th><th>Sent</th><th>Received</th><th>Tx Count</th><th>Fraud</th></tr></thead>
+        <thead><tr><th>Device ID</th><th>Phone Hash</th><th>Status</th><th>Registered</th><th>Last Active</th><th>Balance</th><th>Sent</th><th>Received</th><th>Tx Count</th><th>Fraud</th><th></th></tr></thead>
         <tbody id="user-table-body"><tr><td colspan="10" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -514,7 +514,7 @@ tr:hover td{background:var(--gl)}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Coin ID</th><th>Amount</th><th>Issued By</th><th>Issued At</th><th>Expires</th><th>Status</th><th>Holder</th></tr></thead>
+        <thead><tr><th>Coin ID</th><th>Amount</th><th>Issued By</th><th>Issued At</th><th>Expires</th><th>Status</th><th>Holder</th><th></th></tr></thead>
         <tbody id="coin-table-body"><tr><td colspan="7" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -533,7 +533,7 @@ tr:hover td{background:var(--gl)}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>TX ID</th><th>Coin ID</th><th>Amount</th><th>From</th><th>To</th><th>TX Time</th><th>Sync Time</th><th>Status</th></tr></thead>
+        <thead><tr><th>TX ID</th><th>Coin ID</th><th>Amount</th><th>From</th><th>To</th><th>TX Time</th><th>Sync Time</th><th>Status</th><th></th></tr></thead>
         <tbody id="tx-table-body"><tr><td colspan="8" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -896,6 +896,7 @@ async function loadUsers() {
     hideLoader();
     if (!res.ok) { notify('Users: '+data.error, true); return; }
     allUsers = data.users || [];
+    _admAllData.user = allUsers;
     renderUserTable(allUsers);
   } catch(e) { hideLoader(); notify('Users: '+e.message, true); }
 }
@@ -908,10 +909,11 @@ function filterUserTable() {
   ));
 }
 function renderUserTable(users) {
+  _admAllData.user = users;
   document.getElementById('user-table-body').innerHTML = users.length
-    ? users.map(u => `<tr>
-        <td style="font-family:monospace;font-size:11px">${u.device_hash?.slice(0,16)}...</td>
-        <td style="font-family:monospace;font-size:11px">${u.phone_hash?.slice(0,12)}...</td>
+    ? users.map((u,i) => `<tr onclick="openAdmDetail('user',${i})" style="cursor:pointer" title="Click for full details">
+        <td style="font-family:monospace;font-size:11px">${(u.device_hash||'').slice(0,14)}…</td>
+        <td style="font-family:monospace;font-size:11px">${(u.phone_hash||'').slice(0,10)}…</td>
         <td><span class="badge ${u.status==='ACTIVE'?'b-ok':'b-err'}">${u.status}</span></td>
         <td style="font-size:11px">${fmtDate(u.registered_at)}</td>
         <td style="font-size:11px">${relTime(u.last_activity)}</td>
@@ -920,8 +922,9 @@ function renderUserTable(users) {
         <td style="color:var(--g)">${fmt(u.total_received_kobo)}</td>
         <td style="text-align:center">${u.tx_count}</td>
         <td>${u.open_fraud>0?'<span class="badge b-err">'+u.open_fraud+'</span>':'<span class="badge b-ok">0</span>'}</td>
+        <td style="color:#9CA3AF;font-size:13px">›</td>
       </tr>`).join('')
-    : '<tr><td colspan="10" class="no-data">No customers found</td></tr>';
+    : '<tr><td colspan="11" class="no-data">No customers found</td></tr>';
 }
 function exportUsers() {
   const rows = [['Device ID','Phone Hash','Status','Registered','Balance (kobo)','Sent','Received','Tx Count']];
@@ -938,6 +941,7 @@ async function loadMerchants() {
     hideLoader();
     if (!res.ok) { notify('Merchants: '+(data.error||'error'), true); showMerchantEmpty(); return; }
     allMerchantsData = data.merchants || [];
+    _admAllData.merchant = allMerchantsData;
     const payments = allMerchantsData.reduce((s,m) => s+(m.total_payments||0), 0);
     const volume   = allMerchantsData.reduce((s,m) => s+(m.total_received_kobo||0), 0);
     setText('merch-m-total',    data.total||0);
@@ -1048,6 +1052,7 @@ async function loadAgents() {
     hideLoader();
     if (!res.ok) { notify('Agents: '+data.error, true); return; }
     allAgentsData = data.agents || [];
+    _admAllData.agent = allAgentsData;
     populateTopUpAgentSelect(allAgentsData);
     const el = document.getElementById('agent-cards-grid');
     el.innerHTML = allAgentsData.map(a => {
@@ -1101,15 +1106,17 @@ async function loadCoins() {
     setText('coin-m-total',    data.total||0);
     setText('coin-m-held',     bs.HELD||0);
     setText('coin-m-redeemed', bs.REDEEMED||0);
-    document.getElementById('coin-table-body').innerHTML = (data.coins||[]).length
-      ? (data.coins||[]).map(c => `<tr>
-          <td style="font-family:monospace;font-size:10px">${c.coin_id?.slice(0,28)}...</td>
+    _admAllData.coin = data.coins||[];
+    document.getElementById('coin-table-body').innerHTML = _admAllData.coin.length
+      ? _admAllData.coin.map((c,i) => `<tr onclick="openAdmDetail('coin',${i})" style="cursor:pointer" title="Click for full details">
+          <td style="font-family:monospace;font-size:10px">${(c.coin_id||'').slice(0,24)}…</td>
           <td style="font-weight:bold;color:var(--g)">${fmt(c.amount)}</td>
           <td style="font-size:11px">${c.issuer_id||'—'}</td>
           <td style="font-size:11px">${fmtDate(c.issued_at)}</td>
           <td style="font-size:11px">${fmtDate(c.expires_at)}</td>
           <td><span class="badge ${statusBadge(c.status)}">${c.status}</span></td>
-          <td style="font-family:monospace;font-size:10px">${c.holder_hash?.slice(0,12)||'—'}...</td>
+          <td style="font-family:monospace;font-size:10px">${(c.holder_hash||'').slice(0,10)}…</td>
+          <td style="color:#9CA3AF;font-size:13px">›</td>
         </tr>`).join('')
       : '<tr><td colspan="7" class="no-data">No coins found</td></tr>';
   } catch(e) { hideLoader(); notify('Coins: '+e.message, true); }
@@ -1126,21 +1133,23 @@ async function loadTransactions() {
     const data = await res.json();
     hideLoader();
     if (!res.ok) { notify('Transactions: '+data.error, true); return; }
-    document.getElementById('tx-table-body').innerHTML = (data.transactions||[]).length
-      ? (data.transactions||[]).map(t => `<tr>
-          <td style="font-family:monospace;font-size:10px">${t.tx_id?.slice(0,20)}...</td>
-          <td style="font-family:monospace;font-size:10px">${t.coin_id?.slice(0,20)}...</td>
+    _admAllData.tx = data.transactions||[];
+    document.getElementById('tx-table-body').innerHTML = _admAllData.tx.length
+      ? _admAllData.tx.map((t,i) => `<tr onclick="openAdmDetail('tx',${i})" style="cursor:pointer" title="Click for full details">
+          <td style="font-family:monospace;font-size:10px">${(t.tx_id||'').slice(0,16)}…</td>
+          <td style="font-family:monospace;font-size:10px">${(t.coin_id||'').slice(0,16)}…</td>
           <td style="font-weight:bold;color:var(--g)">${fmt(t.amount)}</td>
-          <td style="font-family:monospace;font-size:10px">${t.from_hash?.slice(0,12)}...</td>
-          <td style="font-family:monospace;font-size:10px">${t.to_hash?.slice(0,12)}...</td>
+          <td style="font-family:monospace;font-size:10px">${(t.from_hash||'').slice(0,10)}…</td>
+          <td style="font-family:monospace;font-size:10px">${(t.to_hash||'').slice(0,10)}…</td>
           <td style="font-size:11px">${fmtDate(t.tx_ts)}</td>
           <td style="font-size:11px">${fmtDate(t.sync_ts)}</td>
           <td><span class="badge ${t.status==='SETTLED'?'b-ok':t.status==='CONFLICT'?'b-err':'b-warn'}">${t.status}</span></td>
+          <td style="color:#9CA3AF;font-size:13px">›</td>
         </tr>`).join('')
-      : '<tr><td colspan="8" class="no-data">No transactions yet</td></tr>';
+      : '<tr><td colspan="9" class="no-data">No transactions yet</td></tr>';
   } catch(e) { hideLoader(); notify('TX: '+e.message, true); }
 }
-function exportTransactions() { notify('Use Supabase dashboard for full CSV export'); }
+function exportTransactions() { admExportTableCSV('tx'); }
 
 // ── TOKENS ─────────────────────────────────────────────────────
 function onAgentSelect() {
@@ -1446,6 +1455,155 @@ function generateTOTPSetup() {
     '<button onclick="generateTOTPSetup()" style="background:none;border:1px solid var(--d3);color:var(--gr);border-radius:6px;padding:7px 14px;margin-top:12px;cursor:pointer;font-family:inherit;font-size:12px">&#x21BB; Regenerate</button>';
 }
 
+
+// ── Admin detail drill-down ──────────────────────────────────────────────────
+var _admDetailItem = null;
+var _admDetailType = '';
+var _admAllData = { tx:[], user:[], merchant:[], agent:[], coin:[] };
+
+function openAdmDetail(type, idx) {
+  var item = _admAllData[type] && _admAllData[type][idx];
+  if (!item) return;
+  _admDetailItem = item;
+  _admDetailType = type;
+  var title = { tx:'Transaction', user:'Customer', merchant:'Merchant', agent:'Agent', coin:'Coin' }[type] || 'Detail';
+  document.getElementById('adm-txd-title').textContent = title + ' Details';
+
+  var rows = [];
+  if (type === 'tx') {
+    rows = [
+      ['TX ID',        item.tx_id || '—'],
+      ['Coin ID',      item.coin_id || '—'],
+      ['Amount',       fmt(item.amount)],
+      ['From Hash',    item.from_hash || '—'],
+      ['To Hash',      item.to_hash   || '—'],
+      ['TX Time',      fmtDate(item.tx_ts)],
+      ['Sync Time',    fmtDate(item.sync_ts)],
+      ['Status',       '<span class="badge ' + (item.status==='SETTLED'?'b-ok':item.status==='CONFLICT'?'b-err':'b-warn') + '">' + item.status + '</span>'],
+      ['Device ID',    item.device_id || '—'],
+      ['Env Sig',      item.env_sig ? item.env_sig.slice(0,40)+'…' : '—'],
+    ];
+  } else if (type === 'user') {
+    rows = [
+      ['Device ID',    item.device_hash || '—'],
+      ['Phone Hash',   item.phone_hash  || '—'],
+      ['Status',       '<span class="badge ' + (item.status==='ACTIVE'?'b-ok':'b-err') + '">' + item.status + '</span>'],
+      ['Registered',   fmtDate(item.registered_at)],
+      ['Last Active',  relTime(item.last_activity)],
+      ['Held Balance', fmt(item.held_balance_kobo)],
+      ['Total Sent',   fmt(item.total_sent_kobo)],
+      ['Total Received', fmt(item.total_received_kobo)],
+      ['TX Count',     item.tx_count || 0],
+      ['Fraud Events', item.open_fraud || 0],
+      ['KYC Tier',     item.kyc_tier || '—'],
+    ];
+  } else if (type === 'merchant') {
+    rows = [
+      ['Merchant ID',  item.merchant_id   || '—'],
+      ['Business',     item.business_name || '—'],
+      ['Owner',        item.owner_name    || '—'],
+      ['Phone',        item.phone         || '—'],
+      ['Location',     item.location      || '—'],
+      ['Zil Balance',  fmt(item.zil_balance_kobo)],
+      ['Total Received', fmt(item.total_received_kobo)],
+      ['Registered',   fmtDate(item.created_at)],
+      ['Status',       item.status || 'ACTIVE'],
+    ];
+  } else if (type === 'agent') {
+    rows = [
+      ['Agent ID',     item.agent_id      || '—'],
+      ['Name',         item.name          || '—'],
+      ['Location',     item.location_name || '—'],
+      ['Float Balance', fmt(item.float_balance_kobo)],
+      ['Total Issued', fmt(item.total_issued_kobo)],
+      ['Total Redeemed', fmt(item.total_redeemed_kobo)],
+      ['TX Count',     item.tx_count      || 0],
+      ['Status',       item.status        || 'ACTIVE'],
+    ];
+  } else if (type === 'coin') {
+    rows = [
+      ['Coin ID',      item.coin_id    || '—'],
+      ['Amount',       fmt(item.amount)],
+      ['Status',       '<span class="badge ' + (item.status==='HELD'?'b-ok':item.status==='REDEEMED'?'b-warn':'b-err') + '">' + item.status + '</span>'],
+      ['Issued By',    item.issuer_id  || '—'],
+      ['Holder',       item.holder_hash || '—'],
+      ['Issued At',    fmtDate(item.issued_at)],
+      ['Expires At',   fmtDate(item.expires_at)],
+      ['Currency',     item.currency   || 'NGN'],
+    ];
+  }
+
+  document.getElementById('adm-txd-body').innerHTML =
+    '<table style="width:100%;border-collapse:collapse">' +
+    rows.map(function(r){
+      return '<tr style="border-bottom:1px solid #F9FAFB">'
+        + '<td style="padding:9px 0;font-size:12px;color:#6B7280;width:130px;vertical-align:top">' + r[0] + '</td>'
+        + '<td style="padding:9px 0;font-size:13px;color:#111;font-weight:500;word-break:break-all">' + r[1] + '</td>'
+        + '</tr>';
+    }).join('') + '</table>';
+
+  document.getElementById('adm-txd-overlay').style.display = 'block';
+  document.getElementById('adm-txd-modal').style.display   = 'block';
+}
+
+function closeAdmDetail() {
+  document.getElementById('adm-txd-overlay').style.display = 'none';
+  document.getElementById('adm-txd-modal').style.display   = 'none';
+}
+
+function admExportDetailCSV() {
+  if (!_admDetailItem) return;
+  var rows = [['Field', 'Value']];
+  Object.keys(_admDetailItem).forEach(function(k){
+    rows.push([k, _admDetailItem[k] != null ? String(_admDetailItem[k]) : '']);
+  });
+  var csv = rows.map(function(r){
+    return r.map(function(v){
+      var s = String(v).replace(/"/g,'""');
+      return /[,\n"]/.test(s) ? '"'+s+'"' : s;
+    }).join(',');
+  }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'zillion_admin_' + _admDetailType + '_' + Date.now() + '.csv';
+  a.click();
+}
+
+function admExportTableCSV(type) {
+  var data = _admAllData[type] || [];
+  if (!data.length) { notify('No data to export', true); return; }
+  var keys = Object.keys(data[0]);
+  var rows = [keys].concat(data.map(function(item){
+    return keys.map(function(k){ return item[k] != null ? String(item[k]) : ''; });
+  }));
+  var csv = rows.map(function(r){
+    return r.map(function(v){
+      var s = String(v).replace(/"/g,'""');
+      return /[,\n"]/.test(s) ? '"'+s+'"' : s;
+    }).join(',');
+  }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'zillion_' + type + '_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  notify('Exporting ' + data.length + ' rows…');
+}
+
 </script>
+
+<!-- Admin Transaction Detail Modal -->
+<div id="adm-txd-overlay" onclick="closeAdmDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:700"></div>
+<div id="adm-txd-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:92%;max-width:600px;max-height:88vh;overflow-y:auto;background:#fff;border-radius:16px;z-index:701;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 14px;border-bottom:1px solid #F3F4F6;position:sticky;top:0;background:#fff">
+    <div id="adm-txd-title" style="font-size:16px;font-weight:700;color:#111">Details</div>
+    <button onclick="closeAdmDetail()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9CA3AF;line-height:1;padding:0">&#x2715;</button>
+  </div>
+  <div id="adm-txd-body" style="padding:18px 20px"></div>
+  <div style="padding:0 20px 20px;display:flex;gap:10px">
+    <button onclick="admExportDetailCSV()" style="flex:1;padding:11px;background:#16A34A;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">&#x2B07; Export (CSV)</button>
+    <button onclick="closeAdmDetail()" style="flex:1;padding:11px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Close</button>
+  </div>
+</div>
+
 </body>
 </html>
