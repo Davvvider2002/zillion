@@ -977,8 +977,14 @@ function refreshHome() {
   const coAmt      = cashedOut.reduce((s,h)=>s+h.amount, 0);
   const pendingAmt = bookAmt - settledAmt;
 
-  // Available = settled received minus cashouts
-  const availAmt = Math.max(0, settledAmt - coAmt);
+  // Pending cashout: coins sent to agent but not yet server-confirmed
+  // These are DEFINITELY spent — must not show as available balance
+  const pendingCashoutAmt = (M.vault || [])
+    .filter(function(c){ return c._status === 'PENDING_CASHOUT'; })
+    .reduce(function(s,c){ return s + (c.amount || c.value_kobo || 0); }, 0);
+
+  // Available = settled received minus cashouts (history) minus pending cashout (vault)
+  const availAmt = Math.max(0, settledAmt - coAmt - pendingCashoutAmt);
 
   setText('today-amount', fmt(availAmt));
 
@@ -1827,7 +1833,11 @@ function mImportZilFile(input) {
 // ── Full transaction history screen ──────────────────────────────
 function refreshFullHistory() {
   const totalIn  = M.history.filter(h=>h.type==='received').reduce((s,h)=>s+h.amount,0);
-  const totalOut = M.history.filter(h=>h.type==='cashout').reduce((s,h)=>s+h.amount,0);
+  const histOut  = M.history.filter(h=>h.type==='cashout').reduce((s,h)=>s+h.amount,0);
+  // Include PENDING_CASHOUT vault coins even if no history entry recorded yet
+  const vaultOut = (M.vault||[]).filter(function(c){return c._status==='PENDING_CASHOUT';})
+                     .reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
+  const totalOut = Math.max(histOut, vaultOut); // use whichever is higher
   const net      = totalIn - totalOut;
   const setText2 = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
   setText2('hist-total-in',  fmt(totalIn));
