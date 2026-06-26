@@ -223,6 +223,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/recover-coins"
+  to   = "/.netlify/functions/recover-coins"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/health"
   to   = "/.netlify/functions/health"
   status = 200

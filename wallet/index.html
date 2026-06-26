@@ -3766,39 +3766,81 @@ async function recoverFailedQRTransactions() {
 // ── Account recovery: re-derive coins from Supabase by device/phone hash ─────
 // Called after re-registration if customer lost their phone
 async function recoverAccountCoins() {
-  if (!STATE.user) return;
-  const token    = STATE.user.token || '';
-  const deviceId = STATE.user.deviceId || '';
+  if (!STATE.user) {
+    toast('Please log in first', true); return 0;
+  }
+  const token = STATE.user.token || STATE.user.agentToken || '';
+  if (!token) {
+    toast('Session expired — please log out and log in again', true); return 0;
+  }
+
+  toast('Checking server for your coins...', false, 3000);
+
   try {
-    const res  = await fetch('/api/v1/sync', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body:    JSON.stringify({
-        device_id: deviceId,
-        tx_batch:  [],
-        recovery_mode: true, // tells server to return all HELD coins for this device
-      }),
+    // Call the dedicated recovery endpoint — returns all HELD coins for this device
+    const res  = await fetch('/api/v1/recover-coins', {
+      method:  'GET',
+      headers: { 'Authorization': 'Bearer ' + token },
     });
     const data = await res.json();
-    if (res.ok && data.held_coins && data.held_coins.length) {
-      const existingIds = new Set(STATE.vault.map(function(v){return v.coin_id||v.id;}));
-      let recovered = 0;
-      data.held_coins.forEach(function(c) {
-        if (!existingIds.has(c.coin_id || c.id)) {
-          c._status = 'HELD';
-          STATE.vault.push(c);
-          recovered++;
+
+    if (!res.ok) {
+      toast('Recovery failed: ' + (data.error || res.status), true, 5000);
+      return 0;
+    }
+
+    const serverCoins = data.coins || [];
+
+    if (!serverCoins.length) {
+      toast('No coins found on server for this account. Balance is correct.', false, 6000);
+      return 0;
+    }
+
+    // Add coins that are not already in vault
+    const existingIds = new Set(STATE.vault.map(function(v){ return v.coin_id || v.id; }));
+    var recovered = 0;
+    serverCoins.forEach(function(c) {
+      var coinKey = c.coin_id || c.id;
+      if (!existingIds.has(coinKey)) {
+        c._status = 'HELD';
+        STATE.vault.push(c);
+        recovered++;
+      }
+    });
+
+    if (recovered > 0) {
+      save();
+      refreshHome();
+      toast('Restored ' + recovered + ' coin' + (recovered !== 1 ? 's' : '') +
+        ' (' + fmtNaira(data.total_kobo) + ') from server', false, 6000);
+    } else {
+      // All server coins already in vault but may be stuck as PENDING_TRANSFER
+      // Fix: reset any stuck PENDING_TRANSFER coins back to HELD
+      var fixed = 0;
+      serverCoins.forEach(function(c) {
+        var vi = STATE.vault.findIndex(function(v){
+          return (v.coin_id||v.id) === (c.coin_id||c.id);
+        });
+        if (vi >= 0 && STATE.vault[vi]._status === 'PENDING_TRANSFER') {
+          STATE.vault[vi]._status = 'HELD';
+          fixed++;
         }
       });
-      if (recovered > 0) {
-        save(); refreshHome();
-        toast('Recovered ' + recovered + ' coin' + (recovered!==1?'s':'') + ' from server', false, 5000);
+      if (fixed > 0) {
+        save();
+        refreshHome();
+        toast('Fixed ' + fixed + ' stuck coin' + (fixed !== 1 ? 's' : '') +
+          ' — balance restored', false, 5000);
+      } else {
+        toast('All ' + serverCoins.length + ' coin' + (serverCoins.length!==1?'s are':' is') +
+          ' already in your vault', false, 4000);
       }
-      return recovered;
     }
-    return 0;
+    return recovered;
+
   } catch(e) {
     console.error('[recovery] Account recovery failed:', e.message);
+    toast('Recovery error: ' + e.message, true, 5000);
     return 0;
   }
 }
