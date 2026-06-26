@@ -1362,6 +1362,13 @@ body{height:100%;height:100dvh;overflow:hidden;}
       </div>
 
       <div style="margin-top:8px">
+        <div style="background:rgba(217,119,6,.08);border:2px dashed #D97706;border-radius:12px;padding:14px;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Restore Coins from Server</div>
+          <div style="font-size:11px;color:var(--gr);margin-bottom:10px;line-height:1.5">Re-installed or new phone? Pull your coins back from Zillion servers.</div>
+          <button class="btn" style="width:100%;padding:10px;background:#D97706;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="recoverAccountCoins()">
+            Restore My Coins
+          </button>
+        </div>
         <button class="btn btn-outline" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
           onclick="resetWallet()">Reset Wallet</button>
         <button class="btn btn-ghost" onclick="logout()">Log Out</button>
@@ -2801,7 +2808,7 @@ async function generateSendQR() {
       correctLevel:QRCode.CorrectLevel.M,
     });
     // Capture QR as image — retry up to 3 times in case canvas renders slowly
-    (function captureQR(attempts) {
+    (function doCaptureQR(attempts) {
       setTimeout(function() {
         var c = canvas.querySelector('canvas') || canvas.querySelector('img');
         if (c && c.tagName === 'CANVAS') {
@@ -2809,7 +2816,7 @@ async function generateSendQR() {
         } else if (c && c.tagName === 'IMG') {
           _sendQrImgData = c.src;
         }
-        if (!_sendQrImgData && attempts > 0) captureQR(attempts - 1);
+        if (!_sendQrImgData && attempts > 0) doCaptureQR(attempts - 1);
       }, attempts === 3 ? 200 : 500);
     })(3);
 
@@ -2824,7 +2831,26 @@ async function generateSendQR() {
     toast('QR ready - share with recipient 📲');
   } catch(e) {
     hideLoader();
-    errEl.textContent = 'QR error: '+e.message; errEl.style.display='block';
+    const isOffline = !navigator.onLine || e.message.includes('fetch') || e.message.includes('network');
+    // ROLLBACK: restore locked coins
+    selected.forEach(c => {
+      const vi = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
+      if (vi >= 0) STATE.vault[vi]._status = 'HELD';
+    });
+    STATE.history = STATE.history.filter(h =>
+      !(h.status === 'PENDING_SYNC' && h.method === 'qr' && h.type === 'sent' &&
+        (Date.now() - new Date(h.ts).getTime()) < 10000)
+    );
+    save(); refreshHome();
+    if (qrBtn) { qrBtn.disabled = false; qrBtn.textContent = 'Generate QR Code'; }
+    if (isOffline) {
+      errEl.textContent = 'Offline: Using direct offline QR (no server needed)';
+      errEl.style.display = 'block';
+      generateOfflineQR(selected, bundle);
+    } else {
+      errEl.textContent = 'QR error: ' + e.message;
+      errEl.style.display = 'block';
+    }
   }
 }
 
@@ -3575,6 +3601,206 @@ function acceptPinBundle(bundle, claimId) {
   toast('Unlocked! '+fmtNaira(bundle.total_kobo||0)+' received!', false, 4000);
   setTimeout(trySync, 1500);
   _claimPinBundle=null; _claimPinClaimId=''; _claimPinValue='';
+}
+
+
+// ── Offline QR: embed bundle directly in QR (no server) ──────────────────────
+// Used as fallback when create-claim fails offline
+// Receiver imports via "Import File" tab (downloads .zil from QR scan or message)
+function generateOfflineQR(selectedCoins, existingBundle) {
+  const bundle = existingBundle || {
+    zillion_version: '1.0',
+    bundle_id:       'OFFLINE-' + Date.now(),
+    created_at:      new Date().toISOString(),
+    sender_device:   STATE.user?.deviceId || 'UNKNOWN',
+    type:            'cashin',
+    total_kobo:      selectedCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
+    coin_count:      selectedCoins.length,
+    coins:           selectedCoins,
+    offline_mode:    true,
+  };
+
+  // Lock coins
+  selectedCoins.forEach(function(c) {
+    const vi = STATE.vault.findIndex(function(v){return (v.coin_id||v.id)===(c.coin_id||c.id);});
+    if (vi >= 0) STATE.vault[vi]._status = 'PENDING_TRANSFER';
+  });
+  STATE.history.unshift({
+    id: 'TX-' + Date.now(), type: 'sent',
+    amount: bundle.total_kobo, coin_count: selectedCoins.length,
+    ts: new Date().toISOString(), status: 'PENDING_SYNC',
+    method: 'qr-offline', name: 'Sent via Offline QR',
+  });
+  save(); refreshHome();
+
+  // The QR encodes the FULL bundle JSON — receiver scans → imports directly
+  // Limit: QR codes handle ~2KB comfortably. For larger bundles, use file share.
+  const bundleJson  = JSON.stringify(bundle);
+  const bundleB64   = btoa(unescape(encodeURIComponent(bundleJson)));
+  const qrContent   = 'ZILLION:' + bundleB64;
+
+  // Show QR
+  const canvas = document.getElementById('send-qr-canvas');
+  canvas.innerHTML = '';
+
+  let qrRendered = false;
+  if (qrContent.length <= 2000) {
+    try {
+      new QRCode(canvas, {
+        text: qrContent, width: 170, height: 170,
+        colorDark: '#0D1F1A', colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.L, // Low correction = more data capacity
+      });
+      qrRendered = true;
+    } catch(e) { qrRendered = false; }
+  }
+
+  if (!qrRendered) {
+    // Bundle too large for QR — offer file download instead
+    canvas.innerHTML = '<div style="padding:20px;text-align:center;color:var(--tx);font-size:12px">' +
+      'Bundle too large for QR.<br>Use File Share below.</div>';
+  }
+
+  // Always offer file download as primary offline method
+  const fname  = 'zillion-' + Math.round(bundle.total_kobo/100) + 'NGN-' + Date.now() + '.zil';
+  const blob   = new Blob([JSON.stringify(bundle, null, 2)], {type: 'application/octet-stream'});
+  const fileUrl = URL.createObjectURL(blob);
+
+  // Store for WhatsApp share
+  _sendQrClaimUrl   = fileUrl;
+  _sendQrBundle     = bundle;
+
+  document.getElementById('send-qr-amount').textContent = fmtNaira(bundle.total_kobo);
+  document.getElementById('send-qr-detail').textContent =
+    selectedCoins.length + ' coin' + (selectedCoins.length !== 1 ? 's' : '') +
+    ' - OFFLINE MODE (file share)';
+  document.getElementById('send-qr-box').style.display  = 'block';
+  document.getElementById('send-qr-info').style.display = 'none';
+
+  // Add a download file button to the QR box
+  const existingDl = document.getElementById('offline-dl-btn');
+  if (!existingDl) {
+    const dlBtn = document.createElement('button');
+    dlBtn.id        = 'offline-dl-btn';
+    dlBtn.className = 'btn btn-g';
+    dlBtn.style.cssText = 'width:100%;margin:0 0 8px;padding:12px;font-size:14px';
+    dlBtn.textContent   = 'Download .zil File to Share';
+    dlBtn.onclick       = function() {
+      const a  = document.createElement('a');
+      a.href   = fileUrl;
+      a.download = fname;
+      a.click();
+      toast('File saved - send via WhatsApp as attachment');
+    };
+    const qrBox = document.getElementById('send-qr-box');
+    const btnsDiv = qrBox.querySelector('div:last-child');
+    if (btnsDiv) btnsDiv.insertBefore(dlBtn, btnsDiv.firstChild);
+  }
+
+  toast('Offline QR ready - share the .zil file via WhatsApp', false, 5000);
+
+  // Capture QR image
+  (function doCaptureOfflineQR(n) {
+    setTimeout(function() {
+      var c = canvas.querySelector('canvas');
+      if (c) { try { _sendQrImgData = c.toDataURL('image/png'); } catch(e){} }
+      else if (n > 0) doCaptureOfflineQR(n-1);
+    }, n === 2 ? 300 : 600);
+  })(2);
+}
+
+
+// ── Failed transaction recovery ───────────────────────────────────────────────
+// Runs on every sync: retries any PENDING_SYNC QR sends where create-claim failed
+async function recoverFailedQRTransactions() {
+  if (!navigator.onLine) return;
+  const failedQRs = STATE.history.filter(function(h) {
+    return h.type === 'sent' && h.method === 'qr' &&
+           h.status === 'PENDING_SYNC' && !h.claim_id;
+  });
+  if (!failedQRs.length) return;
+
+  console.log('[recovery] Found', failedQRs.length, 'failed QR transactions to retry');
+
+  for (const tx of failedQRs) {
+    // Find the locked coins for this transaction
+    const pendingCoins = STATE.vault.filter(function(c) {
+      return c._status === 'PENDING_TRANSFER';
+    }).slice(0, tx.coin_count || 1);
+
+    if (!pendingCoins.length) continue;
+
+    const bundle = {
+      zillion_version: '1.0',
+      bundle_id:       'RECOVERY-' + tx.id + '-' + Date.now(),
+      created_at:      tx.ts || new Date().toISOString(),
+      type:            'cashin',
+      total_kobo:      tx.amount,
+      coin_count:      pendingCoins.length,
+      coins:           pendingCoins,
+      recovery:        true,
+    };
+
+    try {
+      const token = STATE.user?.token || STATE.user?.agentToken || '';
+      const res   = await fetch('/api/v1/create-claim', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body:    JSON.stringify({ bundle }),
+      });
+      const data = await res.json();
+      if (res.ok && data.claim_id) {
+        tx.claim_id   = data.claim_id;
+        tx.claim_url  = data.claim_url;
+        tx.status     = 'SETTLED';
+        console.log('[recovery] Recovered tx:', tx.id, '-> claim:', data.claim_id);
+        toast('Recovered failed QR - claim ready', false, 4000);
+      }
+    } catch(e) {
+      console.log('[recovery] Retry failed (still offline?):', e.message);
+    }
+  }
+  save();
+}
+
+// ── Account recovery: re-derive coins from Supabase by device/phone hash ─────
+// Called after re-registration if customer lost their phone
+async function recoverAccountCoins() {
+  if (!STATE.user) return;
+  const token    = STATE.user.token || '';
+  const deviceId = STATE.user.deviceId || '';
+  try {
+    const res  = await fetch('/api/v1/sync', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body:    JSON.stringify({
+        device_id: deviceId,
+        tx_batch:  [],
+        recovery_mode: true, // tells server to return all HELD coins for this device
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.held_coins && data.held_coins.length) {
+      const existingIds = new Set(STATE.vault.map(function(v){return v.coin_id||v.id;}));
+      let recovered = 0;
+      data.held_coins.forEach(function(c) {
+        if (!existingIds.has(c.coin_id || c.id)) {
+          c._status = 'HELD';
+          STATE.vault.push(c);
+          recovered++;
+        }
+      });
+      if (recovered > 0) {
+        save(); refreshHome();
+        toast('Recovered ' + recovered + ' coin' + (recovered!==1?'s':'') + ' from server', false, 5000);
+      }
+      return recovered;
+    }
+    return 0;
+  } catch(e) {
+    console.error('[recovery] Account recovery failed:', e.message);
+    return 0;
+  }
 }
 
 </script>
