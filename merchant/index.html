@@ -2114,6 +2114,64 @@ async function reconcilePendingCoin(coinId) {
   }
 }
 
+
+// ── Pull full transaction history from Supabase ──────────────────────────────
+// Fills gaps when merchant has cleared cache, uses multiple devices,
+// or when localStorage history doesn't match admin panel figures.
+async function pullServerHistory() {
+  if (!M.token || !M.merchant_id) return;
+  try {
+    // Use the admin-merchants endpoint to get this merchant's coin history
+    // The merchant's coins in Supabase have holder_hash = M.merchant_id
+    const res = await fetch('/api/v1/merchant-history?merchant_id=' + encodeURIComponent(M.merchant_id), {
+      headers: { 'Authorization': 'Bearer ' + M.token },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success || !data.coins) return;
+
+    // Reconcile server coins with local history
+    var serverCoins  = data.coins || [];
+    var localHist    = M.history || [];
+    var localIds     = new Set(localHist.map(function(h){ return h.id || ''; }));
+    var added = 0;
+
+    // Group server coins by transaction type for history reconstruction
+    var received = serverCoins.filter(function(c){
+      return c.status === 'HELD' || c.status === 'REDEEMED' || c.status === 'SPENT';
+    });
+
+    // Each coin received = one payment history entry
+    received.forEach(function(c) {
+      var histId = 'SRV-' + (c.coin_id || '');
+      if (!localIds.has(histId)) {
+        M.history.push({
+          id:     histId,
+          type:   'received',
+          amount: c.amount || 0,
+          status: 'SETTLED',
+          ts:     c.issued_at || new Date().toISOString(),
+          name:   'Payment received',
+          method: 'sync',
+          received_coin_ids: [c.coin_id],
+        });
+        added++;
+      }
+    });
+
+    if (added > 0) {
+      // Sort by timestamp descending
+      M.history.sort(function(a, b){ return new Date(b.ts) - new Date(a.ts); });
+      save();
+      refreshHome();
+      if (typeof refreshFullHistory === 'function') refreshFullHistory();
+      console.log('[merchant] Pulled ' + added + ' missing transactions from server');
+    }
+  } catch(e) {
+    console.log('[merchant] History pull failed:', e.message);
+  }
+}
+
 </script>
 </body>
 </html>

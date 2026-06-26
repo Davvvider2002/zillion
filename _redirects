@@ -1,3 +1,4 @@
+/api/v1/merchant-history  /.netlify/functions/merchant-history  200
 /api/v1/recover-coins  /.netlify/functions/recover-coins  200
 # ═══════════════════════════════════════════════════════════
 # ZILLION — Netlify _redirects (single source of truth)
