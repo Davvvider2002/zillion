@@ -21,6 +21,7 @@ exports.handler = async (event) => {
   const offset = parseInt(p.offset||0);
   const status = p.status;
   const agent  = p.agent_id;
+  const search = p.search; // partial coin_id prefix search
 
   try {
     const db = getServiceClient();
@@ -30,6 +31,7 @@ exports.handler = async (event) => {
 
     if (status) q = q.eq('status', status);
     if (agent)  q = q.eq('issuer_id', agent);
+    if (search) q = q.like('coin_id', search.replace(/%/g,'') + '%');
 
     const { data:coins, count, error } = await q;
     if (error) throw error;
