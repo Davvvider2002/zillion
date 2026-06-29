@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Zillion — Admin Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--gl2:#F0FAF4;
@@ -555,6 +556,18 @@ tr:hover td{background:var(--gl)}
       <button id="topup-confirm-btn" class="rbtn" style="display:none;background:#15803D;color:#fff;padding:10px 20px;font-size:14px;font-weight:700" onclick="confirmTopUp()">&#x2705; Confirm &amp; Mint Coins</button>
     </div>
     <div id="topup-result" style="margin-top:12px;display:none"></div>
+    <div id="topup-qr-area" style="display:none;margin-top:16px;text-align:center;background:var(--bg);border-radius:12px;padding:20px">
+      <div style="font-size:13px;font-weight:700;color:var(--d);margin-bottom:4px">📱 Agent Cash-In QR</div>
+      <div style="font-size:11px;color:var(--gr);margin-bottom:12px">Agent scans this to receive coins into their portal</div>
+      <div id="topup-qr-canvas" style="display:inline-block;background:#fff;padding:12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12)"></div>
+      <div style="margin-top:10px;font-size:12px;color:var(--g);font-weight:700" id="topup-qr-amount"></div>
+      <div style="margin-top:4px;font-size:11px;color:var(--gr)" id="topup-qr-detail"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button onclick="copyTopupQRUrl()" style="padding:8px 16px;background:var(--d);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📋 Copy Link</button>
+        <button onclick="shareTopupQRWhatsApp()" style="padding:8px 16px;background:#25D366;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📱 Share WhatsApp</button>
+      </div>
+      <div id="topup-qr-url" style="display:none"></div>
+    </div>
   </div>
   <!-- ── AGENT MANAGEMENT ──────────────────────────────────────── -->
   <div class="card">
@@ -602,6 +615,43 @@ tr:hover td{background:var(--gl)}
       </table>
     </div>
   </div>
+</div>
+
+
+<!-- Force Reconcile Card (inside sec-coins) -->
+<div class="card" style="border-top:3px solid var(--am)">
+  <div class="card-title">🔧 Force Reconcile Stuck Coin
+    <span style="font-size:11px;font-weight:400;color:var(--gr)">Admin override for stuck PENDING_CASHOUT coins</span>
+  </div>
+  <div class="card-sub">Use when a merchant's coin shows "Sent to agent — awaiting confirmation" but agent never redeemed. Enter the full Coin ID from the merchant's vault.</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
+    <div style="flex:2;min-width:220px">
+      <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Coin ID</label>
+      <input id="recon-coin-id" type="text" placeholder="ZIL-20260624-76AFEE62-1782340"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:12px;font-family:monospace">
+    </div>
+    <div style="flex:1;min-width:140px">
+      <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Action</label>
+      <select id="recon-action" style="width:100%;padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:13px">
+        <option value="reset">↩ Reset to HELD (cancel cashout)</option>
+        <option value="redeem">✅ Force REDEEMED (confirm cashout)</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:140px" id="recon-agent-wrap">
+      <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Agent ID (if redeem)</label>
+      <input id="recon-agent-id" type="text" placeholder="AGENT-00001"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:13px">
+    </div>
+    <div style="flex:2;min-width:180px">
+      <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Reason / Note</label>
+      <input id="recon-reason" type="text" placeholder="e.g. Agent confirmed cash paid out-of-band"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:13px">
+    </div>
+    <button onclick="runForceReconcile()" style="padding:10px 20px;background:var(--am);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:flex-end">⚡ Execute</button>
+  </div>
+  <div id="recon-result" style="margin-top:12px;display:none"></div>
+</div>
+
 </div>
 
 <!-- TRANSACTIONS -->
@@ -1511,6 +1561,37 @@ async function confirmTopUp() {
         'Last coin: <code>' + data.last_coin_id + '</code><br>' +
         'New float: <strong>\u20a6' + (data.new_float_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + '</strong>' +
         '</div>';
+
+      // ── Generate cash-in QR for agent to scan ──────────────────
+      // Use claim_url from response, or build from claim_id
+      const claimUrl = data.claim_url || ('https://zillion-mvp.netlify.app/wallet/?claim=' + data.claim_id + '&type=cashin');
+      const qrArea   = document.getElementById('topup-qr-area');
+      const qrCanvas = document.getElementById('topup-qr-canvas');
+
+      if (claimUrl && typeof QRCode !== 'undefined') {
+        qrCanvas.innerHTML = ''; // clear previous
+        new QRCode(qrCanvas, {
+          text:         claimUrl,
+          width:        200,
+          height:       200,
+          colorDark:    '#0D1F1A',
+          colorLight:   '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+        document.getElementById('topup-qr-amount').textContent =
+          '\u20a6' + (amtKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2}) + ' float for ' + agentId;
+        document.getElementById('topup-qr-detail').textContent =
+          data.coin_count + ' coin' + (data.coin_count!==1?'s':'') + ' · Agent scans to confirm receipt';
+        document.getElementById('topup-qr-url').textContent = claimUrl;
+        qrArea.style.display = 'block';
+      } else if (claimUrl) {
+        // QRCode library not loaded — show link fallback
+        qrCanvas.innerHTML = '<div style="padding:12px;background:#f5f5f5;border-radius:8px;word-break:break-all;font-size:11px;font-family:monospace">' + claimUrl + '</div>';
+        document.getElementById('topup-qr-amount').textContent = 'Copy link below and send to agent';
+        document.getElementById('topup-qr-url').textContent = claimUrl;
+        qrArea.style.display = 'block';
+      }
+
       // Clear form
       document.getElementById('topup-amount').value = '';
       document.getElementById('topup-ref').value = '';
@@ -1737,6 +1818,87 @@ function admExportTableCSV(type) {
 }
 
 
+
+
+// ── Float Top-Up QR helpers ─────────────────────────────────────────────────
+function copyTopupQRUrl() {
+  const url = document.getElementById('topup-qr-url').textContent;
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(function() {
+    notify('Claim link copied to clipboard');
+  }).catch(function() {
+    prompt('Copy this link:', url);
+  });
+}
+
+function shareTopupQRWhatsApp() {
+  const url = document.getElementById('topup-qr-url').textContent;
+  if (!url) return;
+  const agentId  = document.getElementById('topup-agent').value || 'Agent';
+  const amountEl = document.getElementById('topup-qr-amount');
+  const amount   = amountEl ? amountEl.textContent : '';
+  const msg = 'Zillion Float Top-Up for ' + agentId + '\n' + amount + '\nScan or click to confirm receipt:\n' + url;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+
+// ── Force Reconcile stuck PENDING_CASHOUT coin ────────────────────────────────
+document.getElementById('recon-action') && document.getElementById('recon-action').addEventListener('change', function() {
+  const agentWrap = document.getElementById('recon-agent-wrap');
+  if (agentWrap) agentWrap.style.opacity = this.value === 'redeem' ? '1' : '0.4';
+});
+
+async function runForceReconcile() {
+  const coinId  = (document.getElementById('recon-coin-id').value  || '').trim();
+  const action  = document.getElementById('recon-action').value;
+  const agentId = (document.getElementById('recon-agent-id').value || '').trim();
+  const reason  = (document.getElementById('recon-reason').value   || '').trim();
+  const resEl   = document.getElementById('recon-result');
+
+  if (!coinId) { notify('Enter a Coin ID', true); return; }
+  if (action === 'redeem' && !agentId) { notify('Agent ID required for redeem action', true); return; }
+
+  const actionLabel = action === 'redeem' ? 'force REDEEM' : 'RESET to HELD';
+  if (!confirm('Admin override: ' + actionLabel + ' for coin:\n' + coinId + '\n\nThis is irreversible. Proceed?')) return;
+
+  showLoader('Reconciling coin...');
+  try {
+    const res  = await fetch(API + '/admin-force-reconcile', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body:    JSON.stringify({ coin_id: coinId, action, agent_id: agentId || undefined, reason }),
+    });
+    const data = await res.json();
+    hideLoader();
+
+    if (res.ok && data.success) {
+      resEl.innerHTML =
+        '<div style="background:var(--gl);border-radius:8px;padding:14px;color:var(--g)">' +
+        '<strong>✅ Reconciled!</strong><br>' +
+        data.message + '<br><br>' +
+        '<strong>Coin:</strong> ' + data.coin_id + '<br>' +
+        '<strong>Amount:</strong> ' + fmt(data.amount_kobo) + '<br>' +
+        '<strong>' + data.prev_status + '</strong> → <strong>' + data.new_status + '</strong><br>' +
+        '<div style="margin-top:10px;padding:10px;background:rgba(0,0,0,.06);border-radius:6px;font-size:12px">' +
+        '⚠️ Ask the merchant to open their app → History tab → tap the Reconcile button on this coin, ' +
+        'or clear their browser cache to refresh localStorage balance.' +
+        '</div>' +
+        '</div>';
+      resEl.style.display = 'block';
+      // Clear coin ID field
+      document.getElementById('recon-coin-id').value = '';
+      // Reload coins
+      if (typeof loadCoins === 'function') loadCoins();
+    } else {
+      resEl.innerHTML = '<div style="background:var(--rl);border-radius:8px;padding:12px;color:var(--r)">❌ ' + (data.error || 'Unknown error') + '</div>';
+      resEl.style.display = 'block';
+    }
+  } catch(e) {
+    hideLoader();
+    resEl.innerHTML = '<div style="background:var(--rl);border-radius:8px;padding:12px;color:var(--r)">❌ Network error: ' + e.message + '</div>';
+    resEl.style.display = 'block';
+  }
+}
 
 // ================================================================
 // LEDGER MODULE
