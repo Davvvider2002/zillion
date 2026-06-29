@@ -336,3 +336,8 @@
   from = "/api/v1/admin-ledger"
   to   = "/.netlify/functions/admin-ledger"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-force-reconcile"
+  to   = "/.netlify/functions/admin-force-reconcile"
+  status = 200
