@@ -331,3 +331,8 @@
   from = "/api/v1/coins/split"
   to   = "/.netlify/functions/coins-split"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-ledger"
+  to   = "/.netlify/functions/admin-ledger"
+  status = 200
