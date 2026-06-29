@@ -48,6 +48,10 @@ exports.handler = async (event) => {
     // real device key isn't transmitted in sync. A future /register endpoint
     // should update this with the actual Ed25519 public key.
     const now = new Date().toISOString();
+    // FIX: also store holder_hash (the HMAC that coins use) so admin-users
+    // can join devices ↔ coins correctly. body.holder_hash is sent by wallet
+    // on every sync call as the first coin's owner_hash.
+    const holderHash = body.holder_hash || null;
     const { error: devErr } = await db.from('devices').upsert({
       device_hash:     deviceId,
       phone_hash:      phoneHash,
@@ -55,6 +59,7 @@ exports.handler = async (event) => {
       last_sync:       now,
       registered_at:   now,
       status:          'ACTIVE',
+      ...(holderHash ? { holder_hash: holderHash } : {}),
     }, { onConflict: 'device_hash', ignoreDuplicates: false });
     if (devErr) console.warn('Device upsert warn:', devErr.message);
 
