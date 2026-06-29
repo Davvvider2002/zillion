@@ -47,7 +47,11 @@ exports.handler = async (event) => {
   }
 
   // Validate format first
-  if (!/^ZIL-\d{8}-[A-F0-9]{8}-\d{7}$/.test(coinId)) {
+  // Coin ID format: ZIL-{YYYYMMDD}-{8HEX}-{sequence}
+  // sequence = Date.now() at mint time = 13 digits (e.g. 1782341037703)
+  // Original regex \d{7} was wrong — Date.now() produces 13 digits.
+  // Fix: accept \d{7,13} to handle both legacy (7-padded) and real (13-digit) formats.
+  if (!/^ZIL-\d{8}-[A-F0-9]{8}-\d{7,13}$/.test(coinId)) {
     return {
       statusCode: 200,
       body: JSON.stringify({ coin_id: coinId, valid: false, reason: 'INVALID_FORMAT' }),
