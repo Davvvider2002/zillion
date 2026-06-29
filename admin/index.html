@@ -618,6 +618,25 @@ tr:hover td{background:var(--gl)}
 </div>
 
 
+
+<!-- Coin Lookup Card -->
+<div class="card" style="border-top:3px solid var(--bl)">
+  <div class="card-title">🔍 Coin Lookup
+    <span style="font-size:11px;font-weight:400;color:var(--gr)">Find full coin ID by partial match</span>
+  </div>
+  <div class="card-sub">The merchant vault display truncates coin IDs to 28 chars. Use this to find the full ID before reconciling.</div>
+  <div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end;flex-wrap:wrap">
+    <div style="flex:1;min-width:220px">
+      <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Partial Coin ID</label>
+      <input id="coin-lookup-input" type="text" placeholder="ZIL-20260624-76AFEE62-178234"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:12px;font-family:monospace"
+        onkeydown="if(event.key==='Enter')lookupCoin()">
+    </div>
+    <button onclick="lookupCoin()" style="padding:10px 18px;background:var(--bl);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:flex-end">🔍 Search</button>
+  </div>
+  <div id="coin-lookup-result" style="margin-top:12px;display:none"></div>
+</div>
+
 <!-- Force Reconcile Card (inside sec-coins) -->
 <div class="card" style="border-top:3px solid var(--am)">
   <div class="card-title">🔧 Force Reconcile Stuck Coin
@@ -627,7 +646,7 @@ tr:hover td{background:var(--gl)}
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
     <div style="flex:2;min-width:220px">
       <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Coin ID</label>
-      <input id="recon-coin-id" type="text" placeholder="ZIL-20260624-76AFEE62-1782340"
+      <input id="recon-coin-id" type="text" placeholder="ZIL-20260624-76AFEE62-1782340 (or partial — admin will resolve)"
         style="width:100%;padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:12px;font-family:monospace">
     </div>
     <div style="flex:1;min-width:140px">
@@ -1841,6 +1860,9 @@ function shareTopupQRWhatsApp() {
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
+
+
+// ── Coin Lookup — find full coin_id by partial prefix ────────────────────────
 
 // ── Force Reconcile stuck PENDING_CASHOUT coin ────────────────────────────────
 document.getElementById('recon-action') && document.getElementById('recon-action').addEventListener('change', function() {
