@@ -2129,7 +2129,42 @@ async function reconcilePendingCoin(coinId) {
       if (typeof refreshVaultList    === 'function') refreshVaultList();
       toast('✅ Coin confirmed redeemed — balance updated', false, 4000);
     } else if (d.status === 'HELD') {
-      toast('⏳ Coin still held — agent has not redeemed it yet. Ask agent to rescan the QR.', true, 5000);
+      // Two possible reasons coin is HELD:
+      // A) Agent hasn't redeemed yet (normal waiting state)
+      // B) Admin reset the coin back to HELD (cashout was cancelled)
+      //
+      // Distinguish by checking if THIS merchant still holds the coin
+      // in their vault as PENDING_CASHOUT. If yes → cashout was cancelled
+      // by admin and we should restore the coin to spendable HELD.
+      const coinInVault = M.vault.find(function(c) {
+        return (c.coin_id||c.id) === coinId && c._status === 'PENDING_CASHOUT';
+      });
+
+      if (coinInVault) {
+        // Admin reset this coin → restore it in merchant vault
+        const vIdx = M.vault.findIndex(function(c) { return (c.coin_id||c.id) === coinId; });
+        if (vIdx >= 0) M.vault[vIdx]._status = 'HELD';
+
+        // Remove or reverse the pending cashout history entry for this coin
+        const histIdx = M.history.findIndex(function(h) {
+          return h.type === 'cashout' && h.status === 'PENDING_SYNC' &&
+            (h.received_coin_ids||[]).includes(coinId);
+        });
+        if (histIdx >= 0) {
+          // Remove the pending cashout entry entirely (cashout was cancelled)
+          M.history.splice(histIdx, 1);
+        }
+
+        save();
+        refreshHome();
+        if (typeof refreshFullHistory === 'function') refreshFullHistory();
+        if (typeof refreshVaultList    === 'function') refreshVaultList();
+        toast('✅ Cashout cancelled — ₦' + ((coinInVault.amount||0)/100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',') + ' restored to your balance', false, 5000);
+      } else {
+        // Coin is HELD but not in our vault as PENDING_CASHOUT
+        // → Normal case: we sent a cashout QR but agent hasn't scanned yet
+        toast('⏳ Coin still held — agent has not redeemed it yet. Ask agent to rescan the QR.', true, 5000);
+      }
     } else if (d.reason === 'NOT_FOUND') {
       toast('⚠️ Coin not found on server — the issuing agent may not have synced yet. Ask agent to go online and sync.', true, 6000);
     } else if (d.reason === 'INVALID_FORMAT') {
