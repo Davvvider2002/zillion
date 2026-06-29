@@ -1037,7 +1037,7 @@ function filterUserTable() {
   const q  = document.getElementById('user-search').value.toLowerCase();
   const st = document.getElementById('user-status-filter').value;
   renderUserTable(allUsers.filter(u =>
-    (!q  || u.device_hash?.toLowerCase().includes(q) || u.phone_hash?.toLowerCase().includes(q)) &&
+    (!q  || u.device_hash?.toLowerCase().includes(q) || u.phone_hash?.toLowerCase().includes(q) || u.holder_hash?.toLowerCase().includes(q)) &&
     (!st || u.status === st)
   ));
 }
@@ -1595,6 +1595,7 @@ var _admDetailType = '';
 var _admAllData = { tx:[], user:[], merchant:[], agent:[], coin:[] };
 
 function openAdmDetail(type, idx) {
+  var extraHtml = '';
   var item = _admAllData[type] && _admAllData[type][idx];
   if (!item) return;
   _admDetailItem = item;
@@ -1617,19 +1618,29 @@ function openAdmDetail(type, idx) {
       ['Env Sig',      item.env_sig ? item.env_sig.slice(0,40)+'…' : '—'],
     ];
   } else if (type === 'user') {
+    const custId = item.holder_hash || item.device_hash || '';
     rows = [
       ['Device ID',    item.device_hash || '—'],
+      ['Coin Hash',    item.holder_hash ? item.holder_hash.slice(0,20)+'…' : '—'],
       ['Phone Hash',   item.phone_hash  || '—'],
+      ['Issued By',    item.issuer_id   || '—'],
       ['Status',       '<span class="badge ' + (item.status==='ACTIVE'?'b-ok':'b-err') + '">' + item.status + '</span>'],
       ['Registered',   fmtDate(item.registered_at)],
       ['Last Active',  relTime(item.last_activity)],
       ['Held Balance', fmt(item.held_balance_kobo)],
-      ['Total Sent',   fmt(item.total_sent_kobo)],
+      ['Coins Held',   item.held_coin_count || 0],
       ['Total Received', fmt(item.total_received_kobo)],
+      ['Total Sent',   fmt(item.total_sent_kobo)],
       ['TX Count',     item.tx_count || 0],
       ['Fraud Events', item.open_fraud || 0],
       ['KYC Tier',     item.kyc_tier || '—'],
     ];
+    // Add ledger button if we have a coin hash to look up
+    if (custId) {
+      extraHtml = '<button onclick="closeAdmDetail();ldgQuickOpen(' + JSON.stringify('customer') + ',' + JSON.stringify(custId) + ')" ' +
+        'style="margin-top:14px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;' +
+        'border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📒 View Full Ledger</button>';
+    }
   } else if (type === 'merchant') {
     rows = [
       ['Merchant ID',    item.merchant_id            || '—'],
@@ -1676,7 +1687,7 @@ function openAdmDetail(type, idx) {
         + '<td style="padding:9px 0;font-size:12px;color:#6B7280;width:130px;vertical-align:top">' + r[0] + '</td>'
         + '<td style="padding:9px 0;font-size:13px;color:#111;font-weight:500;word-break:break-all">' + r[1] + '</td>'
         + '</tr>';
-    }).join('') + '</table>';
+    }).join('') + '</table>' + (extraHtml || '');
 
   document.getElementById('adm-txd-overlay').style.display = 'block';
   document.getElementById('adm-txd-modal').style.display   = 'block';
