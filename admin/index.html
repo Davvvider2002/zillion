@@ -218,6 +218,88 @@ tr:hover td{background:var(--gl)}
 .finput{width:100%;padding:9px 12px;border:1.5px solid var(--d3);border-radius:8px;background:var(--bg);color:var(--tx);font-size:14px;font-family:inherit;box-sizing:border-box}
 .finput:focus{outline:none;border-color:var(--g)}
 .finput option{background:var(--w)}
+
+/* ── LEDGER STYLES ─────────────────────────────────────────── */
+.ldg-search-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
+.ldg-field{display:flex;flex-direction:column;gap:4px}
+.ldg-field label{font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px}
+.ldg-field input,.ldg-field select{padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;
+  font-size:13px;background:var(--w);outline:none;font-family:Arial,sans-serif;min-width:160px}
+.ldg-field input:focus,.ldg-field select:focus{border-color:var(--g)}
+.ldg-run-btn{padding:9px 20px;background:var(--g);color:var(--w);border:none;border-radius:8px;
+  font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:flex-end}
+.ldg-run-btn:hover{opacity:.9}
+.ldg-export-btn{padding:9px 16px;background:var(--w);color:var(--bl);border:1.5px solid var(--bl);
+  border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:flex-end}
+.ldg-export-btn:hover{background:var(--bl);color:var(--w)}
+
+/* Entity header card */
+.ldg-entity-card{background:linear-gradient(135deg,var(--d),var(--d2));border-radius:12px;
+  padding:18px 22px;margin-bottom:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.ldg-entity-avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0}
+.ldg-entity-avatar.customer{background:#1A3A7A}
+.ldg-entity-avatar.merchant{background:var(--pu)}
+.ldg-entity-avatar.agent{background:var(--g)}
+.ldg-entity-name{font-size:16px;font-weight:800;color:#fff}
+.ldg-entity-sub{font-size:11px;color:var(--gm);margin-top:3px}
+.ldg-entity-badge{padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;margin-top:4px;display:inline-block}
+.ldg-entity-badge.ok{background:var(--gl);color:#0A5C35}
+.ldg-entity-badge.warn{background:var(--al);color:var(--am)}
+.ldg-balance-pills{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+.ldg-pill{background:rgba(255,255,255,.08);border-radius:10px;padding:10px 16px;text-align:center}
+.ldg-pill-label{font-size:10px;color:var(--pm);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.ldg-pill-value{font-size:16px;font-weight:800;color:#fff}
+.ldg-pill-value.cr{color:#4ADE80}
+.ldg-pill-value.dr{color:#F87171}
+
+/* Summary strip */
+.ldg-summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.ldg-sum{background:var(--w);border-radius:10px;padding:14px 16px;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:3px solid var(--g)}
+.ldg-sum.dr{border-top-color:var(--r)}
+.ldg-sum.am{border-top-color:var(--am)}
+.ldg-sum.bl{border-top-color:var(--bl)}
+.ldg-sum-label{font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.ldg-sum-value{font-size:18px;font-weight:800}
+
+/* Ledger table */
+.ldg-table-wrap{overflow-x:auto;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.ldg-table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+.ldg-table thead tr{background:var(--d)}
+.ldg-table th{padding:10px 12px;text-align:left;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--gm);white-space:nowrap}
+.ldg-table th.r{text-align:right}
+.ldg-table td{padding:9px 12px;border-bottom:1px solid var(--grb);vertical-align:middle}
+.ldg-table tr:hover td{background:#F9FBF9}
+.ldg-table tr.dr-row:hover td{background:#FFF5F5}
+.ldg-table tr.cr-row:hover td{background:#F0FAF4}
+.ldg-table td.r{text-align:right;font-weight:600}
+.ldg-table td.debit{color:var(--r);text-align:right;font-weight:700}
+.ldg-table td.credit{color:var(--g);text-align:right;font-weight:700}
+.ldg-table td.balance-dr{color:var(--r);text-align:right;font-weight:700}
+.ldg-table td.balance-cr{color:var(--g);text-align:right;font-weight:700}
+.ldg-table td.balance-nil{color:var(--gr);text-align:right;font-weight:600}
+.ldg-type-badge{padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;
+  text-transform:uppercase;display:inline-block;white-space:nowrap}
+.ldg-type-rcpt{background:var(--gl);color:#0A5C35}
+.ldg-type-pay{background:var(--pul);color:var(--pu)}
+.ldg-type-cash{background:var(--al);color:var(--am)}
+.ldg-type-mint{background:var(--bll);color:var(--bl)}
+.ldg-type-issue{background:rgba(0,0,0,.06);color:var(--gr)}
+.ldg-type-redeem{background:var(--gl);color:#0A5C35}
+.ldg-table .ref-cell{font-family:monospace;font-size:10px;color:var(--gr)}
+.ldg-table .coin-cell{font-family:monospace;font-size:9px;color:var(--tx3)}
+.ldg-table .party-cell{font-size:11px;color:var(--tx2);max-width:130px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ldg-opening-row td{background:#F8F9FF;font-style:italic;color:var(--gr);font-size:11px}
+.ldg-closing-row td{background:#F0FAF4;font-weight:700;border-top:2px solid var(--g)}
+.ldg-empty{text-align:center;padding:60px 20px}
+.ldg-empty-icon{font-size:48px;margin-bottom:12px}
+.ldg-empty-title{font-size:16px;font-weight:700;color:var(--tx);margin-bottom:6px}
+.ldg-empty-sub{font-size:13px;color:var(--tx2)}
+@media(max-width:900px){.ldg-summary-strip{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -311,6 +393,7 @@ tr:hover td{background:var(--gl)}
   <button class="ntab" onclick="showSec('transactions',this)">📋 Transactions</button>
   <button class="ntab" onclick="showSec('tokens',this)">🔐 Tokens</button>
   <button class="ntab" onclick="showSec('fraud',this)">🚨 Fraud</button>
+  <button class="ntab" onclick="showSec('ledger',this);initLedger()">📒 Ledger</button>
   <button class="ntab" onclick="showSec('system',this)">⚙️ System</button>
 </div>
 
@@ -589,6 +672,56 @@ tr:hover td{background:var(--gl)}
   </div>
 </div>
 
+
+<!-- LEDGER -->
+<div id="sec-ledger" class="sec">
+  <div class="card">
+    <div class="card-title">📒 Account Ledger
+      <div style="display:flex;gap:8px">
+        <button class="ldg-export-btn" id="ldg-csv-btn" onclick="exportLedgerCSV()" style="display:none">⬇ Export CSV</button>
+        <button class="ldg-export-btn" onclick="exportLedgerPrint()">🖨 Print</button>
+      </div>
+    </div>
+    <div class="card-sub">Full double-entry style ledger — Customers, Merchants &amp; Agents. Running balance after every transaction.</div>
+
+    <!-- Search bar -->
+    <div class="ldg-search-bar">
+      <div class="ldg-field">
+        <label>Account Type</label>
+        <select id="ldg-type">
+          <option value="merchant">🛒 Merchant</option>
+          <option value="customer">👥 Customer</option>
+          <option value="agent">🏪 Agent</option>
+        </select>
+      </div>
+      <div class="ldg-field" style="flex:1;min-width:200px">
+        <label>Account ID</label>
+        <input type="text" id="ldg-id" placeholder="e.g. MERCH-21685478 or AGENT-00001" oninput="ldgAutoComplete(this.value)">
+        <div id="ldg-autocomplete" style="position:relative"></div>
+      </div>
+      <div class="ldg-field">
+        <label>From Date</label>
+        <input type="date" id="ldg-from">
+      </div>
+      <div class="ldg-field">
+        <label>To Date</label>
+        <input type="date" id="ldg-to">
+      </div>
+      <button class="ldg-run-btn" onclick="runLedger()">📒 Run Ledger</button>
+    </div>
+
+    <!-- Quick-select: pre-load merchant/agent lists -->
+    <div id="ldg-quick-select" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <span style="font-size:11px;color:var(--gr);align-self:center">Quick open:</span>
+      <div id="ldg-quick-agents" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="ldg-quick-merch"  style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+
+    <!-- Results area -->
+    <div id="ldg-results"></div>
+  </div>
+</div>
+
 <!-- FRAUD -->
 <div id="sec-fraud" class="sec">
   <div class="grid2" style="margin-bottom:16px">
@@ -806,7 +939,7 @@ function showSec(name, el) {
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('sec-' + name).classList.add('active');
-  const loaders = { customers:loadUsers, merchants:loadMerchants, agents:loadAgents, coins:loadCoins, transactions:loadTransactions, fraud:loadFraud, system:checkSystem };
+  const loaders = { customers:loadUsers, merchants:loadMerchants, agents:loadAgents, coins:loadCoins, transactions:loadTransactions, fraud:loadFraud, system:checkSystem, ledger:initLedger };
   if (loaders[name]) loaders[name]();
 }
 
@@ -1590,6 +1723,363 @@ function admExportTableCSV(type) {
   a.download = 'zillion_' + type + '_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   notify('Exporting ' + data.length + ' rows…');
+}
+
+
+
+// ================================================================
+// LEDGER MODULE
+// Full account ledger for any entity in the Zillion ecosystem
+// ================================================================
+let _ldgData      = null;   // last loaded ledger response
+let _ldgEntities  = { agents:[], merchants:[] };
+
+function initLedger() {
+  // Default date range: last 90 days
+  const today  = new Date();
+  const ago90  = new Date(today - 90 * 86400000);
+  const toStr  = today.toISOString().slice(0,10);
+  const frStr  = ago90.toISOString().slice(0,10);
+  const fromEl = document.getElementById('ldg-from');
+  const toEl   = document.getElementById('ldg-to');
+  if (fromEl && !fromEl.value) fromEl.value = frStr;
+  if (toEl   && !toEl.value)   toEl.value   = toStr;
+
+  // Populate quick-select buttons from already-loaded data
+  buildLedgerQuickSelect();
+}
+
+function buildLedgerQuickSelect() {
+  // Agents
+  const agentEl = document.getElementById('ldg-quick-agents');
+  if (agentEl && allAgentsData.length) {
+    agentEl.innerHTML = allAgentsData.map(function(a) {
+      return '<button onclick="ldgQuickOpen(\'agent\',' + JSON.stringify(a.agent_id) + ')" ' +
+        'style="padding:4px 10px;background:var(--gl);color:var(--g);border:1px solid var(--gm);' +
+        'border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:700">' +
+        '🏪 ' + a.name.split(' ')[0] + '</button>';
+    }).join('');
+  }
+  // Merchants
+  const merchEl = document.getElementById('ldg-quick-merch');
+  if (merchEl && allMerchantsData.length) {
+    merchEl.innerHTML = allMerchantsData.slice(0,8).map(function(m) {
+      return '<button onclick="ldgQuickOpen(\'merchant\',' + JSON.stringify(m.merchant_id) + ')" ' +
+        'style="padding:4px 10px;background:var(--pul);color:var(--pu);border:1px solid var(--pum);' +
+        'border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:700">' +
+        '🛒 ' + (m.business_name || m.merchant_id).slice(0,18) + '</button>';
+    }).join('');
+  }
+}
+
+function ldgQuickOpen(type, id) {
+  document.getElementById('ldg-type').value = type;
+  document.getElementById('ldg-id').value   = id;
+  runLedger();
+}
+
+function ldgAutoComplete(val) {
+  // Simple: pre-fill type based on ID prefix
+  if (!val) return;
+  if (val.toUpperCase().startsWith('MERCH'))  document.getElementById('ldg-type').value = 'merchant';
+  else if (val.toUpperCase().startsWith('AGENT')) document.getElementById('ldg-type').value = 'agent';
+  else if (val.toUpperCase().startsWith('DEVICE') || val.toUpperCase().startsWith('PWA')) document.getElementById('ldg-type').value = 'customer';
+}
+
+async function runLedger() {
+  const type   = document.getElementById('ldg-type').value;
+  const id     = document.getElementById('ldg-id').value.trim();
+  const from   = document.getElementById('ldg-from').value;
+  const to     = document.getElementById('ldg-to').value;
+  const resEl  = document.getElementById('ldg-results');
+
+  if (!id) { showNotif('Enter an Account ID first', true); return; }
+
+  resEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gr)"><div style="font-size:32px;margin-bottom:10px">⏳</div>Building ledger...</div>';
+  showLoader('Building account ledger...');
+
+  try {
+    const params = new URLSearchParams({ entity_type:type, entity_id:id });
+    if (from) params.set('from_date', from);
+    if (to)   params.set('to_date',   to);
+
+    const res  = await fetch(API + '/admin-ledger?' + params, {
+      headers: { 'Authorization': 'Bearer ' + adminToken }
+    });
+    const data = await res.json();
+    hideLoader();
+
+    if (!res.ok) {
+      resEl.innerHTML = '<div class="ldg-empty"><div class="ldg-empty-icon">❌</div>' +
+        '<div class="ldg-empty-title">Error</div>' +
+        '<div class="ldg-empty-sub">' + (data.error || 'Unknown error') + '</div></div>';
+      return;
+    }
+    _ldgData = data;
+    document.getElementById('ldg-csv-btn').style.display = '';
+    renderLedger(data);
+  } catch(e) {
+    hideLoader();
+    resEl.innerHTML = '<div class="ldg-empty"><div class="ldg-empty-icon">⚠️</div>' +
+      '<div class="ldg-empty-title">Network Error</div>' +
+      '<div class="ldg-empty-sub">' + e.message + '</div></div>';
+  }
+}
+
+function renderLedger(data) {
+  const resEl  = document.getElementById('ldg-results');
+  const e      = data.entity || {};
+  const period = data.period || {};
+  const summ   = data.summary || {};
+  const entries= data.ledger_entries || [];
+
+  const typeIcon  = { Customer:'👥', Merchant:'🛒', Agent:'🏪' }[e.type] || '📋';
+  const avatarCls = { Customer:'customer', Merchant:'merchant', Agent:'agent' }[e.type] || 'customer';
+  const ini       = (e.name||'ZL').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+
+  // ── Entity header card ────────────────────────────────────────
+  const openFmt  = fmtLedger(Math.abs(data.opening_balance_kobo||0)) + (data.opening_balance_kobo < 0 ? ' Dr' : data.opening_balance_kobo > 0 ? ' Cr' : '');
+  const closeFmt = fmtLedger(Math.abs(data.closing_balance_kobo||0)) + (data.closing_balance_kobo < 0 ? ' Dr' : data.closing_balance_kobo > 0 ? ' Cr' : '');
+
+  // Extra info rows
+  const extra = e.extra || {};
+  const extraRows = Object.entries(extra).map(function(kv) {
+    return '<span style="font-size:11px;color:var(--gm)">' + kv[0].replace(/_/g,' ') + ': <b>' + kv[1] + '</b></span>';
+  }).join(' &nbsp;|&nbsp; ');
+
+  let html = '<div class="ldg-entity-card">' +
+    '<div class="ldg-entity-avatar ' + avatarCls + '">' + ini + '</div>' +
+    '<div>' +
+      '<div class="ldg-entity-name">' + (e.name||e.id) + '</div>' +
+      '<div class="ldg-entity-sub">' + e.type + ' &nbsp;·&nbsp; ' + e.id + '</div>' +
+      (extraRows ? '<div class="ldg-entity-sub" style="margin-top:4px">' + extraRows + '</div>' : '') +
+      '<span class="ldg-entity-badge ' + (e.status==='ACTIVE'?'ok':'warn') + '">' + (e.status||'ACTIVE') + '</span>' +
+    '</div>' +
+    '<div class="ldg-balance-pills">' +
+      '<div class="ldg-pill"><div class="ldg-pill-label">Opening Bal.</div><div class="ldg-pill-value">' + openFmt + '</div></div>' +
+      '<div class="ldg-pill"><div class="ldg-pill-label">Period</div><div class="ldg-pill-value" style="font-size:12px">' + period.from + ' → ' + period.to + '</div></div>' +
+      '<div class="ldg-pill"><div class="ldg-pill-label">Closing Bal.</div><div class="ldg-pill-value cr">' + closeFmt + '</div></div>' +
+    '</div>' +
+  '</div>';
+
+  // ── Summary strip ──────────────────────────────────────────────
+  html += '<div class="ldg-summary-strip">' +
+    '<div class="ldg-sum"><div class="ldg-sum-label">Total Received (Cr)</div><div class="ldg-sum-value" style="color:var(--g)">' + fmtLedger(summ.total_credit_kobo||0) + '</div></div>' +
+    '<div class="ldg-sum dr"><div class="ldg-sum-label">Total Paid Out (Dr)</div><div class="ldg-sum-value" style="color:var(--r)">' + fmtLedger(summ.total_debit_kobo||0) + '</div></div>' +
+    '<div class="ldg-sum am"><div class="ldg-sum-label">Net Movement</div><div class="ldg-sum-value" style="color:' + (summ.net_kobo>=0?'var(--g)':'var(--r)') + '">' + fmtLedger(Math.abs(summ.net_kobo||0)) + (summ.net_kobo<0?' Dr':' Cr') + '</div></div>' +
+    '<div class="ldg-sum bl"><div class="ldg-sum-label">Transactions</div><div class="ldg-sum-value" style="color:var(--bl)">' + (summ.entry_count||0) + '</div></div>' +
+  '</div>';
+
+  // ── Ledger table ───────────────────────────────────────────────
+  html += '<div class="ldg-table-wrap"><table class="ldg-table">' +
+    '<thead><tr>' +
+      '<th>Date</th>' +
+      '<th>Type</th>' +
+      '<th>Reference</th>' +
+      '<th>Narration</th>' +
+      '<th>Counterparty</th>' +
+      '<th class="r">Debit (₦)</th>' +
+      '<th class="r">Credit (₦)</th>' +
+      '<th class="r">Balance (₦)</th>' +
+      '<th>Status</th>' +
+      '<th>Coin ID</th>' +
+    '</tr></thead>' +
+    '<tbody>';
+
+  // Opening balance row
+  html += '<tr class="ldg-opening-row">' +
+    '<td>' + period.from + '</td>' +
+    '<td colspan="5" style="font-style:italic;color:var(--gr)">Opening Balance</td>' +
+    '<td></td>' +
+    '<td class="' + (data.opening_balance_kobo>=0?'balance-cr':'balance-dr') + '">' +
+      fmtLedger(Math.abs(data.opening_balance_kobo||0)) +
+      (data.opening_balance_kobo < 0 ? ' Dr' : data.opening_balance_kobo > 0 ? ' Cr' : '') +
+    '</td>' +
+    '<td></td><td></td>' +
+  '</tr>';
+
+  if (!entries.length) {
+    html += '<tr><td colspan="10" class="no-data" style="padding:40px;text-align:center">No transactions in this period</td></tr>';
+  } else {
+    entries.forEach(function(en) {
+      const isDebit  = en.debit_kobo  > 0;
+      const isCr     = en.credit_kobo > 0;
+      const bal      = en.balance_kobo || 0;
+      const balClass = bal < 0 ? 'balance-dr' : bal > 0 ? 'balance-cr' : 'balance-nil';
+      const balSuffix= bal < 0 ? ' Dr' : bal > 0 ? ' Cr' : '';
+      const rowCls   = isDebit ? 'dr-row' : 'cr-row';
+
+      const typeClass = {
+        'Receipt':'ldg-type-rcpt','Payment':'ldg-type-pay','Cashout':'ldg-type-cash',
+        'Mint':'ldg-type-mint','Issue':'ldg-type-issue','Redeem':'ldg-type-redeem',
+        'Transfer':'ldg-type-pay'
+      }[en.type] || 'ldg-type-issue';
+
+      const party = (en.counterparty||'—').replace(/^MERCHANT-/,'').replace(/^MERCH-/,'M-').slice(0,22);
+      const coinShort = en.coin_id ? en.coin_id.slice(4,20) + '…' : '—';
+
+      html += '<tr class="' + rowCls + '">' +
+        '<td style="white-space:nowrap;font-size:12px">' + fmtDateShort(en.date) + '</td>' +
+        '<td><span class="ldg-type-badge ' + typeClass + '">' + (en.type||'—') + '</span></td>' +
+        '<td class="ref-cell">' + (en.ref||'—').slice(0,18) + '</td>' +
+        '<td style="font-size:12px">' + (en.narration||'—') + '</td>' +
+        '<td class="party-cell" title="' + (en.counterparty||'') + '">' + party + '</td>' +
+        '<td class="debit">'  + (isDebit ? fmtLedger(en.debit_kobo)  : '—') + '</td>' +
+        '<td class="credit">' + (isCr    ? fmtLedger(en.credit_kobo) : '—') + '</td>' +
+        '<td class="' + balClass + '">' + fmtLedger(Math.abs(bal)) + balSuffix + '</td>' +
+        '<td><span class="badge ' + (en.status==='SETTLED'?'b-ok':en.status==='CONFLICT'?'b-err':'b-warn') + '">' + (en.status||'—') + '</span></td>' +
+        '<td class="coin-cell" title="' + (en.coin_id||'') + '">' + coinShort + '</td>' +
+      '</tr>';
+    });
+  }
+
+  // Closing balance row
+  html += '<tr class="ldg-closing-row">' +
+    '<td>' + period.to + '</td>' +
+    '<td colspan="5" style="font-weight:700">Closing Balance</td>' +
+    '<td></td>' +
+    '<td class="' + (data.closing_balance_kobo>=0?'balance-cr':'balance-dr') + '">' +
+      fmtLedger(Math.abs(data.closing_balance_kobo||0)) +
+      (data.closing_balance_kobo < 0 ? ' Dr' : data.closing_balance_kobo > 0 ? ' Cr' : '') +
+    '</td>' +
+    '<td></td><td></td>' +
+  '</tr>';
+
+  html += '</tbody></table></div>';
+  document.getElementById('ldg-results').innerHTML = html;
+}
+
+// ── Ledger export functions ────────────────────────────────────────────────
+function exportLedgerCSV() {
+  if (!_ldgData) return;
+  const e       = _ldgData.entity || {};
+  const period  = _ldgData.period || {};
+  const entries = _ldgData.ledger_entries || [];
+  const summ    = _ldgData.summary || {};
+
+  const rows = [
+    ['ZILLION — ACCOUNT LEDGER'],
+    ['Account:', e.name || e.id],
+    ['Type:', e.type],
+    ['ID:', e.id],
+    ['Period:', period.from + ' to ' + period.to],
+    ['Opening Balance (₦):', (_ldgData.opening_balance_kobo||0)/100],
+    ['Closing Balance (₦):', (_ldgData.closing_balance_kobo||0)/100],
+    ['Generated:', new Date().toLocaleString('en-NG')],
+    [],
+    ['Date','Type','Reference','Narration','Counterparty','Debit (₦)','Credit (₦)','Balance (₦)','Balance Dir','Status','Coin ID'],
+    ['',    '',    '',         'Opening Balance','','','',
+      (Math.abs(_ldgData.opening_balance_kobo||0)/100).toFixed(2),
+      _ldgData.opening_balance_kobo < 0 ? 'Dr' : 'Cr','',''],
+  ];
+
+  entries.forEach(function(en) {
+    const bal = en.balance_kobo || 0;
+    rows.push([
+      en.date || '',
+      en.type || '',
+      en.ref  || '',
+      en.narration || '',
+      en.counterparty || '',
+      en.debit_kobo  > 0 ? (en.debit_kobo /100).toFixed(2) : '',
+      en.credit_kobo > 0 ? (en.credit_kobo/100).toFixed(2) : '',
+      (Math.abs(bal)/100).toFixed(2),
+      bal < 0 ? 'Dr' : bal > 0 ? 'Cr' : 'Nil',
+      en.status || '',
+      en.coin_id || '',
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['', '', '', 'TOTALS',
+    '', (summ.total_debit_kobo||0)/100, (summ.total_credit_kobo||0)/100,
+    (Math.abs(_ldgData.closing_balance_kobo||0)/100).toFixed(2),
+    _ldgData.closing_balance_kobo < 0 ? 'Dr' : 'Cr', '', ''
+  ]);
+
+  const name = (e.name||e.id||'ledger').replace(/[^a-z0-9]/gi,'_');
+  downloadCSV(rows, 'zillion_ledger_' + name + '_' + period.from + '_to_' + period.to + '.csv');
+  showNotif('Ledger exported as CSV');
+}
+
+function exportLedgerPrint() {
+  if (!_ldgData) { showNotif('Run a ledger first', true); return; }
+  const printWin = window.open('', '_blank', 'width=1000,height=800');
+  const e        = _ldgData.entity || {};
+  const period   = _ldgData.period || {};
+  const entries  = _ldgData.ledger_entries || [];
+  const summ     = _ldgData.summary || {};
+
+  const rows = entries.map(function(en) {
+    const bal     = en.balance_kobo || 0;
+    const balStr  = fmtLedger(Math.abs(bal)) + (bal < 0 ? ' Dr' : bal > 0 ? ' Cr' : '');
+    return '<tr>' +
+      '<td>' + fmtDateShort(en.date) + '</td>' +
+      '<td>' + (en.type||'') + '</td>' +
+      '<td style="font-family:monospace;font-size:10px">' + (en.ref||'').slice(0,18) + '</td>' +
+      '<td>' + (en.narration||'') + '</td>' +
+      '<td style="font-size:10px">' + (en.counterparty||'').slice(0,22) + '</td>' +
+      '<td style="text-align:right;color:#c00">' + (en.debit_kobo >0 ? fmtLedger(en.debit_kobo)  : '') + '</td>' +
+      '<td style="text-align:right;color:#060">' + (en.credit_kobo>0 ? fmtLedger(en.credit_kobo) : '') + '</td>' +
+      '<td style="text-align:right;font-weight:700;color:' + (bal<0?'#c00':bal>0?'#060':'#666') + '">' + balStr + '</td>' +
+      '<td>' + (en.status||'') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  printWin.document.write('<!DOCTYPE html><html><head><title>Zillion Ledger — ' + (e.name||e.id) + '</title>' +
+    '<style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}' +
+    'h1{font-size:18px;margin-bottom:2px}h2{font-size:13px;color:#555;font-weight:400;margin-bottom:16px}' +
+    '.meta{display:flex;gap:40px;margin-bottom:20px;background:#f5f5f5;padding:12px;border-radius:6px}' +
+    '.meta-item .label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px}' +
+    '.meta-item .value{font-size:14px;font-weight:700;margin-top:2px}' +
+    'table{width:100%;border-collapse:collapse;font-size:11px}' +
+    'th{background:#1A2A1A;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase}' +
+    'th.r{text-align:right}td{padding:7px 10px;border-bottom:1px solid #e8e8e8}' +
+    'tr.open-row td,tr.close-row td{background:#f0f5f0;font-weight:700}' +
+    '.summary{margin-top:20px;display:flex;gap:20px}' +
+    '.sum-box{background:#f5f5f5;padding:12px 16px;border-radius:6px;border-top:3px solid #1A7A4A}' +
+    '.sum-box.dr{border-top-color:#c00}.sum-box label{font-size:10px;color:#888;display:block;text-transform:uppercase}' +
+    '.sum-box .val{font-size:16px;font-weight:700;margin-top:3px}@media print{@page{size:A4 landscape}}' +
+    '</style></head><body>' +
+    '<h1>ZILLION — Account Ledger</h1>' +
+    '<h2>' + e.type + ': ' + (e.name||e.id) + ' &nbsp;|&nbsp; ' + e.id + '</h2>' +
+    '<div class="meta">' +
+      '<div class="meta-item"><div class="label">Period</div><div class="value">' + period.from + ' → ' + period.to + '</div></div>' +
+      '<div class="meta-item"><div class="label">Opening Balance</div><div class="value">' + fmtLedger(Math.abs(_ldgData.opening_balance_kobo||0)) + (_ldgData.opening_balance_kobo<0?' Dr':' Cr') + '</div></div>' +
+      '<div class="meta-item"><div class="label">Closing Balance</div><div class="value">' + fmtLedger(Math.abs(_ldgData.closing_balance_kobo||0)) + (_ldgData.closing_balance_kobo<0?' Dr':' Cr') + '</div></div>' +
+      '<div class="meta-item"><div class="label">Generated</div><div class="value">' + new Date().toLocaleString('en-NG') + '</div></div>' +
+    '</div>' +
+    '<table><thead><tr>' +
+      '<th>Date</th><th>Type</th><th>Reference</th><th>Narration</th><th>Counterparty</th>' +
+      '<th class="r">Debit (₦)</th><th class="r">Credit (₦)</th><th class="r">Balance (₦)</th><th>Status</th>' +
+    '</tr></thead><tbody>' +
+    '<tr class="open-row"><td>' + period.from + '</td><td colspan="6">Opening Balance</td>' +
+    '<td style="text-align:right">' + fmtLedger(Math.abs(_ldgData.opening_balance_kobo||0)) + (_ldgData.opening_balance_kobo<0?' Dr':' Cr') + '</td><td></td></tr>' +
+    rows +
+    '<tr class="close-row"><td>' + period.to + '</td><td colspan="6"><b>Closing Balance</b></td>' +
+    '<td style="text-align:right"><b>' + fmtLedger(Math.abs(_ldgData.closing_balance_kobo||0)) + (_ldgData.closing_balance_kobo<0?' Dr':' Cr') + '</b></td><td></td></tr>' +
+    '</tbody></table>' +
+    '<div class="summary">' +
+      '<div class="sum-box"><label>Total Received (Credit)</label><div class="val" style="color:#1A7A4A">' + fmtLedger(summ.total_credit_kobo||0) + '</div></div>' +
+      '<div class="sum-box dr"><label>Total Paid Out (Debit)</label><div class="val" style="color:#c00">' + fmtLedger(summ.total_debit_kobo||0) + '</div></div>' +
+      '<div class="sum-box"><label>Net Movement</label><div class="val">' + fmtLedger(Math.abs(summ.net_kobo||0)) + (summ.net_kobo<0?' Dr':' Cr') + '</div></div>' +
+      '<div class="sum-box"><label>Entries</label><div class="val">' + (summ.entry_count||0) + '</div></div>' +
+    '</div>' +
+    '</body></html>');
+  printWin.document.close();
+  setTimeout(function(){ printWin.print(); }, 400);
+}
+
+// ── Ledger helpers ────────────────────────────────────────────────────────────
+function fmtLedger(kobo) {
+  return (kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtDateShort(iso) {
+  if (!iso) return '—';
+  return iso.slice(0,10);
+}
+function showNotif(msg, isErr) {
+  notify(msg, isErr);
 }
 
 </script>
