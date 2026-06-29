@@ -97,15 +97,43 @@ exports.handler = async (event) => {
         },
       };
     } else {
-      const { data } = await db.from('devices').select('*')
-        .eq('device_hash', entityId).single();
-      if (!data) return fail(404, `Customer '${entityId}' not found`);
+      // Customer coins use holder_hash = 64-char HMAC (not device_hash).
+      // Accept either device_hash ('DEVICE-XXXXXXXX') or the raw HMAC.
+      let devData = null;
+      let resolvedHolderHash = entityId;
+
+      if (entityId.startsWith('DEVICE-') || entityId.startsWith('PWA-')) {
+        const { data: byDevice } = await db.from('devices').select('*')
+          .eq('device_hash', entityId).maybeSingle();
+        devData = byDevice;
+        if (devData?.holder_hash) resolvedHolderHash = devData.holder_hash;
+      } else {
+        // Treat as raw holder_hash — look up matching device record if any
+        const { data: byHolder } = await db.from('devices').select('*')
+          .eq('holder_hash', entityId).maybeSingle();
+        devData = byHolder;
+        resolvedHolderHash = entityId;
+      }
+
+      // Confirm coins exist for this holder_hash
+      if (!devData) {
+        const { data: probe } = await db.from('coins')
+          .select('coin_id').eq('holder_hash', resolvedHolderHash).limit(1);
+        if (!probe || probe.length === 0)
+          return fail(404, `Customer '${entityId}' not found`);
+      }
+
       entity = {
-        id: data.device_hash,
-        name: data.phone_hash ? `PWA-${data.phone_hash.slice(0,10)}` : entityId,
-        type: 'Customer', status: data.status || 'ACTIVE',
-        joined: data.registered_at,
-        extra: { phone_hash: data.phone_hash || '—' },
+        id:     devData?.device_hash || entityId,
+        name:   devData?.phone_hash ? `PWA-${devData.phone_hash.slice(0,10)}` : `Wallet-${resolvedHolderHash.slice(0,12)}`,
+        type:   'Customer', status: devData?.status || 'ACTIVE',
+        joined: devData?.registered_at || null,
+        extra:  {
+          phone_hash:  devData?.phone_hash || '—',
+          holder_hash: resolvedHolderHash.slice(0,16) + '…',
+          device_hash: devData?.device_hash || '—',
+        },
+        _holderHash: resolvedHolderHash,
       };
     }
 
@@ -117,7 +145,9 @@ exports.handler = async (event) => {
     } else if (entityType === 'agent') {
       await buildAgentEntries(db, entityId, allEntries);
     } else {
-      await buildCustomerEntries(db, entityId, allEntries);
+      // Use resolved HMAC holder_hash for coin queries, not raw device_hash
+      const customerHash = entity._holderHash || entityId;
+      await buildCustomerEntries(db, customerHash, allEntries);
     }
 
     // ── 3. Sort ALL entries chronologically ───────────────────────
