@@ -133,7 +133,44 @@ exports.handler = async (event) => {
       console.warn('Audit trail write failed (non-fatal):', auditErr.message);
     }
 
-    // ── 7. Return success ─────────────────────────────────────
+    // ── 7. Create claim bundle so admin can show a QR for agent ─
+    // Agent scans QR → wallet opens → agent confirms receipt of float
+    let claim_id  = null;
+    let claim_url = null;
+    try {
+      const claimRecord = {
+        bundle_data: {
+          type:          'float_topup',
+          agent_id,
+          amount_kobo,
+          coin_count:    coins.length,
+          denomination_kobo,
+          coin_ids:      coins.map(c => c.coin_id),
+          deposit_ref:   deposit_ref || '',
+          minted_at:     new Date().toISOString(),
+        },
+        agent_id,
+        amount_kobo,
+        coin_count:  coins.length,
+        status:      'PENDING',
+        expires_at:  new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+      };
+      const { data: claimData, error: claimErr } = await db
+        .from('claim_bundles')
+        .insert(claimRecord)
+        .select('claim_id')
+        .single();
+      if (!claimErr && claimData) {
+        claim_id  = claimData.claim_id;
+        const base = process.env.BASE_URL || 'https://zillion-mvp.netlify.app';
+        claim_url = `${base}/agent/?claim=${claim_id}&type=float_topup`;
+      }
+    } catch(claimErr) {
+      // Non-fatal — float was credited, just no QR
+      console.warn('Claim bundle creation failed (non-fatal):', claimErr.message);
+    }
+
+    // ── 8. Return success ─────────────────────────────────────
     return ok({
       success:        true,
       agent_id,
@@ -145,6 +182,9 @@ exports.handler = async (event) => {
       first_coin_id:  coins[0].coin_id,
       last_coin_id:   coins[coins.length - 1].coin_id,
       minted_at:      new Date().toISOString(),
+      // QR data — admin uses this to show a scannable QR to the agent
+      claim_id,
+      claim_url,
     });
 
   } catch(unexpectedErr) {
