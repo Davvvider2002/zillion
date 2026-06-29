@@ -55,13 +55,35 @@ exports.handler = async (event) => {
     const now  = new Date().toISOString();
 
     // ── 1. Fetch the coin ─────────────────────────────────────
-    const { data: coin, error: fetchErr } = await db
-      .from('coins')
-      .select('*')
-      .eq('coin_id', coin_id)
-      .single();
+    // Support exact match OR prefix search (display truncates coin_id to 28 chars)
+    // Try exact match first, then LIKE prefix if not found
+    let coin = null;
+    let fetchErr = null;
 
-    if (fetchErr || !coin) return fail(404, `Coin '${coin_id}' not found`);
+    const exactResult = await db.from('coins').select('*')
+      .eq('coin_id', coin_id).maybeSingle();
+    fetchErr = exactResult.error;
+    coin     = exactResult.data;
+
+    if (!coin && !fetchErr) {
+      // Try prefix LIKE search — handles truncated coin_ids from vault display
+      // e.g. 'ZIL-20260624-76AFEE62-178234' matches 'ZIL-20260624-76AFEE62-1782340'
+      const likeResult = await db.from('coins').select('*')
+        .like('coin_id', coin_id.replace(/%/g, '') + '%')
+        .limit(5);
+      if (likeResult.data && likeResult.data.length === 1) {
+        coin = likeResult.data[0];
+        console.log('[force-reconcile] Found coin by prefix:', coin.coin_id);
+      } else if (likeResult.data && likeResult.data.length > 1) {
+        // Multiple matches — return them so admin can pick the right one
+        return fail(409, `Multiple coins match prefix '${coin_id}'. Please use the full coin ID. Matches: ` +
+          likeResult.data.map(c => c.coin_id).join(', '));
+      }
+    }
+
+    if (!coin) return fail(404, `Coin '${coin_id}' not found. ` +
+      `Check the full coin ID in Admin → Coins tab. ` +
+      `The vault display truncates to 28 chars — the full ID may have one more digit.`);
 
     const prevStatus     = coin.status;
     const prevHolderHash = coin.holder_hash;
