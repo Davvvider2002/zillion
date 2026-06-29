@@ -4,13 +4,21 @@
  * Returns all registered merchants with LIVE balances computed
  * directly from the coins table — the single source of truth.
  *
- * Balance formula (from coins table):
- *   zil_balance_kobo   = SUM(amount) WHERE holder_hash LIKE 'MERCH-%' AND status='HELD'
- *   total_received_kobo = SUM(amount) WHERE holder_hash LIKE 'MERCH-%' (all statuses)
- *   total_cashed_out   = SUM(amount) WHERE originally held by merchant, now REDEEMED/SPENT
+ * Balance formula (from coins + transactions tables):
  *
- * This replaces the stale merchants.zil_balance_kobo column
- * which was never reliably updated.
+ *   total_received_kobo  = SUM(amount) of ALL coins ever held by merchant (any status)
+ *   zil_balance_kobo     = SUM(amount) WHERE status='HELD' AND not expired
+ *                          MINUS any coins currently PENDING_CASHOUT (in-flight to agent)
+ *   total_cashed_out     = SUM(amount) WHERE status='REDEEMED' or 'SPENT'
+ *
+ * FIX (v2): Adds pending cashout detection via transactions table.
+ * When a merchant generates a cashout QR and the agent hasn't redeemed yet,
+ * coins are STILL 'HELD' in Supabase — making the admin balance appear higher
+ * than the merchant's local available balance.
+ *
+ * We detect this by checking the transactions table for cashout-type records
+ * (to_hash starts with AGENT-) where the coin is still HELD. These represent
+ * in-flight cashouts that should be subtracted from the displayed balance.
  */
 'use strict';
 
@@ -39,8 +47,8 @@ exports.handler = async (event) => {
 
     // ── 2. Get ALL coins ever held by any merchant ────────────────
     // Merchant holder_hash variants:
-    //   'MERCH-21685478'          ← compact form
-    //   'MERCHANT-MERCH-21685478' ← sync.js may write this
+    //   'MERCH-21685478'          ← compact form (from merchant sync)
+    //   'MERCHANT-MERCH-21685478' ← sync.js device_id prefix form
     // We grab both with LIKE 'MERCH%'
     const { data: allCoins } = await db
       .from('coins')
@@ -50,15 +58,43 @@ exports.handler = async (event) => {
     // ── 3. Get all transactions TO merchant addresses ─────────────
     const { data: allTxns } = await db
       .from('transactions')
-      .select('to_hash, from_hash, amount, status, tx_ts')
+      .select('to_hash, from_hash, coin_id, amount, status, tx_ts')
       .or('to_hash.like.MERCH-%,to_hash.like.MERCHANT-MERCH-%')
       .order('tx_ts', { ascending: false });
 
-    // ── 4. Build lookup maps ──────────────────────────────────────
-    // Normalise merchant ID: strip 'MERCHANT-' prefix if present
-    const normHolder = (h) => (h || '').replace(/^MERCHANT-/, '');
+    // ── 4. FIX: Get in-flight cashout transactions ─────────────────
+    // These are transactions FROM merchant TO an agent where the coin
+    // is still HELD (agent hasn't called /redeem yet). This is the
+    // "pending cashout" state — merchant has committed to paying the
+    // agent but Supabase still shows the coins as HELD.
+    //
+    // Detection: find transactions where from_hash is a merchant
+    // AND to_hash is an agent AND coin status is still HELD.
+    const { data: cashoutTxns } = await db
+      .from('transactions')
+      .select('from_hash, to_hash, coin_id, amount, status, tx_ts')
+      .or('from_hash.like.MERCH-%,from_hash.like.MERCHANT-MERCH-%')
+      .like('to_hash', 'AGENT-%')
+      .eq('status', 'SETTLED');
 
-    // Group coins by normalised merchant_id
+    // Build set of coin_ids in pending cashout per merchant
+    const pendingCashoutByMerchant = {};
+    const allCoinMap = {};
+    (allCoins || []).forEach(c => { allCoinMap[c.coin_id] = c; });
+
+    (cashoutTxns || []).forEach(tx => {
+      const mid  = normHolder(tx.from_hash);
+      const coin = allCoinMap[tx.coin_id];
+      // Only count as pending cashout if coin is still HELD (not yet REDEEMED)
+      if (coin && coin.status === 'HELD') {
+        if (!pendingCashoutByMerchant[mid]) pendingCashoutByMerchant[mid] = 0;
+        pendingCashoutByMerchant[mid] += (coin.amount || 0);
+      }
+    });
+
+    // ── 5. Build lookup maps ──────────────────────────────────────
+    // Normalise merchant ID: strip 'MERCHANT-' prefix if present
+    // so 'MERCHANT-MERCH-21685478' → 'MERCH-21685478'
     const coinsByMerchant = {};
     (allCoins || []).forEach(c => {
       const mid = normHolder(c.holder_hash);
@@ -66,7 +102,6 @@ exports.handler = async (event) => {
       coinsByMerchant[mid].push(c);
     });
 
-    // Group txns by normalised to_hash (merchant received)
     const txnsByMerchant = {};
     (allTxns || []).forEach(t => {
       const mid = normHolder(t.to_hash);
@@ -74,20 +109,29 @@ exports.handler = async (event) => {
       txnsByMerchant[mid].push(t);
     });
 
-    // ── 5. Enrich each merchant with live figures ─────────────────
+    // ── 6. Enrich each merchant with live figures ─────────────────
+    const now = new Date();
     const enriched = (merchants || []).map(m => {
       const mid   = m.merchant_id;  // e.g. 'MERCH-21685478'
       const coins = coinsByMerchant[mid] || [];
       const txns  = txnsByMerchant[mid]  || [];
 
-      // HELD coins = available balance right now
-      const heldCoins    = coins.filter(c => c.status === 'HELD' && new Date(c.expires_at) > new Date());
-      const heldBalance  = heldCoins.reduce((s, c) => s + (c.amount || 0), 0);
+      // HELD coins = still in merchant's Supabase wallet
+      const heldCoins   = coins.filter(c => c.status === 'HELD' && new Date(c.expires_at) > now);
+      const heldBalance = heldCoins.reduce((s, c) => s + (c.amount || 0), 0);
 
-      // All coins ever received = total business volume
+      // Pending cashout = HELD coins already sent to agent in cashout QR
+      // but agent hasn't called /redeem yet. Subtract from available balance.
+      const pendingCashout = pendingCashoutByMerchant[mid] || 0;
+
+      // Available = what merchant can actually spend right now
+      const availableBalance = Math.max(0, heldBalance - pendingCashout);
+
+      // All coins ever received = total business volume (gross, all statuses)
       const totalReceived = coins.reduce((s, c) => s + (c.amount || 0), 0);
 
-      // Cashed out = coins that were once HELD by merchant but are now REDEEMED/SPENT
+      // Cashed out = coins that were once HELD by merchant, now REDEEMED/SPENT
+      // (agent completed the redemption via /redeem)
       const cashedOut = coins
         .filter(c => c.status === 'REDEEMED' || c.status === 'SPENT')
         .reduce((s, c) => s + (c.amount || 0), 0);
@@ -112,19 +156,22 @@ exports.handler = async (event) => {
         notes:          m.notes,
 
         // LIVE figures from coins table (source of truth)
-        zil_balance_kobo:     heldBalance,
-        total_received_kobo:  totalReceived,
-        total_cashed_out_kobo: cashedOut,
-        total_payments:       paymentCount,
-        last_payment_at:      lastPaymentAt,
-        held_coin_count:      heldCoins.length,
+        // zil_balance_kobo = available balance (held minus pending cashout)
+        zil_balance_kobo:          availableBalance,
+        held_balance_kobo:         heldBalance,           // gross held (before pending cashout)
+        pending_cashout_kobo:      pendingCashout,        // in-flight to agent, not yet redeemed
+        total_received_kobo:       totalReceived,
+        total_cashed_out_kobo:     cashedOut,
+        total_payments:            paymentCount,
+        last_payment_at:           lastPaymentAt,
+        held_coin_count:           heldCoins.length,
       };
     });
 
-    // ── 6. Platform totals ─────────────────────────────────────────
-    const totalHeld     = enriched.reduce((s, m) => s + m.zil_balance_kobo, 0);
-    const totalVolume   = enriched.reduce((s, m) => s + m.total_received_kobo, 0);
-    const totalCashedOut= enriched.reduce((s, m) => s + m.total_cashed_out_kobo, 0);
+    // ── 7. Platform totals ─────────────────────────────────────────
+    const totalHeld      = enriched.reduce((s, m) => s + m.zil_balance_kobo, 0);
+    const totalVolume    = enriched.reduce((s, m) => s + m.total_received_kobo, 0);
+    const totalCashedOut = enriched.reduce((s, m) => s + m.total_cashed_out_kobo, 0);
 
     return {
       statusCode: 200,
@@ -139,7 +186,7 @@ exports.handler = async (event) => {
           total_volume_kobo:           totalVolume,
           total_cashed_out_kobo:       totalCashedOut,
         },
-        balance_source: 'coins_table_live',  // not merchants.zil_balance_kobo
+        balance_source: 'coins_table_live_v2',  // not merchants.zil_balance_kobo
         generated_at:   new Date().toISOString(),
       }),
     };
@@ -155,3 +202,10 @@ exports.handler = async (event) => {
     };
   }
 };
+
+// Normalise merchant ID: strip 'MERCHANT-' prefix if present
+// 'MERCHANT-MERCH-21685478' → 'MERCH-21685478'
+// 'MERCH-21685478'          → 'MERCH-21685478'
+function normHolder(h) {
+  return (h || '').replace(/^MERCHANT-/, '');
+}

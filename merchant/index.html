@@ -1534,6 +1534,18 @@ async function merchantSync() {
       M.history.forEach(function(h) {
         if (h.status === 'PENDING_SYNC') h.status = 'SETTLED';
       });
+      // Also ensure all cashout entries that have no vault coin remaining are SETTLED
+      var pendingCashoutIds = new Set((M.vault||[])
+        .filter(function(c){ return c._status === 'PENDING_CASHOUT'; })
+        .map(function(c){ return c.coin_id || c.id; }));
+      M.history.forEach(function(h) {
+        if (h.type === 'cashout') {
+          var coinIds = h.received_coin_ids || [];
+          // If none of this cashout's coins are still in PENDING_CASHOUT vault, mark settled
+          var stillPending = coinIds.some(function(id){ return pendingCashoutIds.has(id); });
+          if (!stillPending) h.status = 'SETTLED';
+        }
+      });
       // Update coin owner_hash and remove redeemed cashout coins
       const merchantHolder = 'MERCHANT-' + M.merchant_id;
       const settledIds = new Set(data.settled_coin_ids || data.confirmed_sent || []);
@@ -1950,9 +1962,9 @@ function refreshVaultList() {
            status === 'PENDING_SYNC' ? '⟳ Syncing' :
            status === 'PENDING_CASHOUT' ? '⟳ Pending' : status) +
         '</div>' +
-        (isPendingCO ? '<button onclick="reconcilePendingCoin(' + JSON.stringify(coinId) + ')" ' +
+        (isPendingCO ? '<button onclick="reconcilePendingCoin(\'' + coinId.replace(/\'/g, "\\'\'") + '\')" ' +
           'style="font-size:10px;padding:3px 8px;background:var(--am);color:#fff;border:none;' +
-          'border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">↻ Reconcile</button>' : '') +
+          'border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">&#x21BB; Reconcile</button>' : '') +
       '</div>' +
     '</div>';
   }).join('');
@@ -2086,11 +2098,20 @@ async function reconcilePendingCoin(coinId) {
       const amt  = coin ? (coin.amount || coin.value_kobo || 0) : 0;
       M.vault = M.vault.filter(function(c){ return (c.coin_id||c.id) !== coinId; });
       // Add or update cashout history
+      // Find existing cashout entry by coin_id OR by amount (fallback for old entries)
       const existing = M.history.find(function(h){
-        return h.type === 'cashout' && (h.received_coin_ids||[]).includes(coinId);
+        if (h.type !== 'cashout') return false;
+        // Check by coin_id in received_coin_ids
+        if ((h.received_coin_ids||[]).includes(coinId)) return true;
+        // Fallback: match by amount for entries without coin_ids
+        if (h.amount === amt && h.status === 'PENDING_SYNC') return true;
+        return false;
       });
       if (existing) {
         existing.status = 'SETTLED';
+        if (!(existing.received_coin_ids||[]).includes(coinId)) {
+          existing.received_coin_ids = (existing.received_coin_ids||[]).concat([coinId]);
+        }
       } else if (amt > 0) {
         M.history.unshift({
           id: 'CO-RECON-'+Date.now(), type: 'cashout', amount: amt,

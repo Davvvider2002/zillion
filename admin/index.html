@@ -1499,15 +1499,18 @@ function openAdmDetail(type, idx) {
     ];
   } else if (type === 'merchant') {
     rows = [
-      ['Merchant ID',  item.merchant_id   || '—'],
-      ['Business',     item.business_name || '—'],
-      ['Owner',        item.owner_name    || '—'],
-      ['Phone',        item.phone         || '—'],
-      ['Location',     item.location      || '—'],
-      ['Zil Balance',  fmt(item.zil_balance_kobo)],
-      ['Total Received', fmt(item.total_received_kobo)],
-      ['Registered',   fmtDate(item.created_at)],
-      ['Status',       item.status || 'ACTIVE'],
+      ['Merchant ID',    item.merchant_id            || '—'],
+      ['Business',       item.business_name          || '—'],
+      ['Owner',          item.owner_name             || '—'],
+      ['Phone',          item.phone                  || '—'],
+      ['Location',       item.location               || '—'],
+      ['Zil Balance',    fmt(item.zil_balance_kobo   || 0)],
+      ['Book (Held)',     fmt(item.held_balance_kobo  || item.zil_balance_kobo || 0)],
+      ['Pending Cashout',item.pending_cashout_kobo   ? fmt(item.pending_cashout_kobo) : '₦0.00'],
+      ['Total Received', fmt(item.total_received_kobo|| 0)],
+      ['Cashed Out',     fmt(item.total_cashed_out_kobo || 0)],
+      ['Registered',     fmtDate(item.registered_at  || item.created_at)],
+      ['Status',         item.status                 || 'ACTIVE'],
     ];
   } else if (type === 'agent') {
     rows = [

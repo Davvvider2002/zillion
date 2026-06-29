@@ -2321,7 +2321,9 @@ async function trySync() {
       await fetch(`${API}/sync`, {
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-        body: JSON.stringify({ device_id: deviceId, tx_batch: [], heartbeat: true }),
+        body: JSON.stringify({ device_id: deviceId,
+          holder_hash: STATE.vault.length ? (STATE.vault[0].owner_hash || deviceId) : deviceId,
+          tx_batch: [], heartbeat: true }),
       });
     } catch(e) {}
     STATE.lastSync = new Date().toISOString();
@@ -2359,7 +2361,13 @@ async function trySync() {
         'Content-Type':  'application/json',
         'Authorization': 'Bearer ' + token,
       },
-      body: JSON.stringify({ device_id: deviceId, tx_batch }),
+      body: JSON.stringify({
+          device_id:   deviceId,
+          holder_hash: tx_batch.length
+            ? (tx_batch.find(function(t){return !t.is_sent;}) || {}).to_hash || deviceId
+            : deviceId,
+          tx_batch,
+        }),
     });
     const data = await res.json();
     if (res.ok && data.success) {
