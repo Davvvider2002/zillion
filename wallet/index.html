@@ -2322,7 +2322,22 @@ async function trySync() {
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
         body: JSON.stringify({ device_id: deviceId,
-          holder_hash: STATE.vault.length ? (STATE.vault[0].owner_hash || deviceId) : deviceId,
+          // Scan ALL vault coins for owner_hash (not just first coin).
+          // owner_hash is the HMAC that Supabase uses as holder_hash.
+          // Falls back to deviceId only if no coin has an owner_hash at all.
+          holder_hash: (function() {
+            var heldCoins = STATE.vault.filter(function(c) {
+              return c._status === 'HELD' || c._status === 'PENDING_SYNC';
+            });
+            for (var i = 0; i < heldCoins.length; i++) {
+              if (heldCoins[i].owner_hash) return heldCoins[i].owner_hash;
+            }
+            // Also check ALL vault coins as fallback (even SPENT_LOCAL)
+            for (var j = 0; j < STATE.vault.length; j++) {
+              if (STATE.vault[j].owner_hash) return STATE.vault[j].owner_hash;
+            }
+            return deviceId;
+          })(),
           tx_batch: [], heartbeat: true }),
       });
     } catch(e) {}
@@ -2363,9 +2378,26 @@ async function trySync() {
       },
       body: JSON.stringify({
           device_id:   deviceId,
-          holder_hash: tx_batch.length
-            ? (tx_batch.find(function(t){return !t.is_sent;}) || {}).to_hash || deviceId
-            : deviceId,
+          // Resolve the best holder_hash for this device:
+          // Priority: (1) to_hash from a received tx, (2) owner_hash from any vault coin, (3) deviceId
+          holder_hash: (function() {
+            // First try: to_hash from a received (not sent) tx in this batch
+            var recvTx = tx_batch.find(function(t) { return !t.is_sent; });
+            if (recvTx && recvTx.to_hash && recvTx.to_hash !== deviceId) return recvTx.to_hash;
+            // Second try: owner_hash from any HELD vault coin
+            var heldCoins = STATE.vault.filter(function(c) {
+              return c._status === 'HELD' || c._status === 'PENDING_SYNC';
+            });
+            for (var i = 0; i < heldCoins.length; i++) {
+              if (heldCoins[i].owner_hash) return heldCoins[i].owner_hash;
+            }
+            // Third try: owner_hash from any vault coin at all
+            for (var j = 0; j < STATE.vault.length; j++) {
+              if (STATE.vault[j].owner_hash) return STATE.vault[j].owner_hash;
+            }
+            // Last resort: device ID (short form — admin fix handles this now)
+            return deviceId;
+          })(),
           tx_batch,
         }),
     });
