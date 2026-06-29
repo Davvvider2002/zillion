@@ -52,3 +52,4 @@
 /api/v1/merchant-register      /.netlify/functions/merchant-register      200
 /api/v1/admin-merchants        /.netlify/functions/admin-merchants        200
 /api/v1/admin-ledger           /.netlify/functions/admin-ledger           200
+/api/v1/admin-force-reconcile   /.netlify/functions/admin-force-reconcile   200
