@@ -247,12 +247,15 @@ async function buildMerchantEntries(db, merchantId, entries) {
   const txByCoin = {};
   (txns || []).forEach(t => { txByCoin[t.coin_id] = t; });
 
+  // Track coin_ids that appear as confirmed debits (REDEEMED/SPENT)
+  const redeemedCoinIds = new Set();
+
   for (const coin of (coins || [])) {
-    const tx       = txByCoin[coin.coin_id];
-    const eventTs  = coin.issued_at || coin.created_at;
-    const from     = tx ? (tx.from_hash || 'CUSTOMER') : 'CUSTOMER';
+    const tx         = txByCoin[coin.coin_id];
+    const eventTs    = coin.issued_at || coin.created_at;
+    const from       = tx ? (tx.from_hash || 'CUSTOMER') : 'CUSTOMER';
     const isRedeemed = coin.status === 'REDEEMED' || coin.status === 'SPENT';
-    const ref      = 'ZIL-' + (coin.coin_id || '').slice(4, 16);
+    const ref        = 'ZIL-' + (coin.coin_id || '').slice(4, 16);
 
     // CREDIT — coin arrived at merchant
     entries.push({
@@ -269,8 +272,9 @@ async function buildMerchantEntries(db, merchantId, entries) {
       direction:    'CR',
     });
 
-    // DEBIT — coin left merchant (cashed out / redeemed)
+    // DEBIT — confirmed cashout (coin REDEEMED/SPENT in Supabase)
     if (isRedeemed) {
+      redeemedCoinIds.add(coin.coin_id);
       const redeemTs = coin.updated_at || coin.issued_at;
       entries.push({
         ts:           redeemTs,
@@ -278,7 +282,7 @@ async function buildMerchantEntries(db, merchantId, entries) {
         type:         'Cashout',
         ref:          'CASH-' + (coin.coin_id || '').slice(4, 14),
         coin_id:      coin.coin_id,
-        narration:    'Cash Out to Agent',
+        narration:    'Cash Out to Agent (Confirmed)',
         debit_kobo:   coin.amount || 0,
         credit_kobo:  0,
         counterparty: 'Agent',
@@ -286,6 +290,55 @@ async function buildMerchantEntries(db, merchantId, entries) {
         direction:    'DR',
       });
     }
+  }
+
+  // ── PENDING CASHOUT DEBITS from claim_bundles ─────────────────────────────
+  // When a merchant generates a cashout QR, it writes to claim_bundles
+  // with bundle_data.type='cashout' and bundle_data.merchant_id.
+  // These coins are still HELD in Supabase (agent hasn't called /redeem yet)
+  // but the merchant has already committed to paying out — show as pending debit.
+  // We exclude any coin_ids already covered by REDEEMED coins above.
+  try {
+    const { data: claims } = await db
+      .from('claim_bundles')
+      .select('claim_id, bundle_data, amount_kobo, status, created_at, expires_at')
+      .eq('status', 'PENDING')
+      .order('created_at', { ascending: true });
+
+    for (const claim of (claims || [])) {
+      const bd = claim.bundle_data || {};
+      // Only cashout bundles for this merchant
+      if (bd.type !== 'cashout') continue;
+      if (bd.merchant_id !== merchantId) continue;
+
+      // Skip coins already accounted for as REDEEMED
+      const claimCoinIds = (bd.coins || []).map(c => c.coin_id).filter(Boolean);
+      const newCoinIds   = claimCoinIds.filter(id => !redeemedCoinIds.has(id));
+      if (!newCoinIds.length && claimCoinIds.length > 0) continue;
+
+      const claimTs  = claim.created_at || new Date().toISOString();
+      const claimAmt = claim.amount_kobo || bd.total_kobo || 0;
+      const isExpired = claim.expires_at && new Date(claim.expires_at) < new Date();
+
+      entries.push({
+        ts:           claimTs,
+        date:         claimTs.slice(0, 10),
+        type:         'Cashout',
+        ref:          'CLM-' + (claim.claim_id || '').slice(0, 12),
+        coin_id:      claimCoinIds[0] || null,
+        narration:    isExpired
+          ? 'Cash Out to Agent (Expired QR — not redeemed)'
+          : 'Cash Out to Agent (Pending — awaiting agent scan)',
+        debit_kobo:   claimAmt,
+        credit_kobo:  0,
+        counterparty: 'Agent',
+        status:       isExpired ? 'EXPIRED' : 'PENDING',
+        direction:    'DR',
+      });
+    }
+  } catch (claimErr) {
+    // Non-fatal — claim_bundles table may not exist in all environments
+    console.warn('[buildMerchantEntries] claim_bundles query failed:', claimErr.message);
   }
 }
 
