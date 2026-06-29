@@ -42,8 +42,9 @@ function validateCoin(coin) {
     errors.push(`UNSUPPORTED_CURRENCY: ${coin.currency}`);
   }
 
-  // Coin ID format: ZIL-YYYYMMDD-XXXXXXXX-NNNNNNN
-  if (!/^ZIL-\d{8}-[A-F0-9]{8}-\d{7}$/.test(coin.coin_id)) {
+  // Coin ID format: ZIL-{YYYYMMDD}-{8HEX}-{sequence}
+  // sequence = Date.now() = 13 digits. Regex updated from \d{7} to \d{7,13}.
+  if (!/^ZIL-\d{8}-[A-F0-9]{8}-\d{7,13}$/.test(coin.coin_id)) {
     errors.push('INVALID_COIN_ID_FORMAT');
   }
 
