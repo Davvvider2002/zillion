@@ -2126,9 +2126,13 @@ async function reconcilePendingCoin(coinId) {
       if (typeof refreshVaultList    === 'function') refreshVaultList();
       toast('✅ Coin confirmed redeemed — balance updated', false, 4000);
     } else if (d.status === 'HELD') {
-      toast('Coin not yet redeemed (status: HELD). Ask agent to rescan.', true, 4000);
+      toast('⏳ Coin still held — agent has not redeemed it yet. Ask agent to rescan the QR.', true, 5000);
+    } else if (d.reason === 'NOT_FOUND') {
+      toast('⚠️ Coin not found on server — the issuing agent may not have synced yet. Ask agent to go online and sync.', true, 6000);
+    } else if (d.reason === 'INVALID_FORMAT') {
+      toast('⚠️ Invalid coin ID format. This coin may be corrupted.', true, 5000);
     } else {
-      toast('Coin status: ' + (d.status||'unknown'), false, 3000);
+      toast('Coin status: ' + (d.status || d.reason || 'unknown') + '. Contact support if this persists.', true, 5000);
     }
   } catch(e) {
     toast('⚠️ Could not check coin: ' + e.message, true, 4000);
