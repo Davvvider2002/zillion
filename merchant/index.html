@@ -1950,7 +1950,10 @@ function refreshVaultList() {
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:13px;font-weight:700">' + fmt(amt) + '</div>' +
         '<div style="font-size:10px;color:var(--gr);margin-top:2px;word-break:break-all">' +
-          coinId.slice(0,28) + '…</div>' +
+          coinId + '</div>' +
+        '<div style="font-size:9px;color:var(--gr);margin-top:1px;word-break:break-all;font-family:monospace;user-select:all" ' +
+        'onclick="navigator.clipboard&&navigator.clipboard.writeText(\'' + coinId.replace(/\'/g,"\\'\'") + '\')" title="Tap to copy">' +
+        '📋 ' + coinId + '</div>' +
         (expiryText ? '<div style="font-size:10px;color:' + (expired?'var(--r)':'var(--gr)') +
           ';margin-top:1px">' + expiryText + '</div>' : '') +
         (isPendingCO ? '<div style="font-size:10px;color:var(--am);margin-top:4px">' +
