@@ -1234,9 +1234,22 @@ async function confirmPayment() {
   const data   = _pendingPayment;
   const bd     = data.bundle || {};
 
-  // ── MERCHANT BINDING CHECK (offline-enforced) ─────────────────
-  // If the customer locked this QR to a specific merchant, verify
-  // this merchant's ID matches before crediting the payment.
+  // ── RECIPIENT BINDING CHECK (offline-enforced) ─────────────────
+  // Customer's QR is locked to EITHER a merchant OR an agent — never both.
+  // Case 1: bound to THIS merchant → verify hash matches → accept.
+  // Case 2: bound to an AGENT (customer meant to cash out, not pay) → reject,
+  //         wrong scan target — this is not a merchant payment.
+  // Case 3: bound to a DIFFERENT merchant → reject, wrong merchant.
+  if (bd.bound_to_agent_hash && !bd.bound_to_merchant_hash) {
+    toast(
+      '❌ Wrong scan target — this QR is a CASH-OUT request locked to agent ' +
+      (bd.bound_to_agent || 'UNKNOWN') +
+      '. It must be scanned by an agent, not a merchant.',
+      true, 10000
+    );
+    _pendingPayment = null;
+    return;
+  }
   if (bd.bound_to_merchant_hash) {
     const myHash = await sha256Hex(M.merchant_id || '');
     if (myHash !== bd.bound_to_merchant_hash) {
