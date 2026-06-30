@@ -1005,6 +1005,46 @@ body{height:100%;height:100dvh;overflow:hidden;}
       <button class="method-tab" onclick="switchSendMethod('file',this)">📄 File</button>
     </div>
     <div class="scroll-body" style="background:var(--bg)">
+      <!-- Recipient binding — REQUIRED for ALL send methods (QR, WhatsApp, File) -->
+      <div style="padding:14px 14px 0">
+        <div class="field-group" style="margin-bottom:10px">
+          <label class="field-label" style="color:var(--am);font-weight:700">
+            🔒 Who is this for? <span style="font-weight:400;color:var(--gr)">(required — locks coins to recipient)</span>
+          </label>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <button type="button" id="recv-type-merchant" onclick="setRecvType('merchant')"
+              style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--am);background:var(--am);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              🛒 Merchant
+            </button>
+            <button type="button" id="recv-type-agent" onclick="setRecvType('agent')"
+              style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--grb);background:var(--w);color:var(--gr);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              🏪 Agent
+            </button>
+          </div>
+
+          <!-- Merchant ID input (shown when Merchant selected) -->
+          <div id="recv-input-merchant">
+            <input class="field-input" type="text" id="send-merchant-id"
+              placeholder="e.g. MERCH-21685478 — ask the merchant"
+              style="font-family:monospace;font-size:13px"
+              oninput="this.value=this.value.toUpperCase().trim()">
+            <div style="font-size:11px;color:var(--gr);margin-top:4px">
+              ⚠️ Only this merchant can accept the coins — for payments.
+            </div>
+          </div>
+
+          <!-- Agent ID input (shown when Agent selected) -->
+          <div id="recv-input-agent" style="display:none">
+            <input class="field-input" type="text" id="send-agent-id"
+              placeholder="e.g. AGENT-00001 — ask your agent"
+              style="font-family:monospace;font-size:13px"
+              oninput="this.value=this.value.toUpperCase().trim()">
+            <div style="font-size:11px;color:var(--gr);margin-top:4px">
+              ⚠️ Only this agent can redeem the coins — for cash-out.
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="denom-pills">
         <button class="denom-pill" onclick="setSendAmt(50000)">₦500</button>
         <button class="denom-pill" onclick="setSendAmt(100000)">₦1,000</button>
@@ -1045,21 +1085,6 @@ body{height:100%;height:100dvh;overflow:hidden;}
 
       <!-- QR panel -->
       <div id="send-panel-qr" class="method-panel active">
-        <!-- Merchant binding — REQUIRED before QR is generated -->
-        <div style="padding:0 14px 4px">
-          <div class="field-group" style="margin-bottom:10px">
-            <label class="field-label" style="color:var(--am);font-weight:700">
-              🔒 Merchant ID <span style="font-weight:400;color:var(--gr)">(required — locks QR to this merchant)</span>
-            </label>
-            <input class="field-input" type="text" id="send-merchant-id"
-              placeholder="e.g. MERCH-21685478 — ask the merchant"
-              style="font-family:monospace;font-size:13px"
-              oninput="this.value=this.value.toUpperCase().trim()">
-            <div style="font-size:11px;color:var(--gr);margin-top:4px">
-              ⚠️ This QR can only be scanned by the merchant with this ID. No other merchant can claim it.
-            </div>
-          </div>
-        </div>
         <div id="send-qr-box" style="display:none;background:var(--d2);border-radius:14px;overflow:hidden;margin-bottom:14px">
           <div style="padding:16px;text-align:center">
             <div style="font-size:13px;color:var(--gm);margin-bottom:8px;font-weight:600">QR Payment Code</div>
@@ -1977,12 +2002,39 @@ async function sendViaWhatsApp(fileOnly=false) {
   });
   save(); refreshHome(); // saves immediately so re-click sees PENDING_TRANSFER
 
+  // ── Recipient binding (Merchant OR Agent) — same rule as QR method ──────────
+  const waRecvType = _sendRecvType || 'merchant';
+  const waRecvIdInput = waRecvType === 'merchant'
+    ? (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase()
+    : (document.getElementById('send-agent-id')?.value||'').trim().toUpperCase();
+
+  if (!waRecvIdInput) {
+    const label = waRecvType === 'merchant' ? 'Merchant ID' : 'Agent ID';
+    errEl.textContent = 'Enter the ' + label + ' first — ask them for their ID';
+    errEl.style.display = 'block';
+    // Rollback
+    selected.forEach(c => {
+      const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
+      if (i >= 0) STATE.vault[i]._status = 'HELD';
+    });
+    STATE.history.shift();
+    save(); refreshHome();
+    return;
+  }
+  const waBoundHash = await sha256Hex(waRecvIdInput);
+
   let bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
+    type: waRecvType === 'merchant' ? 'cashin' : 'cashout',
     total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
+    // ── RECIPIENT BINDING ──────────────────────────────────
+    ...(waRecvType === 'merchant'
+      ? { bound_to_merchant: waRecvIdInput, bound_to_merchant_hash: waBoundHash }
+      : { bound_to_agent:    waRecvIdInput, bound_to_agent_hash:    waBoundHash }
+    ),
   };
   // Attach offline PIN verifier if toggle enabled
   try { bundle = await attachPinToBundle(bundle); }
@@ -2314,6 +2366,27 @@ function updateSyncStatus(msg, isErr) {
 // ── Cryptographic binding helpers ────────────────────────────────────────────
 // SHA256 of any string → lowercase hex. Used for merchant/agent ID binding.
 // SubtleCrypto is available offline in all modern browsers.
+
+// ── Recipient type selector (Merchant vs Agent) ───────────────────────────────
+let _sendRecvType = 'merchant'; // default
+function setRecvType(type) {
+  _sendRecvType = type;
+  const btnM = document.getElementById('recv-type-merchant');
+  const btnA = document.getElementById('recv-type-agent');
+  const inpM = document.getElementById('recv-input-merchant');
+  const inpA = document.getElementById('recv-input-agent');
+  if (!btnM || !btnA) return;
+
+  if (type === 'merchant') {
+    btnM.style.background = 'var(--am)'; btnM.style.color = '#fff'; btnM.style.borderColor = 'var(--am)';
+    btnA.style.background = 'var(--w)';  btnA.style.color = 'var(--gr)'; btnA.style.borderColor = 'var(--grb)';
+    inpM.style.display = 'block'; inpA.style.display = 'none';
+  } else {
+    btnA.style.background = 'var(--am)'; btnA.style.color = '#fff'; btnA.style.borderColor = 'var(--am)';
+    btnM.style.background = 'var(--w)';  btnM.style.color = 'var(--gr)'; btnM.style.borderColor = 'var(--grb)';
+    inpA.style.display = 'block'; inpM.style.display = 'none';
+  }
+}
 async function sha256Hex(str) {
   const enc  = new TextEncoder();
   const buf  = await crypto.subtle.digest('SHA-256', enc.encode(str));
@@ -2811,11 +2884,17 @@ async function generateSendQR() {
   let remain = amount; const selected = [];
   for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
-  // Merchant binding — enforce before creating bundle
-  const merchantIdInput = (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase();
-  if (!merchantIdInput) {
+  // ── Recipient binding (Merchant OR Agent) — enforce before creating bundle ──
+  // _sendRecvType is 'merchant' or 'agent', set by the toggle buttons above.
+  const recvType = _sendRecvType || 'merchant';
+  const recvIdInput = recvType === 'merchant'
+    ? (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase()
+    : (document.getElementById('send-agent-id')?.value||'').trim().toUpperCase();
+
+  if (!recvIdInput) {
     const errEl2 = document.getElementById('send-qr-error');
-    if (errEl2) { errEl2.textContent = 'Enter the Merchant ID first — ask the merchant for their ID'; errEl2.style.display='block'; }
+    const label  = recvType === 'merchant' ? 'Merchant ID' : 'Agent ID';
+    if (errEl2) { errEl2.textContent = 'Enter the ' + label + ' first — ask them for their ID'; errEl2.style.display='block'; }
     // Rollback: un-mark coins
     selected.forEach(c => {
       const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
@@ -2823,20 +2902,22 @@ async function generateSendQR() {
     });
     return;
   }
-  const boundMerchantHash = await sha256Hex(merchantIdInput);
+  const boundRecvHash = await sha256Hex(recvIdInput);
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
-    type:'cashin',
+    type: recvType === 'merchant' ? 'cashin' : 'cashout',
     total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
-    // ── MERCHANT BINDING ──────────────────────────────────
-    // This QR is cryptographically locked to the specified merchant.
-    // Any merchant portal verifies bound_to_merchant_hash before accepting.
-    bound_to_merchant:      merchantIdInput,
-    bound_to_merchant_hash: boundMerchantHash,
+    // ── RECIPIENT BINDING ──────────────────────────────────
+    // This QR is cryptographically locked to ONE recipient type and ID.
+    // Only that exact merchant OR agent can accept it — never both fields set.
+    ...(recvType === 'merchant'
+      ? { bound_to_merchant: recvIdInput, bound_to_merchant_hash: boundRecvHash }
+      : { bound_to_agent:    recvIdInput, bound_to_agent_hash:    boundRecvHash }
+    ),
   };
   _sendQrBundle = bundle;
 
