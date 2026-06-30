@@ -1580,9 +1580,36 @@ async function coShowResult(bundle) {
     '<button onclick="coConfirmRedeem()" style="width:100%;margin-top:12px;padding:13px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✅ Redeem & Pay Customer Cash</button>';
 }
 
+
+// ── Cryptographic binding helpers ────────────────────────────────────────────
+async function sha256Hex(str) {
+  const enc = new TextEncoder();
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 async function coConfirmRedeem() {
   const bundle = _coPendingBundle;
   if (!bundle) { notify('No pending redemption', 'err'); return; }
+
+  // ── AGENT BINDING CHECK (offline-enforced) ────────────────────
+  // If the merchant locked this cashout QR to a specific agent,
+  // verify this agent's ID matches before processing the redemption.
+  if (bundle.bound_to_agent_hash) {
+    const myHash = await sha256Hex(AP.agent_id || '');
+    if (myHash !== bundle.bound_to_agent_hash) {
+      notify(
+        '❌ REJECTED — This cashout QR was locked to agent ' +
+        (bundle.bound_to_agent || 'UNKNOWN') +
+        '. Your agent ID is ' + (AP.agent_id || 'unknown') +
+        '. Ask the merchant to regenerate the QR for you.',
+        'err'
+      );
+      _coPendingBundle = null;
+      return;
+    }
+  }
+
   _coPendingBundle = null;
   const coins     = bundle.coins || [];
   const coinIds   = coins.map(function(c){ return c.coin_id||c.id; }).filter(Boolean);
