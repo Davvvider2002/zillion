@@ -1045,6 +1045,21 @@ body{height:100%;height:100dvh;overflow:hidden;}
 
       <!-- QR panel -->
       <div id="send-panel-qr" class="method-panel active">
+        <!-- Merchant binding — REQUIRED before QR is generated -->
+        <div style="padding:0 14px 4px">
+          <div class="field-group" style="margin-bottom:10px">
+            <label class="field-label" style="color:var(--am);font-weight:700">
+              🔒 Merchant ID <span style="font-weight:400;color:var(--gr)">(required — locks QR to this merchant)</span>
+            </label>
+            <input class="field-input" type="text" id="send-merchant-id"
+              placeholder="e.g. MERCH-21685478 — ask the merchant"
+              style="font-family:monospace;font-size:13px"
+              oninput="this.value=this.value.toUpperCase().trim()">
+            <div style="font-size:11px;color:var(--gr);margin-top:4px">
+              ⚠️ This QR can only be scanned by the merchant with this ID. No other merchant can claim it.
+            </div>
+          </div>
+        </div>
         <div id="send-qr-box" style="display:none;background:var(--d2);border-radius:14px;overflow:hidden;margin-bottom:14px">
           <div style="padding:16px;text-align:center">
             <div style="font-size:13px;color:var(--gm);margin-bottom:8px;font-weight:600">QR Payment Code</div>
@@ -2295,6 +2310,16 @@ function updateSyncStatus(msg, isErr) {
   }, 4000);
 }
 
+
+// ── Cryptographic binding helpers ────────────────────────────────────────────
+// SHA256 of any string → lowercase hex. Used for merchant/agent ID binding.
+// SubtleCrypto is available offline in all modern browsers.
+async function sha256Hex(str) {
+  const enc  = new TextEncoder();
+  const buf  = await crypto.subtle.digest('SHA-256', enc.encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 async function trySync() {
   if (!STATE.isOnline || !STATE.user) return;
   const token = STATE.user.token || STATE.user.agentToken || '';
@@ -2786,6 +2811,20 @@ async function generateSendQR() {
   let remain = amount; const selected = [];
   for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
+  // Merchant binding — enforce before creating bundle
+  const merchantIdInput = (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase();
+  if (!merchantIdInput) {
+    const errEl2 = document.getElementById('send-qr-error');
+    if (errEl2) { errEl2.textContent = 'Enter the Merchant ID first — ask the merchant for their ID'; errEl2.style.display='block'; }
+    // Rollback: un-mark coins
+    selected.forEach(c => {
+      const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
+      if (i >= 0) STATE.vault[i]._status = 'HELD';
+    });
+    return;
+  }
+  const boundMerchantHash = await sha256Hex(merchantIdInput);
+
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
@@ -2793,6 +2832,11 @@ async function generateSendQR() {
     type:'cashin',
     total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
+    // ── MERCHANT BINDING ──────────────────────────────────
+    // This QR is cryptographically locked to the specified merchant.
+    // Any merchant portal verifies bound_to_merchant_hash before accepting.
+    bound_to_merchant:      merchantIdInput,
+    bound_to_merchant_hash: boundMerchantHash,
   };
   _sendQrBundle = bundle;
 
