@@ -1011,14 +1011,18 @@ body{height:100%;height:100dvh;overflow:hidden;}
           <label class="field-label" style="color:var(--am);font-weight:700">
             🔒 Who is this for? <span style="font-weight:400;color:var(--gr)">(required — locks coins to recipient)</span>
           </label>
-          <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="display:flex;gap:6px;margin-bottom:10px">
             <button type="button" id="recv-type-merchant" onclick="setRecvType('merchant')"
-              style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--am);background:var(--am);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              style="flex:1;padding:9px 4px;border-radius:8px;border:1.5px solid var(--am);background:var(--am);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
               🛒 Merchant
             </button>
             <button type="button" id="recv-type-agent" onclick="setRecvType('agent')"
-              style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--grb);background:var(--w);color:var(--gr);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              style="flex:1;padding:9px 4px;border-radius:8px;border:1.5px solid var(--grb);background:var(--w);color:var(--gr);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
               🏪 Agent
+            </button>
+            <button type="button" id="recv-type-customer" onclick="setRecvType('customer')"
+              style="flex:1;padding:9px 4px;border-radius:8px;border:1.5px solid var(--grb);background:var(--w);color:var(--gr);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+              👤 Customer
             </button>
           </div>
 
@@ -1041,6 +1045,17 @@ body{height:100%;height:100dvh;overflow:hidden;}
               oninput="this.value=this.value.toUpperCase().trim()">
             <div style="font-size:11px;color:var(--gr);margin-top:4px">
               ⚠️ Only this agent can redeem the coins — for cash-out.
+            </div>
+          </div>
+
+          <!-- Customer phone input (shown when Customer selected) -->
+          <div id="recv-input-customer" style="display:none">
+            <input class="field-input" type="tel" id="send-customer-phone"
+              placeholder="e.g. 08021234567 — recipient's phone number"
+              style="font-size:13px"
+              oninput="this.value=this.value.replace(/[^0-9+]/g,'')">
+            <div style="font-size:11px;color:var(--gr);margin-top:4px">
+              ⚠️ Only the wallet registered to this phone number can accept the coins — for peer-to-peer transfer.
             </div>
           </div>
         </div>
@@ -2002,15 +2017,16 @@ async function sendViaWhatsApp(fileOnly=false) {
   });
   save(); refreshHome(); // saves immediately so re-click sees PENDING_TRANSFER
 
-  // ── Recipient binding (Merchant OR Agent) — same rule as QR method ──────────
+  // ── Recipient binding (Merchant, Agent, OR Customer) — same rule as QR ──────
   const waRecvType = _sendRecvType || 'merchant';
-  const waRecvIdInput = waRecvType === 'merchant'
-    ? (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase()
-    : (document.getElementById('send-agent-id')?.value||'').trim().toUpperCase();
+  const waRecvIdInput =
+    waRecvType === 'merchant' ? (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase() :
+    waRecvType === 'agent'    ? (document.getElementById('send-agent-id')?.value||'').trim().toUpperCase() :
+                                 (document.getElementById('send-customer-phone')?.value||'').trim();
 
   if (!waRecvIdInput) {
-    const label = waRecvType === 'merchant' ? 'Merchant ID' : 'Agent ID';
-    errEl.textContent = 'Enter the ' + label + ' first — ask them for their ID';
+    const label = waRecvType === 'merchant' ? 'Merchant ID' : waRecvType === 'agent' ? 'Agent ID' : "recipient's phone number";
+    errEl.textContent = 'Enter the ' + label + ' first';
     errEl.style.display = 'block';
     // Rollback
     selected.forEach(c => {
@@ -2021,20 +2037,24 @@ async function sendViaWhatsApp(fileOnly=false) {
     save(); refreshHome();
     return;
   }
-  const waBoundHash = await sha256Hex(waRecvIdInput);
+  const waNormalisedRecv = waRecvType === 'customer'
+    ? (waRecvIdInput.startsWith('+') ? waRecvIdInput
+       : waRecvIdInput.startsWith('0') ? '+234' + waRecvIdInput.slice(1)
+       : '+234' + waRecvIdInput)
+    : waRecvIdInput;
+  const waBoundHash = await sha256Hex(waNormalisedRecv);
 
   let bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
-    type: waRecvType === 'merchant' ? 'cashin' : 'cashout',
+    type: waRecvType === 'merchant' ? 'cashin' : waRecvType === 'agent' ? 'cashout' : 'p2p',
     total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
     // ── RECIPIENT BINDING ──────────────────────────────────
-    ...(waRecvType === 'merchant'
-      ? { bound_to_merchant: waRecvIdInput, bound_to_merchant_hash: waBoundHash }
-      : { bound_to_agent:    waRecvIdInput, bound_to_agent_hash:    waBoundHash }
-    ),
+    ...(waRecvType === 'merchant' ? { bound_to_merchant: waRecvIdInput,     bound_to_merchant_hash: waBoundHash } :
+        waRecvType === 'agent'    ? { bound_to_agent:    waRecvIdInput,     bound_to_agent_hash:    waBoundHash } :
+                                     { bound_to_phone:     waNormalisedRecv, bound_to_phone_hash:    waBoundHash }),
   };
   // Attach offline PIN verifier if toggle enabled
   try { bundle = await attachPinToBundle(bundle); }
@@ -2195,6 +2215,42 @@ async function processZilFile(file) {
         if (svResults.some(r => r.status==='UNKNOWN')) validationWarning = '⚠ Some coins could not be verified.';
       } catch(e) { validationWarning = 'Offline - registry check skipped.'; }
     } else { validationWarning = 'Offline - coins will verify on sync.'; }
+
+    // ── RECIPIENT BINDING CHECK (offline-enforced) ────────────────────
+    // This file may be bound to a merchant, agent, or specific customer phone.
+    // A wallet must ONLY accept bundles bound to a customer phone matching its own,
+    // OR completely unbound (legacy/no-binding) bundles.
+    if (bundle.bound_to_merchant_hash || bundle.bound_to_agent_hash) {
+      hideLoader();
+      document.getElementById('import-error').textContent =
+        '❌ Wrong app — this file is locked to ' +
+        (bundle.bound_to_merchant ? 'merchant ' + bundle.bound_to_merchant : 'agent ' + bundle.bound_to_agent) +
+        '. It cannot be opened in a customer wallet.';
+      document.getElementById('import-error').style.display = 'block';
+      document.getElementById('import-confirm-btn').disabled = true;
+      document.getElementById('import-result-wrap').style.display = 'block';
+      document.getElementById('import-zone').style.display = 'none';
+      toast('Wrong recipient type for this wallet', true, 6000);
+      return;
+    }
+    if (bundle.bound_to_phone_hash) {
+      const myPhone = STATE.user?.phone || '';
+      const myNormalised = myPhone.startsWith('+') ? myPhone
+        : myPhone.startsWith('0') ? '+234' + myPhone.slice(1)
+        : '+234' + myPhone;
+      const myPhoneHash = await sha256Hex(myNormalised);
+      if (myPhoneHash !== bundle.bound_to_phone_hash) {
+        hideLoader();
+        document.getElementById('import-error').textContent =
+          '❌ This file was sent to a different phone number. It cannot be claimed by this wallet.';
+        document.getElementById('import-error').style.display = 'block';
+        document.getElementById('import-confirm-btn').disabled = true;
+        document.getElementById('import-result-wrap').style.display = 'block';
+        document.getElementById('import-zone').style.display = 'none';
+        toast('❌ Not addressed to your phone number', true, 6000);
+        return;
+      }
+    }
 
     hideLoader();
     STATE.pendingImport = {bundle, newCoins, dupCoins};
@@ -2371,21 +2427,25 @@ function updateSyncStatus(msg, isErr) {
 let _sendRecvType = 'merchant'; // default
 function setRecvType(type) {
   _sendRecvType = type;
-  const btnM = document.getElementById('recv-type-merchant');
-  const btnA = document.getElementById('recv-type-agent');
-  const inpM = document.getElementById('recv-input-merchant');
-  const inpA = document.getElementById('recv-input-agent');
-  if (!btnM || !btnA) return;
+  const btns = {
+    merchant: document.getElementById('recv-type-merchant'),
+    agent:    document.getElementById('recv-type-agent'),
+    customer: document.getElementById('recv-type-customer'),
+  };
+  const inputs = {
+    merchant: document.getElementById('recv-input-merchant'),
+    agent:    document.getElementById('recv-input-agent'),
+    customer: document.getElementById('recv-input-customer'),
+  };
+  if (!btns.merchant || !btns.agent || !btns.customer) return;
 
-  if (type === 'merchant') {
-    btnM.style.background = 'var(--am)'; btnM.style.color = '#fff'; btnM.style.borderColor = 'var(--am)';
-    btnA.style.background = 'var(--w)';  btnA.style.color = 'var(--gr)'; btnA.style.borderColor = 'var(--grb)';
-    inpM.style.display = 'block'; inpA.style.display = 'none';
-  } else {
-    btnA.style.background = 'var(--am)'; btnA.style.color = '#fff'; btnA.style.borderColor = 'var(--am)';
-    btnM.style.background = 'var(--w)';  btnM.style.color = 'var(--gr)'; btnM.style.borderColor = 'var(--grb)';
-    inpA.style.display = 'block'; inpM.style.display = 'none';
-  }
+  Object.keys(btns).forEach(function(key) {
+    const isActive = key === type;
+    btns[key].style.background   = isActive ? 'var(--am)' : 'var(--w)';
+    btns[key].style.color        = isActive ? '#fff'      : 'var(--gr)';
+    btns[key].style.borderColor  = isActive ? 'var(--am)' : 'var(--grb)';
+    inputs[key].style.display    = isActive ? 'block' : 'none';
+  });
 }
 async function sha256Hex(str) {
   const enc  = new TextEncoder();
@@ -2757,6 +2817,29 @@ async function handleQRResult(rawValue) {
       errorEl.textContent  = '⚠ DUPLICATE: This QR code has already been used.';
       errorEl.style.display = 'block'; if (actionsEl) actionsEl.style.display = 'flex'; return;
     }
+
+    // ── RECIPIENT BINDING CHECK (offline-enforced) ────────────────────
+    if (bundle.bound_to_merchant_hash || bundle.bound_to_agent_hash) {
+      iconEl.textContent = '❌'; amountEl.textContent = 'Wrong recipient type';
+      detailEl.textContent = 'This QR is locked to ' +
+        (bundle.bound_to_merchant ? 'merchant ' + bundle.bound_to_merchant : 'agent ' + bundle.bound_to_agent) +
+        ' — not a customer wallet.';
+      errorEl.textContent = '❌ Cannot be opened in a customer wallet.';
+      errorEl.style.display = 'block'; if (actionsEl) actionsEl.style.display = 'flex'; return;
+    }
+    if (bundle.bound_to_phone_hash) {
+      const myPhoneQR = STATE.user?.phone || '';
+      const myNormQR  = myPhoneQR.startsWith('+') ? myPhoneQR
+        : myPhoneQR.startsWith('0') ? '+234' + myPhoneQR.slice(1)
+        : '+234' + myPhoneQR;
+      const myHashQR  = await sha256Hex(myNormQR);
+      if (myHashQR !== bundle.bound_to_phone_hash) {
+        iconEl.textContent = '❌'; amountEl.textContent = 'Not for this phone';
+        detailEl.textContent = 'This QR was sent to a different phone number.';
+        errorEl.textContent = '❌ Not addressed to your phone number.';
+        errorEl.style.display = 'block'; if (actionsEl) actionsEl.style.display = 'flex'; return;
+      }
+    }
     const svQR = {};
     let qrWarn = '';
     try {
@@ -2884,17 +2967,18 @@ async function generateSendQR() {
   let remain = amount; const selected = [];
   for (const c of sorted) { if(remain<=0) break; selected.push(c); remain-=(c.amount||c.value_kobo||0); }
 
-  // ── Recipient binding (Merchant OR Agent) — enforce before creating bundle ──
-  // _sendRecvType is 'merchant' or 'agent', set by the toggle buttons above.
+  // ── Recipient binding (Merchant, Agent, OR Customer) ─────────────────────────
+  // _sendRecvType is 'merchant' | 'agent' | 'customer', set by the toggle above.
   const recvType = _sendRecvType || 'merchant';
-  const recvIdInput = recvType === 'merchant'
-    ? (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase()
-    : (document.getElementById('send-agent-id')?.value||'').trim().toUpperCase();
+  const recvIdInput =
+    recvType === 'merchant' ? (document.getElementById('send-merchant-id')?.value||'').trim().toUpperCase() :
+    recvType === 'agent'    ? (document.getElementById('send-agent-id')?.value||'').trim().toUpperCase() :
+                               (document.getElementById('send-customer-phone')?.value||'').trim();
 
   if (!recvIdInput) {
     const errEl2 = document.getElementById('send-qr-error');
-    const label  = recvType === 'merchant' ? 'Merchant ID' : 'Agent ID';
-    if (errEl2) { errEl2.textContent = 'Enter the ' + label + ' first — ask them for their ID'; errEl2.style.display='block'; }
+    const label  = recvType === 'merchant' ? 'Merchant ID' : recvType === 'agent' ? 'Agent ID' : "recipient's phone number";
+    if (errEl2) { errEl2.textContent = 'Enter the ' + label + ' first'; errEl2.style.display='block'; }
     // Rollback: un-mark coins
     selected.forEach(c => {
       const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
@@ -2902,22 +2986,27 @@ async function generateSendQR() {
     });
     return;
   }
-  const boundRecvHash = await sha256Hex(recvIdInput);
+  // Normalise phone the same way agent portal does, so SHA256 matches
+  const normalisedRecv = recvType === 'customer'
+    ? (recvIdInput.startsWith('+') ? recvIdInput
+       : recvIdInput.startsWith('0') ? '+234' + recvIdInput.slice(1)
+       : '+234' + recvIdInput)
+    : recvIdInput;
+  const boundRecvHash = await sha256Hex(normalisedRecv);
 
   const bundle = {
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(),
     sender_device:STATE.user?.deviceId||'UNKNOWN',
-    type: recvType === 'merchant' ? 'cashin' : 'cashout',
+    type: recvType === 'merchant' ? 'cashin' : recvType === 'agent' ? 'cashout' : 'p2p',
     total_kobo:selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, coins:selected,
     // ── RECIPIENT BINDING ──────────────────────────────────
     // This QR is cryptographically locked to ONE recipient type and ID.
-    // Only that exact merchant OR agent can accept it — never both fields set.
-    ...(recvType === 'merchant'
-      ? { bound_to_merchant: recvIdInput, bound_to_merchant_hash: boundRecvHash }
-      : { bound_to_agent:    recvIdInput, bound_to_agent_hash:    boundRecvHash }
-    ),
+    // Only that exact merchant, agent, OR customer phone can accept it.
+    ...(recvType === 'merchant' ? { bound_to_merchant: recvIdInput,    bound_to_merchant_hash: boundRecvHash } :
+        recvType === 'agent'    ? { bound_to_agent:    recvIdInput,    bound_to_agent_hash:    boundRecvHash } :
+                                   { bound_to_phone:     normalisedRecv, bound_to_phone_hash:    boundRecvHash }),
   };
   _sendQrBundle = bundle;
 
@@ -3942,10 +4031,13 @@ async function recoverAccountCoins() {
   toast('Checking server for your coins...', false, 3000);
 
   try {
-    // Call the dedicated recovery endpoint — returns all HELD coins for this device
+    // Call the dedicated recovery endpoint — matches by PHONE NUMBER, not device,
+    // because the coin's holder_hash HMAC was computed with the OLD device_id
+    // and cannot be reproduced on a new phone. Server does the phone-based lookup.
     const res  = await fetch('/api/v1/recover-coins', {
-      method:  'GET',
-      headers: { 'Authorization': 'Bearer ' + token },
+      method:  'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ device_id: STATE.user?.deviceId || '' }),
     });
     const data = await res.json();
 
@@ -3956,8 +4048,19 @@ async function recoverAccountCoins() {
 
     const serverCoins = data.coins || [];
 
+    // Surface any unclaimed QR bundles too (coins issued but never scanned)
+    if (data.recoverable_claims && data.recoverable_claims.length > 0) {
+      toast(
+        data.recoverable_claims.length + ' unclaimed QR code(s) found for your phone — ' +
+        'ask the agent who issued them to resend, or contact support.',
+        false, 8000
+      );
+    }
+
     if (!serverCoins.length) {
-      toast('No coins found on server for this account. Balance is correct.', false, 6000);
+      if (!data.recoverable_claims || !data.recoverable_claims.length) {
+        toast('No coins found on server for this phone number.', false, 6000);
+      }
       return 0;
     }
 
