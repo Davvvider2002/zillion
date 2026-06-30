@@ -1592,9 +1592,23 @@ async function coConfirmRedeem() {
   const bundle = _coPendingBundle;
   if (!bundle) { notify('No pending redemption', 'err'); return; }
 
-  // ── AGENT BINDING CHECK (offline-enforced) ────────────────────
-  // If the merchant locked this cashout QR to a specific agent,
-  // verify this agent's ID matches before processing the redemption.
+  // ── RECIPIENT BINDING CHECK (offline-enforced) ────────────────
+  // This QR (from a merchant cashout OR a customer cashout) is locked
+  // to EITHER an agent OR a merchant — never both.
+  // Case 1: bound to THIS agent → verify hash matches → accept.
+  // Case 2: bound to a MERCHANT (sender meant to pay a merchant,
+  //         not cash out) → reject, wrong scan target.
+  // Case 3: bound to a DIFFERENT agent → reject, wrong agent.
+  if (bundle.bound_to_merchant_hash && !bundle.bound_to_agent_hash) {
+    notify(
+      '❌ Wrong scan target — this QR is a MERCHANT PAYMENT locked to ' +
+      (bundle.bound_to_merchant || 'UNKNOWN') +
+      '. It must be scanned by that merchant, not redeemed by an agent.',
+      'err'
+    );
+    _coPendingBundle = null;
+    return;
+  }
   if (bundle.bound_to_agent_hash) {
     const myHash = await sha256Hex(AP.agent_id || '');
     if (myHash !== bundle.bound_to_agent_hash) {
@@ -1602,7 +1616,7 @@ async function coConfirmRedeem() {
         '❌ REJECTED — This cashout QR was locked to agent ' +
         (bundle.bound_to_agent || 'UNKNOWN') +
         '. Your agent ID is ' + (AP.agent_id || 'unknown') +
-        '. Ask the merchant to regenerate the QR for you.',
+        '. Ask the sender to regenerate the QR for you.',
         'err'
       );
       _coPendingBundle = null;
