@@ -46,12 +46,12 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing coin_id parameter' }) };
   }
 
-  // Validate format first
-  // Coin ID format: ZIL-{YYYYMMDD}-{8HEX}-{sequence}
-  // sequence = Date.now() at mint time = 13 digits (e.g. 1782341037703)
-  // Original regex \d{7} was wrong — Date.now() produces 13 digits.
-  // Fix: accept \d{7,13} to handle both legacy (7-padded) and real (13-digit) formats.
-  if (!/^ZIL-\d{8}-[A-F0-9]{8}-\d{7,13}$/.test(coinId)) {
+  // Format check removed — Supabase lookup is the authoritative validation.
+  // The original \d{7} regex was wrong: Date.now() produces 13-digit sequences
+  // (e.g. ZIL-20260624-76AFEE62-1782341037703). Removing the regex prevents
+  // false INVALID_FORMAT rejections for all real coins.
+  // Basic sanity: must start with ZIL- and have no spaces
+  if (!coinId.startsWith('ZIL-') || coinId.includes(' ') || coinId.length < 20) {
     return {
       statusCode: 200,
       body: JSON.stringify({ coin_id: coinId, valid: false, reason: 'INVALID_FORMAT' }),
