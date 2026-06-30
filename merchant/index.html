@@ -977,13 +977,25 @@ function refreshHome() {
   const coAmt      = cashedOut.reduce((s,h)=>s+h.amount, 0);
   const pendingAmt = bookAmt - settledAmt;
 
-  // Pending cashout: coins sent to agent but not yet server-confirmed
-  // These are DEFINITELY spent — must not show as available balance
+  // Pending cashout: coins in vault sent to agent but NOT yet covered by a
+  // SETTLED cashout history entry. If a history entry is SETTLED, coAmt
+  // already deducts it — counting the vault coin too causes double-deduction.
+  // FIX: only count PENDING_CASHOUT vault coins whose coin_id does NOT appear
+  // in any SETTLED cashout history entry's received_coin_ids.
+  const settledCashoutCoinIds = new Set();
+  cashedOut.filter(function(h){ return h.status === 'SETTLED'; })
+    .forEach(function(h){
+      (h.received_coin_ids || []).forEach(function(id){ settledCashoutCoinIds.add(id); });
+    });
+
   const pendingCashoutAmt = (M.vault || [])
-    .filter(function(c){ return c._status === 'PENDING_CASHOUT'; })
+    .filter(function(c){
+      return c._status === 'PENDING_CASHOUT' &&
+             !settledCashoutCoinIds.has(c.coin_id || c.id);
+    })
     .reduce(function(s,c){ return s + (c.amount || c.value_kobo || 0); }, 0);
 
-  // Available = settled received minus cashouts (history) minus pending cashout (vault)
+  // Available = settled received minus settled cashouts minus uncovered pending cashouts
   const availAmt = Math.max(0, settledAmt - coAmt - pendingCashoutAmt);
 
   setText('today-amount', fmt(availAmt));
@@ -2145,13 +2157,15 @@ async function reconcilePendingCoin(coinId) {
         const vIdx = M.vault.findIndex(function(c) { return (c.coin_id||c.id) === coinId; });
         if (vIdx >= 0) M.vault[vIdx]._status = 'HELD';
 
-        // Remove or reverse the pending cashout history entry for this coin
+        // Remove the cashout history entry for this coin.
+        // Status may be 'PENDING_SYNC' (never confirmed) OR 'SETTLED' (incorrectly marked)
+        // In both cases: if admin reset the coin, the cashout did not complete → remove entry.
         const histIdx = M.history.findIndex(function(h) {
-          return h.type === 'cashout' && h.status === 'PENDING_SYNC' &&
+          return h.type === 'cashout' &&
             (h.received_coin_ids||[]).includes(coinId);
         });
         if (histIdx >= 0) {
-          // Remove the pending cashout entry entirely (cashout was cancelled)
+          // Remove the cashout entry entirely (cashout was cancelled by admin)
           M.history.splice(histIdx, 1);
         }
 
