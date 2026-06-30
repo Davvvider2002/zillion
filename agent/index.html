@@ -596,12 +596,19 @@ async function doCashIn() {
     const n = d.total_kobo/100;
     showRes('cires','ok','✅ '+d.coin_count+' coin'+(d.coin_count>1?'s':'')+' issued','₦'+n.toLocaleString(),d.coin_count+' × ₦'+(denom/100).toLocaleString()+' · '+phone);
     // Build full .zil bundle
+    // recipient_phone_hash uses plain SHA256(phone) — NOT the agentJWT-keyed
+    // ownerHash. This lets ANY future device for this phone verify the
+    // binding offline (wallet just needs the phone number, not the
+    // original agent's JWT). Used by: (1) wallet Layer-1 accept check,
+    // (2) recover-coins.js phone-loss recovery sweep.
+    const recipientPhoneHash = await sha256Hex(phone);
     const zilBundle = {
       zillion_version: '1.0',
       bundle_id: 'BUNDLE-' + Date.now(),
       created_at: new Date().toISOString(),
       issued_by: AP.agent_id,
       recipient_phone: phone,
+      recipient_phone_hash: recipientPhoneHash,
       total_kobo: d.total_kobo,
       coin_count: d.coin_count,
       coins: d.coins,
