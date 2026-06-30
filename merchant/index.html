@@ -661,6 +661,19 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
           <label>Amount to cash out (₦)</label>
           <input type="number" id="co-amount" placeholder="e.g. 2000" min="500" step="500" inputmode="numeric">
         </div>
+        <!-- Agent binding — REQUIRED -->
+        <div class="field" style="margin-bottom:10px">
+          <label style="color:var(--am);font-weight:700">
+            🔒 Agent ID <span style="font-weight:400;color:var(--gr);font-size:11px">(required — locks QR to this agent only)</span>
+          </label>
+          <input type="text" id="co-agent-id"
+            placeholder="e.g. AGENT-00001 — ask your agent"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--am);border-radius:8px;font-size:13px;font-family:monospace;text-transform:uppercase"
+            oninput="this.value=this.value.toUpperCase().trim()">
+          <div style="font-size:11px;color:var(--gr);margin-top:4px">
+            ⚠️ Only the agent with this ID can redeem this QR. No other agent can claim your cash.
+          </div>
+        </div>
         <button class="btn btn-p" onclick="generateCashoutQR()">Generate QR for Agent →</button>
       </div>
       <div id="cashout-qr-box" style="display:none">
@@ -1216,9 +1229,29 @@ async function handleScanResult(raw) {
   }
 }
 
-function confirmPayment() {
+async function confirmPayment() {
   if (!_pendingPayment) return;
   const data   = _pendingPayment;
+  const bd     = data.bundle || {};
+
+  // ── MERCHANT BINDING CHECK (offline-enforced) ─────────────────
+  // If the customer locked this QR to a specific merchant, verify
+  // this merchant's ID matches before crediting the payment.
+  if (bd.bound_to_merchant_hash) {
+    const myHash = await sha256Hex(M.merchant_id || '');
+    if (myHash !== bd.bound_to_merchant_hash) {
+      toast(
+        '❌ Payment rejected — this QR was locked to merchant ' +
+        (bd.bound_to_merchant || 'UNKNOWN') +
+        '. Your merchant ID is ' + (M.merchant_id || 'unknown') +
+        '. The customer must regenerate the QR for this merchant.',
+        true, 10000
+      );
+      _pendingPayment = null;
+      return;
+    }
+  }
+
   const amount = data.amount_kobo||0;
   const rcIds = data.received_coin_ids || (data.bundle?.coins||[]).map(function(c){return c.coin_id||c.id;});
   M.history.unshift({
@@ -1270,6 +1303,14 @@ function refreshCashout() {
   setText('co-coins',   M.vault.length+' coin'+(M.vault.length!==1?'s':'')+' available');
 }
 
+
+// ── Cryptographic binding helpers ────────────────────────────────────────────
+async function sha256Hex(str) {
+  const enc = new TextEncoder();
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 async function generateCashoutQR() {
   const amtNaira = parseInt(document.getElementById('co-amount').value||0);
   if (!amtNaira||amtNaira<500) { toast('Enter amount (min ₦500)', true); return; }
@@ -1281,12 +1322,23 @@ async function generateCashoutQR() {
   let remain=amtKobo; const selected=[];
   for(const c of sorted){if(remain<=0)break;selected.push(c);remain-=c.amount;}
 
+  // Agent binding enforcement
+  const agentIdInput = (document.getElementById('co-agent-id')?.value||'').trim().toUpperCase();
+  if (!agentIdInput) {
+    toast('Enter the Agent ID before generating — ask your agent for their ID', true, 4000);
+    return;
+  }
+  const boundAgentHash = await sha256Hex(agentIdInput);
+
   const bundle={
     zillion_version:'1.0', bundle_id:'BUNDLE-'+Date.now(),
     created_at:new Date().toISOString(), type:'cashout',
     merchant_id:M.merchant_id, owner_phone:M.phone,
     total_kobo:selected.reduce((s,c)=>s+c.amount,0),
     coin_count:selected.length, coins:selected,
+    // ── AGENT BINDING ──────────────────────────────────────
+    bound_to_agent:      agentIdInput,
+    bound_to_agent_hash: boundAgentHash,
   };
   showL('Creating cash-out QR...');
   try {
