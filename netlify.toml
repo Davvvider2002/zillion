@@ -341,3 +341,4 @@
   from = "/api/v1/admin-force-reconcile"
   to   = "/.netlify/functions/admin-force-reconcile"
   status = 200
+# validate.js regex removed — deploy trigger 1782778054
