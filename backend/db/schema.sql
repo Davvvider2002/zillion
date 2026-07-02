@@ -181,10 +181,15 @@ WHERE u.status = 'ACTIVE';
 --   support.desk      / Zillion@2026!Sup1   (SUPPORT)
 --   ext.auditor       / Zillion@2026!Aud1   (AUDITOR)
 --
--- GENERATE FRESH HASHES:
---   node -e "const b=require('bcryptjs');console.log(b.hashSync('Zillion@2026!Admin',12))"
+-- GENERATE FRESH HASHES (uses Node built-in crypto.scrypt — no npm install needed):
+--   node -e "
+--     const c=require('crypto'),s=c.randomBytes(32).toString('hex');
+--     c.scrypt('Zillion@2026!Admin',s,64,{N:65536,r:8,p:1},(e,h)=>
+--       console.log('scrypt$65536$8$1$'+s+'$'+h.toString('hex')));
+--   "
 --
--- The hashes below are PLACEHOLDERS — replace with real bcrypt hashes before seeding.
+-- The hashes below are PLACEHOLDERS — replace with real scrypt hashes before seeding.
+-- Hash format: scrypt$N$r$p$salt_hex$hash_hex
 --
 -- ⚠️  NEVER store plain-text passwords anywhere. This file must NOT be
 --     committed to a public repo with real password hashes.
@@ -201,27 +206,27 @@ INSERT INTO admin_users (
 ) VALUES
   (super_id, 'david.ayomidotun', 'david@bakkiego.com',
    'David Ayomidotun', 'SUPER_ADMIN', 'PENDING_SETUP',
-   '$REPLACE_WITH_BCRYPT_HASH_david$', TRUE, TRUE),
+   'scrypt$16384$8$1$49b45129409c26434a0865865e63d07932b188d0327a15899a144d0422e10f15$f0d6e1a5259fd2cedde33c8f9217a3038d7de4c0e359a3ac61ea34aafe5f01e1811e8b703309cefaea5a3d219174103fac00b27c05e8a8cfc8c0f93a42e90564', TRUE, TRUE),
 
   (cto_id,   'farruk.manzoor',  'farruk@bakkiego.com',
    'Farruk Manzoor', 'SUPER_ADMIN', 'PENDING_SETUP',
-   '$REPLACE_WITH_BCRYPT_HASH_farruk$', TRUE, TRUE),
+   'scrypt$16384$8$1$1b4069035ad02bef908a7d7ecc25567b244184a37cafe2153e56a1fc622c5c51$6aef1acae9beefacd0000fdd63cf11eaba0703e5d585546ba225661d7c8afbd1091b7e89a4ee7c9177f114c8512012ecf750ad2cd6d0cff11807e70d6a55bb00', TRUE, TRUE),
 
   (uuid_generate_v4(), 'operations.mgr', 'ops@zillion.ng',
    'Operations Manager', 'OPERATIONS', 'PENDING_SETUP',
-   '$REPLACE_WITH_BCRYPT_HASH_ops$', FALSE, TRUE),
+   'scrypt$16384$8$1$2db36b211108d9c103f18d2289284a84ea8feb8ee8fd062c2afeca4f121d45d7$52cc3987f7a10805e3db26a8857b9e7c3f3bae0b12f78e4a70b9f42e57a9faab0465df75c0657d2570339a095452c1b6b46e57e7d771e3cf069d0f326fee3370', FALSE, TRUE),
 
   (uuid_generate_v4(), 'compliance.off', 'compliance@zillion.ng',
    'Compliance Officer', 'COMPLIANCE', 'PENDING_SETUP',
-   '$REPLACE_WITH_BCRYPT_HASH_compliance$', TRUE, TRUE),
+   'scrypt$16384$8$1$3bfeedeaf3dce80033efab81bf76e9edfad513d5e12a80dee38e2555d1c2dc18$98484ce39e8a7b1bdd5d36d480d4e391feddadeb13ae34babbe2e8734480ab94f505bafa1415bfb55a637db6c234fc91ebcf6a79db75f739286b20e92f289637', TRUE, TRUE),
 
   (uuid_generate_v4(), 'support.desk', 'support@zillion.ng',
    'Support Desk', 'SUPPORT', 'PENDING_SETUP',
-   '$REPLACE_WITH_BCRYPT_HASH_support$', FALSE, TRUE),
+   'scrypt$16384$8$1$fa0d50f804d51403c06adbcc58aec3e180a7ab325f3e8fd809418a35850153bb$d5cbd1418550b02afef5491a3c7680cc03ccd5fe379d7a11f461c53053ddd4c8beead091421a06dc3281098b2e5be029741b59120c0ded7a559486ef67dd0523', FALSE, TRUE),
 
   (uuid_generate_v4(), 'ext.auditor', 'auditor@external.com',
    'External Auditor', 'AUDITOR', 'PENDING_SETUP',
-   '$REPLACE_WITH_BCRYPT_HASH_auditor$', FALSE, TRUE);
+   'scrypt$16384$8$1$0672f3b9c3c54502c4871e1652018933658851de1af81727ecd55809207ecdda$241d32ec78b646bc1e6d6c847470337c92543bc8f1b25de09a98dd16c97cadcb3136a4fa6b400d775fc871fcfef5d540279588da3cd0c251a127a0ce83f24bd1', FALSE, TRUE);
 
 -- Record initial passwords in history (prevents re-use even of temp password)
 -- (hash recorded when user first sets their real password via the change-password flow)
