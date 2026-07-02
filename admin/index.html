@@ -1135,6 +1135,8 @@ function doLogout() {
 function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-screen').style.display   = 'block';
+  // Set tab visibility based on role immediately
+  if (typeof onAdminLoginSuccess === 'function') onAdminLoginSuccess(adminToken);
   loadOverview();
   checkSystem();
   loadAgents(); // pre-load agents so Float Top-Up dropdown is ready immediately
@@ -2427,15 +2429,16 @@ const USER_ROLE_COLORS = {
 let _auditLogData = [];
 
 function initUsersTab() {
-  // Show Users tab only for SUPER_ADMIN
-  const role = (parseJWTRole(adminToken));
+  // Show Users tab for SUPER_ADMIN or legacy 'admin' role
+  const role = parseJWTRole(adminToken);
+  const isSuperAdmin = (role === 'SUPER_ADMIN' || role === 'admin');
   const tab  = document.getElementById('users-tab');
-  if (tab) tab.style.display = (role === 'SUPER_ADMIN') ? '' : 'none';
+  if (tab) tab.style.display = isSuperAdmin ? '' : 'none';
 
   // Show audit log card for roles that can access it
   const auditCard = document.getElementById('audit-log-card');
   if (auditCard) {
-    const canAudit = ['SUPER_ADMIN','COMPLIANCE','AUDITOR'].includes(role);
+    const canAudit = isSuperAdmin || ['COMPLIANCE','AUDITOR'].includes(role);
     auditCard.style.display = canAudit ? '' : 'none';
   }
 }
@@ -2658,9 +2661,18 @@ function displayVersion() {
 // Show Users tab visibility based on role after login
 function onAdminLoginSuccess(token) {
   const role = parseJWTRole(token);
+  const isSuperAdmin = (role === 'SUPER_ADMIN' || role === 'admin');
   const tab  = document.getElementById('users-tab');
-  if (tab) tab.style.display = (role === 'SUPER_ADMIN') ? '' : 'none';
+  if (tab) tab.style.display = isSuperAdmin ? '' : 'none';
+  // Show audit log card
+  const auditCard = document.getElementById('audit-log-card');
+  if (auditCard) {
+    const canAudit = isSuperAdmin || ['COMPLIANCE','AUDITOR'].includes(role);
+    auditCard.style.display = canAudit ? '' : 'none';
+  }
   displayVersion();
+  // Immediately call initUsersTab to set visibility
+  initUsersTab();
 }
 
 </script>
