@@ -109,8 +109,10 @@ async function audit(db, { callerId, callerUsername, callerRole, ip, ua,
 }
 
 // ── Permission checks ──────────────────────────────────────────────────────────
-function canManageUsers(role)   { return role === 'SUPER_ADMIN'; }
-function canViewAuditLog(role)  { return ['SUPER_ADMIN','COMPLIANCE','AUDITOR'].includes(role); }
+// Accept both 'SUPER_ADMIN' (new RBAC) and 'admin' (legacy master secret JWT)
+function isSuperAdmin(role)    { return role === 'SUPER_ADMIN' || role === 'admin'; }
+function canManageUsers(role)  { return isSuperAdmin(role); }
+function canViewAuditLog(role) { return isSuperAdmin(role) || ['COMPLIANCE','AUDITOR'].includes(role); }
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
