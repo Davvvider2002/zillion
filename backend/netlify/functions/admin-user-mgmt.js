@@ -17,11 +17,40 @@
 'use strict';
 
 const crypto  = require('crypto');
-const bcrypt  = require('bcryptjs');
 const { createClient } = require('@supabase/supabase-js');
 const { verifyJWT }    = require('../../lib/validators');
 
-const BCRYPT_COST      = 12;
+// ── Native password hashing (Node crypto.scrypt — no external deps) ───────────
+const crypto_m = require('crypto');
+const SCRYPT_N = 65536, SCRYPT_R = 8, SCRYPT_P = 1, SCRYPT_LEN = 64;
+
+function scryptHash(password) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto_m.randomBytes(32).toString('hex');
+    crypto_m.scrypt(password, salt, SCRYPT_LEN, { N:SCRYPT_N, r:SCRYPT_R, p:SCRYPT_P },
+      (err, hash) => err
+        ? reject(err)
+        : resolve(`scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt}$${hash.toString('hex')}`)
+    );
+  });
+}
+
+function scryptVerify(password, stored) {
+  return new Promise((resolve) => {
+    if (!stored || !stored.startsWith('scrypt$')) { resolve(false); return; }
+    const parts = stored.split('$');
+    if (parts.length < 6) { resolve(false); return; }
+    const [, N, r, p, salt, hashHex] = parts;
+    const storedBuf = Buffer.from(hashHex, 'hex');
+    crypto_m.scrypt(password, salt, storedBuf.length,
+      { N:parseInt(N), r:parseInt(r), p:parseInt(p) },
+      (err, hash) => resolve(!err && crypto_m.timingSafeEqual(hash, storedBuf))
+    );
+  });
+}
+
+
+
 const PASSWORD_MIN_LEN = 12;
 const PASSWORD_HISTORY = 5;
 
@@ -185,7 +214,7 @@ exports.handler = async (event) => {
       .select('*').eq('user_id', callerId).single();
     if (!user) return err(404, 'User not found.');
 
-    if (!(await bcrypt.compare(old_password, user.password_hash)))
+    if (!(await scryptVerify(old_password, user.password_hash)))
       return err(401, 'Current password is incorrect.');
 
     // Check history
@@ -193,11 +222,11 @@ exports.handler = async (event) => {
       .select('password_hash').eq('user_id', callerId)
       .order('changed_at',{ascending:false}).limit(PASSWORD_HISTORY);
     for (const prev of (hist||[])) {
-      if (await bcrypt.compare(new_password, prev.password_hash))
+      if (await scryptVerify(new_password, prev.password_hash))
         return err(400, `Cannot reuse any of your last ${PASSWORD_HISTORY} passwords.`);
     }
 
-    const hash = await bcrypt.hash(new_password, BCRYPT_COST);
+    const hash = await scryptHash(new_password);
     await db.from('admin_users').update({
       password_hash:        hash,
       must_change_password: false,
@@ -228,7 +257,7 @@ exports.handler = async (event) => {
       return err(400, 'Username must be 3-50 chars, start with a letter, lowercase alphanumeric/underscore/dot only.');
 
     const tempPassword = generateTempPassword();
-    const hash         = await bcrypt.hash(tempPassword, BCRYPT_COST);
+    const hash         = await scryptHash(tempPassword);
     const totpRequired = ['SUPER_ADMIN','COMPLIANCE'].includes(role);
 
     const { data:newUser, error:createErr } = await db.from('admin_users').insert({
@@ -289,7 +318,7 @@ exports.handler = async (event) => {
     if (!user_id) return err(400, 'user_id required.');
 
     const tempPassword = generateTempPassword();
-    const hash         = await bcrypt.hash(tempPassword, BCRYPT_COST);
+    const hash         = await scryptHash(tempPassword);
 
     await db.from('admin_users').update({
       password_hash:        hash,
