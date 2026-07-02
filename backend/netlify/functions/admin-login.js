@@ -345,7 +345,46 @@ exports.handler = async (event) => {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // STEP 1 — Username + password
+  // LEGACY FALLBACK — old single admin_secret (keeps existing UI working while
+  // RBAC is being set up). Remove once all admins have switched to username+pw.
+  // ════════════════════════════════════════════════════════════════════════════
+  if (body.admin_secret && !body.username) {
+    const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET;
+    const JWT_SECRET   = process.env.JWT_SECRET;
+    const TOTP_SECRET  = process.env.ADMIN_TOTP_SECRET;
+    if (!JWT_SECRET) return err(500, 'JWT_SECRET not configured');
+
+    const expBuf = Buffer.from(ADMIN_SECRET || '');
+    const rcvBuf = Buffer.from(body.admin_secret);
+    const match  = expBuf.length === rcvBuf.length &&
+      crypto.timingSafeEqual(expBuf, rcvBuf);
+
+    if (!match) {
+      await audit(db, { username:'legacy_admin', ip, ua,
+        action:'LOGIN_FAIL_LEGACY', result:'FAILURE', responseCode:401 });
+      return err(401, 'Invalid admin secret.');
+    }
+
+    // TOTP required?
+    if (TOTP_SECRET) {
+      const sessionToken = await createSession(db, null, 'legacy_admin', 'SUPER_ADMIN', ip, ua);
+      return ok({ success:true, step:'totp', session_token:sessionToken,
+        message:'Enter the 6-digit code from your authenticator app.' });
+    }
+
+    // No TOTP — issue JWT as legacy super admin
+    const { token, expires_at } = buildJWT({
+      sub:'legacy_admin', username:'legacy_admin', role:'SUPER_ADMIN'
+    });
+    await audit(db, { username:'legacy_admin', ip, ua,
+      action:'LOGIN_SUCCESS_LEGACY', result:'SUCCESS', responseCode:200 });
+    return ok({ success:true, token, expires_at,
+      user:{ username:'legacy_admin', full_name:'Admin', role:'SUPER_ADMIN' },
+      warning:'Using legacy admin_secret. Set up RBAC users for proper access control.' });
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // STEP 1 — Username + password (new RBAC flow)
   // ════════════════════════════════════════════════════════════════════════════
   if (!body.username || !body.password)
     return err(400, 'Username and password are required.');
