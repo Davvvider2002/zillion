@@ -315,40 +315,19 @@ tr:hover td{background:var(--gl)}
     <div class="lsub">Admin Dashboard</div>
     <div class="lbadge"><span>&#x1F510; Restricted Access &mdash; Authorised Personnel Only</span></div>
 
-    <!-- STEP 1: Admin Secret -->
+    <!-- STEP 1: Login -->
     <div id="login-step1">
-      <!-- Username + Password (new RBAC mode) -->
-      <div id="login-mode-rbac">
-        <div class="lf">
-          <label>Username</label>
-          <input type="text" id="l-username" placeholder="e.g. david.ayomidotun"
-                 autocomplete="username" autocapitalize="none"
-                 onkeydown="if(event.key==='Enter')document.getElementById('l-password').focus()">
-        </div>
-        <div class="lf" style="margin-top:10px">
-          <label>Password</label>
-          <input type="password" id="l-password" placeholder="Your admin password"
-                 autocomplete="current-password"
-                 onkeydown="if(event.key==='Enter')doLogin()">
-        </div>
+      <div class="lf">
+        <label>Admin Secret</label>
+        <input type="password" id="l-secret"
+               placeholder="Enter your admin secret"
+               autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')doLogin()"
+               style="font-size:15px">
       </div>
-
-      <!-- Legacy Admin Secret (fallback while RBAC is being set up) -->
-      <div id="login-mode-legacy" style="display:none">
-        <div class="lf">
-          <label>Admin Secret</label>
-          <input type="password" id="l-secret" placeholder="Enter your admin secret"
-                 onkeydown="if(event.key==='Enter')doLogin()">
-        </div>
-      </div>
-
-      <div style="text-align:right;margin-top:6px">
-        <button onclick="toggleLoginMode()" style="background:none;border:none;color:var(--gm);font-size:11px;cursor:pointer;text-decoration:underline">
-          Use legacy secret instead
-        </button>
-      </div>
-
-      <button class="lbtn" id="lbtn" onclick="doLogin()">Continue &#x2192;</button>
+      <button class="lbtn" id="lbtn" onclick="doLogin()" style="margin-top:18px">
+        Enter Dashboard &#x2192;
+      </button>
       <div class="lerr" id="lerr"></div>
     </div>
 
@@ -1026,43 +1005,17 @@ window.addEventListener('DOMContentLoaded', () => {
 // ── 2FA Login flow ─────────────────────────────────────────────
 let _sessionToken = null; // holds session token between step 1 and step 2
 
-function toggleLoginMode() {
-  const rbac   = document.getElementById('login-mode-rbac');
-  const legacy = document.getElementById('login-mode-legacy');
-  const btn    = document.querySelector('[onclick="toggleLoginMode()"]');
-  if (legacy.style.display === 'none') {
-    rbac.style.display = 'none'; legacy.style.display = '';
-    if (btn) btn.textContent = 'Use username + password instead';
-  } else {
-    rbac.style.display = ''; legacy.style.display = 'none';
-    if (btn) btn.textContent = 'Use legacy secret instead';
-  }
-}
+// toggleLoginMode removed — single secret field used
 
 async function doLogin() {
   const errEl = document.getElementById('lerr');
   const btn   = document.getElementById('lbtn');
   errEl.className = 'lerr';
 
-  // Determine which mode is active
-  const legacyVisible = document.getElementById('login-mode-legacy').style.display !== 'none';
-  let payload;
-
-  if (legacyVisible) {
-    // Legacy mode — old admin_secret
-    const secret = (document.getElementById('l-secret')?.value||'').trim();
-    if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
-    payload = { admin_secret: secret };
-  } else {
-    // RBAC mode — username + password
-    const username = (document.getElementById('l-username')?.value||'').trim();
-    const password = (document.getElementById('l-password')?.value||'').trim();
-    if (!username || !password) {
-      errEl.textContent = 'Enter both username and password.';
-      errEl.className = 'lerr show'; return;
-    }
-    payload = { username, password };
-  }
+  // Send admin_secret to backend
+  const secret = (document.getElementById('l-secret')?.value||'').trim();
+  if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
+  const payload = { admin_secret: secret };
 
   btn.disabled = true; btn.textContent = 'Checking...';
   showLoader('Verifying credentials...');
