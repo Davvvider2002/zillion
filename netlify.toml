@@ -43,7 +43,7 @@
     # - connect-src: Supabase + Netlify functions
     # - img-src data: blob:       : QR codes generated as data URIs
     # - frame-ancestors 'none'    : belt-and-suspenders against framing
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' *.supabase.co *.netlify.app app.zillion.ng zillion-mvp.netlify.app zillion.ng *.zillion.ng; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' *.supabase.co *.netlify.app app.zillion.ng zillion-mvp.netlify.app zillion.ng *.zillion.ng *.nsvcs.net ingesteer.services-prod.nsvcs.net; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 # ── API function headers — never cache, never index ─────────────
 
