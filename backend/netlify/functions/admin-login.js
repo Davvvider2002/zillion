@@ -4,8 +4,7 @@
  * Supports TWO completely independent login paths:
  *
  * PATH A — Legacy (original, zero Supabase dependency):
- *   Step 1: POST { admin_secret }             → { step:'totp', session_token } | JWT
- *   Step 2: POST { session_token, totp_code } → JWT
+ *   Step 1: POST { admin_secret }             → JWT (no TOTP — secret alone is sufficient)
  *
  * PATH B — RBAC multi-user (new, requires admin_users table in Supabase):
  *   Step 1: POST { username, password }       → { step:'totp'|'change_password', session_token } | JWT
@@ -211,33 +210,14 @@ exports.handler = async (event) => {
   // ════════════════════════════════════════════════════════════════════════
   if (body.admin_secret && !body.username) {
 
-    // A-STEP-2: TOTP verification
-    if (body.session_token && body.totp_code) {
-      if (!verifyLegacySessionToken(body.session_token, JWT_SECRET))
-        return err(401, 'Session expired. Please log in again.');
-      if (TOTP_SECRET) {
-        const code = String(body.totp_code).replace(/\s+/g,'');
-        if (!/^\d{6}$/.test(code)) return err(400, 'TOTP code must be 6 digits');
-        if (!verifyTOTP(TOTP_SECRET, code)) return err(401, 'Incorrect authenticator code.');
-      }
-      const { token, exp } = buildLegacyJWT(JWT_SECRET);
-      return ok({ success:true, token, expires_at: new Date(exp*1000).toISOString(),
-        user:{ username:'admin', full_name:'Administrator', role:'SUPER_ADMIN' } });
-    }
-
-    // A-STEP-1: Secret check
+    // A-STEP-1: Secret check (only step — no TOTP for legacy path)
     if (body.admin_secret !== ADMIN_SECRET) {
       console.log('[admin-login] legacy fail — secret mismatch. ADMIN_SECRET set:', !!process.env.ADMIN_SECRET);
       return err(401, 'Invalid admin secret.');
     }
 
-    if (TOTP_SECRET) {
-      const session_token = makeLegacySessionToken(JWT_SECRET);
-      return ok({ success:true, step:'totp', session_token,
-        message:'Enter the 6-digit code from your authenticator app.' });
-    }
-
-    // No TOTP — issue JWT directly
+    // Issue JWT directly — TOTP not required for legacy secret path.
+    // (TOTP is enforced in the RBAC path via Supabase admin_users table.)
     const { token, exp } = buildLegacyJWT(JWT_SECRET);
     return ok({ success:true, token, expires_at: new Date(exp*1000).toISOString(),
       user:{ username:'admin', full_name:'Administrator', role:'SUPER_ADMIN' } });
