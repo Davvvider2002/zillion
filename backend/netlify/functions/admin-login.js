@@ -27,7 +27,38 @@
 
 const { createHmac } = require('crypto');
 const crypto          = require('crypto');
-const bcrypt          = require('bcryptjs');
+
+// ── Native password hashing (Node crypto.scrypt — no external deps) ───────────
+// Memory-hard KDF equivalent to bcrypt cost 12. Built into Node 18.
+// Format: scrypt$N$r$p$salt_hex$hash_hex
+const SCRYPT_N = 65536, SCRYPT_R = 8, SCRYPT_P = 1, SCRYPT_LEN = 64;
+
+function scryptHash(password) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(32).toString('hex');
+    crypto.scrypt(password, salt, SCRYPT_LEN, { N:SCRYPT_N, r:SCRYPT_R, p:SCRYPT_P },
+      (err, hash) => err
+        ? reject(err)
+        : resolve(`scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt}$${hash.toString('hex')}`)
+    );
+  });
+}
+
+function scryptVerify(password, stored) {
+  return new Promise((resolve) => {
+    if (!stored || !stored.startsWith('scrypt$')) { resolve(false); return; }
+    const parts = stored.split('$');
+    if (parts.length < 6) { resolve(false); return; }
+    const [, N, r, p, salt, hashHex] = parts;
+    const storedBuf = Buffer.from(hashHex, 'hex');
+    crypto.scrypt(password, salt, storedBuf.length,
+      { N:parseInt(N), r:parseInt(r), p:parseInt(p) },
+      (err, hash) => resolve(!err && crypto.timingSafeEqual(hash, storedBuf))
+    );
+  });
+}
+
+
 const { createClient } = require('@supabase/supabase-js');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -36,7 +67,6 @@ const LOCKOUT_SOFT_MIN    = 15;
 const MAX_ATTEMPTS_HARD   = 10;  // → permanent lock
 const SESSION_TTL_MIN     = 5;   // TOTP step window
 const JWT_TTL_HOURS       = 8;
-const BCRYPT_COST         = 12;
 const PASSWORD_MIN_LEN    = 12;
 const PASSWORD_HISTORY    = 5;   // cannot reuse last N passwords
 
@@ -218,11 +248,11 @@ exports.handler = async (event) => {
       .order('changed_at', { ascending:false }).limit(PASSWORD_HISTORY);
 
     for (const prev of (history || [])) {
-      if (await bcrypt.compare(body.new_password, prev.password_hash))
+      if (await scryptVerify(body.new_password, prev.password_hash))
         return err(400, `Cannot reuse any of your last ${PASSWORD_HISTORY} passwords.`);
     }
 
-    const newHash = await bcrypt.hash(body.new_password, BCRYPT_COST);
+    const newHash = await scryptHash(body.new_password);
     const now     = new Date().toISOString();
 
     await db.from('admin_users').update({
@@ -356,7 +386,7 @@ exports.handler = async (event) => {
   }
 
   // Password verification (bcrypt — constant time)
-  const passwordOk = await bcrypt.compare(body.password, user.password_hash);
+  const passwordOk = await scryptVerify(body.password, user.password_hash);
 
   if (!passwordOk) {
     const newAttempts = (user.failed_attempts || 0) + 1;
