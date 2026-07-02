@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zillion — Agent Portal</title>
+<script>
+  // Zillion version metadata — injected at build time
+  window.ZILLION_APP     = 'Agent Portal';
+  window.ZILLION_VERSION = '1.0.0';
+  window.ZILLION_BUILD   = '20260630';
+  // Expose for display in UI and for support diagnostics
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add version to page title
+    document.title = document.title + ' v1.0.0';
+    // Set any version display elements
+    document.querySelectorAll('.zillion-version').forEach(function(el) {
+      el.textContent = 'v1.0.0 (build 20260630)';
+    });
+    console.log('[Zillion] Agent Portal v1.0.0 build 20260630');
+  });
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{--g:#1A7A4A;--gl:#E8F5EE;--gm:#C8E6D4;--d:#0D1F1A;--gr:#555;--b:#DDD;--r:#C0392B;--rl:#FDECEA;--am:#E67E22;--al:#FFF3E0;--bl:#1A3A7A;--w:#FFF;}
