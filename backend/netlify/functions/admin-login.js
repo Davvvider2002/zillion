@@ -150,7 +150,7 @@ async function createSession(db, userId, username, role, ip, ua, type='totp_pend
   const ttl    = type === 'totp_pending' ? SESSION_TTL_MIN : JWT_TTL_HOURS * 60;
   const expAt  = new Date(Date.now() + ttl * 60 * 1000).toISOString();
 
-  const { error } = await db.from('admin_sessions').insert({
+  const { error } = await requireDb().from('admin_sessions').insert({
     session_id:   rawId,
     token_hash:   hash,
     user_id:      userId,
@@ -168,7 +168,7 @@ async function createSession(db, userId, username, role, ip, ua, type='totp_pend
 
 async function consumeSession(db, rawId) {
   const hash = createHmac('sha256', getJwtSecret()).update(rawId).digest('hex');
-  const { data, error } = await db.from('admin_sessions')
+  const { data, error } = await requireDb().from('admin_sessions')
     .select('id, user_id, username, role, used, revoked, expires_at')
     .eq('token_hash', hash)
     .eq('used', false)
@@ -176,7 +176,7 @@ async function consumeSession(db, rawId) {
     .gt('expires_at', new Date().toISOString())
     .single();
   if (error || !data) return null;
-  await db.from('admin_sessions').update({ used:true }).eq('id', data.id);
+  await requireDb().from('admin_sessions').update({ used:true }).eq('id', data.id);
   return data;
 }
 
@@ -190,7 +190,7 @@ async function audit(db, { userId, username, role, ip, ua, sessionId, action,
     delete safeBody.old_password; delete safeBody.admin_secret;
     delete safeBody.totp_secret;
   }
-  await db.from('admin_audit_log').insert({
+  await requireDb().from('admin_audit_log').insert({
     user_id:       userId || null,
     username:      username || 'unknown',
     role:          role || null,
@@ -222,18 +222,24 @@ exports.handler = async (event) => {
   const ip = event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown';
   const ua = event.headers['user-agent'] || '';
 
-  let db;
-  try { db = getDb(); }
-  catch (e) { return err(500, 'Database unavailable'); }
+  // NOTE: db is initialised lazily — legacy path does NOT need Supabase
+  let db = null;
+  function requireDb() {
+    if (!db) {
+      try { db = getDb(); }
+      catch (e) { throw new Error('Database unavailable: ' + e.message); }
+    }
+    return db;
+  }
 
   // ════════════════════════════════════════════════════════════════════════════
   // STEP 3 — Password change (first login or forced reset)
   // ════════════════════════════════════════════════════════════════════════════
   if (body.session_token && body.new_password && !body.totp_code) {
-    const session = await consumeSession(db, body.session_token);
+    const session = await consumeSession(requireDb(), body.session_token);
     if (!session) return err(401, 'Session expired or invalid. Please log in again.');
 
-    const { data: user } = await db.from('admin_users').select('*')
+    const { data: user } = await requireDb().from('admin_users').select('*')
       .eq('user_id', session.user_id).single();
     if (!user || !user.must_change_password)
       return err(400, 'Password change not required or user not found.');
@@ -243,7 +249,7 @@ exports.handler = async (event) => {
       return err(400, 'Password policy: ' + policyErrors.join('; '));
 
     // Check password history (last PASSWORD_HISTORY hashes)
-    const { data: history } = await db.from('admin_password_history')
+    const { data: history } = await requireDb().from('admin_password_history')
       .select('password_hash').eq('user_id', user.user_id)
       .order('changed_at', { ascending:false }).limit(PASSWORD_HISTORY);
 
@@ -255,14 +261,14 @@ exports.handler = async (event) => {
     const newHash = await scryptHash(body.new_password);
     const now     = new Date().toISOString();
 
-    await db.from('admin_users').update({
+    await requireDb().from('admin_users').update({
       password_hash:       newHash,
       must_change_password:false,
       password_changed_at: now,
       status:             'ACTIVE',
     }).eq('user_id', user.user_id);
 
-    await db.from('admin_password_history').insert({
+    await requireDb().from('admin_password_history').insert({
       user_id:       user.user_id,
       password_hash: newHash,
     });
@@ -288,10 +294,10 @@ exports.handler = async (event) => {
   // STEP 2 — TOTP verification
   // ════════════════════════════════════════════════════════════════════════════
   if (body.session_token && body.totp_code) {
-    const session = await consumeSession(db, body.session_token);
+    const session = await consumeSession(requireDb(), body.session_token);
     if (!session) return err(401, 'Session expired or invalid. Please log in again.');
 
-    const { data: user } = await db.from('admin_users').select('*')
+    const { data: user } = await requireDb().from('admin_users').select('*')
       .eq('user_id', session.user_id).single();
     if (!user || user.status === 'LOCKED' || user.status === 'SUSPENDED' || user.status === 'DEACTIVATED')
       return err(403, 'Account is ' + (user?.status || 'unavailable') + '.');
@@ -328,7 +334,7 @@ exports.handler = async (event) => {
       session_id: session.id,
     });
 
-    await db.from('admin_users').update({
+    await requireDb().from('admin_users').update({
       last_login_at:    new Date().toISOString(),
       last_login_ip:    ip,
       last_activity_at: new Date().toISOString(),
@@ -363,15 +369,16 @@ exports.handler = async (event) => {
     console.log('[admin-login] match:', body.admin_secret === ADMIN_SECRET);
 
     if (!ADMIN_SECRET || body.admin_secret !== ADMIN_SECRET) {
-      await audit(db, { username:'legacy_admin', ip, ua,
-        action:'LOGIN_FAIL_LEGACY', result:'FAILURE', responseCode:401 }).catch(()=>{});
+      // Audit is best-effort — don't let it block the response
+      try { await audit(requireDb(), { username:'legacy_admin', ip, ua,
+        action:'LOGIN_FAIL_LEGACY', result:'FAILURE', responseCode:401 }); } catch(e) {}
       return err(401, 'Invalid admin secret. Check Netlify function logs for debug info.');
     }
 
     // TOTP required?
     if (TOTP_SECRET) {
       try {
-        const sessionToken = await createSession(db, null, 'legacy_admin', 'SUPER_ADMIN', ip, ua);
+        const sessionToken = await createSession(requireDb(), null, 'legacy_admin', 'SUPER_ADMIN', ip, ua);
         return ok({ success:true, step:'totp', session_token:sessionToken,
           message:'Enter the 6-digit code from your authenticator app.' });
       } catch(sessionErr) {
@@ -384,8 +391,8 @@ exports.handler = async (event) => {
     const { token, expires_at } = buildJWT({
       sub:'legacy_admin', username:'legacy_admin', role:'SUPER_ADMIN'
     });
-    await audit(db, { username:'legacy_admin', ip, ua,
-      action:'LOGIN_SUCCESS_LEGACY', result:'SUCCESS', responseCode:200 });
+    try { await audit(requireDb(), { username:'legacy_admin', ip, ua,
+      action:'LOGIN_SUCCESS_LEGACY', result:'SUCCESS', responseCode:200 }); } catch(e) {}
     return ok({ success:true, token, expires_at,
       user:{ username:'legacy_admin', full_name:'Admin', role:'SUPER_ADMIN' },
       warning:'Using legacy admin_secret. Set up RBAC users for proper access control.' });
@@ -400,7 +407,7 @@ exports.handler = async (event) => {
   const username = String(body.username).toLowerCase().trim();
 
   // Fetch user
-  const { data: user, error: fetchErr } = await db.from('admin_users')
+  const { data: user, error: fetchErr } = await requireDb().from('admin_users')
     .select('*').eq('username', username).single();
 
   if (fetchErr || !user) {
@@ -424,7 +431,7 @@ exports.handler = async (event) => {
     }
     // Lockout expired — reset if soft lock (failed_attempts < 10)
     if ((user.failed_attempts || 0) < MAX_ATTEMPTS_HARD) {
-      await db.from('admin_users').update({ status:'ACTIVE', locked_until:null })
+      await requireDb().from('admin_users').update({ status:'ACTIVE', locked_until:null })
         .eq('user_id', user.user_id);
       user.status = 'ACTIVE';
     } else {
@@ -446,7 +453,7 @@ exports.handler = async (event) => {
       updateFields.status       = 'LOCKED';
       updateFields.locked_until = new Date(Date.now() + LOCKOUT_SOFT_MIN*60000).toISOString();
     }
-    await db.from('admin_users').update(updateFields).eq('user_id', user.user_id);
+    await requireDb().from('admin_users').update(updateFields).eq('user_id', user.user_id);
 
     await audit(db, {
       userId:user.user_id, username:user.username, role:user.role,
@@ -464,13 +471,13 @@ exports.handler = async (event) => {
   }
 
   // Password OK — reset failed attempts
-  await db.from('admin_users').update({ failed_attempts:0 }).eq('user_id', user.user_id);
+  await requireDb().from('admin_users').update({ failed_attempts:0 }).eq('user_id', user.user_id);
 
   // Check password expiry
   if (user.password_expires_at && new Date(user.password_expires_at) < new Date()) {
     const changeToken = await createSession(db, user.user_id, user.username,
       user.role, ip, ua, 'password_change');
-    await db.from('admin_users').update({ must_change_password:true })
+    await requireDb().from('admin_users').update({ must_change_password:true })
       .eq('user_id', user.user_id);
     return ok({ success:true, step:'change_password', session_token:changeToken,
       message:'Your password has expired. Please set a new one.' });
@@ -519,7 +526,7 @@ exports.handler = async (event) => {
     role:     user.role,
   });
 
-  await db.from('admin_users').update({
+  await requireDb().from('admin_users').update({
     last_login_at:    new Date().toISOString(),
     last_login_ip:    ip,
     last_activity_at: new Date().toISOString(),
