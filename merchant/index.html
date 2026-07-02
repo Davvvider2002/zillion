@@ -5,6 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <meta name="theme-color" content="#1A0A2E">
 <title>Zillion — Merchant Portal</title>
+<script>
+  // Zillion version metadata — injected at build time
+  window.ZILLION_APP     = 'Merchant Portal';
+  window.ZILLION_VERSION = '1.0.0';
+  window.ZILLION_BUILD   = '20260630';
+  // Expose for display in UI and for support diagnostics
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add version to page title
+    document.title = document.title + ' v1.0.0';
+    // Set any version display elements
+    document.querySelectorAll('.zillion-version').forEach(function(el) {
+      el.textContent = 'v1.0.0 (build 20260630)';
+    });
+    console.log('[Zillion] Merchant Portal v1.0.0 build 20260630');
+  });
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
