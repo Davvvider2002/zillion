@@ -242,7 +242,8 @@ INSERT INTO admin_users (
 
   (uuid_generate_v4(), 'ext.auditor', 'auditor@external.com',
    'External Auditor', 'AUDITOR', 'PENDING_SETUP',
-   'scrypt$16384$8$1$0672f3b9c3c54502c4871e1652018933658851de1af81727ecd55809207ecdda$241d32ec78b646bc1e6d6c847470337c92543bc8f1b25de09a98dd16c97cadcb3136a4fa6b400d775fc871fcfef5d540279588da3cd0c251a127a0ce83f24bd1', FALSE, TRUE);
+   'scrypt$16384$8$1$0672f3b9c3c54502c4871e1652018933658851de1af81727ecd55809207ecdda$241d32ec78b646bc1e6d6c847470337c92543bc8f1b25de09a98dd16c97cadcb3136a4fa6b400d775fc871fcfef5d540279588da3cd0c251a127a0ce83f24bd1', FALSE, TRUE)
+ON CONFLICT (username) DO NOTHING;
 
 -- Record initial passwords in history (prevents re-use even of temp password)
 -- (hash recorded when user first sets their real password via the change-password flow)
