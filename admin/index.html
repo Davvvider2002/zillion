@@ -317,11 +317,37 @@ tr:hover td{background:var(--gl)}
 
     <!-- STEP 1: Admin Secret -->
     <div id="login-step1">
-      <div class="lf">
-        <label>Admin Secret</label>
-        <input type="password" id="l-secret" placeholder="Enter your admin secret"
-               onkeydown="if(event.key==='Enter')doLogin()">
+      <!-- Username + Password (new RBAC mode) -->
+      <div id="login-mode-rbac">
+        <div class="lf">
+          <label>Username</label>
+          <input type="text" id="l-username" placeholder="e.g. david.ayomidotun"
+                 autocomplete="username" autocapitalize="none"
+                 onkeydown="if(event.key==='Enter')document.getElementById('l-password').focus()">
+        </div>
+        <div class="lf" style="margin-top:10px">
+          <label>Password</label>
+          <input type="password" id="l-password" placeholder="Your admin password"
+                 autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
       </div>
+
+      <!-- Legacy Admin Secret (fallback while RBAC is being set up) -->
+      <div id="login-mode-legacy" style="display:none">
+        <div class="lf">
+          <label>Admin Secret</label>
+          <input type="password" id="l-secret" placeholder="Enter your admin secret"
+                 onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:6px">
+        <button onclick="toggleLoginMode()" style="background:none;border:none;color:var(--gm);font-size:11px;cursor:pointer;text-decoration:underline">
+          Use legacy secret instead
+        </button>
+      </div>
+
       <button class="lbtn" id="lbtn" onclick="doLogin()">Continue &#x2192;</button>
       <div class="lerr" id="lerr"></div>
     </div>
@@ -977,18 +1003,50 @@ window.addEventListener('DOMContentLoaded', () => {
 // ── 2FA Login flow ─────────────────────────────────────────────
 let _sessionToken = null; // holds session token between step 1 and step 2
 
+async function toggleLoginMode() {
+  const rbac   = document.getElementById('login-mode-rbac');
+  const legacy = document.getElementById('login-mode-legacy');
+  const btn    = document.querySelector('[onclick="toggleLoginMode()"]');
+  if (legacy.style.display === 'none') {
+    rbac.style.display = 'none'; legacy.style.display = '';
+    if (btn) btn.textContent = 'Use username + password instead';
+  } else {
+    rbac.style.display = ''; legacy.style.display = 'none';
+    if (btn) btn.textContent = 'Use legacy secret instead';
+  }
+}
+
 async function doLogin() {
-  const secret = document.getElementById('l-secret').value.trim();
-  const errEl  = document.getElementById('lerr');
-  const btn    = document.getElementById('lbtn');
+  const errEl = document.getElementById('lerr');
+  const btn   = document.getElementById('lbtn');
   errEl.className = 'lerr';
-  if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
+
+  // Determine which mode is active
+  const legacyVisible = document.getElementById('login-mode-legacy').style.display !== 'none';
+  let payload;
+
+  if (legacyVisible) {
+    // Legacy mode — old admin_secret
+    const secret = (document.getElementById('l-secret')?.value||'').trim();
+    if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
+    payload = { admin_secret: secret };
+  } else {
+    // RBAC mode — username + password
+    const username = (document.getElementById('l-username')?.value||'').trim();
+    const password = (document.getElementById('l-password')?.value||'').trim();
+    if (!username || !password) {
+      errEl.textContent = 'Enter both username and password.';
+      errEl.className = 'lerr show'; return;
+    }
+    payload = { username, password };
+  }
+
   btn.disabled = true; btn.textContent = 'Checking...';
-  showLoader('Verifying secret...');
+  showLoader('Verifying credentials...');
   try {
     const res  = await fetch(`${API}/admin-login`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_secret: secret }),
+      body: JSON.stringify(payload),
     });
     const rawText = await res.text();
     let data;
@@ -1012,6 +1070,15 @@ async function doLogin() {
     } else {
       // No TOTP configured — direct access (dev mode)
       adminToken = data.token;
+      // Show logged-in user info if available (RBAC mode)
+      if (data.user && data.user.username) {
+        const uLabel = document.getElementById('admin-username-label');
+        if (uLabel) uLabel.textContent = data.user.full_name || data.user.username;
+        const rLabel = document.getElementById('admin-role-label');
+        if (rLabel) rLabel.textContent = data.user.role || 'ADMIN';
+      }
+      // Show Users tab for SUPER_ADMIN
+      if (typeof onAdminLoginSuccess === 'function') onAdminLoginSuccess(data.token);
       localStorage.setItem('zil_admin_token', adminToken);
       localStorage.setItem('zil_admin_secret', secret);
       showApp();
