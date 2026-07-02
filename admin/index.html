@@ -400,7 +400,7 @@ tr:hover td{background:var(--gl)}
 </div>
 
 <!-- APP -->
-<div id="app-screen">
+<div id="app-screen" style="display:none">
 <header>
   <div class="hlogo">ZILLION</div>
   <div class="hright">
@@ -995,7 +995,25 @@ let allMerchantsData = [];
 // ── LOGIN ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('zil_admin_token');
-  if (saved) { adminToken = saved; showApp(); }
+  if (saved) {
+    // Validate token is not expired before auto-login
+    try {
+      const parts = saved.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+        const now     = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp > now) {
+          adminToken = saved;
+          showApp();
+        } else {
+          // Token expired — clear it and show login
+          localStorage.removeItem('zil_admin_token');
+        }
+      }
+    } catch(e) {
+      localStorage.removeItem('zil_admin_token');
+    }
+  }
   // Attach Enter key to both login inputs
   const lSecret = document.getElementById('l-secret');
   if (lSecret) lSecret.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
