@@ -379,7 +379,7 @@ tr:hover td{background:var(--gl)}
   <div class="hlogo">ZILLION</div>
   <div class="hright">
     <span style="font-size:13px;color:var(--gm)"><span class="hdot"></span>Admin</span>
-    <span class="hbadge">PILOT v0.1</span>
+    <span class="hbadge">PILOT v0.1</span><span id="version-badge" style="margin-left:6px;font-size:10px;color:var(--gm);font-weight:600"></span>
     <a href="/" style="color:var(--gm);font-size:12px;text-decoration:none">← Home</a>
     <button class="lout" onclick="doLogout()">Logout</button>
   </div>
@@ -395,6 +395,7 @@ tr:hover td{background:var(--gl)}
   <button class="ntab" onclick="showSec('tokens',this)">🔐 Tokens</button>
   <button class="ntab" onclick="showSec('fraud',this)">🚨 Fraud</button>
   <button class="ntab" onclick="showSec('ledger',this);initLedger()">📒 Ledger</button>
+  <button class="ntab" id="users-tab" onclick="showSec('users',this);loadAdminUsers()" style="display:none">👥 Users</button>
   <button class="ntab" onclick="showSec('system',this)">⚙️ System</button>
 </div>
 
@@ -788,6 +789,97 @@ tr:hover td{background:var(--gl)}
 
     <!-- Results area -->
     <div id="ldg-results"></div>
+  </div>
+</div>
+
+
+<!-- USERS MANAGEMENT (SUPER_ADMIN only) -->
+<div id="sec-users" class="sec">
+  <div class="card">
+    <div class="card-title">👥 Admin Users
+      <button onclick="showCreateUserModal()" style="padding:7px 14px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">+ New User</button>
+    </div>
+    <div class="card-sub">Role-based access control — manage admin credentials, roles and account status. All actions are immutably logged.</div>
+
+    <!-- Role legend -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <span style="padding:3px 10px;background:#7C3AED22;color:#7C3AED;border-radius:10px;font-size:11px;font-weight:700">SUPER_ADMIN — Full access</span>
+      <span style="padding:3px 10px;background:#DC262622;color:#DC2626;border-radius:10px;font-size:11px;font-weight:700">COMPLIANCE — Freeze + audit</span>
+      <span style="padding:3px 10px;background:#1A7A4A22;color:#1A7A4A;border-radius:10px;font-size:11px;font-weight:700">OPERATIONS — Float + reconcile</span>
+      <span style="padding:3px 10px;background:#1A3A7A22;color:#1A3A7A;border-radius:10px;font-size:11px;font-weight:700">SUPPORT — View only</span>
+      <span style="padding:3px 10px;background:#92400E22;color:#92400E;border-radius:10px;font-size:11px;font-weight:700">AUDITOR — Export + audit log</span>
+      <span style="padding:3px 10px;background:#6B728022;color:#6B7280;border-radius:10px;font-size:11px;font-weight:700">VIEWER — Dashboard only</span>
+    </div>
+
+    <div id="admin-users-table" class="table-wrap"><div class="loading-dots">Loading...</div></div>
+  </div>
+
+  <!-- Audit Log Card -->
+  <div class="card" id="audit-log-card" style="display:none">
+    <div class="card-title">🔍 Audit Log
+      <div style="display:flex;gap:8px">
+        <input id="audit-filter-user" type="text" placeholder="Filter by username..." style="padding:7px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:12px;width:180px">
+        <select id="audit-filter-action" style="padding:7px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:12px">
+          <option value="">All actions</option>
+          <option value="LOGIN_SUCCESS">Login Success</option>
+          <option value="LOGIN_FAIL">Login Fail</option>
+          <option value="PASSWORD_CHANGE">Password Change</option>
+          <option value="USER_CREATE">User Created</option>
+          <option value="USER_SUSPEND">User Suspended</option>
+          <option value="FLOAT_TOPUP">Float Top-Up</option>
+          <option value="ADMIN_FORCE_RECONCILE">Force Reconcile</option>
+        </select>
+        <button onclick="loadAuditLog()" style="padding:7px 14px;background:var(--bl);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Load</button>
+        <button onclick="exportAuditLog()" style="padding:7px 14px;background:var(--w);color:var(--d);border:1.5px solid var(--grb);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">⬇ CSV</button>
+      </div>
+    </div>
+    <div class="card-sub">Immutable record of all admin actions — no entry can ever be modified or deleted.</div>
+    <div id="audit-log-table" class="table-wrap"><div style="color:var(--gr);font-size:13px;padding:20px">Click Load to fetch audit log entries.</div></div>
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div id="create-user-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)closeCreateUserModal()">
+  <div style="background:var(--w);border-radius:14px;padding:28px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="font-size:16px;font-weight:800">Create Admin User</h3>
+      <button onclick="closeCreateUserModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gr)">✕</button>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Username <span style="color:var(--gr);font-weight:400">(lowercase, no spaces)</span></label>
+      <input id="cu-username" type="text" class="field-input" placeholder="e.g. john.doe" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9._]/g,'')">
+    </div>
+    <div class="field-group" style="margin-top:12px">
+      <label class="field-label">Full Name</label>
+      <input id="cu-fullname" type="text" class="field-input" placeholder="e.g. John Doe">
+    </div>
+    <div class="field-group" style="margin-top:12px">
+      <label class="field-label">Email Address</label>
+      <input id="cu-email" type="email" class="field-input" placeholder="e.g. john@bakkiego.com">
+    </div>
+    <div class="field-group" style="margin-top:12px">
+      <label class="field-label">Role</label>
+      <select id="cu-role" class="field-input">
+        <option value="VIEWER">VIEWER — Dashboard only</option>
+        <option value="SUPPORT">SUPPORT — View customers &amp; transactions</option>
+        <option value="OPERATIONS">OPERATIONS — Float + reconcile</option>
+        <option value="AUDITOR">AUDITOR — Read-only + export + audit log</option>
+        <option value="COMPLIANCE">COMPLIANCE — Freeze + suspend + audit</option>
+        <option value="SUPER_ADMIN">SUPER_ADMIN — Full access</option>
+      </select>
+    </div>
+    <div id="cu-role-note" style="font-size:11px;color:var(--am);margin-top:6px;padding:8px;background:var(--al);border-radius:6px"></div>
+    <div id="cu-error" style="display:none;color:var(--r);font-size:13px;margin-top:12px;padding:10px;background:var(--rl);border-radius:8px"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button onclick="closeCreateUserModal()" style="flex:1;padding:11px;background:var(--bg);border:1.5px solid var(--grb);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>
+      <button onclick="doCreateUser()" style="flex:2;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Create User</button>
+    </div>
+    <div id="cu-result" style="display:none;margin-top:14px;padding:14px;background:var(--gl);border-radius:8px">
+      <div style="font-weight:700;color:var(--g);margin-bottom:6px">✅ User Created</div>
+      <div id="cu-temp-pw-box" style="background:#fff;border:1.5px solid var(--gm);border-radius:6px;padding:10px;font-family:monospace;font-size:14px;font-weight:700;letter-spacing:.5px"></div>
+      <div style="font-size:11px;color:var(--r);margin-top:6px">⚠️ Copy this password now — it will not be shown again. Send securely to the user.</div>
+      <button onclick="document.getElementById('cu-temp-pw-box').textContent&&navigator.clipboard.writeText(document.getElementById('cu-temp-pw-box').textContent);notify('Password copied')" style="margin-top:8px;padding:6px 14px;background:var(--d);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">📋 Copy Password</button>
+    </div>
   </div>
 </div>
 
@@ -2275,6 +2367,259 @@ function fmtDateShort(iso) {
 }
 function showNotif(msg, isErr) {
   notify(msg, isErr);
+}
+
+
+// ================================================================
+// USERS MANAGEMENT MODULE (SUPER_ADMIN only)
+// ================================================================
+const USER_ROLE_COLORS = {
+  SUPER_ADMIN:'#7C3AED', COMPLIANCE:'#DC2626',
+  OPERATIONS:'#1A7A4A', SUPPORT:'#1A3A7A',
+  AUDITOR:'#92400E', VIEWER:'#6B7280',
+};
+let _auditLogData = [];
+
+function initUsersTab() {
+  // Show Users tab only for SUPER_ADMIN
+  const role = (parseJWTRole(adminToken));
+  const tab  = document.getElementById('users-tab');
+  if (tab) tab.style.display = (role === 'SUPER_ADMIN') ? '' : 'none';
+
+  // Show audit log card for roles that can access it
+  const auditCard = document.getElementById('audit-log-card');
+  if (auditCard) {
+    const canAudit = ['SUPER_ADMIN','COMPLIANCE','AUDITOR'].includes(role);
+    auditCard.style.display = canAudit ? '' : 'none';
+  }
+}
+
+function parseJWTRole(token) {
+  if (!token) return '';
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return '';
+    return JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/'))).role || '';
+  } catch { return ''; }
+}
+
+async function loadAdminUsers() {
+  const el = document.getElementById('admin-users-table');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-dots">Loading users...</div>';
+  initUsersTab();
+
+  try {
+    const res  = await fetch(API + '/admin-user-mgmt?action=list', {
+      headers: { 'Authorization': 'Bearer ' + adminToken }
+    });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = '<div class="no-data">Error: ' + (data.error||'Failed') + '</div>'; return; }
+
+    const users = data.users || [];
+    if (!users.length) { el.innerHTML = '<div class="no-data">No admin users found.</div>'; return; }
+
+    const cols = ['Username','Full Name','Role','Status','Last Login','TOTP','Actions'];
+    let html = '<table class="data-table"><thead><tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+
+    users.forEach(function(u) {
+      const roleColor = USER_ROLE_COLORS[u.role] || '#6B7280';
+      const lastLogin = u.last_login_at ? relTime(u.last_login_at) : 'Never';
+      const totpBadge = u.totp_enabled
+        ? '<span class="badge b-ok">✓ On</span>'
+        : '<span class="badge b-warn">Off</span>';
+      const statusBadge = u.status === 'ACTIVE'
+        ? '<span class="badge b-ok">ACTIVE</span>'
+        : u.status === 'PENDING_SETUP'
+          ? '<span class="badge b-warn">SETUP</span>'
+          : u.status === 'LOCKED'
+            ? '<span class="badge b-err">LOCKED</span>'
+            : '<span class="badge b-err">' + u.status + '</span>';
+      const pwWarn = u.must_change_password ? ' <span class="badge b-warn">PW RESET</span>' : '';
+      html += `<tr>
+        <td style="font-family:monospace;font-size:12px;font-weight:700">${u.username}</td>
+        <td>${u.full_name}</td>
+        <td><span style="padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700;background:${roleColor}22;color:${roleColor}">${u.role}</span></td>
+        <td>${statusBadge}${pwWarn}</td>
+        <td style="font-size:12px;color:var(--gr)">${lastLogin}</td>
+        <td>${totpBadge}</td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button onclick="doAdminUserAction('reset_password','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--am);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Reset PW</button>
+            ${u.status==='LOCKED'?`<button onclick="doAdminUserAction('unlock','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--g);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Unlock</button>`:''}
+            ${u.status==='ACTIVE'?`<button onclick="doAdminUserAction('suspend','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--r);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Suspend</button>`:''}
+            ${u.status==='SUSPENDED'?`<button onclick="doAdminUserAction('unlock','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--g);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Reinstate</button>`:''}
+          </div>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="no-data">Error: ' + e.message + '</div>';
+  }
+}
+
+async function doAdminUserAction(action, userId, username) {
+  const actionLabels = {
+    reset_password: 'reset the password for',
+    unlock:         'unlock the account of',
+    suspend:        'SUSPEND the account of',
+    deactivate:     'PERMANENTLY DEACTIVATE',
+  };
+  if (!confirm(`Are you sure you want to ${actionLabels[action]||action} user "${username}"?`)) return;
+
+  showLoader(action.replace(/_/g,' ') + '...');
+  try {
+    const res  = await fetch(API + '/admin-user-mgmt', {
+      method:  'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + adminToken },
+      body:    JSON.stringify({ action, user_id:userId }),
+    });
+    const data = await res.json();
+    hideLoader();
+
+    if (!res.ok) { notify(data.error || 'Action failed', true); return; }
+
+    if (data.temp_password) {
+      // Password reset — show temp password prominently
+      const copied = await navigator.clipboard.writeText(data.temp_password).then(()=>true).catch(()=>false);
+      alert('✅ Temporary password (COPY NOW — shown once only):
+
+' + data.temp_password +
+        '
+
+' + (copied ? '(Copied to clipboard)' : 'Please copy manually'));
+    } else {
+      notify(data.message || '✅ Done');
+    }
+    loadAdminUsers();
+  } catch(e) { hideLoader(); notify(e.message, true); }
+}
+
+function showCreateUserModal() {
+  document.getElementById('create-user-overlay').style.display = 'flex';
+  document.getElementById('cu-result').style.display = 'none';
+  document.getElementById('cu-error').style.display = 'none';
+  updateRoleNote();
+}
+function closeCreateUserModal() {
+  document.getElementById('create-user-overlay').style.display = 'none';
+  ['cu-username','cu-fullname','cu-email'].forEach(function(id){ document.getElementById(id).value=''; });
+}
+
+function updateRoleNote() {
+  const role = document.getElementById('cu-role')?.value;
+  const el   = document.getElementById('cu-role-note');
+  if (!el) return;
+  const notes = {
+    SUPER_ADMIN: '⚠️ Full system access. TOTP mandatory. Reserve for Bakkiego principals only.',
+    COMPLIANCE:  '🔒 Can freeze coins and suspend accounts. TOTP mandatory.',
+    OPERATIONS:  '⚙️ Float management and reconciliation. No user management.',
+    SUPPORT:     '👁 Read-only access to customer and transaction data.',
+    AUDITOR:     '📋 External audit access — read-only, no PII, can export.',
+    VIEWER:      '📊 Dashboard overview only.',
+  };
+  el.textContent = notes[role] || '';
+}
+
+async function doCreateUser() {
+  const username  = document.getElementById('cu-username').value.trim();
+  const full_name = document.getElementById('cu-fullname').value.trim();
+  const email     = document.getElementById('cu-email').value.trim();
+  const role      = document.getElementById('cu-role').value;
+  const errEl     = document.getElementById('cu-error');
+
+  errEl.style.display = 'none';
+  if (!username || !full_name || !email) {
+    errEl.textContent = 'All fields are required.';
+    errEl.style.display = 'block'; return;
+  }
+
+  showLoader('Creating user...');
+  try {
+    const res  = await fetch(API + '/admin-user-mgmt', {
+      method:  'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + adminToken },
+      body:    JSON.stringify({ action:'create', username, full_name, email, role }),
+    });
+    const data = await res.json();
+    hideLoader();
+
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Failed to create user.';
+      errEl.style.display = 'block'; return;
+    }
+
+    // Show temp password ONCE
+    document.getElementById('cu-temp-pw-box').textContent = data.temp_password || '—';
+    document.getElementById('cu-result').style.display = 'block';
+    navigator.clipboard.writeText(data.temp_password||'').catch(()=>{});
+    loadAdminUsers();
+  } catch(e) { hideLoader(); errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+async function loadAuditLog() {
+  const el   = document.getElementById('audit-log-table');
+  const user = document.getElementById('audit-filter-user')?.value.trim() || '';
+  const act  = document.getElementById('audit-filter-action')?.value || '';
+  if (!el) return;
+
+  el.innerHTML = '<div class="loading-dots">Loading audit log...</div>';
+  try {
+    let url = API + '/admin-user-mgmt?action=audit&limit=100';
+    if (user) url += '&username=' + encodeURIComponent(user);
+    if (act)  url += '&action='   + encodeURIComponent(act);
+
+    const res  = await fetch(url, { headers:{ 'Authorization':'Bearer '+adminToken } });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = '<div class="no-data">' + (data.error||'Failed') + '</div>'; return; }
+
+    _auditLogData = data.entries || [];
+    const cols = ['Time','User','Role','Action','Resource','Result','IP'];
+    let html = '<table class="data-table"><thead><tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+
+    _auditLogData.forEach(function(e) {
+      const rc   = e.result==='SUCCESS'?'b-ok':e.result==='FAILURE'?'b-err':'b-warn';
+      html += `<tr>
+        <td style="font-size:11px;white-space:nowrap">${fmtDate(e.logged_at)}</td>
+        <td style="font-family:monospace;font-size:12px">${e.username||'—'}</td>
+        <td><span style="font-size:10px;font-weight:700;color:${USER_ROLE_COLORS[e.role]||'#6B7280'}">${e.role||'—'}</span></td>
+        <td style="font-size:12px;font-weight:600">${e.action}</td>
+        <td style="font-size:11px;color:var(--gr)">${(e.resource_type||'')+(e.resource_id?' / '+e.resource_id.slice(0,12):'')}</td>
+        <td><span class="badge ${rc}">${e.result}</span></td>
+        <td style="font-size:11px;color:var(--gr)">${(e.ip_address||'—').slice(0,20)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<div class="no-data">Error: ' + e.message + '</div>'; }
+}
+
+function exportAuditLog() {
+  if (!_auditLogData.length) { notify('Load audit log first', true); return; }
+  const rows = [['Time','User','Role','Action','ResourceType','ResourceID','Result','IP','ErrorMessage']];
+  _auditLogData.forEach(function(e) {
+    rows.push([e.logged_at, e.username, e.role||'', e.action, e.resource_type||'',
+      e.resource_id||'', e.result, e.ip_address||'', e.error_message||'']);
+  });
+  downloadCSV(rows, 'zillion_audit_log_' + new Date().toISOString().slice(0,10) + '.csv');
+  notify('Audit log exported');
+}
+
+// Version display — fetched from API response header or embedded in JWT
+function displayVersion() {
+  // Show app version from meta tag or env
+  const vBadge = document.getElementById('version-badge');
+  if (vBadge) vBadge.textContent = 'v' + (window.ZILLION_VERSION || '1.0.0');
+}
+
+// Show Users tab visibility based on role after login
+function onAdminLoginSuccess(token) {
+  const role = parseJWTRole(token);
+  const tab  = document.getElementById('users-tab');
+  if (tab) tab.style.display = (role === 'SUPER_ADMIN') ? '' : 'none';
+  displayVersion();
 }
 
 </script>
