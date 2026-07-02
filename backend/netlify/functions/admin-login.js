@@ -213,8 +213,16 @@ exports.handler = async (event) => {
 
     // A-STEP-1: Secret check (only step — no TOTP for legacy path)
     if (body.admin_secret !== ADMIN_SECRET) {
-      console.log('[admin-login] legacy fail — secret mismatch. ADMIN_SECRET set:', !!process.env.ADMIN_SECRET);
-      return err(401, 'Invalid admin secret.');
+      // Debug: log lengths to Netlify function log (never log actual secret values)
+      const envLen = (ADMIN_SECRET||'').length;
+      const gotLen = (body.admin_secret||'').length;
+      console.log('[admin-login] legacy fail — ADMIN_SECRET env length:', envLen, '| received length:', gotLen, '| match:', body.admin_secret === ADMIN_SECRET);
+      const hint = envLen === 0
+        ? 'ADMIN_SECRET env var is not set in Netlify. Check Site → Environment Variables.'
+        : gotLen !== envLen
+          ? 'Length mismatch — check for extra spaces or characters.'
+          : 'Same length but content differs — check exact value in Netlify env vars.';
+      return err(401, 'Invalid admin secret. Hint: ' + hint);
     }
 
     // Issue JWT directly — TOTP not required for legacy secret path.
