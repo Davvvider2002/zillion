@@ -79,7 +79,8 @@ function buildLegacyJWT(jwtSecret) {
   const exp = now + 8 * 3600;
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
   const hdr = b64({ alg:'HS256', typ:'JWT' });
-  const pay = b64({ sub:'admin', role:'admin', iat:now, exp });
+  // role:'SUPER_ADMIN' so the admin dashboard shows all tabs (Users, Audit Log)
+  const pay = b64({ sub:'admin', username:'admin', role:'SUPER_ADMIN', iat:now, exp });
   const sig = createHmac('sha256', jwtSecret).update(`${hdr}.${pay}`).digest('base64url');
   return { token:`${hdr}.${pay}.${sig}`, exp };
 }
