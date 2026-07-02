@@ -4,50 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Zillion — Admin</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
+/* Inter font via CSS @import — avoids CSP <link> restriction */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 /* ─── RESET & BASE ────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --sid:#0A1F14;      /* sidebar bg */
-  --sid2:#0F2A1B;     /* sidebar hover */
-  --sid3:#1A3D28;     /* sidebar active */
-  --g:#00C896;        /* teal accent */
-  --gd:#009E78;       /* teal dark */
-  --gl:#E6FBF5;       /* teal light */
-  --gm:#4DD9AF;       /* teal mid */
-  --am:#F59E0B;       /* amber */
-  --al:#FEF3C7;
-  --r:#EF4444;        /* red */
-  --rl:#FEE2E2;
-  --bl:#3B82F6;       /* blue */
-  --bll:#EFF6FF;
-  --pu:#8B5CF6;       /* purple */
-  --pul:#F5F3FF;
-  --pum:#C4B5FD;
-  --d:#111827;        /* dark text */
-  --d2:#1F2937;
-  --d3:#374151;
-  --tx:#374151;
-  --tx2:#6B7280;
-  --tx3:#9CA3AF;
-  --bg:#F3F4F6;
-  --w:#FFFFFF;
-  --grb:#E5E7EB;
-  --gr:#9CA3AF;
-  --grl:#F9FAFB;
-  --gt:#059669;
-  --gl2:#D1FAE5;
+  --sid:#0A1F14;--sid2:#0F2A1B;--sid3:#1A3D28;
+  --g:#00C896;--gd:#009E78;--gl:#E6FBF5;--gm:#4DD9AF;
+  --am:#F59E0B;--al:#FEF3C7;
+  --r:#EF4444;--rl:#FEE2E2;
+  --bl:#3B82F6;--bll:#EFF6FF;
+  --pu:#8B5CF6;--pul:#F5F3FF;--pum:#C4B5FD;
+  --d:#111827;--d2:#1F2937;--d3:#374151;
+  --tx:#374151;--tx2:#6B7280;--tx3:#9CA3AF;
+  --bg:#F3F4F6;--w:#FFFFFF;--grb:#E5E7EB;--gr:#9CA3AF;--grl:#F9FAFB;
+  --gt:#059669;--gl2:#D1FAE5;
 }
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
 
-/* ─── LOGIN SCREEN ────────────────────────────────────────────── */
+/* ─── LOGIN ───────────────────────────────────────────────────── */
 #login-screen{
   display:flex;align-items:center;justify-content:center;
   min-height:100vh;
-  background:linear-gradient(135deg,var(--sid) 0%,#0D2E1C 50%,#061410 100%);
+  background:linear-gradient(135deg,#0A1F14 0%,#0D2E1C 50%,#061410 100%);
   position:relative;overflow:hidden;
 }
 #login-screen::before{
@@ -57,29 +39,19 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   pointer-events:none;
 }
 .login-card{
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:20px;
-  padding:44px 40px 40px;
-  width:420px;max-width:calc(100vw - 32px);
-  backdrop-filter:blur(20px);
-  position:relative;z-index:1;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);
+  border-radius:20px;padding:44px 40px 40px;width:420px;max-width:calc(100vw - 32px);
+  backdrop-filter:blur(20px);position:relative;z-index:1;
   box-shadow:0 40px 80px rgba(0,0,0,.5);
 }
-.login-brand{
-  text-align:center;margin-bottom:32px;
-}
-.login-logo{
-  display:inline-flex;align-items:center;gap:10px;margin-bottom:8px;
-}
+.login-brand{text-align:center;margin-bottom:32px;}
+.login-logo{display:inline-flex;align-items:center;gap:10px;margin-bottom:8px;}
 .login-logo-mark{
   width:40px;height:40px;background:var(--g);border-radius:10px;
   display:flex;align-items:center;justify-content:center;
-  font-size:20px;font-weight:800;color:var(--sid);
+  font-size:20px;font-weight:800;color:#0A1F14;
 }
-.login-logo-text{
-  font-size:24px;font-weight:800;color:#fff;letter-spacing:-.5px;
-}
+.login-logo-text{font-size:24px;font-weight:800;color:#fff;letter-spacing:-.5px;}
 .login-sub{font-size:13px;color:rgba(255,255,255,.45);margin-top:4px;}
 .login-divider{
   text-align:center;font-size:11px;color:rgba(255,255,255,.25);
@@ -91,21 +63,18 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;
 }
 .lfield input{
-  width:100%;padding:13px 16px;
-  background:rgba(255,255,255,.07);
-  border:1.5px solid rgba(255,255,255,.12);
-  border-radius:10px;color:#fff;font-size:14px;
-  font-family:'Inter',sans-serif;
+  width:100%;padding:13px 16px;background:rgba(255,255,255,.07);
+  border:1.5px solid rgba(255,255,255,.12);border-radius:10px;
+  color:#fff;font-size:14px;font-family:'Inter',sans-serif;
   transition:border .2s,background .2s;outline:none;
 }
 .lfield input::placeholder{color:rgba(255,255,255,.25)}
 .lfield input:focus{border-color:var(--g);background:rgba(0,200,150,.07)}
 .lbtn-main{
   width:100%;padding:14px;margin-top:8px;
-  background:var(--g);color:var(--sid);
-  border:none;border-radius:10px;font-size:14px;font-weight:700;
-  cursor:pointer;font-family:'Inter',sans-serif;
-  transition:background .2s,transform .1s;letter-spacing:.01em;
+  background:var(--g);color:#0A1F14;border:none;border-radius:10px;
+  font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;
+  transition:background .2s,transform .1s;
 }
 .lbtn-main:hover{background:var(--gd)}
 .lbtn-main:active{transform:scale(.98)}
@@ -116,19 +85,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   color:#FCA5A5;font-size:13px;display:none;
 }
 .lerr.show{display:block}
-.login-mode-toggle{
-  text-align:center;margin-top:16px;
-  font-size:12px;color:rgba(255,255,255,.3);
-}
+.login-mode-toggle{text-align:center;margin-top:16px;}
 .login-mode-toggle button{
   background:none;border:none;color:var(--gm);
   font-size:12px;cursor:pointer;text-decoration:underline;
   font-family:'Inter',sans-serif;
 }
-.login-footer{
-  text-align:center;margin-top:28px;
-  font-size:11px;color:rgba(255,255,255,.2);
-}
+.login-footer{text-align:center;margin-top:28px;font-size:11px;color:rgba(255,255,255,.2);}
+.pw-rules{font-size:11px;color:rgba(255,255,255,.3);margin-bottom:12px;line-height:1.6;}
 
 /* ─── APP LAYOUT ──────────────────────────────────────────────── */
 #app-screen{display:none;min-height:100vh;}
@@ -136,56 +100,50 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
 /* ─── SIDEBAR ─────────────────────────────────────────────────── */
 .sidebar{
-  width:228px;flex-shrink:0;
-  background:var(--sid);
+  width:228px;flex-shrink:0;background:var(--sid);
   display:flex;flex-direction:column;
   position:fixed;top:0;left:0;bottom:0;z-index:200;
-  transition:transform .25s ease;
+  overflow:hidden;
 }
 .sb-header{
-  padding:20px 20px 16px;
-  border-bottom:1px solid rgba(255,255,255,.06);
-  display:flex;align-items:center;gap:10px;
+  padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
 }
 .sb-logo-mark{
   width:34px;height:34px;background:var(--g);border-radius:8px;
   display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:800;color:var(--sid);flex-shrink:0;
+  font-size:16px;font-weight:800;color:#0A1F14;flex-shrink:0;
 }
 .sb-logo-text{font-size:18px;font-weight:800;color:#fff;letter-spacing:-.3px;}
 .sb-logo-sub{font-size:10px;color:rgba(255,255,255,.3);margin-top:1px;letter-spacing:.05em;}
-
 .sb-user{
-  padding:14px 16px;margin:8px 10px;
-  background:var(--sid2);border-radius:10px;
-  display:flex;align-items:center;gap:10px;cursor:pointer;
+  padding:12px 16px;margin:8px 10px;background:var(--sid2);border-radius:10px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
 }
 .sb-user-avatar{
   width:32px;height:32px;background:var(--g);border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:13px;font-weight:700;color:var(--sid);flex-shrink:0;
+  font-size:13px;font-weight:700;color:#0A1F14;flex-shrink:0;
 }
 .sb-user-name{font-size:13px;font-weight:600;color:#fff;}
 .sb-user-role{font-size:10px;color:rgba(255,255,255,.4);margin-top:1px;}
 .sb-user-dot{
-  width:7px;height:7px;background:var(--g);
-  border-radius:50%;margin-left:auto;flex-shrink:0;
-  box-shadow:0 0 6px var(--g);animation:pulse-dot 2s ease infinite;
+  width:7px;height:7px;background:var(--g);border-radius:50%;
+  margin-left:auto;flex-shrink:0;box-shadow:0 0 6px var(--g);
+  animation:pulse-dot 2s ease infinite;
 }
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
-
 .sb-section-label{
-  padding:16px 20px 6px;
-  font-size:10px;font-weight:600;color:rgba(255,255,255,.25);
-  letter-spacing:.1em;text-transform:uppercase;
+  padding:14px 20px 5px;font-size:10px;font-weight:600;
+  color:rgba(255,255,255,.25);letter-spacing:.1em;text-transform:uppercase;
+  flex-shrink:0;
 }
-.sb-nav{flex:1;overflow-y:auto;padding:0 10px;scrollbar-width:none;}
+.sb-nav{flex:1;overflow-y:auto;padding:0 10px 8px;scrollbar-width:none;}
 .sb-nav::-webkit-scrollbar{display:none}
 .snav-item{
-  display:flex;align-items:center;gap:11px;
-  padding:10px 12px;border-radius:9px;margin-bottom:2px;
-  cursor:pointer;color:rgba(255,255,255,.55);
-  font-size:13px;font-weight:500;
+  display:flex;align-items:center;gap:11px;padding:9px 12px;
+  border-radius:9px;margin-bottom:1px;cursor:pointer;
+  color:rgba(255,255,255,.55);font-size:13px;font-weight:500;
   transition:background .15s,color .15s;
   border:none;background:none;width:100%;text-align:left;
   font-family:'Inter',sans-serif;
@@ -195,145 +153,93 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   background:var(--sid3);color:#fff;
   border-left:3px solid var(--g);padding-left:9px;
 }
-.snav-item .si{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
+.snav-item .si{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
 .snav-badge{
-  margin-left:auto;padding:2px 7px;border-radius:10px;
+  margin-left:auto;padding:2px 6px;border-radius:8px;
   font-size:10px;font-weight:700;
 }
-.snav-badge.green{background:rgba(0,200,150,.2);color:var(--g);}
-.snav-badge.amber{background:rgba(245,158,11,.2);color:var(--am);}
 .snav-badge.red{background:rgba(239,68,68,.2);color:var(--r);}
-
-.sb-footer{
-  padding:14px 10px 20px;border-top:1px solid rgba(255,255,255,.06);
-}
-.sb-live-box{
-  background:var(--sid2);border-radius:10px;padding:12px 14px;margin-bottom:10px;
-}
+.sb-footer{padding:12px 10px 18px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0;}
+.sb-live-box{background:var(--sid2);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
 .sb-live-label{font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.06em;}
-.sb-live-value{
-  font-size:18px;font-weight:700;color:var(--g);margin-top:3px;
-  font-variant-numeric:tabular-nums;
-}
+.sb-live-value{font-size:18px;font-weight:700;color:var(--g);margin-top:3px;font-variant-numeric:tabular-nums;}
 .sb-live-sub{font-size:10px;color:rgba(255,255,255,.25);margin-top:2px;}
 .sb-logout{
-  display:flex;align-items:center;gap:8px;
-  padding:9px 12px;border-radius:8px;cursor:pointer;
-  color:rgba(255,255,255,.3);font-size:12px;font-weight:500;
-  border:none;background:none;width:100%;
+  display:flex;align-items:center;gap:8px;padding:9px 12px;
+  border-radius:8px;cursor:pointer;color:rgba(255,255,255,.35);
+  font-size:12px;font-weight:500;border:none;background:none;width:100%;
   transition:color .15s,background .15s;font-family:'Inter',sans-serif;
 }
 .sb-logout:hover{background:rgba(239,68,68,.1);color:#FCA5A5;}
 
 /* ─── MAIN CONTENT ────────────────────────────────────────────── */
-.main-area{
-  margin-left:228px;flex:1;display:flex;flex-direction:column;min-height:100vh;
-}
+.main-area{margin-left:228px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
 .top-bar{
   height:56px;background:var(--w);border-bottom:1px solid var(--grb);
-  display:flex;align-items:center;padding:0 24px;gap:16px;
+  display:flex;align-items:center;padding:0 24px;gap:14px;
   position:sticky;top:0;z-index:100;
 }
-.top-bar-title{
-  font-size:16px;font-weight:700;color:var(--d);flex:1;
-}
+.top-bar-title{font-size:15px;font-weight:700;color:var(--d);flex:1;}
 .top-bar-version{
   font-size:11px;color:var(--tx3);background:var(--bg);
-  padding:3px 8px;border-radius:5px;
+  padding:3px 8px;border-radius:5px;white-space:nowrap;
 }
 .top-bar-pill{
-  display:flex;align-items:center;gap:6px;
-  padding:5px 12px;background:var(--gl);border-radius:20px;
-  font-size:12px;font-weight:600;color:var(--gt);
+  display:flex;align-items:center;gap:5px;padding:4px 11px;
+  background:var(--gl);border-radius:20px;font-size:11px;font-weight:600;color:var(--gt);
+  white-space:nowrap;
 }
 .top-bar-pill::before{content:'●';color:var(--g);font-size:8px;}
-.notif-bell{
-  position:relative;cursor:pointer;color:var(--tx2);font-size:18px;
-  background:none;border:none;padding:4px;
+.sb-bar{
+  display:flex;align-items:center;gap:8px;background:var(--bg);
+  border:1.5px solid var(--grb);border-radius:8px;padding:6px 12px;width:220px;
 }
-.search-bar{
-  display:flex;align-items:center;gap:8px;
-  background:var(--bg);border:1.5px solid var(--grb);
-  border-radius:8px;padding:6px 12px;width:220px;
-}
-.search-bar input{
+.sb-bar input{
   border:none;background:none;font-size:13px;color:var(--tx);
   font-family:'Inter',sans-serif;outline:none;width:100%;
 }
-.search-bar input::placeholder{color:var(--tx3);}
-
+.sb-bar input::placeholder{color:var(--tx3);}
 .page-body{padding:24px;}
 
 /* ─── SECTION VISIBILITY ──────────────────────────────────────── */
-.sec{display:none;}
-.sec.active{display:block;}
+.sec{display:none;}.sec.active{display:block;}
 
 /* ─── CARDS ───────────────────────────────────────────────────── */
-.card{
-  background:var(--w);border-radius:14px;padding:20px 22px;
-  border:1px solid var(--grb);margin-bottom:16px;
-}
-.card-title{
-  font-size:14px;font-weight:700;color:var(--d);
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:4px;
-}
+.card{background:var(--w);border-radius:14px;padding:20px 22px;border:1px solid var(--grb);margin-bottom:16px;}
+.card-title{font-size:14px;font-weight:700;color:var(--d);display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
 .card-sub{font-size:12px;color:var(--tx3);margin-bottom:14px;}
 
-/* ─── METRICS GRID ────────────────────────────────────────────── */
+/* ─── METRICS ──────────────────────────────────────────────────── */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;}
 @media(max-width:1100px){.metrics{grid-template-columns:repeat(2,1fr)}}
-.metric{
-  background:var(--w);border-radius:14px;padding:18px 20px;
-  border:1px solid var(--grb);position:relative;overflow:hidden;
-}
-.metric::after{
-  content:'';position:absolute;right:-10px;bottom:-10px;
-  width:60px;height:60px;border-radius:50%;opacity:.06;
-}
-.metric.g::after{background:var(--g)}
-.metric.am::after{background:var(--am)}
-.metric.bl::after{background:var(--bl)}
-.metric.rd::after{background:var(--r)}
-.metric.pu::after{background:var(--pu)}
+.metric{background:var(--w);border-radius:14px;padding:18px 20px;border:1px solid var(--grb);position:relative;overflow:hidden;}
 .mlabel{font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
 .mvalue{font-size:24px;font-weight:800;color:var(--d);font-variant-numeric:tabular-nums;}
 .msub{font-size:11px;color:var(--tx3);margin-top:4px;}
-.micon{
-  position:absolute;right:16px;top:50%;transform:translateY(-50%);
-  font-size:28px;opacity:.15;
-}
+.micon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:28px;opacity:.15;}
 
-/* ─── GRID LAYOUTS ────────────────────────────────────────────── */
+/* ─── GRIDS ────────────────────────────────────────────────────── */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;}
 @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
 
-/* ─── TABLES ──────────────────────────────────────────────────── */
+/* ─── TABLES ────────────────────────────────────────────────────── */
 .table-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
 thead tr{background:var(--bg);}
-th{
-  padding:10px 14px;text-align:left;
-  font-size:11px;font-weight:600;color:var(--tx3);
-  text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;
-}
-td{
-  padding:12px 14px;border-bottom:1px solid var(--grb);
-  font-size:13px;color:var(--tx);vertical-align:middle;
-}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;}
+td{padding:12px 14px;border-bottom:1px solid var(--grb);font-size:13px;color:var(--tx);vertical-align:middle;}
 tbody tr:hover{background:var(--grl);}
 tbody tr:last-child td{border-bottom:none;}
-.no-data{
-  text-align:center;padding:40px;color:var(--tx3);font-size:13px;
-}
+.no-data{text-align:center;padding:40px;color:var(--tx3);font-size:13px;}
+.data-table{width:100%;border-collapse:collapse;}
+.data-table th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;background:var(--grl);}
+.data-table td{padding:11px 12px;border-bottom:1px solid var(--grb);font-size:13px;vertical-align:middle;}
+.data-table tbody tr:hover{background:var(--grl);}
+.loading-dots{text-align:center;padding:40px;color:var(--tx3);font-size:13px;}
 
-/* ─── BADGES ──────────────────────────────────────────────────── */
-.badge{
-  display:inline-flex;align-items:center;
-  padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;
-  white-space:nowrap;
-}
+/* ─── BADGES ────────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;}
 .b-ok{background:#DCFCE7;color:#166534;}
 .b-warn{background:var(--al);color:#92400E;}
 .b-err{background:var(--rl);color:#991B1B;}
@@ -341,38 +247,20 @@ tbody tr:last-child td{border-bottom:none;}
 .b-blu{background:var(--bll);color:#1D4ED8;}
 .b-grey{background:var(--bg);color:var(--tx3);}
 
-/* ─── BUTTONS ─────────────────────────────────────────────────── */
-.btn{
-  padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;
-  cursor:pointer;border:none;font-family:'Inter',sans-serif;
-  transition:opacity .15s,transform .1s;display:inline-flex;align-items:center;gap:6px;
-}
+/* ─── BUTTONS ───────────────────────────────────────────────────── */
+.btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:opacity .15s;display:inline-flex;align-items:center;gap:6px;}
 .btn:hover{opacity:.88}
-.btn:active{transform:scale(.97)}
-.btn-g{background:var(--g);color:var(--sid);}
+.btn-g{background:var(--g);color:#0A1F14;}
 .btn-outline{background:var(--w);border:1.5px solid var(--grb);color:var(--tx);}
 .btn-red{background:var(--rl);color:var(--r);border:1px solid #FCA5A5;}
 .btn-sm{padding:5px 10px;font-size:11px;border-radius:6px;}
-.rbtn{
-  padding:6px 10px;border-radius:7px;font-size:11px;font-weight:600;
-  border:1.5px solid var(--grb);background:var(--w);color:var(--tx);
-  cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:4px;
-  transition:border-color .15s;
-}
+.rbtn{padding:6px 10px;border-radius:7px;font-size:11px;font-weight:600;border:1.5px solid var(--grb);background:var(--w);color:var(--tx);cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:4px;transition:border-color .15s;}
 .rbtn:hover{border-color:var(--g);color:var(--g);}
-.export-btn{
-  padding:6px 12px;border-radius:7px;font-size:11px;font-weight:600;
-  border:1.5px solid var(--grb);background:var(--w);color:var(--tx);
-  cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:5px;
-}
+.export-btn{padding:6px 12px;border-radius:7px;font-size:11px;font-weight:600;border:1.5px solid var(--grb);background:var(--w);color:var(--tx);cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:5px;}
 .export-btn:hover{background:var(--bg);}
 
-/* ─── FORM ELEMENTS ───────────────────────────────────────────── */
-.field-input,.finput,.search-input,.filter-select,.lookup-input{
-  padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;
-  font-size:13px;font-family:'Inter',sans-serif;color:var(--tx);
-  background:var(--w);outline:none;transition:border-color .2s;
-}
+/* ─── FORMS ─────────────────────────────────────────────────────── */
+.field-input,.finput,.search-input,.filter-select,.lookup-input{padding:9px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;color:var(--tx);background:var(--w);outline:none;transition:border-color .2s;}
 .field-input:focus,.finput:focus,.search-input:focus{border-color:var(--g);}
 .field-label{font-size:12px;font-weight:600;color:var(--tx);display:block;margin-bottom:5px;}
 .field-group{margin-bottom:14px;}
@@ -380,192 +268,95 @@ tbody tr:last-child td{border-bottom:none;}
 .flabel{font-size:11px;font-weight:600;color:var(--tx3);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em;}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
 
-/* ─── NOTIFICATIONS ───────────────────────────────────────────── */
-.notif{
-  position:fixed;bottom:24px;right:24px;z-index:9999;
-  background:var(--d);color:#fff;padding:12px 18px;border-radius:10px;
-  font-size:13px;font-weight:500;
-  opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;
-  max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.3);
-}
+/* ─── NOTIFICATIONS / LOADER ─────────────────────────────────────── */
+.notif{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--d);color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.3);}
 .notif.show{opacity:1;transform:translateY(0);pointer-events:auto;}
 .notif.error{background:var(--r);}
-
-/* ─── LOADER ──────────────────────────────────────────────────── */
-.loader{
-  display:none;position:fixed;inset:0;z-index:9998;
-  background:rgba(0,0,0,.25);backdrop-filter:blur(3px);
-  align-items:center;justify-content:center;flex-direction:column;gap:14px;
-}
+.loader{display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.25);backdrop-filter:blur(3px);align-items:center;justify-content:center;flex-direction:column;gap:14px;}
 .loader.show{display:flex;}
-.loader-ring{
-  width:44px;height:44px;border-radius:50%;
-  border:3px solid rgba(255,255,255,.2);
-  border-top-color:var(--g);
-  animation:spin .7s linear infinite;
-}
+.loader-ring{width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--g);animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loader-txt{color:#fff;font-size:13px;font-weight:500;}
 
-/* ─── ACTIVITY FEED ───────────────────────────────────────────── */
-.activity-item{
-  display:flex;align-items:center;gap:12px;
-  padding:10px 0;border-bottom:1px solid var(--grb);
-}
+/* ─── ACTIVITY / CHARTS ─────────────────────────────────────────── */
+.activity-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--grb);}
 .activity-item:last-child{border-bottom:none;}
-.activity-dot{
-  width:34px;height:34px;border-radius:10px;
-  background:var(--gl);display:flex;align-items:center;
-  justify-content:center;font-size:16px;flex-shrink:0;
-}
+.activity-dot{width:34px;height:34px;border-radius:10px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
 .activity-dot.act-ok{background:var(--gl);}
 .activity-dot.act-warn{background:var(--al);}
 .activity-dot.act-err{background:var(--rl);}
 .activity-title{font-size:13px;font-weight:600;color:var(--d);}
 .activity-detail{font-size:11px;color:var(--tx3);margin-top:1px;}
 .activity-time{font-size:11px;color:var(--tx3);white-space:nowrap;}
-
-/* ─── CHART ROWS ──────────────────────────────────────────────── */
 .chart-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
 .chart-day{width:34px;font-size:11px;color:var(--tx3);flex-shrink:0;}
 .chart-bg{flex:1;height:22px;background:var(--bg);border-radius:4px;overflow:hidden;}
-.chart-fill{
-  height:100%;background:var(--g);border-radius:4px;
-  display:flex;align-items:center;padding-left:6px;
-  font-size:10px;color:var(--sid);font-weight:700;min-width:2px;
-  transition:width .6s ease;
-}
+.chart-fill{height:100%;background:var(--g);border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#0A1F14;font-weight:700;min-width:2px;transition:width .6s ease;}
 .chart-val{font-size:11px;color:var(--tx3);width:60px;text-align:right;flex-shrink:0;}
 
-/* ─── USER CARDS ──────────────────────────────────────────────── */
+/* ─── USER CARDS ────────────────────────────────────────────────── */
 .user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
-.ucard{
-  background:var(--w);border:1px solid var(--grb);border-radius:12px;
-  overflow:hidden;transition:box-shadow .2s;
-}
+.ucard{background:var(--w);border:1px solid var(--grb);border-radius:12px;overflow:hidden;transition:box-shadow .2s;}
 .ucard:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);}
-.ucard-top{
-  padding:16px;display:flex;align-items:center;gap:12px;
-  background:linear-gradient(135deg,var(--sid) 0%,#0D2E1C 100%);
-}
+.ucard-top{padding:16px;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0A1F14 0%,#0D2E1C 100%);}
 .ucard-top.merchant{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);}
 .ucard-top.agent{background:linear-gradient(135deg,#1a3340 0%,#0c4a6e 100%);}
-.uavatar{
-  width:40px;height:40px;border-radius:10px;background:var(--g);
-  display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:800;color:var(--sid);flex-shrink:0;
-}
+.uavatar{width:40px;height:40px;border-radius:10px;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#0A1F14;flex-shrink:0;}
 .uavatar.merchant{background:var(--pu);color:#fff;}
 .uavatar.agent{background:var(--bl);color:#fff;}
 .ucard-name{font-size:14px;font-weight:700;color:#fff;}
 .ucard-id{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;font-family:monospace;}
 .agent-id{color:rgba(255,255,255,.6);}
 .ucard-body{padding:14px;}
-.ustat-row{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:5px 0;border-bottom:1px solid var(--grb);
-}
+.ustat-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--grb);}
 .ustat-row:last-of-type{border-bottom:none;}
 .ustat-key{font-size:11px;color:var(--tx3);}
 .ustat-val{font-size:12px;font-weight:600;color:var(--d);}
 .ustat-val.green{color:var(--gt);}
 .ustat-val.red{color:var(--r);}
 
-/* ─── PROGRESS BARS ───────────────────────────────────────────── */
+/* ─── PROGRESS ──────────────────────────────────────────────────── */
 .prog-row{margin-bottom:12px;}
 .prog-label{display:flex;justify-content:space-between;font-size:12px;color:var(--tx);margin-bottom:5px;}
 .prog-bar{height:7px;background:var(--bg);border-radius:10px;overflow:hidden;}
 .prog-fill{height:100%;border-radius:10px;transition:width .8s ease;}
 
-/* ─── TOKEN AREA ──────────────────────────────────────────────── */
-.token-dark{
-  background:linear-gradient(135deg,var(--sid) 0%,#0D2E1C 100%);
-  border-radius:12px;padding:20px;
-}
+/* ─── TOKENS ────────────────────────────────────────────────────── */
+.token-dark{background:linear-gradient(135deg,#0A1F14 0%,#0D2E1C 100%);border-radius:12px;padding:20px;}
 .token-dark h3{color:#fff;font-size:15px;margin-bottom:6px;}
 .token-dark p{color:rgba(255,255,255,.45);font-size:12px;margin-bottom:16px;}
 .tf label{color:rgba(255,255,255,.55);font-size:11px;font-weight:600;display:block;margin-bottom:5px;margin-top:12px;letter-spacing:.05em;text-transform:uppercase;}
-.tf select,.tf input{
-  width:100%;padding:9px 12px;border:1.5px solid rgba(255,255,255,.12);
-  border-radius:8px;background:rgba(255,255,255,.07);
-  color:#fff;font-size:13px;font-family:'Inter',sans-serif;outline:none;
-}
+.tf select,.tf input{width:100%;padding:9px 12px;border:1.5px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.07);color:#fff;font-size:13px;font-family:'Inter',sans-serif;outline:none;}
 .tf select option{background:#0A1F14;}
-.genbtn{
-  width:100%;padding:12px;margin-top:16px;
-  background:var(--g);color:var(--sid);
-  border:none;border-radius:9px;font-size:13px;font-weight:700;
-  cursor:pointer;font-family:'Inter',sans-serif;
-}
+.genbtn{width:100%;padding:12px;margin-top:16px;background:var(--g);color:#0A1F14;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;}
 .tok-err{color:#FCA5A5;font-size:12px;margin-top:8px;display:none;}
 .tok-err.show{display:block;}
 .token-out{display:none;margin-top:16px;}
 .token-out.show{display:block;}
-.token-val{
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
-  border-radius:8px;padding:10px 12px;
-  font-family:monospace;font-size:10px;color:var(--gm);
-  word-break:break-all;cursor:pointer;line-height:1.6;
-}
-.copy-tok{
-  width:100%;padding:9px;margin-top:8px;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
-  border-radius:7px;color:rgba(255,255,255,.7);font-size:12px;
-  cursor:pointer;font-family:'Inter',sans-serif;
-}
+.token-val{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:10px;color:var(--gm);word-break:break-all;cursor:pointer;line-height:1.6;}
+.copy-tok{width:100%;padding:9px;margin-top:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:rgba(255,255,255,.7);font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;}
 
-/* ─── LEDGER ──────────────────────────────────────────────────── */
-.ldg-search-bar{
-  display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;
-}
-.ldg-field label{
-  display:block;font-size:11px;font-weight:600;color:var(--tx3);
-  text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;
-}
-.ldg-field select,.ldg-field input{
-  padding:8px 12px;border:1.5px solid var(--grb);border-radius:8px;
-  font-size:13px;font-family:'Inter',sans-serif;color:var(--tx);
-  background:var(--w);outline:none;
-}
-.ldg-run-btn{
-  padding:9px 18px;background:var(--g);color:var(--sid);
-  border:none;border-radius:8px;font-size:13px;font-weight:700;
-  cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;
-}
-.ldg-entity-card{
-  background:linear-gradient(135deg,var(--sid) 0%,#0D2E1C 100%);
-  border-radius:12px;padding:20px;margin-bottom:14px;
-  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
-}
-.ldg-entity-avatar{
-  width:50px;height:50px;border-radius:12px;background:var(--g);
-  display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:800;color:var(--sid);
-}
+/* ─── LEDGER ────────────────────────────────────────────────────── */
+.ldg-search-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+.ldg-field label{display:block;font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
+.ldg-field select,.ldg-field input{padding:8px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;color:var(--tx);background:var(--w);outline:none;}
+.ldg-run-btn{padding:9px 18px;background:var(--g);color:#0A1F14;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
+.ldg-entity-card{background:linear-gradient(135deg,#0A1F14 0%,#0D2E1C 100%);border-radius:12px;padding:20px;margin-bottom:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.ldg-entity-avatar{width:50px;height:50px;border-radius:12px;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#0A1F14;}
 .ldg-entity-avatar.merchant{background:var(--pu);color:#fff;}
 .ldg-entity-avatar.agent{background:var(--bl);color:#fff;}
-.ldg-entity-avatar.customer{background:var(--am);color:var(--sid);}
+.ldg-entity-avatar.customer{background:var(--am);color:#0A1F14;}
 .ldg-entity-name{font-size:16px;font-weight:700;color:#fff;}
 .ldg-entity-sub{font-size:12px;color:rgba(255,255,255,.45);margin-top:2px;}
-.ldg-entity-badge{
-  padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;
-  margin-top:6px;display:inline-block;
-}
+.ldg-entity-badge{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;margin-top:6px;display:inline-block;}
 .ldg-entity-badge.ok{background:rgba(0,200,150,.2);color:var(--g);}
 .ldg-entity-badge.warn{background:rgba(245,158,11,.2);color:var(--am);}
-.ldg-balance-pills{
-  display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;
-}
-.ldg-pill{
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
-  border-radius:10px;padding:10px 16px;text-align:center;min-width:120px;
-}
+.ldg-balance-pills{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;}
+.ldg-pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 16px;text-align:center;min-width:120px;}
 .ldg-pill-label{font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.05em;}
 .ldg-pill-value{font-size:16px;font-weight:700;color:#fff;margin-top:3px;}
 .ldg-pill-value.cr{color:var(--g);}
-.ldg-summary-strip{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;
-}
+.ldg-summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
 .ldg-sum{background:var(--w);border:1px solid var(--grb);border-radius:10px;padding:14px;}
 .ldg-sum.dr{border-left:3px solid var(--r);}
 .ldg-sum.am{border-left:3px solid var(--am);}
@@ -574,18 +365,12 @@ tbody tr:last-child td{border-bottom:none;}
 .ldg-sum-value{font-size:18px;font-weight:700;color:var(--d);margin-top:4px;}
 .ldg-table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--grb);}
 .ldg-table{width:100%;border-collapse:collapse;font-size:12px;}
-.ldg-table th{
-  padding:10px 12px;background:var(--bg);
-  font-size:10px;font-weight:600;color:var(--tx3);
-  text-transform:uppercase;letter-spacing:.06em;text-align:left;
-}
+.ldg-table th{padding:10px 12px;background:var(--bg);font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;text-align:left;}
 .ldg-table td{padding:10px 12px;border-bottom:1px solid var(--grb);}
 .ldg-table tr:last-child td{border-bottom:none;}
 .ldg-table tr.cr-row{background:rgba(0,200,150,.02);}
 .ldg-table tr.dr-row{background:rgba(239,68,68,.02);}
-.ldg-table tr.ldg-opening-row,.ldg-table tr.ldg-closing-row{
-  background:var(--bg);font-style:italic;
-}
+.ldg-table tr.ldg-opening-row,.ldg-table tr.ldg-closing-row{background:var(--bg);font-style:italic;}
 .ldg-table td.debit{color:var(--r);font-weight:600;text-align:right;}
 .ldg-table td.credit{color:var(--gt);font-weight:600;text-align:right;}
 .ldg-table td.r{text-align:right;}
@@ -593,32 +378,23 @@ tbody tr:last-child td{border-bottom:none;}
 .balance-dr{color:var(--r);font-weight:700;text-align:right;}
 .balance-nil{color:var(--tx3);text-align:right;}
 .ref-cell,.party-cell,.coin-cell{font-size:11px;font-family:monospace;color:var(--tx3);}
-.ldg-type-badge{
-  padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;
-}
+.ldg-type-badge{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;}
 .ldg-type-rcpt{background:#DCFCE7;color:#166534;}
 .ldg-type-pay{background:var(--rl);color:#991B1B;}
 .ldg-type-cash{background:var(--al);color:#92400E;}
 .ldg-type-mint{background:#F3E8FF;color:#6D28D9;}
 .ldg-type-issue{background:var(--bll);color:#1D4ED8;}
 .ldg-type-redeem{background:var(--bg);color:var(--tx3);}
-.ldg-export-btn{
-  padding:7px 13px;border-radius:7px;border:1.5px solid var(--grb);
-  background:var(--w);color:var(--tx);font-size:12px;font-weight:600;
-  cursor:pointer;font-family:'Inter',sans-serif;
-}
+.ldg-export-btn{padding:7px 13px;border-radius:7px;border:1.5px solid var(--grb);background:var(--w);color:var(--tx);font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
 .ldg-empty{text-align:center;padding:60px 20px;}
 .ldg-empty-icon{font-size:40px;margin-bottom:12px;}
 .ldg-empty-title{font-size:16px;font-weight:700;color:var(--d);margin-bottom:6px;}
 .ldg-empty-sub{font-size:13px;color:var(--tx3);}
-.ldg-autocomplete{position:absolute;}
+.ldg-autocomplete{position:relative;}
 .ldg-quick-select{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
 
-/* ─── SYSTEM STATUS ───────────────────────────────────────────── */
-.srow{
-  display:flex;align-items:center;gap:14px;
-  padding:12px 0;border-bottom:1px solid var(--grb);
-}
+/* ─── SYSTEM ────────────────────────────────────────────────────── */
+.srow{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--grb);}
 .srow:last-child{border-bottom:none;}
 .sdot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .sinfo{flex:1;}
@@ -627,48 +403,18 @@ tbody tr:last-child td{border-bottom:none;}
 .sbadge{flex-shrink:0;}
 .lookup-row{display:flex;gap:10px;margin-top:12px;}
 .lookup-input{flex:1;}
-.lookup-btn{
-  padding:9px 16px;background:var(--g);color:var(--sid);
-  border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;
-  font-family:'Inter',sans-serif;
-}
-
-/* ─── FORCE RECONCILE / COIN LOOKUP ──────────────────────────── */
-.data-table{width:100%;border-collapse:collapse;}
-.data-table th{
-  padding:10px 12px;text-align:left;font-size:11px;
-  font-weight:600;color:var(--tx3);text-transform:uppercase;
-  letter-spacing:.06em;background:var(--grl);
-}
-.data-table td{
-  padding:11px 12px;border-bottom:1px solid var(--grb);
-  font-size:13px;vertical-align:middle;
-}
-.data-table tbody tr:hover{background:var(--grl);}
-.loading-dots{
-  text-align:center;padding:40px;color:var(--tx3);font-size:13px;
-}
-
-/* ─── TOTP SETUP ──────────────────────────────────────────────── */
-.totp-step{
-  background:rgba(245,158,11,.05);border:1.5px solid rgba(245,158,11,.2);
-  border-radius:12px;padding:20px;margin-bottom:16px;
-}
-
-/* ─── USERS SECTION ───────────────────────────────────────────── */
-#sec-users .card-sub{margin-bottom:16px;}
+.lookup-btn{padding:9px 16px;background:var(--g);color:#0A1F14;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;}
 </style>
 </head>
 <body>
 
-<!-- ═══ NOTIFICATION ════════════════════════════════════════════ -->
 <div id="notif" class="notif"></div>
 <div id="loader" class="loader">
   <div class="loader-ring"></div>
   <div class="loader-txt" id="ltxt">Loading…</div>
 </div>
 
-<!-- ═══ LOGIN SCREEN ════════════════════════════════════════════ -->
+<!-- ═══ LOGIN ══════════════════════════════════════════════════════ -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-brand">
@@ -679,11 +425,11 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="login-sub">Admin Control Centre</div>
     </div>
 
-    <!-- STEP 1: Credentials -->
+    <!-- Step 1: Credentials -->
     <div id="login-step1">
       <div class="login-divider">Enter your credentials</div>
 
-      <!-- RBAC mode (username + password) — default when RBAC is set up -->
+      <!-- RBAC mode (username + password) -->
       <div id="login-mode-rbac" style="display:none">
         <div class="lfield">
           <label>Username</label>
@@ -699,7 +445,7 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
       </div>
 
-      <!-- Legacy mode (admin secret) — shown by default -->
+      <!-- Legacy mode (admin secret) — default -->
       <div id="login-mode-legacy">
         <div class="lfield">
           <label>Admin Secret</label>
@@ -711,7 +457,6 @@ tbody tr:last-child td{border-bottom:none;}
 
       <button class="lbtn-main" id="lbtn" onclick="doLogin()">Sign In →</button>
       <div class="lerr" id="lerr"></div>
-
       <div class="login-mode-toggle">
         <button onclick="toggleLoginMode()" id="login-mode-btn">
           Switch to username &amp; password
@@ -719,14 +464,12 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- STEP 2: TOTP -->
+    <!-- Step 2: TOTP -->
     <div id="login-step2" style="display:none">
       <div class="login-divider">Two-factor authentication</div>
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:40px;margin-bottom:8px">📱</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.5)">
-          Enter the 6-digit code from<br>your authenticator app
-        </div>
+        <div style="font-size:13px;color:rgba(255,255,255,.5)">Enter the 6-digit code from<br>your authenticator app</div>
       </div>
       <div class="lfield">
         <label>Authenticator Code</label>
@@ -742,23 +485,21 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- STEP 3: Change Password -->
+    <!-- Step 3: Set new password -->
     <div id="login-step-changepw" style="display:none">
       <div class="login-divider">Set your new password</div>
       <div class="lfield">
         <label>New Password</label>
         <input type="password" id="l-newpw" placeholder="Min 12 chars, upper, digit, special"
-               onkeydown="if(event.key==='Enter')doChangePassword()">
+               onkeydown="if(event.key==='Enter')document.getElementById('l-newpw2').focus()">
       </div>
       <div class="lfield">
         <label>Confirm Password</label>
         <input type="password" id="l-newpw2" placeholder="Repeat password"
                onkeydown="if(event.key==='Enter')doChangePassword()">
       </div>
-      <div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:12px;line-height:1.6">
-        Min 12 characters · One uppercase · One number · One special character
-      </div>
-      <button class="lbtn-main" onclick="doChangePassword()">Set Password →</button>
+      <div class="pw-rules">Min 12 characters · One uppercase · One number · One special character</div>
+      <button class="lbtn-main" onclick="doChangePassword()">Set Password &amp; Enter →</button>
       <div class="lerr" id="changepw-err"></div>
     </div>
 
@@ -768,11 +509,10 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
-<!-- ═══ APP SCREEN ═══════════════════════════════════════════════ -->
+<!-- ═══ APP SCREEN ═══════════════════════════════════════════════════ -->
 <div id="app-screen" style="display:none">
 <div class="app-shell">
 
-  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sb-header">
       <div class="sb-logo-mark">Z</div>
@@ -782,10 +522,9 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- Logged-in user chip -->
     <div class="sb-user">
       <div class="sb-user-avatar" id="sb-avatar">A</div>
-      <div>
+      <div style="min-width:0">
         <div class="sb-user-name" id="sb-name">Admin</div>
         <div class="sb-user-role" id="sb-role">SUPER_ADMIN</div>
       </div>
@@ -794,78 +533,83 @@ tbody tr:last-child td{border-bottom:none;}
 
     <div class="sb-nav">
       <div class="sb-section-label">Overview</div>
-      <button class="snav-item active" onclick="showSec('overview',this)" id="nav-overview">
+      <button class="snav-item active" id="nav-overview"
+              onclick="showSec('overview',this)">
         <span class="si">📊</span> Dashboard
       </button>
 
       <div class="sb-section-label">Operations</div>
-      <button class="snav-item" onclick="showSec('agents',this)" id="nav-agents">
+      <button class="snav-item" id="nav-agents"
+              onclick="showSec('agents',this)">
         <span class="si">🏪</span> Agents
       </button>
-      <button class="snav-item" onclick="showSec('merchants',this)" id="nav-merchants">
+      <button class="snav-item" id="nav-merchants"
+              onclick="showSec('merchants',this)">
         <span class="si">🛒</span> Merchants
       </button>
-      <button class="snav-item" onclick="showSec('customers',this)" id="nav-customers">
+      <button class="snav-item" id="nav-customers"
+              onclick="showSec('customers',this)">
         <span class="si">👥</span> Customers
       </button>
-      <button class="snav-item" onclick="showSec('tokens',this);onAgentSelect()" id="nav-tokens">
+      <button class="snav-item" id="nav-tokens"
+              onclick="showSec('tokens',this);onAgentSelect()">
         <span class="si">🔐</span> Tokens
       </button>
 
       <div class="sb-section-label">Finance</div>
-      <button class="snav-item" onclick="showSec('coins',this)" id="nav-coins">
+      <button class="snav-item" id="nav-coins"
+              onclick="showSec('coins',this)">
         <span class="si">🪙</span> Coins
       </button>
-      <button class="snav-item" onclick="showSec('transactions',this)" id="nav-transactions">
+      <button class="snav-item" id="nav-transactions"
+              onclick="showSec('transactions',this)">
         <span class="si">📋</span> Transactions
       </button>
-      <button class="snav-item" onclick="showSec('ledger',this);initLedger()" id="nav-ledger">
+      <button class="snav-item" id="nav-ledger"
+              onclick="showSec('ledger',this);initLedger()">
         <span class="si">📒</span> Ledger
       </button>
 
       <div class="sb-section-label">Compliance</div>
-      <button class="snav-item" onclick="showSec('fraud',this)" id="nav-fraud">
+      <button class="snav-item" id="nav-fraud"
+              onclick="showSec('fraud',this)">
         <span class="si">🚨</span> Fraud
         <span class="snav-badge red" id="fraud-badge" style="display:none">0</span>
       </button>
 
       <div class="sb-section-label">Admin</div>
-      <button class="snav-item" id="nav-users" onclick="showSec('users',this);loadAdminUsers()" style="display:none">
+      <button class="snav-item" id="nav-users" style="display:none"
+              onclick="showSec('users',this);loadAdminUsers()">
         <span class="si">👤</span> Users &amp; Access
       </button>
-      <button class="snav-item" onclick="showSec('system',this)" id="nav-system">
+      <button class="snav-item" id="nav-system"
+              onclick="showSec('system',this)">
         <span class="si">⚙️</span> System
       </button>
     </div>
 
-    <!-- Live ecosystem value -->
     <div class="sb-footer">
       <div class="sb-live-box">
         <div class="sb-live-label">Zil In Circulation</div>
         <div class="sb-live-value" id="sb-live-value">₦—</div>
         <div class="sb-live-sub">Across all wallets · Live</div>
       </div>
-      <button class="sb-logout" onclick="doLogout()">
-        <span>⇠</span> Sign Out
-      </button>
+      <button class="sb-logout" onclick="doLogout()">⇠ Sign Out</button>
     </div>
   </aside>
 
-  <!-- MAIN AREA -->
   <div class="main-area">
-    <!-- Top Bar -->
     <div class="top-bar">
       <div class="top-bar-title" id="top-bar-title">Dashboard</div>
-      <div class="search-bar">
-        <span style="color:var(--tx3)">🔍</span>
-        <input type="text" placeholder="Search coins, agents, merchants…" id="global-search">
+      <div class="sb-bar">
+        <span style="color:var(--tx3);font-size:14px">🔍</span>
+        <input type="text" placeholder="Search coin, agent, merchant…" id="global-search">
       </div>
       <div class="top-bar-pill">PILOT</div>
       <div class="top-bar-version" id="version-badge">v1.0.0</div>
-      <div id="top-bar-user" style="font-size:12px;color:var(--tx2);font-weight:600"></div>
+      <div id="top-bar-user" style="font-size:12px;color:var(--tx2);font-weight:600;white-space:nowrap"></div>
     </div>
 
-    <!-- Page Content -->
     <div class="page-body">
 <div id="sec-overview" class="sec active">
   <div class="metrics">
@@ -1424,8 +1168,8 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
 
-</div><!-- .app-shell -->
-</div><!-- #app-screen -->
+</div>
+</div>
 
 <div id="create-user-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)closeCreateUserModal()">
   <div style="background:var(--w);border-radius:14px;padding:28px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto">
@@ -1486,37 +1230,42 @@ tbody tr:last-child td{border-bottom:none;}
 
 <script>
 'use strict';
-const API = '/.netlify/functions';
-let adminToken = null;
-let tokHistory = [];
-let allUsers = [];
-let allAgentsData = [];
+// ── Core globals (declared once) ─────────────────────────────────────────────
+const API          = '/.netlify/functions';
+let adminToken     = null;
+let tokHistory     = [];
+let allUsers       = [];
+let allAgentsData  = [];
 let allMerchantsData = [];
 
-// ── LOGIN MODE TOGGLE ────────────────────────────────────────────
-let _loginMode = 'legacy'; // 'legacy' | 'rbac'
+// ── Login mode toggle ─────────────────────────────────────────────────────────
+let _loginMode = 'legacy';
 function toggleLoginMode() {
   const rbac   = document.getElementById('login-mode-rbac');
   const legacy = document.getElementById('login-mode-legacy');
   const btn    = document.getElementById('login-mode-btn');
   if (_loginMode === 'legacy') {
     _loginMode = 'rbac';
-    rbac.style.display   = '';
-    legacy.style.display = 'none';
-    btn.textContent      = 'Switch to admin secret';
-    document.getElementById('l-username').focus();
+    if (rbac)   rbac.style.display   = '';
+    if (legacy) legacy.style.display = 'none';
+    if (btn)    btn.textContent      = 'Switch to admin secret';
+    document.getElementById('l-username')?.focus();
   } else {
     _loginMode = 'legacy';
-    rbac.style.display   = 'none';
-    legacy.style.display = '';
-    btn.textContent      = 'Switch to username & password';
-    document.getElementById('l-secret').focus();
+    if (rbac)   rbac.style.display   = 'none';
+    if (legacy) legacy.style.display = '';
+    if (btn)    btn.textContent      = 'Switch to username & password';
+    document.getElementById('l-secret')?.focus();
   }
 }
 
-// ── AUTO-LOGIN ───────────────────────────────────────────────────
+// ── Auto-login on DOMContentLoaded ───────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('login-version').textContent = window.ZILLION_VERSION || '1.0.0';
+  // Version display
+  const lv = document.getElementById('login-version');
+  if (lv) lv.textContent = window.ZILLION_VERSION || '1.0.0';
+
+  // Auto-login from valid saved token
   const saved = localStorage.getItem('zil_admin_token');
   if (saved) {
     try {
@@ -1535,49 +1284,9 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 
-'use strict';
-const API = '/.netlify/functions';
-let adminToken = null;
-let tokHistory = [];
-let allUsers = [];
-let allAgentsData = [];
-let allMerchantsData = [];
-
-// ── LOGIN ──────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('zil_admin_token');
-  if (saved) {
-    // Validate token is not expired before auto-login
-    try {
-      const parts = saved.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-        const now     = Math.floor(Date.now() / 1000);
-        if (payload.exp && payload.exp > now) {
-          adminToken = saved;
-          showApp();
-        } else {
-          // Token expired — clear it and show login
-          localStorage.removeItem('zil_admin_token');
-        }
-      }
-    } catch(e) {
-      localStorage.removeItem('zil_admin_token');
-    }
-  }
-  // Attach Enter key to both login inputs
-  const lSecret = document.getElementById('l-secret');
-  if (lSecret) lSecret.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  const lPw = document.getElementById('l-password');
-  if (lPw) lPw.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  const lUser = document.getElementById('l-username');
-  if (lUser) lUser.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('l-password')?.focus(); });
-});
 
 // ── 2FA Login flow ─────────────────────────────────────────────
 let _sessionToken = null; // holds session token between step 1 and step 2
-
-// toggleLoginMode removed — single secret field used
 
 async function doLogin() {
   const errEl = document.getElementById('lerr');
@@ -3249,8 +2958,22 @@ function onAdminLoginSuccess(token) {
 
 
 
-// ── OVERRIDE showSec to update top-bar title & sidebar state ─────
-const _origShowSec = showSec;
+
+// ═══════════════════════════════════════════════════════════════════
+// NEW UI OVERRIDES — come after original JS so we can wrap functions
+// ═══════════════════════════════════════════════════════════════════
+
+// ── Override showApp ──────────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display   = 'block';
+  onAdminLoginSuccess(adminToken);
+  loadOverview();
+  checkSystem();
+  loadAgents();
+}
+
+// ── Override showSec — updates top-bar title + sidebar active state ───────────
 function showSec(name, el) {
   document.querySelectorAll('.snav-item').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
@@ -3273,25 +2996,23 @@ function showSec(name, el) {
   if (loaders[name]) loaders[name]();
 }
 
-// ── OVERRIDE showApp to update sidebar user info ─────────────────
-function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display   = 'block';
-  onAdminLoginSuccess(adminToken);
-  loadOverview();
-  checkSystem();
-  loadAgents();
-}
-
-// ── OVERRIDE onAdminLoginSuccess ─────────────────────────────────
+// ── Override onAdminLoginSuccess ──────────────────────────────────────────────
 function onAdminLoginSuccess(token) {
   const role         = parseJWTRole(token);
   const isSuperAdmin = (role === 'SUPER_ADMIN' || role === 'admin');
 
-  // Sidebar user chip
-  const payload = token ? (() => { try { return JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch{return null;} })() : null;
+  // Decode payload
+  let payload = null;
+  try {
+    const parts = (token||'').split('.');
+    if (parts.length >= 2)
+      payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+  } catch(e) {}
+
   const uname   = payload?.username || 'admin';
   const initials= uname.slice(0,2).toUpperCase();
+
+  // Sidebar user chip
   const sbAvatar = document.getElementById('sb-avatar');
   const sbName   = document.getElementById('sb-name');
   const sbRole   = document.getElementById('sb-role');
@@ -3299,30 +3020,40 @@ function onAdminLoginSuccess(token) {
   if (sbName)   sbName.textContent   = uname;
   if (sbRole)   sbRole.textContent   = role || 'ADMIN';
 
-  // Top bar
+  // Top bar username
   const topUser = document.getElementById('top-bar-user');
   if (topUser) topUser.textContent = uname;
 
-  // Users nav item
+  // Users nav item — only for super admins
   const nav = document.getElementById('nav-users');
   if (nav) nav.style.display = isSuperAdmin ? '' : 'none';
 
   // Audit log card
   const auditCard = document.getElementById('audit-log-card');
-  if (auditCard) auditCard.style.display = (isSuperAdmin || ['COMPLIANCE','AUDITOR'].includes(role)) ? '' : 'none';
+  if (auditCard) auditCard.style.display =
+    (isSuperAdmin || ['COMPLIANCE','AUDITOR'].includes(role)) ? '' : 'none';
 
-  // Version
+  // Version badge
   displayVersion();
   initUsersTab();
 }
 
-// ── PASSWORD CHANGE FLOW ─────────────────────────────────────────
+// ── Override displayVersion ───────────────────────────────────────────────────
+function displayVersion() {
+  const v  = window.ZILLION_VERSION || '1.0.0';
+  const el = document.getElementById('version-badge');
+  if (el) el.textContent = 'v' + v;
+  const lv = document.getElementById('login-version');
+  if (lv) lv.textContent = v;
+}
+
+// ── Password change (first-login RBAC) ───────────────────────────────────────
 async function doChangePassword() {
-  const pw1   = document.getElementById('l-newpw').value;
-  const pw2   = document.getElementById('l-newpw2').value;
+  const pw1   = (document.getElementById('l-newpw')?.value  || '').trim();
+  const pw2   = (document.getElementById('l-newpw2')?.value || '').trim();
   const errEl = document.getElementById('changepw-err');
   errEl.className = 'lerr';
-  if (pw1 !== pw2) {
+  if (!pw1 || pw1 !== pw2) {
     errEl.textContent = 'Passwords do not match.';
     errEl.className = 'lerr show'; return;
   }
@@ -3330,7 +3061,7 @@ async function doChangePassword() {
     errEl.textContent = 'Password must be at least 12 characters.';
     errEl.className = 'lerr show'; return;
   }
-  showLoader('Setting password...');
+  showLoader('Setting password…');
   try {
     const res  = await fetch(API + '/admin-login', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -3339,83 +3070,62 @@ async function doChangePassword() {
     const data = await res.json();
     hideLoader();
     if (!res.ok) {
-      errEl.textContent = data.error || 'Failed to set password.';
+      errEl.textContent = data.error || 'Failed.';
       errEl.className = 'lerr show'; return;
     }
     adminToken = data.token;
     localStorage.setItem('zil_admin_token', adminToken);
     showApp();
   } catch(e) {
-    hideLoader();
-    errEl.textContent = e.message;
-    errEl.className = 'lerr show';
+    hideLoader(); errEl.textContent = e.message; errEl.className = 'lerr show';
   }
 }
 
-// ── LIVE SIDEBAR VALUE ───────────────────────────────────────────
+// ── Sidebar live value ────────────────────────────────────────────────────────
 function updateSidebarLiveValue(coins) {
   const el = document.getElementById('sb-live-value');
-  if (!el) return;
-  // Sum all HELD coins from the loaded data
-  let total = 0;
-  if (coins && coins.summary) {
-    total = Object.values(coins.summary.by_status || {}).reduce((s,v) => s+(v.total_kobo||0), 0) || 0;
-  }
+  if (!el || !coins) return;
+  const bs    = coins.summary?.by_status || {};
+  const total = Object.values(bs).reduce((s,v) => s+(v.total_kobo||0), 0);
   el.textContent = total > 0 ? fmt(total) : '₦—';
 }
 
-// ── OVERRIDE loadCoins to update sidebar ─────────────────────────
-const _origLoadCoins = loadCoins;
-async function loadCoins() {
-  await _origLoadCoins();
-  // Also try to update sidebar
-  try {
-    const r = await fetch(API+'/admin-coins?limit=1', {headers:{'Authorization':'Bearer '+adminToken}});
-    if (r.ok) updateSidebarLiveValue(await r.json());
-  } catch(e) {}
-}
-
-// ── FRAUD BADGE ───────────────────────────────────────────────────
+// ── Fraud badge in sidebar ────────────────────────────────────────────────────
 function updateFraudBadge(count) {
   const el = document.getElementById('fraud-badge');
   if (!el) return;
-  if (count > 0) {
-    el.textContent     = count;
-    el.style.display   = '';
-  } else {
-    el.style.display   = 'none';
-  }
+  if (count > 0) { el.textContent = count; el.style.display = ''; }
+  else el.style.display = 'none';
 }
 
-// ── displayVersion ────────────────────────────────────────────────
-function displayVersion() {
-  const v = window.ZILLION_VERSION || '1.0.0';
-  const el = document.getElementById('version-badge');
-  if (el) el.textContent = 'v' + v;
-}
-
-// ── GLOBAL SEARCH (basic — searches loaded data) ──────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const searchEl = document.getElementById('global-search');
-  if (!searchEl) return;
-  searchEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      const q = searchEl.value.trim().toUpperCase();
+// ── Global search ─────────────────────────────────────────────────────────────
+(function initGlobalSearch() {
+  const go = () => {
+    const el = document.getElementById('global-search');
+    if (!el) return;
+    el.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const q = (el.value || '').trim().toUpperCase();
       if (!q) return;
       if (q.startsWith('ZIL-')) {
-        document.getElementById('coin-lookup-input').value = q;
+        const ci = document.getElementById('coin-lookup-input');
+        if (ci) ci.value = q;
         showSec('coins', document.getElementById('nav-coins'));
         setTimeout(lookupCoin, 200);
       } else if (q.startsWith('MERCH-')) {
-        document.getElementById('merch-search').value = q.toLowerCase();
+        const ms = document.getElementById('merch-search');
+        if (ms) ms.value = el.value.trim();
         showSec('merchants', document.getElementById('nav-merchants'));
         setTimeout(filterMerchantTable, 200);
       } else if (q.startsWith('AGENT-')) {
         showSec('agents', document.getElementById('nav-agents'));
       }
-    }
-  });
-});
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
+  else go();
+})();
+
 </script>
 </body>
 </html>
