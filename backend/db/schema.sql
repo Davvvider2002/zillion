@@ -3,28 +3,32 @@
 -- Run in Supabase SQL Editor AFTER the main schema.sql
 -- ============================================================
 
--- ── ENUMS ─────────────────────────────────────────────────────────────────────
+-- ── ENUMS (idempotent — safe to re-run) ──────────────────────────────────────
 
-CREATE TYPE admin_role AS ENUM (
-  'SUPER_ADMIN',   -- Full access, user management, all operations
-  'COMPLIANCE',    -- Read all + freeze/suspend, view audit logs, no mutations
-  'OPERATIONS',    -- Float management, agent ops, reconcile (no audit/user mgmt)
-  'SUPPORT',       -- View customers/merchants/transactions, no mutations
-  'AUDITOR',       -- Read-only + export, immutable log access (external auditors)
-  'VIEWER'         -- Dashboard overview only, no PII
-);
+DO $$ BEGIN
+  CREATE TYPE admin_role AS ENUM (
+    'SUPER_ADMIN',
+    'COMPLIANCE',
+    'OPERATIONS',
+    'SUPPORT',
+    'AUDITOR',
+    'VIEWER'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE admin_status AS ENUM (
-  'ACTIVE',           -- Normal access
-  'PENDING_SETUP',    -- Created, awaiting first login & password change
-  'LOCKED',           -- Too many failed attempts (auto or manual)
-  'SUSPENDED',        -- Manually suspended by SUPER_ADMIN
-  'DEACTIVATED'       -- Soft-deleted (retain audit trail)
-);
+DO $$ BEGIN
+  CREATE TYPE admin_status AS ENUM (
+    'ACTIVE',
+    'PENDING_SETUP',
+    'LOCKED',
+    'SUSPENDED',
+    'DEACTIVATED'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── ADMIN USERS ───────────────────────────────────────────────────────────────
 
-CREATE TABLE admin_users (
+CREATE TABLE IF NOT EXISTS admin_users (
   user_id             UUID            PRIMARY KEY DEFAULT uuid_generate_v4(),
   username            VARCHAR(50)     NOT NULL UNIQUE,
   email               VARCHAR(255)    NOT NULL UNIQUE,
@@ -63,28 +67,28 @@ CREATE TABLE admin_users (
   CONSTRAINT no_self_deactivation CHECK (user_id != deactivated_by)
 );
 
-CREATE INDEX idx_admin_users_username ON admin_users (username);
-CREATE INDEX idx_admin_users_email    ON admin_users (email);
-CREATE INDEX idx_admin_users_role     ON admin_users (role);
-CREATE INDEX idx_admin_users_status   ON admin_users (status);
+CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users (username);
+CREATE INDEX IF NOT EXISTS idx_admin_users_email    ON admin_users (email);
+CREATE INDEX IF NOT EXISTS idx_admin_users_role     ON admin_users (role);
+CREATE INDEX IF NOT EXISTS idx_admin_users_status   ON admin_users (status);
 
 -- ── PASSWORD HISTORY (last 5 hashes — enforces no reuse) ─────────────────────
 
-CREATE TABLE admin_password_history (
+CREATE TABLE IF NOT EXISTS admin_password_history (
   id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id         UUID          NOT NULL REFERENCES admin_users(user_id) ON DELETE CASCADE,
   password_hash   VARCHAR(256)  NOT NULL,
   changed_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_pwd_history_user ON admin_password_history (user_id, changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pwd_history_user ON admin_password_history (user_id, changed_at DESC);
 
 -- ── ADMIN SESSIONS (extend existing) ──────────────────────────────────────────
 -- Drop existing and recreate with user_id + session_id for proper tracking
 
 DROP TABLE IF EXISTS admin_sessions CASCADE;
 
-CREATE TABLE admin_sessions (
+CREATE TABLE IF NOT EXISTS admin_sessions (
   id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   session_id      VARCHAR(64)   NOT NULL UNIQUE,  -- random, sent to client
   token_hash      VARCHAR(64)   NOT NULL UNIQUE,  -- HMAC of session_id
@@ -101,13 +105,13 @@ CREATE TABLE admin_sessions (
   revoke_reason   VARCHAR(64)
 );
 
-CREATE INDEX idx_sessions_token_hash  ON admin_sessions (token_hash);
-CREATE INDEX idx_sessions_user_id     ON admin_sessions (user_id);
-CREATE INDEX idx_sessions_expires     ON admin_sessions (expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_token_hash  ON admin_sessions (token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id     ON admin_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires     ON admin_sessions (expires_at);
 
 -- ── ADMIN AUDIT LOG (immutable — no UPDATE/DELETE ever) ───────────────────────
 
-CREATE TABLE admin_audit_log (
+CREATE TABLE IF NOT EXISTS admin_audit_log (
   log_id          UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   -- Who
   user_id         UUID          REFERENCES admin_users(user_id),
@@ -130,19 +134,31 @@ CREATE TABLE admin_audit_log (
   checksum        VARCHAR(64)   NOT NULL DEFAULT ''  -- SHA256 of log fields (tamper detection)
 );
 
-CREATE INDEX idx_audit_user       ON admin_audit_log (user_id, logged_at DESC);
-CREATE INDEX idx_audit_action     ON admin_audit_log (action, logged_at DESC);
-CREATE INDEX idx_audit_resource   ON admin_audit_log (resource_type, resource_id);
-CREATE INDEX idx_audit_logged_at  ON admin_audit_log (logged_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_user       ON admin_audit_log (user_id, logged_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_action     ON admin_audit_log (action, logged_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_resource   ON admin_audit_log (resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logged_at  ON admin_audit_log (logged_at DESC);
 
 -- Prevent UPDATE/DELETE on audit log (immutable record)
-CREATE RULE no_update_audit AS ON UPDATE TO admin_audit_log DO INSTEAD NOTHING;
-CREATE RULE no_delete_audit AS ON DELETE TO admin_audit_log DO INSTEAD NOTHING;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_rules WHERE rulename='no_update_audit' AND tablename='admin_audit_log'
+  ) THEN
+    EXECUTE 'CREATE RULE no_update_audit AS ON UPDATE TO admin_audit_log DO INSTEAD NOTHING';
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_rules WHERE rulename='no_delete_audit' AND tablename='admin_audit_log'
+  ) THEN
+    EXECUTE 'CREATE RULE no_delete_audit AS ON DELETE TO admin_audit_log DO INSTEAD NOTHING';
+  END IF;
+END $$;
 
 -- ── PERMISSIONS VIEW (computed from role) ──────────────────────────────────────
 -- Used by backend middleware to check permissions without extra lookups
 
-CREATE VIEW admin_permissions AS
+CREATE OR REPLACE VIEW admin_permissions AS
 SELECT
   u.user_id,
   u.username,
@@ -241,9 +257,15 @@ ALTER TABLE admin_password_history ENABLE ROW LEVEL SECURITY;
 -- Service role bypasses RLS — all access via Netlify functions only
 
 -- ── AUTO-UPDATE updated_at ──────────────────────────────────────────────────────
-CREATE TRIGGER admin_users_updated_at
-  BEFORE UPDATE ON admin_users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname='admin_users_updated_at'
+  ) THEN
+    CREATE TRIGGER admin_users_updated_at
+      BEFORE UPDATE ON admin_users
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+END $$;
 
 -- ============================================================
 -- POST-SETUP CHECKLIST:
