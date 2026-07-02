@@ -59,7 +59,7 @@ CREATE TABLE admin_users (
   deactivated_by      UUID            REFERENCES admin_users(user_id),
 
   -- Constraints
-  CONSTRAINT username_format CHECK (username ~ '^[a-z][a-z0-9_]{2,49}$'),
+  CONSTRAINT username_format CHECK (username ~ '^[a-z][a-z0-9_.]{2,49}$'),
   CONSTRAINT no_self_deactivation CHECK (user_id != deactivated_by)
 );
 
