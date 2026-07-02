@@ -994,10 +994,15 @@ let allMerchantsData = [];
 
 // ── LOGIN ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  const saved  = localStorage.getItem('zil_admin_token');
-  const secret = localStorage.getItem('zil_admin_secret');
-  if (saved && secret) { adminToken = saved; showApp(); }
-  document.getElementById('l-secret').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  const saved = localStorage.getItem('zil_admin_token');
+  if (saved) { adminToken = saved; showApp(); }
+  // Attach Enter key to both login inputs
+  const lSecret = document.getElementById('l-secret');
+  if (lSecret) lSecret.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  const lPw = document.getElementById('l-password');
+  if (lPw) lPw.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  const lUser = document.getElementById('l-username');
+  if (lUser) lUser.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('l-password')?.focus(); });
 });
 
 // ── 2FA Login flow ─────────────────────────────────────────────
@@ -1063,24 +1068,27 @@ async function doLogin() {
     if (data.step === 'totp') {
       // TOTP required — show step 2
       _sessionToken = data.session_token;
-      localStorage.setItem('zil_admin_secret', secret);
       document.getElementById('login-step1').style.display = 'none';
       document.getElementById('login-step2').style.display = 'block';
       setTimeout(function(){ document.getElementById('l-totp').focus(); }, 80);
+    } else if (data.step === 'change_password') {
+      // First login — must change password
+      _sessionToken = data.session_token;
+      document.getElementById('login-step1').style.display = 'none';
+      var cpDiv = document.getElementById('login-step-changepw');
+      if (cpDiv) cpDiv.style.display = 'block';
+      else alert('Please set a new password. Contact admin if this screen does not appear.');
     } else {
-      // No TOTP configured — direct access (dev mode)
+      // Login complete — store token and enter app
       adminToken = data.token;
-      // Show logged-in user info if available (RBAC mode)
       if (data.user && data.user.username) {
         const uLabel = document.getElementById('admin-username-label');
         if (uLabel) uLabel.textContent = data.user.full_name || data.user.username;
         const rLabel = document.getElementById('admin-role-label');
         if (rLabel) rLabel.textContent = data.user.role || 'ADMIN';
       }
-      // Show Users tab for SUPER_ADMIN
       if (typeof onAdminLoginSuccess === 'function') onAdminLoginSuccess(data.token);
       localStorage.setItem('zil_admin_token', adminToken);
-      localStorage.setItem('zil_admin_secret', secret);
       showApp();
     }
   } catch(e) {
