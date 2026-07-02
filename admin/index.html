@@ -1003,7 +1003,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ── 2FA Login flow ─────────────────────────────────────────────
 let _sessionToken = null; // holds session token between step 1 and step 2
 
-async function toggleLoginMode() {
+function toggleLoginMode() {
   const rbac   = document.getElementById('login-mode-rbac');
   const legacy = document.getElementById('login-mode-legacy');
   const btn    = document.querySelector('[onclick="toggleLoginMode()"]');
@@ -2551,12 +2551,7 @@ async function doAdminUserAction(action, userId, username) {
     if (data.temp_password) {
       // Password reset — show temp password prominently
       const copied = await navigator.clipboard.writeText(data.temp_password).then(()=>true).catch(()=>false);
-      alert('✅ Temporary password (COPY NOW — shown once only):
-
-' + data.temp_password +
-        '
-
-' + (copied ? '(Copied to clipboard)' : 'Please copy manually'));
+      alert('✅ Temporary password (COPY NOW — shown once only):\n\n' + data.temp_password + '\n\n' + (copied ? '(Copied to clipboard)' : 'Please copy manually'));
     } else {
       notify(data.message || '✅ Done');
     }
