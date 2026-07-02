@@ -354,12 +354,18 @@ exports.handler = async (event) => {
     const TOTP_SECRET  = process.env.ADMIN_TOTP_SECRET;
     if (!JWT_SECRET) return err(500, 'JWT_SECRET not configured');
 
-    // Simple string comparison — matches original behaviour exactly.
-    // ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET
+    // DEBUG — remove after login confirmed working
+    console.log('[admin-login] legacy attempt');
+    console.log('[admin-login] ADMIN_SECRET set:', !!process.env.ADMIN_SECRET);
+    console.log('[admin-login] JWT_SECRET set:', !!process.env.JWT_SECRET);
+    console.log('[admin-login] ADMIN_SECRET length:', (ADMIN_SECRET||'').length);
+    console.log('[admin-login] received length:', (body.admin_secret||'').length);
+    console.log('[admin-login] match:', body.admin_secret === ADMIN_SECRET);
+
     if (!ADMIN_SECRET || body.admin_secret !== ADMIN_SECRET) {
       await audit(db, { username:'legacy_admin', ip, ua,
         action:'LOGIN_FAIL_LEGACY', result:'FAILURE', responseCode:401 }).catch(()=>{});
-      return err(401, 'Invalid admin secret.');
+      return err(401, 'Invalid admin secret. Check Netlify function logs for debug info.');
     }
 
     // TOTP required?
