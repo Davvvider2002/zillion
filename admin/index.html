@@ -1229,6 +1229,7 @@ tbody tr:last-child td{border-bottom:none;}
 </div>
 
 <script>
+
 'use strict';
 // ── Core globals (declared once) ─────────────────────────────────────────────
 const API          = '/.netlify/functions';
@@ -1240,30 +1241,15 @@ let allMerchantsData = [];
 
 // ── Login mode toggle ─────────────────────────────────────────────────────────
 let _loginMode = 'legacy';
-function toggleLoginMode() {
-  const rbac   = document.getElementById('login-mode-rbac');
-  const legacy = document.getElementById('login-mode-legacy');
-  const btn    = document.getElementById('login-mode-btn');
-  if (_loginMode === 'legacy') {
-    _loginMode = 'rbac';
-    if (rbac)   rbac.style.display   = '';
-    if (legacy) legacy.style.display = 'none';
-    if (btn)    btn.textContent      = 'Switch to admin secret';
-    document.getElementById('l-username')?.focus();
-  } else {
-    _loginMode = 'legacy';
-    if (rbac)   rbac.style.display   = 'none';
-    if (legacy) legacy.style.display = '';
-    if (btn)    btn.textContent      = 'Switch to username & password';
-    document.getElementById('l-secret')?.focus();
-  }
-}
+let _sessionToken = null;
 
-// ── Auto-login on DOMContentLoaded ───────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+// ── Auto-login & init on DOMContentLoaded ─────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
   // Version display
   const lv = document.getElementById('login-version');
   if (lv) lv.textContent = window.ZILLION_VERSION || '1.0.0';
+  const vb = document.getElementById('version-badge');
+  if (vb) vb.textContent = 'v' + (window.ZILLION_VERSION || '1.0.0');
 
   // Auto-login from valid saved token
   const saved = localStorage.getItem('zil_admin_token');
@@ -1283,20 +1269,58 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+function toggleLoginMode() {
+  const rbac   = document.getElementById('login-mode-rbac');
+  const legacy = document.getElementById('login-mode-legacy');
+  const btn    = document.getElementById('login-mode-btn');
+  if (_loginMode === 'legacy') {
+    _loginMode = 'rbac';
+    if (rbac)   rbac.style.display   = '';
+    if (legacy) legacy.style.display = 'none';
+    if (btn)    btn.textContent      = 'Switch to admin secret';
+    document.getElementById('l-username')?.focus();
+  } else {
+    _loginMode = 'legacy';
+    if (rbac)   rbac.style.display   = 'none';
+    if (legacy) legacy.style.display = '';
+    if (btn)    btn.textContent      = 'Switch to username & password';
+    document.getElementById('l-secret')?.focus();
+  }
+}
+
+
+
 
 
 // ── 2FA Login flow ─────────────────────────────────────────────
-let _sessionToken = null; // holds session token between step 1 and step 2
+// _sessionToken declared aboveon token between step 1 and step 2
 
 async function doLogin() {
   const errEl = document.getElementById('lerr');
   const btn   = document.getElementById('lbtn');
+  if (!errEl || !btn) return;
   errEl.className = 'lerr';
 
-  // Send admin_secret to backend
-  const secret = (document.getElementById('l-secret')?.value||'').trim();
-  if (!secret) { errEl.textContent = 'Enter your admin secret.'; errEl.className = 'lerr show'; return; }
-  const payload = { admin_secret: secret };
+  // Build payload based on active login mode
+  let payload;
+  if (_loginMode === 'rbac') {
+    // Username + Password mode
+    const username = (document.getElementById('l-username')?.value||'').trim();
+    const password = (document.getElementById('l-password')?.value||'').trim();
+    if (!username || !password) {
+      errEl.textContent = 'Enter both username and password.';
+      errEl.className = 'lerr show'; return;
+    }
+    payload = { username, password };
+  } else {
+    // Legacy Admin Secret mode
+    const secret = (document.getElementById('l-secret')?.value||'').trim();
+    if (!secret) {
+      errEl.textContent = 'Enter your admin secret.';
+      errEl.className = 'lerr show'; return;
+    }
+    payload = { admin_secret: secret };
+  }
 
   btn.disabled = true; btn.textContent = 'Checking...';
   showLoader('Verifying credentials...');
@@ -1413,15 +1437,6 @@ function doLogout() {
   document.getElementById('l-secret').value = '';
 }
 
-function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display   = 'block';
-  // Set tab visibility based on role immediately
-  if (typeof onAdminLoginSuccess === 'function') onAdminLoginSuccess(adminToken);
-  loadOverview();
-  checkSystem();
-  loadAgents(); // pre-load agents so Float Top-Up dropdown is ready immediately
-}
 
 // ── NAV ────────────────────────────────────────────────────────
 function showSec(name, el) {
@@ -3185,6 +3200,7 @@ function updateFraudBadge(count) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
   else go();
 })();
+
 
 </script>
 </body>
