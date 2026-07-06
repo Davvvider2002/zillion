@@ -524,29 +524,83 @@ function switchTab(el) {
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 async function doLogin() {
-  const id = document.getElementById('lai').value.trim().toUpperCase();
-  const tk = document.getElementById('lt2').value.trim();
+  const id  = document.getElementById('lai').value.trim().toUpperCase();
+  const tk  = document.getElementById('lt2').value.trim();
   const err = document.getElementById('lerr');
   const btn = document.getElementById('lbtn');
   err.className = 'lerr';
   if (!id || !tk) { err.textContent = 'Enter Agent ID and token.'; err.className = 'lerr show'; return; }
   btn.disabled = true; btn.textContent = 'Logging in...';
   showL('Verifying...');
+
+  // ── OFFLINE LOGIN: restore from cached profile ───────────────────────────
+  if (!navigator.onLine) {
+    const cached = getSaved();
+    if (cached && cached.id === id && cached.tk === tk && cached.profile) {
+      hideL();
+      TK = tk; AP = cached.profile;
+      showApp();
+      notify('⚡ Offline — restored from saved session. Sync when back online.');
+      btn.disabled = false; btn.textContent = 'Login to Agent Portal →';
+      return;
+    } else {
+      hideL();
+      err.textContent = '⚠️ Offline — log in once while online to enable offline access.';
+      err.className = 'lerr show';
+      btn.disabled = false; btn.textContent = 'Login to Agent Portal →';
+      return;
+    }
+  }
+
+  // ── ONLINE LOGIN: fetch from server ──────────────────────────────────────
   try {
     const p = await fetchProfile(id, tk);
     hideL(); TK = tk; AP = p;
-    localStorage.setItem('zs', JSON.stringify({ id, tk }));
+    // Cache full profile for offline login next time
+    localStorage.setItem('zs', JSON.stringify({ id, tk, profile: p }));
     showApp();
-    notify('Welcome, ' + p.name.split(' ')[0] + '!');
+    notify('Welcome, ' + (p.name||'Agent').split(' ')[0] + '!');
   } catch(e) {
     hideL(); err.textContent = '⚠️ ' + e.message; err.className = 'lerr show';
   } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
 }
 
-async function silentLogin(id, tk) {
+async async function silentLogin(id, tk) {
   showL('Restoring session...');
-  try { AP = await fetchProfile(id, tk); hideL(); TK = tk; showApp(); }
-  catch(e) { hideL(); localStorage.removeItem('zs'); console.warn('Session restore failed:', e.message); }
+  // Offline: restore from cached profile in localStorage
+  if (!navigator.onLine) {
+    const cached = getSaved();
+    if (cached && cached.profile) {
+      hideL(); TK = tk; AP = cached.profile;
+      showApp();
+      notify('⚡ Offline mode — using saved session');
+      return;
+    }
+    hideL();
+    console.warn('[Agent] Offline and no cached profile — must login online first');
+    return;
+  }
+  // Online: fetch fresh profile from server
+  try {
+    AP = await fetchProfile(id, tk); hideL(); TK = tk;
+    // Save full profile for future offline login
+    localStorage.setItem('zs', JSON.stringify({ id, tk, profile: AP }));
+    showApp();
+  } catch(e) {
+    hideL();
+    // Don't wipe cache on network error — keep for offline use
+    if (e.message && e.message.includes('fetch')) {
+      console.warn('[Agent] Network error on session restore — trying cache');
+      const cached = getSaved();
+      if (cached && cached.profile) {
+        TK = tk; AP = cached.profile; showApp();
+        notify('⚡ Offline — using saved session');
+      }
+    } else {
+      localStorage.removeItem('zs');
+      console.warn('[Agent] Session restore failed:', e.message);
+    }
+  }
 }
 
 async function fetchProfile(id, tk) {
