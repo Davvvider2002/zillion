@@ -55,3 +55,5 @@
 /api/v1/admin-force-reconcile   /.netlify/functions/admin-force-reconcile   200
 
 /api/v1/admin-user-mgmt  /.netlify/functions/admin-user-mgmt  200
+
+/api/v1/admin-fraud  /.netlify/functions/admin-fraud  200
