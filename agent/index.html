@@ -606,7 +606,6 @@ async function doCashIn() {
   const denom  = parseInt(document.getElementById('cidn').value);
   clearRes('cires'); document.getElementById('ciqr').classList.remove('show');
   if (!phone || !amount) { showRes('cires','err','⚠️ Fill in phone and amount','',''); return; }
-  // Zero-float guard — cannot issue if float is empty
   const agentFloat = AP.float_balance_kobo || 0;
   if (agentFloat <= 0) {
     showRes('cires','err','⚠️ Your float is empty. Request a float top-up from admin before issuing coins.','','');
@@ -616,6 +615,104 @@ async function doCashIn() {
     showRes('cires','err',`⚠️ Insufficient float. You have ₦${(agentFloat/100).toLocaleString()} available but tried to issue ₦${(amount/100).toLocaleString()}.`,'','');
     return;
   }
+
+  // ── OFFLINE MODE: generate local coin bundle without server ──────────────
+  if (!_agentOnline) {
+    showL('Generating offline coins...');
+    try {
+      const rh     = await ownerHash(phone, device);
+      const coinCount  = Math.floor(amount / denom);
+      const remainder  = amount % denom;
+      if (coinCount === 0) {
+        hideL();
+        showRes('cires','err','⚠️ Amount must be at least ₦'+(denom/100),'','');
+        return;
+      }
+
+      // Generate offline coins with HMAC-based IDs (deterministic, tamper-evident)
+      const seqBase = Date.now();
+      const coins   = [];
+      for (let i = 0; i < coinCount; i++) {
+        const coinId = 'ZIL-OFFLINE-' + AP.agent_id + '-' + (seqBase + i);
+        // HMAC the coin ID with the agent token for tamper detection
+        const enc     = new TextEncoder();
+        const keyMat  = await crypto.subtle.importKey('raw', enc.encode(TK||'offline'), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+        const sigBuf  = await crypto.subtle.sign('HMAC', keyMat, enc.encode(coinId));
+        const sig     = Array.from(new Uint8Array(sigBuf)).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,32);
+        coins.push({
+          coin_id:      coinId,
+          amount:       denom,
+          value_kobo:   denom,
+          status:       'HELD',
+          holder_hash:  rh,
+          agent_id:     AP.agent_id,
+          issued_at:    new Date().toISOString(),
+          offline:      true,        // flag: must be reconciled online
+          offline_sig:  sig,         // HMAC proof of issuance agent
+        });
+      }
+      // Handle remainder as extra coin if needed
+      if (remainder > 0) {
+        const coinId = 'ZIL-OFFLINE-' + AP.agent_id + '-' + (seqBase + coinCount);
+        coins.push({ coin_id:coinId, amount:remainder, value_kobo:remainder,
+          status:'HELD', holder_hash:rh, agent_id:AP.agent_id,
+          issued_at:new Date().toISOString(), offline:true, offline_sig:'remainder' });
+      }
+
+      const totalKobo = coins.reduce((s,c)=>s+c.amount, 0);
+      const d = { coins, coin_count:coins.length, total_kobo:totalKobo };
+
+      // Queue for server sync when back online
+      const queueEntry = {
+        type:    'issue',
+        id:      'QOP-' + seqBase,
+        offline: true,
+        payload: { amount:totalKobo, coin_denomination:denom, recipient_phone:phone,
+                   recipient_device:device, recipient_hash:rh, agent_id:AP.agent_id,
+                   offline_coin_ids: coins.map(c=>c.coin_id) },
+        created_at: new Date().toISOString(),
+      };
+      _offlineQueue.push(queueEntry);
+      localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
+      updateQueueBadge();
+
+      // Debit local float immediately (optimistic)
+      AP.float_balance_kobo -= totalKobo;
+
+      hideL();
+      const n = totalKobo / 100;
+      showRes('cires','ok',
+        '✅ ' + d.coin_count + ' offline coin'+(d.coin_count>1?'s':'')+' issued',
+        '₦'+n.toLocaleString(),
+        '⚡ OFFLINE — will sync when reconnected · ' + phone);
+      notify('✅ Offline coins issued — queued for sync');
+
+      // Build bundle and show QR
+      const recipientPhoneHash = await sha256Hex(phone);
+      const zilBundle = {
+        zillion_version: '1.0', bundle_id: 'BUNDLE-' + seqBase,
+        created_at: new Date().toISOString(),
+        issued_by: AP.agent_id, recipient_phone: phone,
+        recipient_phone_hash: recipientPhoneHash,
+        total_kobo: totalKobo, coin_count: d.coin_count, coins: d.coins,
+        offline: true,  // receiver app shows offline badge
+      };
+      window._zilBundle = zilBundle;
+      window._zilPhone  = phone;
+      await generateQR(zilBundle, totalKobo, d.coin_count);
+      document.getElementById('ciqr').classList.add('show');
+      ss.ci += totalKobo; ss.cn += d.coin_count;
+      updateStats(); addH('CASH IN (OFFLINE)', totalKobo, d.coin_count, 'PENDING_SYNC');
+      const receiptBtn = document.getElementById('ci-receipt-btn');
+      if (receiptBtn) receiptBtn.style.display = 'block';
+    } catch(offErr) {
+      hideL();
+      showRes('cires','err','❌ Offline issuance failed: '+offErr.message,'','');
+    }
+    return;
+  }
+
+  // ── ONLINE MODE: normal server issuance ──────────────────────────────────
   showL('Issuing coins...');
   try {
     const rh = await ownerHash(phone, device);
@@ -1020,7 +1117,7 @@ window.addEventListener('online', function() {
 });
 window.addEventListener('offline', function() {
   agentUpdateConnBadge(false);
-  notify('Offline — transactions will be queued', 'warn');
+  notify('⚡ Offline — Cash In still works. Transactions sync when reconnected.', 'warn');
 });
 
 // Initialise on load
@@ -1055,6 +1152,17 @@ function shareReceipt() {
 
 // Update queue badge whenever queue changes
 function updateQueueBadge() {
+  // Update any offline-queue count display
+  const qBadge = document.getElementById('offline-queue-badge');
+  if (qBadge) {
+    const pendingIssues = _offlineQueue.filter(o=>o.type==='issue').length;
+    if (pendingIssues > 0) {
+      qBadge.textContent = pendingIssues + ' pending sync';
+      qBadge.style.display = '';
+    } else {
+      qBadge.style.display = 'none';
+    }
+  }
   const badge = document.getElementById('queue-badge');
   if (!badge) return;
   const count = _offlineQueue ? _offlineQueue.length : 0;
