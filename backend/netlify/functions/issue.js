@@ -115,6 +115,33 @@ exports.handler = async (event) => {
     return { statusCode: 500, body: JSON.stringify({ error: `Registry error: ${err.message}` }) };
   }
 
+  // Write a CASH_IN transaction record so Transactions tab + Ledger see it
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+    const tdb = createClient(
+      process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY,
+      { auth: { persistSession: false } }
+    );
+    const txRecord = {
+      coin_id:    coins[0]?.coin_id || 'BATCH-' + Date.now(),
+      tx_type:    'CASH_IN',
+      from_hash:  body.agent_id,
+      to_hash:    body.recipient_hash,
+      amount:     body.amount,
+      value_kobo: body.amount,
+      tx_ts:      new Date().toISOString(),
+      status:     'SETTLED',
+      agent_id:   body.agent_id,
+      coin_count: coins.length,
+      offline:    body.offline || false,
+      notes:      `Cash-in: ${coins.length} coin(s) issued to ${body.recipient_phone || body.recipient_hash?.slice(0,8) || 'customer'}`,
+    };
+    await tdb.from('transactions').insert(txRecord);
+  } catch(txErr) {
+    console.warn('[issue] Transaction record write failed (non-fatal):', txErr.message);
+    // Non-fatal — coins already issued
+  }
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
@@ -122,7 +149,7 @@ exports.handler = async (event) => {
       success:    true,
       coin_count: coins.length,
       total_kobo: body.amount,
-      coins,                    // returned to agent app for delivery to customer
+      coins,
     }),
   };
 };
