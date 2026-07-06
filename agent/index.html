@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="manifest" href="/agent/manifest.json">
+<link rel="apple-touch-icon" href="/agent/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-name" content="Zillion Agent">
+<meta name="application-name" content="Zillion Agent">
+<meta name="theme-color" content="#3B82F6">
+<meta name="msapplication-TileColor" content="#3B82F6">
+<meta name="msapplication-TileImage" content="/agent/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/agent/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="/agent/icon-192.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zillion — Agent Portal</title>
@@ -1908,6 +1920,69 @@ function agDownloadCSV(rows, filename) {
   URL.revokeObjectURL(a.href);
 }
 
+</script>
+<script>
+// PWA Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/agent/sw.js', { scope: '/agent/' })
+      .then(function(reg) {
+        console.log('[PWA] Service Worker registered for agent:', reg.scope);
+        // Check for updates
+        reg.addEventListener('updatefound', function() {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', function() {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available
+              if (confirm('A new version of the Zillion Zillion Agent is available. Update now?')) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+              }
+            }
+          });
+        });
+      })
+      .catch(function(err) {
+        console.warn('[PWA] Service Worker registration failed:', err);
+      });
+  });
+  // Handle controller change (update applied)
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (!refreshing) { refreshing = true; window.location.reload(); }
+  });
+}
+
+// PWA install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Show install button if present
+  const installBtn = document.getElementById('pwa-install-btn');
+  if (installBtn) installBtn.style.display = 'flex';
+});
+
+window.addEventListener('appinstalled', function() {
+  deferredPrompt = null;
+  const installBtn = document.getElementById('pwa-install-btn');
+  if (installBtn) installBtn.style.display = 'none';
+  console.log('[PWA] Zillion Agent installed successfully');
+});
+
+function triggerPWAInstall() {
+  if (!deferredPrompt) {
+    alert('To install: tap the browser menu (⋮) → "Add to Home Screen" or "Install App"');
+    return;
+  }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(function(result) {
+    if (result.outcome === 'accepted') {
+      console.log('[PWA] User accepted install prompt');
+    }
+    deferredPrompt = null;
+  });
+}
 </script>
 </body>
 </html>
