@@ -1811,7 +1811,7 @@ async function completeOnboarding() {
     setTimeout(async () => {
       goTo('screen-receive');
       switchRecvTab('qr');
-      await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + cid);
+      await handleQRResult('https://zillion.ng/wallet/?claim=' + cid);
     }, 800);
   }
 }
@@ -2777,7 +2777,7 @@ async function handleQRResult(rawValue) {
   detailEl.textContent = rawValue.slice(0, 50) + '...';
   coinsEl.innerHTML    = '';
 
-  // Extract claim_id from URL: https://zillion-mvp.netlify.app/wallet/?claim=UUID
+  // Extract claim_id from URL: https://zillion.ng/wallet/?claim=UUID
   let claimId = null;
   try {
     const url = new URL(rawValue);
@@ -2958,7 +2958,7 @@ async function checkClaimParam() {
   // Navigate to receive screen and process
   goTo('screen-receive');
   switchRecvTab('qr');
-  await handleQRResult('https://zillion-mvp.netlify.app/wallet/?claim=' + claimId);
+  await handleQRResult('https://zillion.ng/wallet/?claim=' + claimId);
 }
 
 // -- Customer QR Send Functions --------------------------------
@@ -3157,7 +3157,7 @@ Open your Zillion wallet → Receive → Scan QR → point camera at image OR ta
 
 ${_sendQrClaimUrl}
 
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion-mvp.netlify.app/wallet/`;
+⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion.ng/wallet/`;
 
   // Convert QR data URL to blob for sharing (no fetch needed for data URLs)
   if (_sendQrImgData && navigator.share) {
