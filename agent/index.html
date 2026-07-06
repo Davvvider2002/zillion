@@ -756,7 +756,7 @@ async function doCashIn() {
       await generateOfflineQR(zilBundle, totalKobo, d.coin_count);
       document.getElementById('ciqr').classList.add('show');
       ss.ci += totalKobo; ss.cn += d.coin_count;
-      updateStats(); addH('CASH IN (OFFLINE)', totalKobo, d.coin_count, 'PENDING_SYNC');
+      updateStats(); addH('CASH IN (OFFLINE)', totalKobo, d.coin_count, 'PENDING_SYNC', queueEntry.id);
       const receiptBtn = document.getElementById('ci-receipt-btn');
       if (receiptBtn) receiptBtn.style.display = 'block';
     } catch(offErr) {
@@ -1199,29 +1199,63 @@ async function agentDrainQueue() {
   const q = [..._offlineQueue];
   _offlineQueue = [];
   localStorage.removeItem('zs_queue');
-  let retried = 0;
+  let synced = 0, failed = 0;
+
   for (const op of q) {
     try {
       let url, body;
       if (op.type === 'issue') {
         url  = `${API}/issue`;
-        body = op.payload;
+        // Pass offline flag + original coin IDs for server reconciliation
+        body = {
+          ...op.payload,
+          offline:          true,
+          offline_coin_ids: op.payload.offline_coin_ids || [],
+          queue_id:         op.id,
+          queued_at:        op.created_at,
+        };
       } else if (op.type === 'redeem') {
         url  = `${API}/redeem`;
         body = op.payload;
       } else continue;
+
       const r = await fetch(url, {
         method:  'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TK },
         body:    JSON.stringify(body),
       });
-      if (r.ok) retried++;
-      else _offlineQueue.push(op); // re-queue if still fails
-    } catch { _offlineQueue.push(op); }
+      const rdata = await r.json().catch(()=>({}));
+
+      if (r.ok) {
+        synced++;
+        // Update history entry from PENDING_SYNC → SYNCED
+        _txHistory = _txHistory.map(h =>
+          h.queueId === op.id ? {...h, status:'SYNCED', syncedAt: new Date().toISOString()} : h
+        );
+      } else {
+        failed++;
+        console.warn('[drain] Op failed:', op.id, rdata.error);
+        _offlineQueue.push(op); // re-queue for next attempt
+      }
+    } catch(e) {
+      failed++;
+      _offlineQueue.push(op);
+    }
   }
-  if (retried) notify('✅ Synced ' + retried + ' offline transaction(s)');
+
+  if (synced)  notify('✅ Synced ' + synced + ' offline transaction(s)');
+  if (failed)  notify('⚠️ ' + failed + ' transaction(s) still pending — will retry', 'warn');
   if (_offlineQueue.length) localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
   updateQueueBadge();
+  updateStats();
+  // Refresh profile to get updated float from server
+  if (AP && AP.agent_id && TK) {
+    fetchProfile(AP.agent_id, TK).then(p => {
+      AP = p;
+      localStorage.setItem('zs', JSON.stringify({ id:AP.agent_id, tk:TK, profile:AP }));
+      fillProfile();
+    }).catch(()=>{});
+  }
 }
 
 // Restore queue from localStorage on load
