@@ -106,3 +106,10 @@ self.addEventListener('notificationclick', event => {
 });
 
 console.log('[SW] Agent Service Worker loaded — cache: ' + CACHE_NAME);
+
+// Handle skip-waiting message from page
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
