@@ -921,6 +921,31 @@ async function doLogin() {
   const phone = rawPhone.startsWith('+') ? rawPhone : rawPhone.startsWith('0') ? '+234'+rawPhone.slice(1) : '+234'+rawPhone;
   showL('Logging in...');
 
+  // ── OFFLINE LOGIN: restore from cached session ──────────────────────────────
+  if (!navigator.onLine) {
+    const cached = localStorage.getItem('zil_merchant_session');
+    if (cached) {
+      try {
+        const s = JSON.parse(cached);
+        if (s.phone === phone && s.profile) {
+          hideL();
+          M.token = s.token || ''; M.merchant_id = s.profile.merchant_id;
+          M.phone = phone; M.business_name = s.profile.business_name || '';
+          M.owner_name = s.profile.owner_name || '';
+          Object.assign(M, s.profile);
+          showApp();
+          notify('⚡ Offline — restored saved session. Data may not be current.');
+          return;
+        }
+      } catch(e) {}
+    }
+    hideL();
+    errEl.textContent = '⚠️ Offline — log in once while online to enable offline access.';
+    errEl.className = 'ob-err show';
+    return;
+  }
+
+  // ── ONLINE LOGIN ─────────────────────────────────────────────────────────────
   try {
     const res  = await fetch(API+'/merchant-login', {
       method:'POST',
@@ -944,6 +969,10 @@ async function doLogin() {
 
     M.token=data.token; M.merchant_id=data.merchant_id;
     M.phone=phone; M.business_name=data.business_name||'';
+    // Cache session for offline login
+    localStorage.setItem('zil_merchant_session', JSON.stringify({
+      phone, token:data.token, profile: data
+    }));
     if (data.owner_name) M.owner_name=data.owner_name;
     save();
     showApp();
