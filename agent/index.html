@@ -753,7 +753,7 @@ async function doCashIn() {
       };
       window._zilBundle = zilBundle;
       window._zilPhone  = phone;
-      await generateQR(zilBundle, totalKobo, d.coin_count);
+      await generateOfflineQR(zilBundle, totalKobo, d.coin_count);
       document.getElementById('ciqr').classList.add('show');
       ss.ci += totalKobo; ss.cn += d.coin_count;
       updateStats(); addH('CASH IN (OFFLINE)', totalKobo, d.coin_count, 'PENDING_SYNC');
@@ -812,6 +812,49 @@ async function doCashIn() {
 let _qrClaimUrl  = null;
 let _qrExpiresAt = null;
 let _qrImageData = null;
+
+
+// ── Offline QR generation — embeds full bundle, no server needed ──────────────
+// The QR encodes: zilbundle://<base64-bundle> 
+// Wallet scans it → decodes bundle → processes exactly like a .zil file
+async function generateOfflineQR(bundle, totalKobo, coinCount) {
+  try {
+    // Encode bundle as compact JSON then base64 — keeps QR scannable
+    const bundleJson   = JSON.stringify(bundle);
+    const bundleB64    = btoa(unescape(encodeURIComponent(bundleJson)));
+    // Use a zil:// URI scheme — wallet recognises it as an offline bundle
+    const qrContent    = 'zilbundle://' + bundleB64;
+
+    // Render QR code
+    const container = document.getElementById('qr-canvas');
+    container.innerHTML = '';
+    new QRCode(container, {
+      text:         qrContent,
+      width:        200,
+      height:       200,
+      colorDark:    '#0D1F1A',
+      colorLight:   '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.L,  // Low correction = more data capacity
+    });
+
+    await new Promise(r => setTimeout(r, 120));
+    const canvas = container.querySelector('canvas');
+    if (canvas) _qrImageData = canvas.toDataURL('image/png');
+
+    // Update labels
+    const amtEl = document.getElementById('qr-amount-label');
+    if (amtEl) amtEl.textContent =
+      '₦' + (totalKobo/100).toLocaleString() + ' — ' + coinCount +
+      ' coin' + (coinCount !== 1 ? 's' : '') + ' (OFFLINE)';
+
+    const detEl = document.getElementById('ciqrd');
+    if (detEl) detEl.textContent = '⚡ Offline bundle · Valid until synced · Scan with Zillion Wallet';
+
+    notify('✅ Offline QR ready — customer scans with Zillion Wallet');
+  } catch(err) {
+    showRes('cires','err','❌ QR generation failed','',err.message);
+  }
+}
 
 async function generateQR(bundle, totalKobo, coinCount) {
   // Step 1: Create server-side claim (stores bundle, returns short claim_id)
@@ -1121,6 +1164,36 @@ function agentQueueOp(type, payload) {
 }
 
 // Drain the offline queue when back online
+
+// ── Void an offline queued transaction ───────────────────────────────────────
+// Used when agent issues offline coins but customer couldn't scan the QR.
+// Removes from queue AND restores float. Admin can also void from dashboard.
+function voidOfflineTransaction(queueId) {
+  if (!confirm('Void this offline transaction? The coins will be cancelled and your float restored.')) return;
+  const idx = _offlineQueue.findIndex(q => q.id === queueId);
+  if (idx === -1) { notify('Transaction not found in queue', 'err'); return; }
+  const op  = _offlineQueue[idx];
+  // Restore float
+  AP.float_balance_kobo += (op.payload.amount || 0);
+  // Remove from queue
+  _offlineQueue.splice(idx, 1);
+  localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
+  updateQueueBadge();
+  updateStats();
+  addH('VOID (OFFLINE)', op.payload.amount || 0, 0, 'VOIDED');
+  notify('✅ Offline transaction voided — float restored');
+  fillProfile();
+}
+
+// ── Show void button in history for PENDING_SYNC entries ─────────────────────
+function renderVoidButton(queueId, amount) {
+  return \`<button onclick="voidOfflineTransaction('\${queueId}')"
+    style="padding:3px 10px;background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;
+           border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;margin-top:4px">
+    ✕ Void Offline
+  </button>\`;
+}
+
 async function agentDrainQueue() {
   if (!_agentOnline || !TK || !_offlineQueue.length) return;
   const q = [..._offlineQueue];
