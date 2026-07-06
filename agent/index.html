@@ -207,7 +207,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
     <div class="lf"><label>JWT Token</label><input type="password" id="lt2" placeholder="Paste your token from Admin dashboard" autocomplete="current-password"></div>
     <button class="lbtn" id="lbtn" onclick="doLogin()">Login to Agent Portal →</button>
     <div class="lerr" id="lerr"></div>
-    <div class="lhelp">No token? Ask admin at <a href="/admin" target="_blank">zillion-mvp.netlify.app/admin</a></div>
+    <div class="lhelp">No token? Ask admin at <a href="/admin" target="_blank">zillion.ng/admin</a></div>
   </div>
 </div>
 
@@ -746,7 +746,7 @@ async function shareQRWhatsApp() {
       if (navigator.canShare && navigator.canShare({files:[file]})) {
         await navigator.share({
           title: 'Zillion Payment — ' + fmt,
-          text:  'Scan this QR code in your Zillion wallet to receive ' + fmt + '. Open your Zillion wallet at https://zillion-mvp.netlify.app/wallet/ then tap Scan QR.',
+          text:  'Scan this QR code in your Zillion wallet to receive ' + fmt + '. Open your Zillion wallet at https://zillion.ng/wallet/ then tap Scan QR.',
           files: [file],
         });
         return;
@@ -1048,7 +1048,7 @@ function shareReceipt() {
     'Bundle:   ' + (b.bundle_id||'').slice(0,16) + '...',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
     'Secured by Ed25519 cryptography',
-    'Verify at zillion-mvp.netlify.app',
+    'Verify at zillion.ng',
   ].join('\n');
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
