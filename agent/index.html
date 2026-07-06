@@ -565,7 +565,7 @@ async function doLogin() {
   } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
 }
 
-async async function silentLogin(id, tk) {
+async function silentLogin(id, tk) {
   showL('Restoring session...');
   // Offline: restore from cached profile in localStorage
   if (!navigator.onLine) {
