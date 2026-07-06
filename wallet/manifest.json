@@ -2,8 +2,8 @@
   "name": "Zillion Wallet",
   "short_name": "Zillion",
   "description": "Send and receive Zil coins \u2014 offline digital cash for Nigeria",
-  "start_url": "/wallet/",
-  "scope": "/wallet/",
+  "start_url": "https://zillion.ng/wallet/",
+  "scope": "https://zillion.ng/wallet/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0A1F14",
@@ -35,7 +35,7 @@
   ],
   "screenshots": [],
   "share_target": {
-    "action": "/wallet/",
+    "action": "https://zillion.ng/wallet/",
     "method": "GET",
     "params": {
       "title": "title",
@@ -46,12 +46,12 @@
   "shortcuts": [
     {
       "name": "Send Zil",
-      "url": "/wallet/?action=send",
+      "url": "https://zillion.ng/wallet/?action=send",
       "description": "Send coins to merchant or agent"
     },
     {
       "name": "My Balance",
-      "url": "/wallet/?action=balance",
+      "url": "https://zillion.ng/wallet/?action=balance",
       "description": "View your Zil balance"
     }
   ]
