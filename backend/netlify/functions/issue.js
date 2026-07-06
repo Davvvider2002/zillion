@@ -64,6 +64,70 @@ exports.handler = async (event) => {
     // Non-fatal — proceed if rate limit check itself fails
   }
 
+  // ── OFFLINE RECONCILIATION: if offline coins already exist, register them ──
+  // When agent drains queue, they send offline_coin_ids of the locally-generated coins.
+  // We insert those coin IDs into the coins table (with server validation) instead of
+  // minting fresh ones — this ensures wallet coin IDs match server records.
+  if (body.offline && body.offline_coin_ids && body.offline_coin_ids.length > 0) {
+    try {
+      const { createClient } = require('@supabase/supabase-js');
+      const odb = createClient(
+        process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY,
+        { auth: { persistSession: false } }
+      );
+      const now = new Date().toISOString();
+      // Check if already reconciled (idempotent)
+      const { data: existing } = await odb.from('coins')
+        .select('coin_id').in('coin_id', body.offline_coin_ids);
+      const existingIds = (existing||[]).map(c=>c.coin_id);
+      const newIds = body.offline_coin_ids.filter(id => !existingIds.includes(id));
+      if (newIds.length > 0) {
+        const coinRecords = newIds.map(coinId => ({
+          coin_id:      coinId,
+          amount:       Math.floor(body.amount / body.offline_coin_ids.length),
+          status:       'HELD',
+          issuer_id:    body.agent_id,
+          holder_hash:  body.recipient_hash,
+          issued_at:    body.queued_at || now,
+          reconciled_at:now,
+          offline:      true,
+        }));
+        await odb.from('coins').insert(coinRecords);
+        // Deduct float and write tx record for reconciled coins
+        await updateAgentFloat(body.agent_id, -body.amount);
+        await odb.from('transactions').insert({
+          coin_id:    newIds[0],
+          tx_type:    'CASH_IN_OFFLINE_RECONCILED',
+          from_hash:  body.agent_id,
+          to_hash:    body.recipient_hash,
+          amount:     body.amount,
+          value_kobo: body.amount,
+          tx_ts:      body.queued_at || now,
+          status:     'SETTLED',
+          agent_id:   body.agent_id,
+          coin_count: newIds.length,
+          offline:    true,
+          notes:      'Offline issuance reconciled — queue_id: ' + (body.queue_id||'unknown'),
+        });
+      }
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success:          true,
+          coin_count:       body.offline_coin_ids.length,
+          total_kobo:       body.amount,
+          reconciled:       true,
+          reconciled_count: newIds.length,
+          already_synced:   existingIds.length,
+        }),
+      };
+    } catch(offErr) {
+      console.warn('[issue] Offline reconcile failed, falling through to standard issue:', offErr.message);
+      // Fall through to standard issuance if reconcile fails
+    }
+  }
+
   // Check agent float — agent must have sufficient balance
   try {
     const agent = await getAgentFloat(body.agent_id);
