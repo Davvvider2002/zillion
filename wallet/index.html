@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Zillion">
 <title>Zillion Wallet</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="/wallet/manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -707,6 +707,25 @@ body{height:100%;height:100dvh;overflow:hidden;}
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',bind);}
   else{bind();}
 })();
+
+// PWA install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = 'none';
+});
+function triggerPWAInstall() {
+  if (!deferredPrompt) { alert('Tap browser menu (⋮) → "Add to Home Screen"'); return; }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(r => { deferredPrompt = null; });
+}
+
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════
@@ -3217,7 +3236,21 @@ window.addEventListener('DOMContentLoaded', () => {
   qrScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
   document.head.appendChild(qrScript);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.register('/wallet/sw.js', { scope: '/wallet/' })
+      .then(reg => {
+        console.log('[PWA] Wallet SW registered:', reg.scope);
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              if (confirm('New version of Zillion Wallet available. Update now?')) {
+                nw.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+              }
+            }
+          });
+        });
+      }).catch(e => console.warn('[PWA] SW failed:', e));
   }
   checkShareTarget();
   updateConnBadge(navigator.onLine);
