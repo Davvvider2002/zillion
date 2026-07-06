@@ -2,8 +2,8 @@
   "name": "Zillion Agent",
   "short_name": "Zil Agent",
   "description": "Zillion Agent Portal \u2014 issue cash-in, process cash-out, manage float",
-  "start_url": "/agent/",
-  "scope": "/agent/",
+  "start_url": "https://zillion.ng/agent/",
+  "scope": "https://zillion.ng/agent/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0C1A2E",
@@ -36,12 +36,12 @@
   "shortcuts": [
     {
       "name": "Cash In",
-      "url": "/agent/?action=cashin",
+      "url": "https://zillion.ng/agent/?action=cashin",
       "description": "Issue coins to customer"
     },
     {
       "name": "Cash Out",
-      "url": "/agent/?action=cashout",
+      "url": "https://zillion.ng/agent/?action=cashout",
       "description": "Redeem merchant coins"
     }
   ]
