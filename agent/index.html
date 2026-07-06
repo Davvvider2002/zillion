@@ -1256,6 +1256,8 @@ async function agentDrainQueue() {
   if (_offlineQueue.length) localStorage.setItem('zs_queue', JSON.stringify(_offlineQueue));
   updateQueueBadge();
   updateStats();
+  // Re-render history so PENDING_SYNC rows update to SYNCED
+  if (synced > 0 && typeof renderHistory === 'function') renderHistory();
   // Refresh profile to get updated float from server
   if (AP && AP.agent_id && TK) {
     fetchProfile(AP.agent_id, TK).then(p => {
