@@ -1284,7 +1284,13 @@ window.addEventListener('online', function() {
   agentUpdateConnBadge(true);
   notify('Back online — syncing queued transactions...');
   setTimeout(agentDrainQueue, 1000);
-  setTimeout(agentDrainPendingReceives, 2000); // also sync pending receives
+  setTimeout(agentDrainPendingReceives, 2000);
+  // Also check for SW updates when coming back online
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration('/agent/').then(function(reg) {
+      if (reg) reg.update();
+    });
+  }
 });
 window.addEventListener('offline', function() {
   agentUpdateConnBadge(false);
@@ -2210,11 +2216,8 @@ if ('serviceWorker' in navigator) {
           const newWorker = reg.installing;
           newWorker.addEventListener('statechange', function() {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version available
-              if (confirm('A new version of the Zillion Zillion Agent is available. Update now?')) {
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                window.location.reload();
-              }
+              // Show in-page update banner — confirm() is blocked in PWA standalone mode
+              showUpdateBanner(newWorker);
             }
           });
         });
@@ -2260,6 +2263,40 @@ function triggerPWAInstall() {
     deferredPrompt = null;
   });
 }
+
+
+// ── PWA Update Banner ──────────────────────────────────────────────────────────
+let _pendingNewWorker = null;
+function showUpdateBanner(newWorker) {
+  _pendingNewWorker = newWorker;
+  const banner = document.getElementById('pwa-update-banner');
+  if (banner) banner.style.display = 'flex';
+}
+function applyPWAUpdate() {
+  if (_pendingNewWorker) {
+    _pendingNewWorker.postMessage({ type: 'SKIP_WAITING' });
+  }
+  // Reload will be triggered by controllerchange event
+  window.location.reload(true);
+}
+
 </script>
+
+<!-- PWA Update Banner -->
+<div id="pwa-update-banner" style="
+  display:none;position:fixed;top:0;left:0;right:0;z-index:99999;
+  background:#0A1F14;color:#fff;padding:14px 20px;
+  display:none;align-items:center;justify-content:space-between;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);gap:12px;
+">
+  <div style="font-size:14px;font-weight:600">
+    ⚡ New version available — <span style="color:#00C896">tap to update</span>
+  </div>
+  <button onclick="applyPWAUpdate()" style="
+    background:#00C896;color:#0A1F14;border:none;
+    padding:8px 18px;border-radius:8px;font-weight:700;
+    font-size:13px;cursor:pointer;white-space:nowrap;
+  ">Update Now</button>
+</div>
 </body>
 </html>
