@@ -1833,18 +1833,48 @@ function selectAllText(el) { const r=document.createRange(); r.selectNodeContent
 async function loadFraud() {
   showLoader('Loading fraud data...');
   try {
-    const res  = await fetch(`${API}/admin-users`, {headers:{'Authorization':'Bearer '+adminToken}});
+    const res  = await fetch(`${API}/admin-fraud?limit=100`, {headers:{'Authorization':'Bearer '+adminToken}});
     const data = await res.json();
     hideLoader();
-    if (!res.ok) return;
-    const up = data.platform||{};
-    setText('fraud-m-open',    up.open_fraud_events||0);
-    const highRisk = (data.users||[]).filter(u=>u.fraud_score>0||u.open_fraud>0);
-    setText('fraud-m-devices', highRisk.length);
-    document.getElementById('fraud-table-body').innerHTML =
-      (up.open_fraud_events||0)===0
-        ? '<tr><td colspan="7" class="no-data">🛡️ No fraud events — system is clean</td></tr>'
-        : '<tr><td colspan="7" class="no-data">Load from Supabase fraud_events table</td></tr>';
+    if (!res.ok) { notify('Fraud load error: '+(data.error||''), true); return; }
+
+    // Update summary badges
+    const sum = data.summary || {};
+    setText('fraud-m-open',    sum.open     || 0);
+    setText('fraud-m-devices', sum.total    || 0);
+    setText('fraud-m-resolved',sum.resolved || 0);
+
+    // Update fraud badge in sidebar
+    if (typeof updateFraudBadge === 'function') updateFraudBadge(sum.open || 0);
+
+    // Render events table
+    const tbody = document.getElementById('fraud-table-body');
+    if (!tbody) return;
+    if (!data.events || data.events.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="no-data">🛡️ No fraud events — system is clean</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.events.map(ev => {
+      const ts     = ev.detected_at ? new Date(ev.detected_at).toLocaleString('en-NG') : '—';
+      const badge  = ev.resolved
+        ? '<span class="badge b-ok">Resolved</span>'
+        : '<span class="badge b-err">Open</span>';
+      const type   = ev.event_type || ev.fraud_type || 'UNKNOWN';
+      const coinId = (ev.coin_id||'').slice(0,16) || '—';
+      const agent  = ev.agent_id || '—';
+      const score  = ev.fraud_score != null ? (ev.fraud_score*100).toFixed(0)+'%' : '—';
+      const notes  = (ev.notes||ev.description||'').slice(0,60);
+      return \`<tr>
+        <td style="font-family:monospace;font-size:11px">\${coinId}...</td>
+        <td><span class="badge b-warn">\${type}</span></td>
+        <td>\${agent}</td>
+        <td>\${score}</td>
+        <td>\${ts}</td>
+        <td>\${badge}</td>
+        <td style="font-size:11px;color:var(--tx3)">\${notes}</td>
+      </tr>\`;
+    }).join('');
   } catch(e) { hideLoader(); notify('Fraud: '+e.message, true); }
 }
 
@@ -1861,10 +1891,40 @@ async function checkSystem() {
 }
 
 async function lookupCoin() {
-  const coinId = document.getElementById('coin-lookup-input').value.trim();
+  const coinId = (document.getElementById('coin-lookup-input')?.value||'').trim();
   if (!coinId) return;
   const el = document.getElementById('coin-lookup-result');
+  if (!el) return;
   el.innerHTML = '<div style="color:var(--gr);padding:8px">Checking...</div>';
+
+  // Offline coins (ZIL-OFFLINE-*): look up in coins table by prefix search
+  if (coinId.startsWith('ZIL-OFFLINE-')) {
+    try {
+      const res2 = await fetch(`${API}/admin-coins?search=${encodeURIComponent(coinId)}&limit=10`,
+        {headers:{'Authorization':'Bearer '+adminToken}});
+      const d2   = await res2.json();
+      if (res2.ok && d2.coins && d2.coins.length) {
+        const c = d2.coins[0];
+        el.innerHTML = \`<div style="margin-top:12px;padding:14px;background:var(--al);border-radius:8px">
+          <div style="font-weight:700;margin-bottom:8px">⚡ OFFLINE COIN</div>
+          <table style="width:100%;font-size:12px">
+            <tr><td><b>Coin ID</b></td><td style="font-family:monospace;font-size:10px">\${c.coin_id}</td></tr>
+            <tr><td><b>Status</b></td><td>\${c.status}</td></tr>
+            <tr><td><b>Amount</b></td><td>₦\${((c.amount||0)/100).toLocaleString()}</td></tr>
+            <tr><td><b>Issued by</b></td><td>\${c.issuer_id||'—'}</td></tr>
+            <tr><td><b>Issued at</b></td><td>\${c.issued_at?new Date(c.issued_at).toLocaleString('en-NG'):'—'}</td></tr>
+          </table></div>\`;
+        return;
+      } else {
+        el.innerHTML = \`<div style="padding:12px;background:var(--al);border-radius:8px;font-size:13px">
+          ⚡ Offline coin <b>\${coinId}</b> not yet synced to server.<br>
+          <small style="color:var(--tx3)">It will appear here once the agent comes back online and drains their queue.</small>
+        </div>\`;
+        return;
+      }
+    } catch(e2) { /* fall through to standard lookup */ }
+  }
+
   try {
     const res  = await fetch(`${API}/validate?coin_id=${encodeURIComponent(coinId)}`);
     const d    = await res.json();
