@@ -2,8 +2,8 @@
   "name": "Zillion Merchant",
   "short_name": "Zil Merchant",
   "description": "Zillion Merchant Portal \u2014 accept Zil payments, manage vault, cash out",
-  "start_url": "/merchant/",
-  "scope": "/merchant/",
+  "start_url": "https://zillion.ng/merchant/",
+  "scope": "https://zillion.ng/merchant/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#1A0E2E",
@@ -36,12 +36,12 @@
   "shortcuts": [
     {
       "name": "Accept Payment",
-      "url": "/merchant/?action=receive",
+      "url": "https://zillion.ng/merchant/?action=receive",
       "description": "Scan customer QR to accept payment"
     },
     {
       "name": "My Vault",
-      "url": "/merchant/?action=vault",
+      "url": "https://zillion.ng/merchant/?action=vault",
       "description": "View coin vault and balance"
     }
   ]
