@@ -3230,6 +3230,13 @@ async function generateSendQR() {
         recvType === 'agent'    ? { bound_to_agent:    recvIdInput,    bound_to_agent_hash:    boundRecvHash } :
                                    { bound_to_phone:     normalisedRecv, bound_to_phone_hash:    boundRecvHash }),
   };
+  // Strip internal wallet fields before sending to server
+  bundle.coins = bundle.coins.map(c => ({
+    coin_id:   c.coin_id || c.id,
+    amount:    c.amount  || c.value_kobo || 0,
+    status:    'HELD',
+    issuer_id: c.issuer_id || '',
+  }));
   _sendQrBundle = bundle;
 
   // ── LOCK: mark coins BEFORE API call to prevent double-tap ──
@@ -3278,10 +3285,15 @@ async function generateSendQR() {
     // Render QR
     const canvas = document.getElementById('send-qr-canvas');
     canvas.innerHTML = '';
+    // Verify QRCode library is loaded
+    if (typeof QRCode === 'undefined') {
+      throw new Error('QR library not loaded — please reload the app');
+    }
+    // Use LOW error correction for maximum readability (claim_url is short ~65 chars)
     new QRCode(canvas, {
-      text:data.claim_url, width:170, height:170,
-      colorDark:'#0D1F1A', colorLight:'#FFFFFF',
-      correctLevel:QRCode.CorrectLevel.M,
+      text:data.claim_url, width:220, height:220,
+      colorDark:'#000000', colorLight:'#FFFFFF',
+      correctLevel:QRCode.CorrectLevel.L,
     });
     // Capture QR as image — retry up to 3 times in case canvas renders slowly
     (function doCaptureQR(attempts) {
@@ -3435,9 +3447,7 @@ setInterval(() => {
 // -- Boot -------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
   // Load QRCode.js async - doesn't block initial render
-  const qrScript = document.createElement('script');
-  qrScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-  document.head.appendChild(qrScript);
+  // QRCode.js is inlined — no CDN needed
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/wallet/sw.js', { scope: '/wallet/' })
       .then(reg => {
