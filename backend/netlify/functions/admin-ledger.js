@@ -433,7 +433,7 @@ async function buildAgentEntries(db, agentId, entries) {
   // 2. Cash-in DEBITS — from transactions table (written by issue.js on every issuance)
   //    This correctly captures BOTH online and reconciled offline issuances
   const { data: cashIns, error: e2 } = await db.from('transactions')
-    .select('coin_id, amount, value_kobo, tx_ts, status, to_hash, notes, tx_type, coin_count')
+    .select('coin_id, amount, tx_ts, status, to_hash, notes, tx_type, coin_count')
     .eq('from_hash', agentId)
     .in('tx_type', ['CASH_IN', 'CASH_IN_OFFLINE_RECONCILED'])
     .order('tx_ts', { ascending: true });
@@ -441,7 +441,7 @@ async function buildAgentEntries(db, agentId, entries) {
 
   for (const tx of (cashIns || [])) {
     const ts  = tx.tx_ts;
-    const amt = tx.amount || tx.value_kobo || 0;
+    const amt = tx.amount || 0;
     const ref = 'ISS-' + (tx.coin_id||'').slice(4,14);
     const isOffline = tx.tx_type === 'CASH_IN_OFFLINE_RECONCILED';
 
