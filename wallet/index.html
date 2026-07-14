@@ -2527,7 +2527,55 @@ async function trySync() {
       });
     } catch(e) {}
     STATE.lastSync = new Date().toISOString();
-    save(); refreshHome(); refreshProfile();
+
+    // ── Auto-recover: if vault is still empty after heartbeat sync, call wallet-recover ──
+    if (STATE.vault.length === 0) {
+      try {
+        const recPhone  = STATE.user?.phone || STATE.user?.phone_number || '';
+        const recDevId  = STATE.user?.device_id || deviceId || '';
+        const recTok    = STATE.user?.token || STATE.user?.agentToken || token;
+        if (recPhone && recTok) {
+          const recResp = await fetch(`${API}/wallet-recover`, {
+            method:  'POST',
+            headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+recTok },
+            body:    JSON.stringify({ phone: recPhone, device_id: recDevId }),
+          });
+          if (recResp.ok) {
+            const recData = await recResp.json();
+            if (recData.coins && recData.coins.length > 0) {
+              const seen = new Set(STATE.vault.map(c => c.coin_id));
+              let added = 0;
+              for (const rc of recData.coins) {
+                if (!seen.has(rc.coin_id)) {
+                  STATE.vault.push({
+                    coin_id:    rc.coin_id,
+                    amount:     rc.amount || 0,
+                    value_kobo: rc.amount || 0,
+                    _status:    'HELD',
+                    _receivedAt:rc.issued_at || new Date().toISOString(),
+                    owner_hash: recData.canonical_hash,
+                    issuer_id:  rc.issuer_id || 'AGENT',
+                  });
+                  added++;
+                }
+              }
+              if (added > 0) {
+                const recTotal = recData.total_kobo || 0;
+                STATE.history.unshift({
+                  id:'RECOVER-'+Date.now(), type:'received',
+                  amount:recTotal, coin_count:added,
+                  ts:new Date().toISOString(), status:'SETTLED',
+                  method:'recovery', name:'Coins Restored · Wallet Recovery',
+                });
+                toast('✅ ' + added + ' coin(s) restored · ₦'+(recTotal/100).toLocaleString('en-NG',{minimumFractionDigits:2}));
+              }
+            }
+          }
+        }
+      } catch(recErr) { console.warn('[wallet] auto-recover err:', recErr.message); }
+    }
+
+    save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
     updateSyncStatus('All synced · ' + new Date().toLocaleTimeString());
     return;
   }
