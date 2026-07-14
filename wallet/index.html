@@ -1140,6 +1140,14 @@ function triggerPWAInstall() {
               💾
             </button>
           </div>
+          <div style="padding:0 14px 10px;display:flex;gap:8px">
+            <button onclick="resendLastQR()" id="resend-qr-btn" style="flex:1;padding:11px;background:#1a5276;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              🔄 Resend QR to Beneficiary
+            </button>
+            <button onclick="copyQRLink()" style="padding:11px 14px;background:var(--bll);color:var(--bl);border:none;border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit" title="Copy link">
+              🔗
+            </button>
+          </div>
         </div>
         <div id="send-qr-info" class="wa-info">
           <span class="wa-info-icon">📲</span>
@@ -1478,7 +1486,34 @@ function triggerPWAInstall() {
 
 // -- Constants -------------------------------------------------
 const API    = '/.netlify/functions';
-const DB_KEY = 'zillion_pwa_v1';
+const DB_KEY     = 'zillion_pwa_v1';
+const DEVICE_KEY  = 'zillion_device_id';   // permanent — never cleared by updates
+const HISTORY_KEY = 'zillion_history_v1';  // separate — survives state wipe
+
+// ── Permanent device ID — generated ONCE, never changes ─────────────────────
+function getOrCreateDeviceId() {
+  let did = localStorage.getItem(DEVICE_KEY);
+  if (!did) {
+    did = 'DEVICE-' + Math.random().toString(36).substr(2,8).toUpperCase();
+    localStorage.setItem(DEVICE_KEY, did);
+  }
+  return did;
+}
+
+// ── Persistent history — stored separately from main state ──────────────────
+function saveHistory(history) {
+  try {
+    // Keep last 500 entries
+    const toSave = (history || []).slice(0, 500);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(toSave));
+  } catch(e) { console.warn('[wallet] history save err:', e.message); }
+}
+function loadHistory() {
+  try {
+    const s = localStorage.getItem(HISTORY_KEY);
+    return s ? JSON.parse(s) : [];
+  } catch { return []; }
+}
 const MINT_PUBLIC_KEY = null; // loaded from env on first sync
 
 // -- State -----------------------------------------------------
@@ -1504,20 +1539,33 @@ function save() {
   const toSave = {
     user:     STATE.user,
     vault:    STATE.vault,
-    history:  STATE.history,
     settings: STATE.settings,
     lastSync: STATE.lastSync,
+    // history intentionally excluded — stored in HISTORY_KEY separately
   };
   localStorage.setItem(DB_KEY, JSON.stringify(toSave));
+  saveHistory(STATE.history); // always persist history separately
 }
 function load() {
   try {
+    // Always load history first from its own key (survives state wipe)
+    const savedHistory = loadHistory();
+    if (savedHistory.length) STATE.history = savedHistory;
+
     const s = localStorage.getItem(DB_KEY);
     if (!s) return false;
     const d = JSON.parse(s);
     STATE.user     = d.user     || null;
     STATE.vault    = d.vault    || [];
-    STATE.history  = d.history  || [];
+    // Merge history: saved history + any new entries from state
+    const stateHistory = d.history || [];
+    const merged = [...stateHistory, ...savedHistory];
+    // Deduplicate by id
+    const seen = new Set();
+    STATE.history = merged.filter(h => {
+      if (!h.id || seen.has(h.id)) return false;
+      seen.add(h.id); return true;
+    }).sort((a,b) => new Date(b.ts||0) - new Date(a.ts||0));
     STATE.settings = d.settings || STATE.settings;
     STATE.lastSync = d.lastSync || null;
     return !!STATE.user;
@@ -1799,18 +1847,33 @@ function selectRole(role) {
 }
 async function completeOnboarding() {
   const phone = STATE._verifiedPhone || '+234000000000';
-  const deviceId = 'DEVICE-' + Math.random().toString(36).substr(2,8).toUpperCase();
+  const deviceId = getOrCreateDeviceId(); // permanent — same across re-registrations
   let agentId=null, agentToken=null;
   if (selectedRole === 'agent') {
     agentId    = document.getElementById('agent-id-input').value.trim();
     agentToken = document.getElementById('agent-token-input').value.trim();
     if (!agentId || !agentToken) { toast('Enter Agent ID and token', true); return; }
   }
-  STATE.user = { phone, deviceId, role:selectedRole, agentId, agentToken,
-    name: phone, createdAt: new Date().toISOString(),
-    token: STATE._verifiedToken || '' };   // JWT for sync auth
+  // Check if this phone previously had data (re-registration after clear)
+  const existingHistory = loadHistory();
+  if (existingHistory.length > 0) {
+    STATE.history = existingHistory; // restore history from permanent key
+    toast('Welcome back! Your transaction history has been restored. 🎉');
+  } else {
+    toast('Welcome to Zillion! 🎉');
+  }
+
+  STATE.user = {
+    phone,
+    deviceId,       // permanent — same device ID as before if phone matches
+    role:     selectedRole,
+    agentId,
+    agentToken,
+    name:     phone,
+    createdAt:new Date().toISOString(),
+    token:    STATE._verifiedToken || '',
+  };
   save();
-  toast('Welcome to Zillion! 🎉');
   goTo('screen-home');
   setTimeout(() => refreshHome(), 100);
   // Register device by triggering a sync (even with empty vault)
@@ -3363,7 +3426,60 @@ function startSendQRTimer(exp) {
   tick(); _sendQrTimer=setInterval(tick,1000);
 }
 
-async function shareSendQRWhatsApp() {
+async // ── Resend last QR to beneficiary ────────────────────────────────────────────
+function resendLastQR() {
+  if (!_sendQrClaimUrl && !_sendQrImgData) {
+    toast('No QR to resend — generate a QR first');
+    return;
+  }
+  // Re-show the QR panel (it may have been navigated away from)
+  const qrSection = document.getElementById('send-qr-section');
+  if (qrSection) qrSection.style.display = 'block';
+
+  // If we have the claim URL, re-render the QR
+  if (_sendQrClaimUrl && typeof QRCode !== 'undefined') {
+    const canvas = document.getElementById('send-qr-canvas');
+    if (canvas) {
+      canvas.innerHTML = '';
+      new QRCode(canvas, {
+        text: _sendQrClaimUrl, width: 220, height: 220,
+        colorDark: '#000000', colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.L,
+      });
+    }
+  }
+
+  // Share via WhatsApp with the claim URL
+  if (_sendQrClaimUrl) {
+    const amount = _sendQrBundle ? '₦' + ((_sendQrBundle.total_kobo||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}) : '';
+    const msg = encodeURIComponent(
+      '💸 Zillion Payment' + (amount ? ' — ' + amount : '') + '\n\n' +
+      'Tap the link below to receive your coins in your Zillion Wallet:\n' +
+      _sendQrClaimUrl + '\n\n' +
+      '⏱ Valid for 16 hours'
+    );
+    window.open('https://wa.me/?text=' + msg, '_blank');
+  } else {
+    toast('QR link expired — generate a new QR');
+  }
+}
+
+function copyQRLink() {
+  if (!_sendQrClaimUrl) { toast('No link to copy — generate a QR first'); return; }
+  navigator.clipboard.writeText(_sendQrClaimUrl)
+    .then(() => toast('✅ Link copied to clipboard'))
+    .catch(() => {
+      // Fallback: create temp input
+      const inp = document.createElement('input');
+      inp.value = _sendQrClaimUrl;
+      document.body.appendChild(inp);
+      inp.select(); document.execCommand('copy');
+      document.body.removeChild(inp);
+      toast('✅ Link copied');
+    });
+}
+
+function shareSendQRWhatsApp() {
   if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
   const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
   const msg = `💚 *Zillion Payment - ${fmt2}*
