@@ -113,11 +113,18 @@ exports.handler = async (event) => {
           : entityId.startsWith('234')
             ? '+' + entityId
             : entityId;
-        // Find device by phone via devices table (phone_number or phone_hash lookup)
+
+        // Compute SHA256(phone) — this is what agent now stores as holder_hash
+        const crypto   = require('crypto');
+        const phoneHash = crypto.createHash('sha256').update(searchPhone).digest('hex');
+        resolvedHolderHash = phoneHash; // Set immediately — coins should be here
+
+        // Also try device table lookup
         const { data: byPhone } = await db.from('devices').select('*')
           .eq('phone_number', searchPhone).maybeSingle();
         devData = byPhone;
-        if (devData?.holder_hash) resolvedHolderHash = devData.holder_hash;
+        // If device has a different holder_hash, keep SHA256(phone) as primary
+        // (devices.holder_hash may be stale from old HMAC-based system)
       }
 
       // Strategy 2: DEVICE-* or PWA-* device hash
