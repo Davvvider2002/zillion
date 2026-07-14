@@ -2684,13 +2684,22 @@ async function trySync() {
               }
               if (added > 0) {
                 const recTotal = recData.total_kobo || 0;
-                STATE.history.unshift({
-                  id:'RECOVER-'+Date.now(), type:'received',
-                  amount:recTotal, coin_count:added,
-                  ts:new Date().toISOString(), status:'SETTLED',
-                  method:'recovery', name:'Coins Restored · Wallet Recovery',
-                });
-                toast('✅ ' + added + ' coin(s) restored · ₦'+(recTotal/100).toLocaleString('en-NG',{minimumFractionDigits:2}));
+                for (const rc of recData.coins) {
+                  const hid = 'REC-' + rc.coin_id;
+                  if (!STATE.history.find(h => h.id === hid)) {
+                    STATE.history.push({
+                      id:hid, type:'received', amount:rc.amount||0,
+                      coin_count:1, ts:rc.issued_at||new Date().toISOString(),
+                      status:'SETTLED', method:'cash_in',
+                      name:'Cash-In from '+(rc.issuer_id||'Agent'),
+                      coin_id:rc.coin_id,
+                    });
+                  }
+                }
+                STATE.history.sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0));
+                saveHistory(STATE.history);
+                save(); refreshHome(); refreshVault(); refreshHistory();
+                toast('✅ '+added+' coin(s) + history restored · ₦'+(recTotal/100).toLocaleString('en-NG',{minimumFractionDigits:2}));
               }
             }
           }
