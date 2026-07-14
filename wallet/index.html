@@ -1422,7 +1422,7 @@ function triggerPWAInstall() {
         </div>
         <div class="settings-row">
           <span class="settings-label">Vault Version</span>
-          <span class="settings-value">v1.0.0</span>
+          <span class="settings-value">v1.0.2</span>
         </div>
       </div>
 
@@ -1430,9 +1430,17 @@ function triggerPWAInstall() {
         <div class="settings-group-label">App</div>
         <div class="settings-row">
           <span class="settings-label">App Version</span>
-          <span class="settings-value">PWA v1.0.0</span>
+          <span class="settings-value">PWA v1.0.2</span>
         </div>
-        <div class="settings-row">
+                <div class="settings-row" style="padding:16px 0">
+          <button onclick="manualWalletRecover()" style="
+            width:100%;padding:14px;background:#00C896;color:#0A1F14;
+            border:none;border-radius:10px;font-weight:700;font-size:15px;
+            cursor:pointer;font-family:inherit;
+          ">🔄 Recover Wallet from Server</button>
+          <div id="recover-status" style="font-size:12px;color:#6B7280;margin-top:6px;text-align:center"></div>
+        </div>
+<div class="settings-row">
           <span class="settings-label">Network Mode</span>
           <span class="settings-value" id="settings-network">Online</span>
         </div>
@@ -2473,6 +2481,58 @@ async function sha256Hex(str) {
   const enc  = new TextEncoder();
   const buf  = await crypto.subtle.digest('SHA-256', enc.encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function manualWalletRecover() {
+  const status = document.getElementById('recover-status');
+  if (status) status.textContent = 'Recovering...';
+  try {
+    const token  = STATE.user?.token || STATE.user?.agentToken || '';
+    const phone  = STATE.user?.phone || STATE.user?.phone_number || '';
+    const devId  = STATE.user?.device_id || '';
+    if (!token || !phone) {
+      if (status) status.textContent = 'Please log in first';
+      return;
+    }
+    const resp = await fetch(`${API}/wallet-recover`, {
+      method:  'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      body:    JSON.stringify({ phone, device_id: devId }),
+    });
+    if (!resp.ok) {
+      if (status) status.textContent = 'Server error — try again';
+      return;
+    }
+    const data = await resp.json();
+    if (!data.coins || data.coins.length === 0) {
+      if (status) status.textContent = 'No coins found for this account';
+      return;
+    }
+    const seen = new Set(STATE.vault.map(c => c.coin_id));
+    let added = 0;
+    for (const rc of data.coins) {
+      if (!seen.has(rc.coin_id)) {
+        STATE.vault.push({
+          coin_id:    rc.coin_id,
+          amount:     rc.amount || 0,
+          value_kobo: rc.amount || 0,
+          _status:    'HELD',
+          _receivedAt:rc.issued_at || new Date().toISOString(),
+          owner_hash: data.canonical_hash,
+          issuer_id:  rc.issuer_id || 'AGENT',
+        });
+        added++;
+      }
+    }
+    save(); refreshHome(); refreshVault(); refreshHistory();
+    const total = data.total_kobo || 0;
+    if (status) status.textContent = added + ' coin(s) restored · ₦' +
+      (total/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+    if (added > 0) toast('✅ ₦'+(total/100).toLocaleString('en-NG',{minimumFractionDigits:2})+' restored!');
+    else if (status) status.textContent = 'All coins already in wallet';
+  } catch(e) {
+    if (status) status.textContent = 'Error: ' + e.message;
+  }
 }
 
 async function trySync() {
