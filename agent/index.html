@@ -1188,10 +1188,16 @@ function updateStats() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function ownerHash(phone,device) {
-  const enc=new TextEncoder(), key=await crypto.subtle.importKey('raw',enc.encode(TK),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-  const sig=await crypto.subtle.sign('HMAC',key,enc.encode(`${phone}:${device}`));
-  return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+async function ownerHash(phone, device) {
+  // holder_hash = SHA256(normalised_phone)
+  // MUST match what the wallet computes so sync.js can find coins by holder_hash.
+  // Normalise phone: strip spaces, ensure +234 prefix
+  let p = (phone || '').replace(/\s/g, '');
+  if (p.startsWith('0') && p.length === 11) p = '+234' + p.slice(1);
+  if (!p.startsWith('+')) p = '+' + p;
+  const enc = new TextEncoder();
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(p));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 function showRes(id,type,title,amount,detail){const e=document.getElementById(id);e.className=`res show ${type}`;e.innerHTML=`<div class="rt">${title}</div>`+(amount?`<div class="ra">${amount}</div>`:'')+`<div class="rd2">${detail}</div>`;}
 function clearRes(id){const e=document.getElementById(id);if(e)e.className='res';}
