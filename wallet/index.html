@@ -2505,19 +2505,24 @@ async function trySync() {
           // Scan ALL vault coins for owner_hash (not just first coin).
           // owner_hash is the HMAC that Supabase uses as holder_hash.
           // Falls back to deviceId only if no coin has an owner_hash at all.
-          holder_hash: (function() {
-            var heldCoins = STATE.vault.filter(function(c) {
-              return c._status === 'HELD' || c._status === 'PENDING_SYNC';
-            });
-            for (var i = 0; i < heldCoins.length; i++) {
-              if (heldCoins[i].owner_hash) return heldCoins[i].owner_hash;
+          // holder_hash = SHA256(phone) — same formula agent now uses
+          // This lets server find coins issued to this phone number
+          holder_hash: await (async function() {
+            // First priority: compute from phone number (canonical)
+            const phone = STATE.user?.phone || STATE.user?.phone_number || '';
+            if (phone) {
+              let p = phone.replace(/\s/g,'');
+              if (p.startsWith('0') && p.length===11) p='+234'+p.slice(1);
+              if (!p.startsWith('+')) p='+'+p;
+              const enc=new TextEncoder();
+              const buf=await crypto.subtle.digest('SHA-256',enc.encode(p));
+              return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
             }
-            // Also check ALL vault coins as fallback (even SPENT_LOCAL)
-            for (var j = 0; j < STATE.vault.length; j++) {
-              if (STATE.vault[j].owner_hash) return STATE.vault[j].owner_hash;
-            }
+            // Fallback: use owner_hash from a vault coin
+            for (const c of STATE.vault) { if (c.owner_hash) return c.owner_hash; }
             return deviceId;
           })(),
+          phone_number: STATE.user?.phone || STATE.user?.phone_number || null,
           tx_batch: [], heartbeat: true }),
       });
     } catch(e) {}
@@ -2549,6 +2554,20 @@ async function trySync() {
     };
   });
 
+  // Compute canonical holder_hash = SHA256(phone) for this wallet
+  let canonicalHolder = deviceId;
+  try {
+    const ph = STATE.user?.phone || STATE.user?.phone_number || '';
+    if (ph) {
+      let p2 = ph.replace(/\s/g,'');
+      if (p2.startsWith('0') && p2.length===11) p2='+234'+p2.slice(1);
+      if (!p2.startsWith('+')) p2='+'+p2;
+      const enc3=new TextEncoder();
+      const buf3=await crypto.subtle.digest('SHA-256',enc3.encode(p2));
+      canonicalHolder=Array.from(new Uint8Array(buf3)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  } catch(e) { console.warn('[sync] canonical hash err',e); }
+
   try {
     const res  = await fetch(`${API}/sync`, {
       method:  'POST',
@@ -2557,32 +2576,48 @@ async function trySync() {
         'Authorization': 'Bearer ' + token,
       },
       body: JSON.stringify({
-          device_id:   deviceId,
-          // Resolve the best holder_hash for this device:
-          // Priority: (1) to_hash from a received tx, (2) owner_hash from any vault coin, (3) deviceId
-          holder_hash: (function() {
-            // First try: to_hash from a received (not sent) tx in this batch
-            var recvTx = tx_batch.find(function(t) { return !t.is_sent; });
-            if (recvTx && recvTx.to_hash && recvTx.to_hash !== deviceId) return recvTx.to_hash;
-            // Second try: owner_hash from any HELD vault coin
-            var heldCoins = STATE.vault.filter(function(c) {
-              return c._status === 'HELD' || c._status === 'PENDING_SYNC';
-            });
-            for (var i = 0; i < heldCoins.length; i++) {
-              if (heldCoins[i].owner_hash) return heldCoins[i].owner_hash;
-            }
-            // Third try: owner_hash from any vault coin at all
-            for (var j = 0; j < STATE.vault.length; j++) {
-              if (STATE.vault[j].owner_hash) return STATE.vault[j].owner_hash;
-            }
-            // Last resort: device ID (short form — admin fix handles this now)
-            return deviceId;
-          })(),
+          device_id:         deviceId,
+          holder_hash:       canonicalHolder,
+          phone_number:      STATE.user?.phone || STATE.user?.phone_number || null,
+          received_coin_ids: pendingSync.map(c => c.coin_id).filter(Boolean),
           tx_batch,
         }),
     });
     const data = await res.json();
     if (res.ok && data.success) {
+      // ── Restore coins from server if localStorage was cleared ──────────
+      if (data.restored_coins && data.restored_coins.length > 0) {
+        const existingIds = new Set(STATE.vault.map(c => c.coin_id));
+        let restored = 0;
+        for (const rc of data.restored_coins) {
+          if (!existingIds.has(rc.coin_id)) {
+            STATE.vault.push({
+              coin_id:      rc.coin_id,
+              amount:       rc.amount || 0,
+              value_kobo:   rc.amount || 0,
+              _status:      'HELD',
+              _receivedAt:  rc.issued_at || new Date().toISOString(),
+              owner_hash:   canonicalHolder,
+              issuer_id:    rc.issuer_id || 'AGENT',
+            });
+            restored++;
+          }
+        }
+        if (restored > 0) {
+          const restoredTotal = data.restored_coins
+            .reduce((s,c) => s+(c.amount||0), 0);
+          STATE.history.unshift({
+            id: 'RESTORE-'+Date.now(), type:'received',
+            amount: restoredTotal, coin_count: restored,
+            ts: new Date().toISOString(), status:'SETTLED',
+            method:'server_restore',
+            name: 'Coins Restored from Server',
+          });
+          save(); refreshHome(); refreshVault(); refreshHistory();
+          toast(`₦${(restoredTotal/100).toLocaleString()} restored from server 🎉`);
+        }
+      }
+
       // Settle received coins (PENDING_SYNC → HELD)
       // Remove sent coins (PENDING_TRANSFER → gone from vault, they belong to recipient)
       const settledIds = new Set(data.settled_coin_ids || []);
