@@ -430,28 +430,25 @@ async function buildAgentEntries(db, agentId, entries) {
     }
   }
 
-  // 2. Cash-in DEBITS — from transactions table (written by issue.js on every issuance)
-  //    This correctly captures BOTH online and reconciled offline issuances
+  // 2. Cash-in DEBITS — from transactions table
+  //    Only use columns confirmed to exist: coin_id, from_hash, to_hash, amount, status, tx_ts
   const { data: cashIns, error: e2 } = await db.from('transactions')
-    .select('coin_id, amount, tx_ts, status, to_hash, notes, tx_type, coin_count')
+    .select('coin_id, from_hash, to_hash, amount, status, tx_ts')
     .eq('from_hash', agentId)
-    .in('tx_type', ['CASH_IN', 'CASH_IN_OFFLINE_RECONCILED'])
     .order('tx_ts', { ascending: true });
   if (e2) throw new Error('Agent cash-in transactions: ' + e2.message);
 
   for (const tx of (cashIns || [])) {
     const ts  = tx.tx_ts;
     const amt = tx.amount || 0;
+    if (!amt) continue; // skip zero-amount records
     const ref = 'ISS-' + (tx.coin_id||'').slice(4,14);
-    const isOffline = tx.tx_type === 'CASH_IN_OFFLINE_RECONCILED';
 
     entries.push({
       ts, date: (ts||'').slice(0,10),
       type: 'CashIn', ref,
       coin_id: tx.coin_id,
-      narration: isOffline
-        ? 'Cash-In Issued to Customer (Offline — Reconciled)'
-        : `Cash-In Issued to Customer (${tx.coin_count||1} coin${(tx.coin_count||1)!==1?'s':''})`,
+      narration: 'Cash-In Issued to Customer',
       debit_kobo:   amt,
       credit_kobo:  0,
       counterparty: shortId(tx.to_hash || 'Customer'),
