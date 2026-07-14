@@ -865,52 +865,105 @@ async function generateOfflineQR(bundle, totalKobo, coinCount) {
 }
 
 async function generateQR(bundle, totalKobo, coinCount) {
-  // Step 1: Create server-side claim (stores bundle, returns short claim_id)
+  // Guard: QRCode library must be available
+  if (typeof QRCode === 'undefined') {
+    showRes('cires','err','❌ QR library not loaded','','Open app once while online to load all resources');
+    return;
+  }
+
   showL('Creating QR code...');
+
+  // ── Step 1: Try server-side claim (short URL, wallet can fetch full bundle) ──
+  let qrText = null;
+  let claimId = null;
+
+  if (_agentOnline) {
+    try {
+      const res = await fetch(`${API}/create-claim`, {
+        method:  'POST',
+        headers: {'Content-Type':'application/json','Authorization':'Bearer '+TK},
+        body:    JSON.stringify({ bundle }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        qrText       = data.claim_url;
+        claimId      = data.claim_id;
+        _qrClaimUrl  = data.claim_url;
+        _qrExpiresAt = new Date(data.expires_at);
+        window._qrClaimUrl = _qrClaimUrl;
+      } else {
+        console.warn('[QR] create-claim failed, falling back to bundle embed');
+      }
+    } catch(fetchErr) {
+      console.warn('[QR] create-claim network error, falling back:', fetchErr.message);
+    }
+  }
+
+  // ── Step 2: Fallback — embed full bundle as zilbundle:// URI ──────────────
+  // Used when: (a) offline, (b) create-claim failed for any reason
+  if (!qrText) {
+    try {
+      const bundleJson = JSON.stringify(bundle);
+      const bundleB64  = btoa(unescape(encodeURIComponent(bundleJson)));
+      qrText = 'zilbundle://' + bundleB64;
+      claimId = null; // no claim ID for embedded bundles
+      console.log('[QR] Using zilbundle:// fallback, size:', qrText.length);
+    } catch(encErr) {
+      hideL();
+      showRes('cires','err','❌ QR encoding failed','',encErr.message);
+      return;
+    }
+  }
+
+  // ── Step 3: Render QR code ────────────────────────────────────────────────
+  hideL();
   try {
-    const res = await fetch(`${API}/create-claim`, {
-      method:  'POST',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer '+TK},
-      body:    JSON.stringify({ bundle }),
-    });
-    const data = await res.json();
-    hideL();
-    if (!res.ok) throw new Error(data.error || 'Failed to create claim');
-
-    _qrClaimUrl  = data.claim_url;
-    _qrExpiresAt = new Date(data.expires_at);
-    window._qrClaimUrl = _qrClaimUrl;
-
-    // Step 2: Render QR code in canvas
     const container = document.getElementById('qr-canvas');
-    container.innerHTML = ''; // clear previous
+    if (!container) throw new Error('qr-canvas element not found in page');
+    container.innerHTML = '';
+
     new QRCode(container, {
-      text:          _qrClaimUrl,
-      width:         200,
-      height:        200,
-      colorDark:     '#0D1F1A',
-      colorLight:    '#FFFFFF',
-      correctLevel:  QRCode.CorrectLevel.M,
+      text:         qrText,
+      width:        200,
+      height:       200,
+      colorDark:    '#0D1F1A',
+      colorLight:   '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.L, // Low = more data capacity for bundle fallback
     });
 
-    // Wait a tick for QR to render, then capture image data
-    await new Promise(r => setTimeout(r, 100));
+    // Wait for QR to render then capture image
+    await new Promise(r => setTimeout(r, 150));
     const canvas = container.querySelector('canvas');
-    if (canvas) _qrImageData = canvas.toDataURL('image/png');
+    if (canvas) {
+      _qrImageData = canvas.toDataURL('image/png');
+    } else {
+      // SVG fallback — some QRCode builds use SVG
+      const img = container.querySelector('img');
+      if (img) _qrImageData = img.src;
+    }
 
     // Update labels
-    document.getElementById('qr-amount-label').textContent =
-      '₦' + (totalKobo/100).toLocaleString() + ' — ' + coinCount + ' coin' + (coinCount!==1?'s':'');
-    document.getElementById('ciqrd').textContent =
-      'Claim ID: ' + data.claim_id.slice(0,8) + '... · Valid 15 min';
+    const amtEl = document.getElementById('qr-amount-label');
+    if (amtEl) amtEl.textContent =
+      '₦' + (totalKobo/100).toLocaleString() + ' — ' + coinCount +
+      ' coin' + (coinCount!==1?'s':'');
 
-    // Start expiry countdown
-    startQRCountdown(_qrExpiresAt);
+    const detEl = document.getElementById('ciqrd');
+    if (detEl) detEl.textContent = claimId
+      ? 'Claim: ' + claimId.slice(0,8) + '… · Valid 15 min'
+      : '⚡ Offline bundle · Scan with Zillion Wallet';
 
-    notify('✅ QR code ready — share with customer');
-  } catch(err) {
-    hideL();
-    showRes('cires','err','❌ QR generation failed','',err.message);
+    if (_qrExpiresAt && claimId) startQRCountdown(_qrExpiresAt);
+    notify('✅ QR code ready — show to customer');
+
+    // Store claim URL for WhatsApp share
+    if (!_qrClaimUrl && bundle) {
+      // No claim URL (offline) — share instructions instead
+      _qrClaimUrl = null;
+    }
+
+  } catch(renderErr) {
+    showRes('cires','err','❌ QR rendering failed','',renderErr.message);
   }
 }
 
