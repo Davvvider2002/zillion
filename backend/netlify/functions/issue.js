@@ -96,17 +96,12 @@ exports.handler = async (event) => {
         // Deduct float and write tx record for reconciled coins
         await updateAgentFloat(body.agent_id, -body.amount);
         await odb.from('transactions').insert({
-          coin_id:    newIds[0],
-          tx_type:    'CASH_IN_OFFLINE_RECONCILED',
-          from_hash:  body.agent_id,
-          to_hash:    body.recipient_hash,
-          amount:     body.amount,
-          tx_ts:      body.queued_at || now,
-          status:     'SETTLED',
-          agent_id:   body.agent_id,
-          coin_count: newIds.length,
-          offline:    true,
-          notes:      'Offline issuance reconciled — queue_id: ' + (body.queue_id||'unknown'),
+          coin_id:   newIds[0],
+          from_hash: body.agent_id,
+          to_hash:   body.recipient_hash,
+          amount:    body.amount,
+          tx_ts:     body.queued_at || now,
+          status:    'SETTLED',
         });
       }
       return {
@@ -186,17 +181,12 @@ exports.handler = async (event) => {
       { auth: { persistSession: false } }
     );
     const txRecord = {
-      coin_id:    coins[0]?.coin_id || 'BATCH-' + Date.now(),
-      tx_type:    'CASH_IN',
-      from_hash:  body.agent_id,
-      to_hash:    body.recipient_hash,
-      amount:     body.amount,
-      tx_ts:      new Date().toISOString(),
-      status:     'SETTLED',
-      agent_id:   body.agent_id,
-      coin_count: coins.length,
-      offline:    body.offline || false,
-      notes:      `Cash-in: ${coins.length} coin(s) issued to ${body.recipient_phone || body.recipient_hash?.slice(0,8) || 'customer'}`,
+      coin_id:   coins[0]?.coin_id || 'BATCH-' + Date.now(),
+      from_hash: body.agent_id,
+      to_hash:   body.recipient_hash,
+      amount:    body.amount,
+      tx_ts:     new Date().toISOString(),
+      status:    'SETTLED',
     };
     await tdb.from('transactions').insert(txRecord);
   } catch(txErr) {
