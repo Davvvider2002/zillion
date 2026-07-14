@@ -616,7 +616,13 @@ function showApp() {
   document.getElementById('ls').style.display = 'none';
   document.getElementById('as').style.display = 'block';
   // MUST load hlog before fillProfile/updateStats — they depend on it
-  hlog = JSON.parse(localStorage.getItem('zh_' + AP.agent_id) || '[]');
+  const _savedHlog = JSON.parse(localStorage.getItem('zh_' + AP.agent_id) || '[]');
+  const _backupHlog = JSON.parse(localStorage.getItem('zh_bak_'+(AP.phone||AP.agent_id||'agent'))||'[]');
+  // Merge both, deduplicate by id, sort newest first
+  const _merged = [..._savedHlog, ..._backupHlog];
+  const _seen = new Set();
+  hlog = _merged.filter(h => { if(!h.id||_seen.has(h.id)) return false; _seen.add(h.id); return true; })
+                .sort((a,b) => new Date(b.ts||0)-new Date(a.ts||0));
   fillProfile(); // calls updateStats() which now has hlog ready
 }
 
@@ -1131,8 +1137,13 @@ function addH(type,amtKobo,cnt,status,extra) {
     agent_id: AP.agent_id,
     float_after_kobo: floatAfter,
   }, extra||{}));
-  if(hlog.length>200) hlog.pop();
+  if(hlog.length>2000) hlog.pop();  // keep 2000 entries
   localStorage.setItem('zh_'+AP.agent_id, JSON.stringify(hlog));
+  // Also save to phone-keyed backup key (survives agent ID change)
+  try {
+    const backupKey = 'zh_bak_'+(AP.phone||AP.agent_id||'agent');
+    localStorage.setItem(backupKey, JSON.stringify(hlog.slice(0,500)));
+  } catch(e){}
   renderHistory();
 }
 function renderHistory() {
