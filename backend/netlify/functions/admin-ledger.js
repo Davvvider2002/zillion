@@ -97,41 +97,99 @@ exports.handler = async (event) => {
         },
       };
     } else {
-      // Customer coins use holder_hash = 64-char HMAC (not device_hash).
-      // Accept either device_hash ('DEVICE-XXXXXXXX') or the raw HMAC.
-      let devData = null;
-      let resolvedHolderHash = entityId;
+      // ── Customer resolution — multi-strategy ──────────────────────────────
+      // Coins use holder_hash = 64-char HMAC derived from phone+device.
+      // The admin may search by: phone number, device_hash, or raw holder_hash.
+      // We try ALL strategies until we find matching coins.
 
-      if (entityId.startsWith('DEVICE-') || entityId.startsWith('PWA-')) {
+      let devData          = null;
+      let resolvedHolderHash = null;
+      let searchPhone      = null;
+
+      // Strategy 1: phone number (e.g. +2348126426726)
+      if (entityId.startsWith('+') || entityId.startsWith('234') || /^0\d{10}$/.test(entityId)) {
+        searchPhone = entityId.startsWith('0')
+          ? '+234' + entityId.slice(1)
+          : entityId.startsWith('234')
+            ? '+' + entityId
+            : entityId;
+        // Find device by phone via devices table (phone_number or phone_hash lookup)
+        const { data: byPhone } = await db.from('devices').select('*')
+          .eq('phone_number', searchPhone).maybeSingle();
+        devData = byPhone;
+        if (devData?.holder_hash) resolvedHolderHash = devData.holder_hash;
+      }
+
+      // Strategy 2: DEVICE-* or PWA-* device hash
+      if (!resolvedHolderHash && (entityId.startsWith('DEVICE-') || entityId.startsWith('PWA-'))) {
         const { data: byDevice } = await db.from('devices').select('*')
           .eq('device_hash', entityId).maybeSingle();
-        devData = byDevice;
-        if (devData?.holder_hash) resolvedHolderHash = devData.holder_hash;
-      } else {
-        // Treat as raw holder_hash — look up matching device record if any
-        const { data: byHolder } = await db.from('devices').select('*')
-          .eq('holder_hash', entityId).maybeSingle();
-        devData = byHolder;
-        resolvedHolderHash = entityId;
+        devData = devData || byDevice;
+        if (byDevice?.holder_hash) resolvedHolderHash = byDevice.holder_hash;
+        // If no holder_hash on device, try using device_hash directly as holder_hash
+        if (!resolvedHolderHash) resolvedHolderHash = entityId;
       }
 
-      // Confirm coins exist for this holder_hash
-      if (!devData) {
-        const { data: probe } = await db.from('coins')
-          .select('coin_id').eq('holder_hash', resolvedHolderHash).limit(1);
-        if (!probe || probe.length === 0)
-          return fail(404, `Customer '${entityId}' not found`);
+      // Strategy 3: raw holder_hash (64-char hex)
+      if (!resolvedHolderHash && entityId.length >= 32) {
+        resolvedHolderHash = entityId;
+        const { data: byHolder } = await db.from('devices').select('*')
+          .eq('holder_hash', entityId).maybeSingle();
+        devData = devData || byHolder;
       }
+
+      // Fallback: use entityId as-is
+      if (!resolvedHolderHash) resolvedHolderHash = entityId;
+
+      // Confirm coins exist — try holder_hash AND device_hash variants
+      let probeCoins = [];
+      const { data: probe1 } = await db.from('coins')
+        .select('coin_id, holder_hash, amount')
+        .eq('holder_hash', resolvedHolderHash).limit(5);
+      probeCoins = probe1 || [];
+
+      // If no coins found with resolved hash, try other identifiers
+      if (probeCoins.length === 0 && entityId !== resolvedHolderHash) {
+        const { data: probe2 } = await db.from('coins')
+          .select('coin_id, holder_hash, amount')
+          .eq('holder_hash', entityId).limit(5);
+        if (probe2 && probe2.length > 0) {
+          probeCoins = probe2;
+          resolvedHolderHash = entityId; // override with working hash
+        }
+      }
+
+      // Last resort: search by issuer field if recipient was this device
+      if (probeCoins.length === 0) {
+        const { data: probe3 } = await db.from('coins')
+          .select('coin_id, holder_hash, amount')
+          .ilike('holder_hash', resolvedHolderHash.slice(0,8) + '%').limit(5);
+        if (probe3 && probe3.length > 0) {
+          probeCoins = probe3;
+          resolvedHolderHash = probe3[0].holder_hash;
+        }
+      }
+
+      if (probeCoins.length === 0)
+        return fail(404, `Customer '${entityId}' not found — no coins in wallet`);
+
+      const displayName = searchPhone
+        ? `Customer ${searchPhone}`
+        : devData?.phone_number
+          ? `Customer ${devData.phone_number}`
+          : `Wallet-${resolvedHolderHash.slice(0,16)}…`;
 
       entity = {
         id:     devData?.device_hash || entityId,
-        name:   devData?.phone_hash ? `PWA-${devData.phone_hash.slice(0,10)}` : `Wallet-${resolvedHolderHash.slice(0,12)}`,
-        type:   'Customer', status: devData?.status || 'ACTIVE',
+        name:   displayName,
+        type:   'Customer',
+        status: devData?.status || 'ACTIVE',
         joined: devData?.registered_at || null,
         extra:  {
-          phone_hash:  devData?.phone_hash || '—',
+          phone:       searchPhone || devData?.phone_number || '—',
           holder_hash: resolvedHolderHash.slice(0,16) + '…',
-          device_hash: devData?.device_hash || '—',
+          device_hash: devData?.device_hash || entityId,
+          coin_count:  probeCoins.length + '+ coins found',
         },
         _holderHash: resolvedHolderHash,
       };
@@ -184,33 +242,38 @@ exports.handler = async (event) => {
     const totalCredit = periodEntries.reduce((s,e) => s + (e.credit_kobo||0), 0);
     const totalDebit  = periodEntries.reduce((s,e) => s + (e.debit_kobo||0),  0);
 
-    // Agent reconciliation: closing balance must match agents.float_balance_kobo
+    // ── Agent reconciliation: force closing balance = agents.float_balance_kobo ──
     let reconciliationNote = null;
     if (entityType === 'agent') {
-      const diff = agentCurrentFloat - closingBalance;
-      if (Math.abs(diff) > 0) {
-        // Add an adjustment entry so ledger always balances to DB truth
-        const adjTs   = new Date().toISOString();
+      // Recompute closing from period entries (debits now from coins table)
+      const recomputedClose = openingBalance
+        + periodEntries.reduce((s,e) => s + (e.credit_kobo||0) - (e.debit_kobo||0), 0);
+      const diff = agentCurrentFloat - recomputedClose;
+
+      if (Math.abs(diff) > 1) {  // tolerance: ignore < 1 kobo rounding
+        const adjTs    = new Date().toISOString();
         const isCredit = diff > 0;
-        periodEntries.push({
+        const adjEntry = {
           ts:           adjTs,
           date:         adjTs.slice(0,10),
           type:         'Adjustment',
-          ref:          'ADJ-RECONCILE',
+          ref:          'ADJ-BALANCE',
           coin_id:      null,
           narration:    isCredit
-            ? 'Reconciliation Adjustment (pending syncs / offline transactions not yet reflected)'
-            : 'Reconciliation Adjustment (reversed / voided transactions)',
+            ? `Balance Adjustment +₦${(diff/100).toFixed(2)} (offline/pending sync not yet posted)`
+            : `Balance Adjustment -₦${(Math.abs(diff)/100).toFixed(2)} (issued coins pending server confirmation)`,
           debit_kobo:   isCredit ? 0 : Math.abs(diff),
           credit_kobo:  isCredit ? Math.abs(diff) : 0,
-          counterparty: 'System',
+          counterparty: 'System/Reconcile',
           status:       'RECONCILED',
           direction:    isCredit ? 'CR' : 'DR',
-        });
-        periodEntries[periodEntries.length-1].balance_kobo = agentCurrentFloat;
+          balance_kobo: agentCurrentFloat,
+        };
+        periodEntries.push(adjEntry);
         reconciliationNote =
-          `Ledger adjusted to match DB float. ` +
-          `Difference of ₦${(Math.abs(diff)/100).toFixed(2)} was ${isCredit?'added':'removed'}.`;
+          `DB float ₦${(agentCurrentFloat/100).toFixed(2)} | ` +
+          `Ledger was ₦${(recomputedClose/100).toFixed(2)} | ` +
+          `Adjusted by ${isCredit?'+':'-'}₦${(Math.abs(diff)/100).toFixed(2)}`;
       }
     }
 
@@ -430,29 +493,31 @@ async function buildAgentEntries(db, agentId, entries) {
     }
   }
 
-  // 2. Cash-in DEBITS — from transactions table
-  //    Only use columns confirmed to exist: coin_id, from_hash, to_hash, amount, status, tx_ts
-  const { data: cashIns, error: e2 } = await db.from('transactions')
-    .select('coin_id, from_hash, to_hash, amount, status, tx_ts')
-    .eq('from_hash', agentId)
-    .order('tx_ts', { ascending: true });
-  if (e2) throw new Error('Agent cash-in transactions: ' + e2.message);
+  // 2. Cash-in DEBITS — coins issued BY this agent TO customers
+  //    Source: coins table where issuer_id=agentId AND holder_hash≠agentId
+  //    This is the AUTHORITATIVE source — always written by issue.js.
+  //    The transactions table is NOT reliable (rows may not exist for older cash-ins).
+  const { data: issuedCoins, error: e2 } = await db.from('coins')
+    .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, updated_at, created_at')
+    .eq('issuer_id', agentId)
+    .neq('holder_hash', agentId)   // exclude float coins still with agent
+    .order('issued_at', { ascending: true });
+  if (e2) throw new Error('Agent issued coins: ' + e2.message);
 
-  for (const tx of (cashIns || [])) {
-    const ts  = tx.tx_ts;
-    const amt = tx.amount || 0;
-    if (!amt) continue; // skip zero-amount records
-    const ref = 'ISS-' + (tx.coin_id||'').slice(4,14);
-
+  for (const coin of (issuedCoins || [])) {
+    const issuedTs = coin.issued_at || coin.created_at;
+    const ref      = 'ISS-' + (coin.coin_id||'').slice(4,14);
     entries.push({
-      ts, date: (ts||'').slice(0,10),
-      type: 'CashIn', ref,
-      coin_id: tx.coin_id,
-      narration: 'Cash-In Issued to Customer',
-      debit_kobo:   amt,
+      ts:    issuedTs,
+      date:  issuedTs.slice(0,10),
+      type:  'CashIn',
+      ref,
+      coin_id:      coin.coin_id,
+      narration:    'Cash-In Issued to Customer',
+      debit_kobo:   coin.amount || 0,
       credit_kobo:  0,
-      counterparty: shortId(tx.to_hash || 'Customer'),
-      status:       tx.status || 'SETTLED',
+      counterparty: shortId(coin.holder_hash || 'Customer'),
+      status:       'SETTLED',
       direction:    'DR',
     });
   }
