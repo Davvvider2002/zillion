@@ -793,13 +793,48 @@ const M = {
 };
 
 // ── Persist ────────────────────────────────────────────────────
-function save() { localStorage.setItem(DB_KEY, JSON.stringify(M)); }
+const M_HISTORY_KEY = 'zillion_merchant_history';
+const M_DEVICE_KEY  = 'zillion_merchant_device';
+
+function getMerchantDeviceId() {
+  let d = localStorage.getItem(M_DEVICE_KEY);
+  if (!d) { d='MDEV-'+Math.random().toString(36).substr(2,8).toUpperCase(); localStorage.setItem(M_DEVICE_KEY,d); }
+  return d;
+}
+
+function save() {
+  try {
+    const hkey = 'zillion_mhist_' + (M.phone || M.merchant_id || 'default');
+    localStorage.setItem(hkey, JSON.stringify((M.history||[]).slice(0,500)));
+  } catch(e){}
+  localStorage.setItem(DB_KEY, JSON.stringify(M));
+}
+
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(DB_KEY)||'{}');
     Object.keys(d).forEach(k => { if(k in M) M[k]=d[k]; });
+    if (!M.history || !M.history.length) {
+      const hkey = 'zillion_mhist_' + (M.phone || M.merchant_id || 'default');
+      const saved = localStorage.getItem(hkey);
+      if (saved) { try { M.history = JSON.parse(saved); } catch{} }
+    }
     return !!M.token;
   } catch { return false; }
+}
+
+function restoreMerchantHistory(phone) {
+  try {
+    const hkey = 'zillion_mhist_' + (phone || M.phone || 'default');
+    const saved = localStorage.getItem(hkey);
+    if (saved) {
+      const hist = JSON.parse(saved);
+      if (hist.length > (M.history||[]).length) {
+        M.history = hist;
+        save();
+      }
+    }
+  } catch(e){}
 }
 
 // ── Toast / Loader ─────────────────────────────────────────────
@@ -897,9 +932,10 @@ async function doRegister() {
     M.token=data.token; M.merchant_id=data.merchant_id;
     M.phone=phone; M.owner_name=owner;
     M.business_name=biz; M.business_type=bizType; M.location=loc;
+    restoreMerchantHistory(phone);  // restore history from permanent key
     save();
     showApp();
-    toast('Welcome to Zillion, '+owner+'! 🎉');
+    toast((M.history&&M.history.length>0?'Welcome back, ':'Welcome to Zillion, ')+owner+'! 🎉');
     ensureMyQR();
   } catch(e) {
     hideL();
