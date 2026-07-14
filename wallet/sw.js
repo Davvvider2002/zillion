@@ -1,4 +1,4 @@
-// Zillion Wallet — Service Worker v1.0.0
+// Zillion Wallet — Service Worker v1.0.2
 // Offline-first: app shell cached, API calls network-first with offline queue
 'use strict';
 
@@ -17,7 +17,7 @@ const SHELL_FILES = [
 
 // ── INSTALL: cache app shell ──────────────────────────────────────────────────
 self.addEventListener('install', event => {
-  console.log('[SW] Installing wallet v1.0.0');
+  console.log('[SW] Installing wallet v1.0.2');
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return cache.addAll(SHELL_FILES).catch(err => {
@@ -29,7 +29,7 @@ self.addEventListener('install', event => {
 
 // ── ACTIVATE: clean old caches ────────────────────────────────────────────────
 self.addEventListener('activate', event => {
-  console.log('[SW] Activating wallet v1.0.0');
+  console.log('[SW] Activating wallet v1.0.2');
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
