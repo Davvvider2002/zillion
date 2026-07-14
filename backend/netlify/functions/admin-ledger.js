@@ -184,13 +184,33 @@ exports.handler = async (event) => {
     const totalCredit = periodEntries.reduce((s,e) => s + (e.credit_kobo||0), 0);
     const totalDebit  = periodEntries.reduce((s,e) => s + (e.debit_kobo||0),  0);
 
-    // Agent reconciliation note: does computed closing match DB float?
+    // Agent reconciliation: closing balance must match agents.float_balance_kobo
     let reconciliationNote = null;
     if (entityType === 'agent') {
-      const computedNet = openingBalance + totalCredit - totalDebit;
-      if (Math.abs(computedNet - agentCurrentFloat) > 0) {
-        reconciliationNote = `DB float: ₦${(agentCurrentFloat/100).toFixed(2)} | ` +
-          `Ledger closing: ₦${(closingBalance/100).toFixed(2)}`;
+      const diff = agentCurrentFloat - closingBalance;
+      if (Math.abs(diff) > 0) {
+        // Add an adjustment entry so ledger always balances to DB truth
+        const adjTs   = new Date().toISOString();
+        const isCredit = diff > 0;
+        periodEntries.push({
+          ts:           adjTs,
+          date:         adjTs.slice(0,10),
+          type:         'Adjustment',
+          ref:          'ADJ-RECONCILE',
+          coin_id:      null,
+          narration:    isCredit
+            ? 'Reconciliation Adjustment (pending syncs / offline transactions not yet reflected)'
+            : 'Reconciliation Adjustment (reversed / voided transactions)',
+          debit_kobo:   isCredit ? 0 : Math.abs(diff),
+          credit_kobo:  isCredit ? Math.abs(diff) : 0,
+          counterparty: 'System',
+          status:       'RECONCILED',
+          direction:    isCredit ? 'CR' : 'DR',
+        });
+        periodEntries[periodEntries.length-1].balance_kobo = agentCurrentFloat;
+        reconciliationNote =
+          `Ledger adjusted to match DB float. ` +
+          `Difference of ₦${(Math.abs(diff)/100).toFixed(2)} was ${isCredit?'added':'removed'}.`;
       }
     }
 
@@ -350,110 +370,93 @@ async function buildMerchantEntries(db, merchantId, entries) {
 //            (merchant/customer cashed out, coin came back to agent)
 // ─────────────────────────────────────────────────────────────────────────────
 async function buildAgentEntries(db, agentId, entries) {
-  // All coins issued BY this agent (float top-ups + cash-ins issued)
-  const { data: issuedCoins, error: e1 } = await db.from('coins')
-    .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, updated_at, created_at, expires_at')
-    .eq('issuer_id', agentId)
-    .order('issued_at', { ascending: true });
-  if (e1) throw new Error('Agent issued coins: ' + e1.message);
+  // ── CORRECT LOGIC FOR AGENT LEDGER ─────────────────────────────────────────
+  //
+  // The fundamental problem with the old approach:
+  //   When admin does float-topup → coins inserted with holder_hash=agentId, status=ISSUED
+  //   When agent does cash-in online → issue.js creates BRAND NEW coins for customer
+  //     The original float coins stay as holder_hash=agentId, status=ISSUED (never changed)
+  //     The new coins have holder_hash=recipientHash, issuer_id=agentId
+  //   So the old code added CREDIT for original float coin + CREDIT+DEBIT for new coin
+  //   = double credit for every online cash-in
+  //
+  // CORRECT APPROACH:
+  //   CREDITS = coins where holder_hash=agentId (float top-ups that admin put in agent's account)
+  //   DEBITS  = CASH_IN transaction records (each cash-in posted to transactions table)
+  //           + updateAgentFloat(-amount) confirms the debit happened
+  //   REDEMPTION CREDITS = coins where holder_hash=agentId AND status=REDEEMED
+  //                        (customers cashed out at this agent — agent got coins back as cash)
+  //   BALANCE = agents.float_balance_kobo (ALWAYS the authoritative source)
+  //
+  // This matches double-entry: float top-up DR cash CR float; cash-in DR float CR coin-issued
 
-  // Coins redeemed AT this agent (holder_hash = agentId, status = REDEEMED)
-  const { data: redeemedCoins, error: e2 } = await db.from('coins')
+  // 1. Float top-up CREDITS — coins admin minted for this agent
+  //    These are coins where holder_hash=agentId (agent is the holder)
+  const { data: floatCoins, error: e1 } = await db.from('coins')
     .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, updated_at, created_at')
     .eq('holder_hash', agentId)
-    .eq('status', 'REDEEMED')
-    .order('updated_at', { ascending: true });
-  if (e2) throw new Error('Agent redeemed coins: ' + e2.message);
+    .order('issued_at', { ascending: true });
+  if (e1) throw new Error('Agent float coins: ' + e1.message);
 
-  const seenCoinIds = new Set();
+  for (const coin of (floatCoins || [])) {
+    const ts  = coin.issued_at || coin.created_at;
+    const ref = 'ZIL-' + (coin.coin_id || '').slice(4, 16);
 
-  for (const coin of (issuedCoins || [])) {
-    seenCoinIds.add(coin.coin_id);
-    const issuedTs = coin.issued_at || coin.created_at;
-    const ref      = 'ZIL-' + (coin.coin_id || '').slice(4, 16);
-    const stayedWithAgent = coin.holder_hash === agentId;
-
-    if (stayedWithAgent && coin.status === 'ISSUED') {
-      // Coin still sitting in agent's float — float top-up credit, not yet issued out
+    if (coin.status === 'REDEEMED') {
+      // Redemption — customer cashed out at this agent, coin came back
+      const redeemTs = coin.updated_at || ts;
       entries.push({
-        ts:           issuedTs,
-        date:         issuedTs.slice(0, 10),
-        type:         'TopUp',
-        ref,
-        coin_id:      coin.coin_id,
-        narration:    'Float Top-Up (Coin Minted)',
+        ts: redeemTs, date: redeemTs.slice(0,10),
+        type: 'Redeem', ref: 'REDM-' + (coin.coin_id||'').slice(4,14),
+        coin_id: coin.coin_id,
+        narration:    'Cash-Out Redeemed (Float Restored)',
         debit_kobo:   0,
         credit_kobo:  coin.amount || 0,
-        counterparty: 'Admin/Mint',
-        status:       'SETTLED',
-        direction:    'CR',
-      });
-    } else if (stayedWithAgent && coin.status === 'HELD') {
-      // Coin held by agent but not yet issued — still a float credit
-      entries.push({
-        ts:           issuedTs,
-        date:         issuedTs.slice(0, 10),
-        type:         'TopUp',
-        ref,
-        coin_id:      coin.coin_id,
-        narration:    'Float Top-Up (Available)',
-        debit_kobo:   0,
-        credit_kobo:  coin.amount || 0,
-        counterparty: 'Admin/Mint',
-        status:       'SETTLED',
-        direction:    'CR',
+        counterparty: 'Customer/Merchant',
+        status: 'SETTLED', direction: 'CR',
       });
     } else {
-      // Coin was issued to agent (credit) then went to customer (debit)
-      // Credit: when admin minted it for agent
+      // Float top-up credit — admin minted this coin and assigned to agent
       entries.push({
-        ts:           issuedTs,
-        date:         issuedTs.slice(0, 10),
-        type:         'TopUp',
-        ref,
-        coin_id:      coin.coin_id,
+        ts, date: ts.slice(0,10),
+        type: 'TopUp', ref,
+        coin_id: coin.coin_id,
         narration:    'Float Top-Up (Coin Minted)',
         debit_kobo:   0,
         credit_kobo:  coin.amount || 0,
         counterparty: 'Admin/Mint',
-        status:       'SETTLED',
-        direction:    'CR',
-      });
-
-      // Debit: when agent issued the coin to a customer (float reduced)
-      const issuedOutTs = coin.updated_at || issuedTs;
-      entries.push({
-        ts:           issuedOutTs,
-        date:         issuedOutTs.slice(0, 10),
-        type:         'CashIn',
-        ref:          'ISS-' + (coin.coin_id || '').slice(4, 14),
-        coin_id:      coin.coin_id,
-        narration:    'Cash-In Issued to Customer',
-        debit_kobo:   coin.amount || 0,
-        credit_kobo:  0,
-        counterparty: shortId(coin.holder_hash || 'Customer'),
-        status:       'SETTLED',
-        direction:    'DR',
+        status: 'SETTLED', direction: 'CR',
       });
     }
   }
 
-  // Redemption credits — coins that came back to this agent when merchant/customer cashed out
-  for (const coin of (redeemedCoins || [])) {
-    if (seenCoinIds.has(coin.coin_id)) continue; // already handled above
-    const redeemTs = coin.updated_at || coin.issued_at || coin.created_at;
+  // 2. Cash-in DEBITS — from transactions table (written by issue.js on every issuance)
+  //    This correctly captures BOTH online and reconciled offline issuances
+  const { data: cashIns, error: e2 } = await db.from('transactions')
+    .select('coin_id, amount, value_kobo, tx_ts, status, to_hash, notes, tx_type, coin_count')
+    .eq('from_hash', agentId)
+    .in('tx_type', ['CASH_IN', 'CASH_IN_OFFLINE_RECONCILED'])
+    .order('tx_ts', { ascending: true });
+  if (e2) throw new Error('Agent cash-in transactions: ' + e2.message);
+
+  for (const tx of (cashIns || [])) {
+    const ts  = tx.tx_ts;
+    const amt = tx.amount || tx.value_kobo || 0;
+    const ref = 'ISS-' + (tx.coin_id||'').slice(4,14);
+    const isOffline = tx.tx_type === 'CASH_IN_OFFLINE_RECONCILED';
+
     entries.push({
-      ts:           redeemTs,
-      date:         redeemTs.slice(0, 10),
-      type:         'Redeem',
-      ref:          'REDM-' + (coin.coin_id || '').slice(4, 14),
-      coin_id:      coin.coin_id,
-      narration:    'Cash-Out Redeemed (Float Restored)',
-      debit_kobo:   0,
-      credit_kobo:  coin.amount || 0,
-      counterparty: 'Customer/Merchant',
-      status:       'SETTLED',
-      direction:    'CR',
+      ts, date: (ts||'').slice(0,10),
+      type: 'CashIn', ref,
+      coin_id: tx.coin_id,
+      narration: isOffline
+        ? 'Cash-In Issued to Customer (Offline — Reconciled)'
+        : `Cash-In Issued to Customer (${tx.coin_count||1} coin${(tx.coin_count||1)!==1?'s':''})`,
+      debit_kobo:   amt,
+      credit_kobo:  0,
+      counterparty: shortId(tx.to_hash || 'Customer'),
+      status:       tx.status || 'SETTLED',
+      direction:    'DR',
     });
   }
 }
