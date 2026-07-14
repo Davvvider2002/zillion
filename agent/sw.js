@@ -2,7 +2,7 @@
 // Offline-first: app shell cached, API calls network-first with offline queue
 'use strict';
 
-const CACHE_NAME    = 'zillion-agent-v1.0.5';
+const CACHE_NAME    = 'zillion-agent-v1.0.6';
 const OFFLINE_QUEUE = 'zillion-agent-offline-queue';
 
 // App shell — cache these on install
