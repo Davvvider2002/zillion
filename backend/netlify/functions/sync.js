@@ -51,17 +51,68 @@ exports.handler = async (event) => {
     // FIX: also store holder_hash (the HMAC that coins use) so admin-users
     // can join devices ↔ coins correctly. body.holder_hash is sent by wallet
     // on every sync call as the first coin's owner_hash.
-    const holderHash = body.holder_hash || null;
+    const holderHash    = body.holder_hash || null;
+    const phoneNumber   = body.phone_number || auth.payload.phone || null;
+    const receivedIds   = body.received_coin_ids || [];  // coins wallet received and wants to claim
+
     const { error: devErr } = await db.from('devices').upsert({
       device_hash:     deviceId,
       phone_hash:      phoneHash,
-      public_key_hex:  'PENDING',   // placeholder — schema requires NOT NULL
+      public_key_hex:  'PENDING',
       last_sync:       now,
       registered_at:   now,
       status:          'ACTIVE',
-      ...(holderHash ? { holder_hash: holderHash } : {}),
+      ...(holderHash    ? { holder_hash:   holderHash   } : {}),
+      ...(phoneNumber   ? { phone_number:  phoneNumber  } : {}),
     }, { onConflict: 'device_hash', ignoreDuplicates: false });
     if (devErr) console.warn('Device upsert warn:', devErr.message);
+
+    // ── Claim received coins: update holder_hash on coins wallet received ──
+    // When a customer scans a QR and accepts coins, the wallet sends the
+    // coin_ids in received_coin_ids. We update holder_hash on those coins
+    // to the wallet's own holderHash so the wallet can find them on future syncs.
+    // This also recovers coins when localStorage is cleared.
+    if (receivedIds.length > 0 && holderHash) {
+      try {
+        const { data: claimCoins, error: claimErr } = await db.from('coins')
+          .select('coin_id, holder_hash, status')
+          .in('coin_id', receivedIds);
+
+        if (!claimErr && claimCoins) {
+          for (const coin of claimCoins) {
+            if (coin.status === 'SPENT' || coin.status === 'REDEEMED') continue;
+            // Transfer holder_hash to wallet's own hash
+            await db.from('coins').update({
+              holder_hash: holderHash,
+              status:      'HELD',
+              updated_at:  now,
+            }).eq('coin_id', coin.coin_id);
+          }
+          console.log('[sync] Claimed', claimCoins.length, 'coins for', holderHash.slice(0,8));
+        }
+      } catch(claimEx) {
+        console.warn('[sync] Coin claim warn:', claimEx.message);
+      }
+    }
+
+    // ── Also recover coins by holder_hash (wallet re-sync after localStorage clear) ──
+    // If wallet sends holder_hash but has 0 coins locally, return its coins from server.
+    let restoredCoins = [];
+    if (holderHash && (!body.tx_batch || body.tx_batch.length === 0)) {
+      try {
+        const { data: walletCoins } = await db.from('coins')
+          .select('coin_id, amount, status, holder_hash, issuer_id, issued_at')
+          .eq('holder_hash', holderHash)
+          .eq('status', 'HELD')
+          .limit(100);
+        restoredCoins = walletCoins || [];
+        if (restoredCoins.length > 0) {
+          console.log('[sync] Restoring', restoredCoins.length, 'coins for', holderHash.slice(0,8));
+        }
+      } catch(restoreEx) {
+        console.warn('[sync] Restore warn:', restoreEx.message);
+      }
+    }
 
     // Process transactions (may be empty heartbeat)
     const result = body.tx_batch && body.tx_batch.length
@@ -137,6 +188,8 @@ exports.handler = async (event) => {
         confirmed_sent:   result.settled,
         conflicts:        result.conflicts,
         sync_ts:          now,
+        restored_coins:   restoredCoins,  // coins returned from server when localStorage was cleared
+        claimed_count:    receivedIds.length,
       }),
     };
   } catch (err) {
