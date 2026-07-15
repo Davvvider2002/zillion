@@ -1117,33 +1117,15 @@ function refreshHome() {
   // Available = SETTLED received payments (confirmed by server)
   // Book      = ALL received (SETTLED + PENDING_SYNC)
   // Net       = Book minus cashed-out amounts
-  const received   = M.history.filter(h => h.type === 'received');
-  const cashedOut  = M.history.filter(h => h.type === 'cashout');
-  const settledAmt = received.filter(h=>h.status==='SETTLED').reduce((s,h)=>s+h.amount,0);
-  const bookAmt    = received.reduce((s,h)=>s+h.amount, 0);
-  const coAmt      = cashedOut.reduce((s,h)=>s+h.amount, 0);
-  const pendingAmt = bookAmt - settledAmt;
-
-  // Pending cashout: coins in vault sent to agent but NOT yet covered by a
-  // SETTLED cashout history entry. If a history entry is SETTLED, coAmt
-  // already deducts it — counting the vault coin too causes double-deduction.
-  // FIX: only count PENDING_CASHOUT vault coins whose coin_id does NOT appear
-  // in any SETTLED cashout history entry's received_coin_ids.
-  const settledCashoutCoinIds = new Set();
-  cashedOut.filter(function(h){ return h.status === 'SETTLED'; })
-    .forEach(function(h){
-      (h.received_coin_ids || []).forEach(function(id){ settledCashoutCoinIds.add(id); });
-    });
-
-  const pendingCashoutAmt = (M.vault || [])
-    .filter(function(c){
-      return c._status === 'PENDING_CASHOUT' &&
-             !settledCashoutCoinIds.has(c.coin_id || c.id);
-    })
-    .reduce(function(s,c){ return s + (c.amount || c.value_kobo || 0); }, 0);
-
-  // Available = settled received minus settled cashouts minus uncovered pending cashouts
-  const availAmt = Math.max(0, settledAmt - coAmt - pendingCashoutAmt);
+  // Available balance = vault coins (single source of truth, matches Cash Out screen)
+  var vaultCoins = (M.vault||[]).filter(function(c){return c._status!=='PENDING_CASHOUT';});
+  var availAmt   = vaultCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
+  // History for transaction list display context only
+  var received  = M.history.filter(function(h){return h.type==='received';});
+  var cashedOut = M.history.filter(function(h){return h.type==='cashout';});
+  var bookAmt   = received.reduce(function(s,h){return s+h.amount;},0);
+  var coAmt     = cashedOut.reduce(function(s,h){return s+h.amount;},0);
+  var pendingAmt= received.filter(function(h){return h.status!=='SETTLED';}).reduce(function(s,h){return s+h.amount;},0);
 
   setText('today-amount', fmt(availAmt));
 
@@ -1559,7 +1541,8 @@ function refreshProfile() {
   const cashedOut  = M.history.filter(h => h.type === 'cashout');
   const settledAmt = received.filter(h=>h.status==='SETTLED').reduce((s,h)=>s+h.amount,0);
   const coAmt      = cashedOut.reduce((s,h)=>s+h.amount,0);
-  const availAmt   = Math.max(0, settledAmt - coAmt);  // matches home screen
+  // Available balance = vault (same formula as home and cashout screens)
+  var availAmt = (M.vault||[]).filter(function(c){return c._status!=='PENDING_CASHOUT';}).reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
   const totalAmt   = received.reduce((s,h)=>s+h.amount,0); // all received incl pending
   setText('prof-avatar', ini);
   setText('prof-name',   M.business_name||'—');
