@@ -2598,6 +2598,43 @@ async function manualWalletRecover() {
   }
 }
 
+
+// QR Share Helpers
+function dataUrlToFile(dataUrl, filename) {
+  try {
+    var arr=dataUrl.split(','),mime=arr[0].match(/:(.*?);/)[1];
+    var bstr=atob(arr[1]),n=bstr.length,u8=new Uint8Array(n);
+    while(n--)u8[n]=bstr.charCodeAt(n);
+    return new File([u8],filename,{type:mime});
+  }catch(e){return null;}
+}
+async function captureQRCanvas(canvasId) {
+  var el=document.getElementById(canvasId);
+  if(!el)return null;
+  for(var i=0;i<6;i++){
+    var cvs=el.querySelector('canvas');
+    if(cvs)return cvs.toDataURL('image/png');
+    await new Promise(function(r){setTimeout(r,100);});
+  }
+  return null;
+}
+async function shareViaWhatsApp(opts) {
+  if(opts.imageDataUrl&&navigator.share){
+    try{
+      var file=dataUrlToFile(opts.imageDataUrl,opts.filename||'zillion-qr.png');
+      if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({title:opts.title,text:opts.text,files:[file]});
+        return 'image';
+      }
+    }catch(e){if(e.name==='AbortError')return 'cancelled';}
+  }
+  if(navigator.share){
+    try{await navigator.share({title:opts.title,text:opts.text});return 'text';}
+    catch(e){if(e.name==='AbortError')return 'cancelled';}
+  }
+  window.open('https://wa.me/?text='+encodeURIComponent(opts.text),'_blank');
+  return 'web';
+}
 async function trySync() {
   if (!STATE.isOnline || !STATE.user) return;
   const token = STATE.user.token || STATE.user.agentToken || '';
@@ -3436,7 +3473,7 @@ function startSendQRTimer(exp) {
 }
 
 async // ── Resend last QR to beneficiary ────────────────────────────────────────────
-function resendLastQR() {
+async function resendLastQR() {
   if (!_sendQrClaimUrl && !_sendQrImgData) {
     toast('No QR to resend — generate a QR first');
     return;
@@ -3488,36 +3525,15 @@ function copyQRLink() {
     });
 }
 
-function shareSendQRWhatsApp() {
-  if (!_sendQrClaimUrl) { toast('No QR to share', true); return; }
-  const fmt2 = fmtNaira(_sendQrBundle?.total_kobo||0);
-  const msg = `💚 *Zillion Payment - ${fmt2}*
-
-Open your Zillion wallet → Receive → Scan QR → point camera at image OR tap:
-
-${_sendQrClaimUrl}
-
-⏱ Valid 15 minutes only. Open Zillion wallet at https://zillion.ng/wallet/`;
-
-  // Convert QR data URL to blob for sharing (no fetch needed for data URLs)
-  if (_sendQrImgData && navigator.share) {
-    try {
-      var parts  = _sendQrImgData.split(',');
-      var mime   = parts[0].match(/:(.*?);/)[1];
-      var bstr   = atob(parts[1]);
-      var n      = bstr.length;
-      var u8arr  = new Uint8Array(n);
-      while(n--) u8arr[n] = bstr.charCodeAt(n);
-      var imgBlob = new Blob([u8arr], {type: mime});
-      var imgFile = new File([imgBlob], 'zillion-qr-'+(_sendQrBundle?.total_kobo||0)+'.png', {type:'image/png'});
-      if (navigator.canShare && navigator.canShare({files:[imgFile]})) {
-        await navigator.share({title:'Zillion Payment '+fmt2, text:msg, files:[imgFile]});
-        return;
-      }
-    } catch(e) { if(e.name==='AbortError') return; }
-  }
-  if (navigator.share){try{await navigator.share({title:'Zillion '+fmt2,text:msg});return;}catch(e){if(e.name==='AbortError')return;}}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+async function shareSendQRWhatsApp() {
+  if(!_sendQrClaimUrl){toast('No QR to share',true);return;}
+  var fmt2=fmtNaira(_sendQrBundle&&_sendQrBundle.total_kobo||0);
+  if(!_sendQrImgData)_sendQrImgData=await captureQRCanvas('send-qr-canvas');
+  var msg='\uD83D\uDC9A *Zillion Payment - '+fmt2+'*\n\n'
+    +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
+    +'\uD83D\uDC46 OR tap: '+_sendQrClaimUrl+'\n\n'
+    +'\u23F1 Valid 15 min';
+  await shareViaWhatsApp({imageDataUrl:_sendQrImgData,filename:'zillion-qr.png',title:'Zillion Payment',text:msg});
 }
 
 function saveSendQRImage() {
