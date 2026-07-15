@@ -1455,41 +1455,48 @@ function showSec(name, el) {
 
 // ── Full Reconciliation Tool ──────────────────────────────────────────────────
 async function runFullReconcile() {
-  const btn = document.getElementById('reconcile-btn');
-  const res  = document.getElementById('reconcile-result');
-  if (btn) { btn.disabled=true; btn.textContent='Running...'; }
-  if (res)   res.innerHTML = '<div style="color:var(--gr)">Running full reconciliation...</div>';
+  var btn = document.getElementById('reconcile-btn');
+  var res = document.getElementById('reconcile-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
+  if (res) res.innerHTML = '<div style="color:#6B7280">Running full reconciliation...</div>';
   try {
-    const r   = await fetch(API+'/admin-reconcile-all', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},
+    var r = await fetch(API + '/admin-reconcile-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
     });
-    const d   = await r.json();
-    if (!r.ok) throw new Error(d.error||'Failed');
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
 
-    const s   = d.summary || {};
-    const fixes = (d.fixes||[]).length;
-    const warns = (d.warnings||[]).length;
-    if (res) res.innerHTML = `
-      <div style="background:var(--al);border-radius:8px;padding:16px;margin-top:12px;font-size:13px">
-        <div style="font-weight:700;margin-bottom:8px;color:var(--g)">✅ Reconciliation Complete</div>
-        <div>Agents checked: <b>${s.agents_checked||0}</b></div>
-        <div>Float discrepancies: <b style="color:${(s.agent_float_discrepancies||0)>0?'var(--er)':'var(--g)'">${s.agent_float_discrepancies||0}</b></div>
-        <div>Coins reassigned: <b style="color:${fixes>0?'var(--am)':'var(--g)'">${fixes}</b></div>
-        <div>Total coins: <b>${(s.coins||{}).total||0}</b> (HELD: ${(s.coins||{}).held||0})</div>
-        <div>In circulation: <b>₦${((s.total_in_circulation_naira||0)).toLocaleString('en-NG',{minimumFractionDigits:2})}</b></div>
-        <div>Transactions: <b>${s.transactions||0}</b></div>
-        ${warns>0?`<div style="color:var(--er);margin-top:8px">⚠️ ${warns} float discrepancies — see console</div>`:''}
-        <div style="color:var(--tx3);font-size:11px;margin-top:8px">${d.message||''}</div>
-      </div>`;
-    if (fixes > 0) {
-      notify('✅ Fixed '+fixes+' holder_hash mismatches — wallets can now find their coins');
-    }
+    var s     = d.summary || {};
+    var fixes = (d.fixes || []).length;
+    var warns = (d.warnings || []).length;
+    var discrepColor = (s.agent_float_discrepancies || 0) > 0 ? '#C62828' : '#1B5E20';
+    var fixColor     = fixes > 0 ? '#F59E0B' : '#1B5E20';
+    var warnHtml     = warns > 0
+      ? '<div style="color:#C62828;margin-top:8px">⚠️ ' + warns + ' float discrepancies</div>'
+      : '';
+    var naira = ((s.total_in_circulation_naira || 0)).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+
+    var html = '<div style="background:#E8F5E9;border-radius:8px;padding:16px;margin-top:12px;font-size:13px">'
+      + '<div style="font-weight:700;margin-bottom:8px;color:#1B5E20">✅ Reconciliation Complete</div>'
+      + '<div>Agents checked: <b>' + (s.agents_checked || 0) + '</b></div>'
+      + '<div>Float discrepancies: <b style="color:' + discrepColor + '">' + (s.agent_float_discrepancies || 0) + '</b></div>'
+      + '<div>Coins reassigned: <b style="color:' + fixColor + '">' + fixes + '</b></div>'
+      + '<div>Total coins: <b>' + ((s.coins || {}).total || 0) + '</b> (HELD: ' + ((s.coins || {}).held || 0) + ')</div>'
+      + '<div>In circulation: <b>₦' + naira + '</b></div>'
+      + '<div>Transactions: <b>' + (s.transactions || 0) + '</b></div>'
+      + warnHtml
+      + '<div style="color:#6B7280;font-size:11px;margin-top:8px">' + (d.message || '') + '</div>'
+      + '</div>';
+
+    if (res) res.innerHTML = html;
+    if (fixes > 0) notify('✅ Fixed ' + fixes + ' holder_hash mismatches — wallets can now find their coins');
+    else           notify('✅ Reconciliation complete — no fixes needed');
   } catch(e) {
-    if (res) res.innerHTML = '<div style="color:var(--er)">❌ '+e.message+'</div>';
-    notify('Reconcile error: '+e.message, true);
+    if (res) res.innerHTML = '<div style="color:#C62828">❌ ' + e.message + '</div>';
+    notify('Reconcile error: ' + e.message, true);
   } finally {
-    if (btn) { btn.disabled=false; btn.textContent='🔄 Run Full Reconciliation'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Run Full Reconciliation'; }
   }
 }
 
