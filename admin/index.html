@@ -2361,7 +2361,7 @@ function closeAdmDetail() {
 }
 
 function openLedgerForCustomer(custId) {
-  if (!custId) { notify('No customer ID available', true); return; }
+  if (!custId) { notify('No customer ID', true); return; }
   closeAdmDetail();
   var typeEl = document.getElementById('ldg-type');
   var idEl   = document.getElementById('ldg-id');
@@ -2371,9 +2371,9 @@ function openLedgerForCustomer(custId) {
   if (idEl)   idEl.value   = custId;
   if (fromEl) fromEl.value = new Date(Date.now()-365*86400000).toISOString().slice(0,10);
   if (toEl)   toEl.value   = new Date().toISOString().slice(0,10);
-  var navLedger = document.getElementById('nav-ledger');
-  showSec('ledger', navLedger);
-  requestAnimationFrame(function() { requestAnimationFrame(runLedger); });
+  var navEl = document.getElementById('nav-ledger');
+  showSec('ledger', navEl);
+  setTimeout(function() { runLedger(); }, 250);
 }
 
 function admExportDetailCSV() {
