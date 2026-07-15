@@ -2360,18 +2360,16 @@ function closeAdmDetail() {
 }
 
 function openLedgerForCustomer(custId) {
-  // Close modal first
+  if (!custId) { notify('No customer ID available', true); return; }
   closeAdmDetail();
-  // Navigate to ledger and load — using requestAnimationFrame ensures
-  // the modal is fully hidden before the ledger section renders
   var typeEl = document.getElementById('ldg-type');
   var idEl   = document.getElementById('ldg-id');
   var fromEl = document.getElementById('ldg-from');
   var toEl   = document.getElementById('ldg-to');
   if (typeEl) typeEl.value = 'customer';
   if (idEl)   idEl.value   = custId;
-  if (fromEl) fromEl.value = fromEl.value || new Date(Date.now()-180*86400000).toISOString().slice(0,10);
-  if (toEl)   toEl.value   = toEl.value   || new Date().toISOString().slice(0,10);
+  if (fromEl) fromEl.value = new Date(Date.now()-365*86400000).toISOString().slice(0,10);
+  if (toEl)   toEl.value   = new Date().toISOString().slice(0,10);
   var navLedger = document.getElementById('nav-ledger');
   showSec('ledger', navLedger);
   requestAnimationFrame(function() { requestAnimationFrame(runLedger); });
