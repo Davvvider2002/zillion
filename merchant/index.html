@@ -939,7 +939,12 @@ async function doRegister() {
     ensureMyQR();
   } catch(e) {
     hideL();
-    errEl.textContent = 'Network error: ' + e.message;
+    const msg = e.message || '';
+    if (msg.includes('usage_exceeded') || msg.includes('exceeded')) {
+      errEl.textContent = 'Service temporarily busy — please wait 1 minute and try again (Supabase quota)';
+    } else {
+      errEl.textContent = 'Network error: ' + msg;
+    }
     errEl.className   = 'ob-err show';
     btn.disabled      = false;
     btn.textContent   = '✅ Register My Business';
@@ -1031,8 +1036,10 @@ function showApp() {
   restoreMerchantHistory(M.phone || M.merchant_id);
   refreshHome(); refreshProfile(); refreshCashout(); refreshFullHistory();
   if (_mOnline && M.token) {
-    setTimeout(merchantSync, 800);
-    if (M.vault.length === 0) setTimeout(merchantRecover, 1500);
+    // Sync deferred to reduce immediate Supabase API load on login
+    setTimeout(merchantSync, 5000);
+    // Recovery only happens manually via 'Recover Balance from Server' button
+    // Do NOT auto-call merchantRecover() to conserve Supabase API quota
   }
 }
 
@@ -1827,10 +1834,10 @@ async function merchantSync() {
   }
 }
 
-// Auto-sync every 60s when online
+// Auto-sync every 5 minutes when online (reduced to avoid Supabase API quota)
 setInterval(function() {
   if (_mOnline && M.token) merchantSync();
-}, 30000);
+}, 300000);
 
 // Network listeners
 window.addEventListener('online', function() {
