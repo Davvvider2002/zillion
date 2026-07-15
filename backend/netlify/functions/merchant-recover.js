@@ -26,14 +26,12 @@ exports.handler = async (event) => {
   if (!merchantId) return err(400, 'merchant_id required');
 
   try {
-    // Strategy 1: coins where holder_hash = merchant_id directly
+    // Search both holder_hash variants (sync.js writes MERCHANT-+id prefix)
+    const variants = [merchantId, 'MERCHANT-' + merchantId];
     const { data: coins1 } = await db.from('coins')
       .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, updated_at')
-      .eq('holder_hash', merchantId)
+      .in('holder_hash', variants)
       .eq('status', 'HELD');
-
-    // Strategy 2: coins where issuer_id = merchant_id (coins merchant issued as cashout)
-    // These are PENDING_CASHOUT — already left the merchant vault, so skip them
 
     // Strategy 3: check merchants table for the merchant's actual identifier hash
     const { data: merchant } = await db.from('merchants')
