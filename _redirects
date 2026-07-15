@@ -61,3 +61,5 @@
 /api/v1/wallet-recover  /.netlify/functions/wallet-recover  200
 
 /api/v1/admin-reconcile-all  /.netlify/functions/admin-reconcile-all  200
+
+/api/v1/merchant-recover  /.netlify/functions/merchant-recover  200
