@@ -1028,14 +1028,46 @@ function showApp() {
   document.getElementById('app-shell').style.display      = 'flex';
   document.getElementById('app-shell').style.flexDirection= 'column';
   document.getElementById('app-shell').style.flex         = '1';
-  refreshHome();
-  refreshProfile();
-  refreshCashout();
-  refreshFullHistory();   // populate history tab immediately
-  // Sync immediately on login if online
+  restoreMerchantHistory(M.phone || M.merchant_id);
+  refreshHome(); refreshProfile(); refreshCashout(); refreshFullHistory();
   if (_mOnline && M.token) {
     setTimeout(merchantSync, 800);
+    if (M.vault.length === 0) setTimeout(merchantRecover, 1500);
   }
+}
+
+async function merchantRecover() {
+  if (!M.token || !M.merchant_id) return;
+  try {
+    const resp = await fetch('/api/v1/merchant-recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + M.token },
+      body: JSON.stringify({ merchant_id: M.merchant_id }),
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.coins || !data.coins.length) return;
+    const seen = new Set(M.vault.map(function(c) { return c.coin_id || c.id; }));
+    let added = 0;
+    data.coins.forEach(function(rc) {
+      if (!seen.has(rc.coin_id)) {
+        M.vault.push({ coin_id:rc.coin_id, id:rc.coin_id, amount:rc.amount||0,
+          value_kobo:rc.amount||0, _status:'HELD',
+          _receivedAt:rc.issued_at||new Date().toISOString(), issuer_id:rc.issuer_id||'Customer' });
+        added++;
+      }
+    });
+    if (data.history_entries) {
+      const hseen = new Set(M.history.map(function(h) { return h.id; }));
+      data.history_entries.forEach(function(he) { if (!hseen.has(he.id)) M.history.unshift(he); });
+      M.history.sort(function(a,b) { return new Date(b.ts||0)-new Date(a.ts||0); });
+    }
+    if (added > 0) {
+      save(); refreshHome(); refreshProfile(); refreshFullHistory();
+      toast('✅ Restored ' + added + ' coin(s) · ₦' +
+        ((data.total_kobo||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}));
+    }
+  } catch(e) { console.warn('[merchant] recover:', e.message); }
 }
 
 // ── Logout ─────────────────────────────────────────────────────
