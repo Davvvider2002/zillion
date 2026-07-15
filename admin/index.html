@@ -2296,9 +2296,10 @@ function openAdmDetail(type, idx) {
       ['Fraud Events', item.open_fraud || 0],
       ['KYC Tier',     item.kyc_tier || '—'],
     ];
-    // Add ledger button if we have a coin hash to look up
-    if (custId) {
-      extraHtml = '<button onclick="openLedgerForCustomer(' + JSON.stringify(custId) + ')" ' +
+    // Prefer holder_hash (coin owner hash) over device_hash for ledger lookup
+    var ledgerId = item.holder_hash || item.device_hash || '';
+    if (ledgerId) {
+      extraHtml = '<button onclick="openLedgerForCustomer(' + JSON.stringify(ledgerId) + ')" ' +
         'style="margin-top:14px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;' +
         'border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📒 View Full Ledger</button>';
     }
