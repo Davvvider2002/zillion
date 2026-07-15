@@ -1444,7 +1444,7 @@ async function generateCashoutQR() {
   const amtNaira = parseInt(document.getElementById('co-amount').value||0);
   if (!amtNaira||amtNaira<500) { toast('Enter amount (min ₦500)', true); return; }
   const amtKobo  = amtNaira*100;
-  const bal      = M.vault.reduce((s,c)=>s+(c.amount||0),0);
+  const bal      = M.vault.filter(function(c){return c._status!=='PENDING_CASHOUT';}).reduce((s,c)=>s+(c.amount||0),0);
   if (amtKobo>bal) { toast('Insufficient balance: '+fmt(bal), true); return; }
 
   const sorted=[...M.vault].sort((a,b)=>a.amount-b.amount);
