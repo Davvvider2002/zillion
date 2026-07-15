@@ -492,6 +492,36 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
     document.querySelectorAll('.zillion-version').forEach(function(el) {
       el.textContent = 'v1.0.0 (build 20260630)';
     });
+
+// ── Handle ?claim= URL param (cashout link from merchant via WhatsApp) ────────
+(function() {
+  var params  = new URLSearchParams(window.location.search);
+  var claimId = params.get('claim');
+  if (claimId) {
+    sessionStorage.setItem('ag_pending_claim',      claimId);
+    sessionStorage.setItem('ag_pending_claim_type', params.get('type') || 'cashout');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+})();
+
+function processPendingClaim() {
+  var claimId = sessionStorage.getItem('ag_pending_claim');
+  if (!claimId || !TK) return;
+  sessionStorage.removeItem('ag_pending_claim');
+  sessionStorage.removeItem('ag_pending_claim_type');
+  notify('Loading merchant cashout...');
+  fetch('/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId), {
+    headers: { 'Authorization': 'Bearer ' + TK }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || !data.bundle) { notify('Claim not found or expired', true); return; }
+      agShowRecvResult(data.bundle, 'QR');
+      notify('Merchant cashout loaded. Review and confirm to pay agent.');
+    })
+    .catch(function(e) { notify('Error loading claim: ' + e.message, true); });
+}
+
     console.log('[Zillion] Agent Portal v1.0.0 build 20260630');
   });
 
@@ -562,6 +592,7 @@ async function doLogin() {
     localStorage.setItem('zs', JSON.stringify({ id, tk, profile: p }));
     showApp();
     notify('Welcome, ' + (p.name||'Agent').split(' ')[0] + '!');
+    setTimeout(processPendingClaim, 800);
   } catch(e) {
     hideL(); err.textContent = '⚠️ ' + e.message; err.className = 'lerr show';
   } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
