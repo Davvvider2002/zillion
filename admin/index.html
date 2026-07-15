@@ -615,6 +615,20 @@ tbody tr:last-child td{border-bottom:none;}
 
     <div class="page-body">
 <div id="sec-overview" class="sec active">
+
+  <!-- ── Full Reconciliation Tool ─────────────────────────────── -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#E8F5E9;border-radius:12px;flex-wrap:wrap">
+    <button id="reconcile-btn" onclick="runFullReconcile()" style="
+      padding:12px 24px;background:#1B5E20;color:#fff;border:none;border-radius:10px;
+      font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap">
+      🔄 Run Full Reconciliation
+    </button>
+    <div style="font-size:12px;color:#388E3C;flex:1;min-width:200px">
+      Fixes holder_hash mismatches · Verifies all agent floats · Returns reconciliation report
+    </div>
+    <div id="reconcile-result" style="width:100%"></div>
+  </div>
+
   <div class="metrics">
     <div class="metric"><div class="mlabel">Total Users</div><div class="mvalue" id="m-users">—</div><div class="msub" id="m-users-sub">Loading...</div><div class="micon">👥</div></div>
     <div class="metric bl"><div class="mlabel">Agent Float</div><div class="mvalue" id="m-float">—</div><div class="msub">Across all agents</div><div class="micon">💰</div></div>
