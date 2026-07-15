@@ -50,7 +50,11 @@ exports.handler = async (event) => {
     if (error) throw error;
 
     const baseUrl  = process.env.BASE_URL || 'https://zillion-mvp.netlify.app';
-    const claimUrl = `${baseUrl}/wallet/?claim=${data.claim_id}&type=${type}`;
+    // Route claim URL to correct app based on who needs to scan it:
+    // cashout = agent scans (merchant wants cash) → /agent/
+    // payment = customer wallet scans → /wallet/
+    const claimPath = (type === 'cashout') ? '/agent/' : '/wallet/';
+    const claimUrl  = `${baseUrl}${claimPath}?claim=${data.claim_id}&type=${type}`;
 
     return {
       statusCode: 200,
