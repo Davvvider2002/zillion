@@ -127,13 +127,20 @@ exports.handler = async (event) => {
         // (devices.holder_hash may be stale from old HMAC-based system)
       }
 
-      // Strategy 2: DEVICE-* or PWA-* device hash
-      if (!resolvedHolderHash && (entityId.startsWith('DEVICE-') || entityId.startsWith('PWA-'))) {
+      // Strategy 2: DEVICE-* prefix OR any hex hash from admin customers table
+      if (!resolvedHolderHash && (
+          entityId.startsWith('DEVICE-') || entityId.startsWith('PWA-') ||
+          /^[a-f0-9]{10,}$/i.test(entityId)
+      )) {
         const { data: byDevice } = await db.from('devices').select('*')
           .eq('device_hash', entityId).maybeSingle();
         devData = devData || byDevice;
         if (byDevice?.holder_hash) resolvedHolderHash = byDevice.holder_hash;
-        // If no holder_hash on device, try using device_hash directly as holder_hash
+        if (!resolvedHolderHash) {
+          const { data: bh2 } = await db.from('devices').select('*')
+            .eq('holder_hash', entityId).maybeSingle();
+          if (bh2) { devData = devData || bh2; resolvedHolderHash = entityId; }
+        }
         if (!resolvedHolderHash) resolvedHolderHash = entityId;
       }
 
@@ -148,37 +155,36 @@ exports.handler = async (event) => {
       // Fallback: use entityId as-is
       if (!resolvedHolderHash) resolvedHolderHash = entityId;
 
-      // Confirm coins exist — try holder_hash AND device_hash variants
+      // Confirm coins — 4-probe strategy
       let probeCoins = [];
-      const { data: probe1 } = await db.from('coins')
-        .select('coin_id, holder_hash, amount')
-        .eq('holder_hash', resolvedHolderHash).limit(5);
-      probeCoins = probe1 || [];
-
-      // If no coins found with resolved hash, try other identifiers
-      if (probeCoins.length === 0 && entityId !== resolvedHolderHash) {
-        const { data: probe2 } = await db.from('coins')
-          .select('coin_id, holder_hash, amount')
-          .eq('holder_hash', entityId).limit(5);
-        if (probe2 && probe2.length > 0) {
-          probeCoins = probe2;
-          resolvedHolderHash = entityId; // override with working hash
-        }
+      if (resolvedHolderHash) {
+        const { data: p1 } = await db.from('coins')
+          .select('coin_id, holder_hash, amount').eq('holder_hash', resolvedHolderHash).limit(5);
+        probeCoins = p1 || [];
       }
-
-      // Last resort: search by issuer field if recipient was this device
-      if (probeCoins.length === 0) {
-        const { data: probe3 } = await db.from('coins')
+      if (probeCoins.length === 0 && entityId !== resolvedHolderHash) {
+        const { data: p2 } = await db.from('coins')
+          .select('coin_id, holder_hash, amount').eq('holder_hash', entityId).limit(5);
+        if (p2 && p2.length > 0) { probeCoins = p2; resolvedHolderHash = entityId; }
+      }
+      if (probeCoins.length === 0 && resolvedHolderHash && resolvedHolderHash.length >= 8) {
+        const { data: p3 } = await db.from('coins')
           .select('coin_id, holder_hash, amount')
           .ilike('holder_hash', resolvedHolderHash.slice(0,8) + '%').limit(5);
-        if (probe3 && probe3.length > 0) {
-          probeCoins = probe3;
-          resolvedHolderHash = probe3[0].holder_hash;
+        if (p3 && p3.length > 0) { probeCoins = p3; resolvedHolderHash = p3[0].holder_hash; }
+      }
+      if (probeCoins.length === 0 && devData && devData.device_hash) {
+        const { data: txr } = await db.from('transactions')
+          .select('coin_id').eq('to_hash', devData.device_hash).limit(5);
+        if (txr && txr.length > 0) {
+          const cids = txr.map(function(r){return r.coin_id;}).filter(Boolean);
+          const { data: p4 } = await db.from('coins')
+            .select('coin_id, holder_hash, amount').in('coin_id', cids).limit(5);
+          if (p4 && p4.length > 0) { probeCoins = p4; resolvedHolderHash = p4[0].holder_hash; }
         }
       }
-
       if (probeCoins.length === 0)
-        return fail(404, `Customer '${entityId}' not found — no coins in wallet`);
+        return fail(404, `Customer '${entityId}' not found. Try Full Reconciliation first.`);
 
       const displayName = searchPhone
         ? `Customer ${searchPhone}`
