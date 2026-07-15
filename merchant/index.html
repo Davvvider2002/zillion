@@ -952,6 +952,43 @@ async function doRegister() {
 }
 
 // ── Login (returning) ──────────────────────────────────────────
+
+// QR Share Helpers
+function dataUrlToFile(dataUrl, filename) {
+  try {
+    var arr=dataUrl.split(','),mime=arr[0].match(/:(.*?);/)[1];
+    var bstr=atob(arr[1]),n=bstr.length,u8=new Uint8Array(n);
+    while(n--)u8[n]=bstr.charCodeAt(n);
+    return new File([u8],filename,{type:mime});
+  }catch(e){return null;}
+}
+async function captureQRCanvas(canvasId) {
+  var el=document.getElementById(canvasId);
+  if(!el)return null;
+  for(var i=0;i<6;i++){
+    var cvs=el.querySelector('canvas');
+    if(cvs)return cvs.toDataURL('image/png');
+    await new Promise(function(r){setTimeout(r,100);});
+  }
+  return null;
+}
+async function shareViaWhatsApp(opts) {
+  if(opts.imageDataUrl&&navigator.share){
+    try{
+      var file=dataUrlToFile(opts.imageDataUrl,opts.filename||'zillion-qr.png');
+      if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({title:opts.title,text:opts.text,files:[file]});
+        return 'image';
+      }
+    }catch(e){if(e.name==='AbortError')return 'cancelled';}
+  }
+  if(navigator.share){
+    try{await navigator.share({title:opts.title,text:opts.text});return 'text';}
+    catch(e){if(e.name==='AbortError')return 'cancelled';}
+  }
+  window.open('https://wa.me/?text='+encodeURIComponent(opts.text),'_blank');
+  return 'web';
+}
 async function doLogin() {
   const rawPhone = document.getElementById('l-phone').value.trim();
   const password = document.getElementById('l-password')?.value || '';
@@ -1226,21 +1263,14 @@ function startMyQRTimer(exp) {
   tick(); M.myQrTimer = setInterval(tick, 1000);
 }
 
-async function shareMyQR() {
-  if (!M.myQrUrl) { toast('No QR to share', true); return; }
-  const msg = '💜 *Pay '+M.business_name+' with Zillion*\n\nOpen Zillion wallet → Send → Scan QR, OR tap:\n\n'+M.myQrUrl+'\n\n⏱ Valid 24 hours';
-  if (M.myQrImg && navigator.share) {
-    try {
-      const blob = await (await fetch(M.myQrImg)).blob();
-      const file = new File([blob],'merchant-qr.png',{type:'image/png'});
-      if (navigator.canShare && navigator.canShare({files:[file]})) {
-        await navigator.share({title:'Pay '+M.business_name,text:msg,files:[file]});
-        return;
-      }
-    } catch(e) { if(e.name==='AbortError') return; }
-  }
-  if (navigator.share) { try { await navigator.share({title:'Pay '+M.business_name,text:msg}); return; } catch(e) { if(e.name==='AbortError') return; } }
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+async async function shareMyQR() {
+  if(!M.myQrUrl){toast('No QR to share',true);return;}
+  if(!M.myQrImg)M.myQrImg=await captureQRCanvas('my-qr-canvas');
+  var msg='\uD83D\uDC9C *Pay '+M.business_name+' with Zillion*\n\n'
+    +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
+    +'\uD83D\uDC46 OR tap: '+M.myQrUrl+'\n\n'
+    +'\u23F1 Valid 24 hours';
+  await shareViaWhatsApp({imageDataUrl:M.myQrImg,filename:'merchant-qr.png',title:'Pay '+M.business_name,text:msg});
 }
 
 function saveMyQRImg() {
@@ -1534,15 +1564,15 @@ function startCoQRTimer(exp) {
   tick(); M.coQrTimer=setInterval(tick,1000);
 }
 
-async function shareCashoutQR() {
+async async function shareCashoutQR() {
   if(!M.coQrUrl){toast('No QR to share',true);return;}
-  const msg='💜 *Zillion Cash-Out*\n'+M.business_name+'\n\n'+M.coQrUrl+'\n\n⏱ Valid 15 min';
-  if(M.coQrImg&&navigator.share){
-    try{const b=await(await fetch(M.coQrImg)).blob();const f=new File([b],'cashout.png',{type:'image/png'});
-      if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({title:'Cash Out QR',text:msg,files:[f]});return;}
-    }catch(e){if(e.name==='AbortError')return;}
-  }
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  if(!M.coQrImg)M.coQrImg=await captureQRCanvas('co-qr-canvas');
+  var isLink=M.coQrUrl.startsWith('http');
+  var msg='\uD83D\uDC9C *Zillion Cash-Out - '+M.business_name+'*\n\n'
+    +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
+    +(isLink?'\uD83D\uDC46 OR tap: '+M.coQrUrl+'\n\n':'')
+    +'\u23F1 Valid 16 hours - Show to your Zillion Agent';
+  await shareViaWhatsApp({imageDataUrl:M.coQrImg,filename:'cashout-qr.png',title:'Cash-Out QR',text:msg});
 }
 function saveCashoutImg(){if(!M.coQrImg){toast('No image',true);return;}const a=document.createElement('a');a.href=M.coQrImg;a.download='cashout-qr.png';a.click();}
 
