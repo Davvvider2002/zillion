@@ -509,17 +509,22 @@ function processPendingClaim() {
   if (!claimId || !TK) return;
   sessionStorage.removeItem('ag_pending_claim');
   sessionStorage.removeItem('ag_pending_claim_type');
-  notify('Loading merchant cashout...');
+  notify('Loading cashout from merchant...');
   fetch('/api/v1/fetch-claim?claim_id=' + encodeURIComponent(claimId), {
     headers: { 'Authorization': 'Bearer ' + TK }
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data || !data.bundle) { notify('Claim not found or expired', true); return; }
-      agShowRecvResult(data.bundle, 'QR');
-      notify('Merchant cashout loaded. Review and confirm to pay agent.');
+      // Navigate to Receive tab so the result is visible
+      var recvTabEl = document.querySelector('[data-tab="receive"]');
+      if (recvTabEl) switchTab(recvTabEl);
+      setTimeout(function() {
+        agShowRecvResult(data.bundle, 'QR');
+        notify('Merchant cashout ready — tap Accept to receive payment');
+      }, 350);
     })
-    .catch(function(e) { notify('Error loading claim: ' + e.message, true); });
+    .catch(function(e) { notify('Error: ' + e.message, true); });
 }
 
     console.log('[Zillion] Agent Portal v1.0.0 build 20260630');
@@ -1729,11 +1734,26 @@ async function agConfirmReceive() {
       };
     });
 
-    const res  = await fetch(API + '/sync', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TK },
-      body:    JSON.stringify({ device_id: AP.agent_id, tx_batch }),
-    });
+    // Cashout bundle (merchant→agent): use /redeem to credit agent float
+    // P2P bundle (wallet→agent): use /sync
+    var isCashoutBundle = bundle.type === 'cashout' || bundle.type === 'CASHOUT';
+    var agResp;
+    if (isCashoutBundle) {
+      var cIds = coins.map(function(c){return c.coin_id||c.id;}).filter(Boolean);
+      var hHash = coins[0] && (coins[0].owner_hash || coins[0].holder_hash || '');
+      agResp = await fetch(API + '/redeem', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TK },
+        body:    JSON.stringify({ agent_id: AP.agent_id, holder_hash: hHash, coin_ids: cIds }),
+      });
+    } else {
+      agResp = await fetch(API + '/sync', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TK },
+        body:    JSON.stringify({ device_id: AP.agent_id, tx_batch }),
+      });
+    }
+    const res = agResp;
     const data = await res.json();
 
     if (res.ok && data.success) {
