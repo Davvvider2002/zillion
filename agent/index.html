@@ -1071,7 +1071,7 @@ function startQRCountdown(expiresAt) {
 async async function shareQRWhatsApp() {
   if(!_qrClaimUrl){notify('No QR to share','err');return;}
   var fmt=(document.getElementById('qr-amount-label')||{}).textContent||'';
-  if(!_qrImageData)_qrImageData=await captureQRCanvas('qr-canvas');
+  if(!_qrImageData){var _c=document.querySelector('#qr-canvas canvas');if(_c)_qrImageData=_c.toDataURL('image/png');}
   var msg='\uD83D\uDCB0 *Zillion Payment - '+fmt+'*\n\n'
     +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
     +'\uD83D\uDC46 OR tap: '+_qrClaimUrl+'\n\n'
