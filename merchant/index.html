@@ -1037,23 +1037,42 @@ async function doLogin() {
 
   // ── ONLINE LOGIN ─────────────────────────────────────────────────────────────
   try {
-    const res  = await fetch(API+'/merchant-login', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ phone, password }),
-    });
-    const data = await res.json();
+    // 15-second timeout prevents indefinite freeze
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(function() { controller.abort(); }, 15000);
+    let res, data;
+    try {
+      res  = await fetch(API+'/merchant-login', {
+        method:'POST', signal: controller.signal,
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ phone, password }),
+      });
+      data = await res.json();
+    } catch(fetchErr) {
+      clearTimeout(timeoutId); hideL();
+      if (fetchErr.name === 'AbortError') {
+        errEl.textContent = 'Request timed out — server may be busy. Try again.';
+      } else {
+        errEl.textContent = 'Network error: ' + fetchErr.message;
+      }
+      errEl.className = 'ob-err show';
+      return;
+    }
+    clearTimeout(timeoutId);
     hideL();
 
     if (!res.ok) {
       const msg = data.error || 'Login failed';
-      errEl.textContent = msg;
-      errEl.className   = 'ob-err show';
-      // If first login (legacy account needs password), focus password field
-      if (msg.includes('First login') || msg.includes('set a password')) {
-        document.getElementById('l-password').focus();
-        document.getElementById('l-password').placeholder = 'Choose your new password (min 6 chars)';
+      if (msg.includes('usage_exceeded')) {
+        errEl.textContent = 'Server busy (quota) — wait 1 minute and try again.';
+      } else {
+        errEl.textContent = msg;
+        if (msg.includes('First login') || msg.includes('set a password')) {
+          document.getElementById('l-password').focus();
+          document.getElementById('l-password').placeholder = 'Choose your new password (min 6 chars)';
+        }
       }
+      errEl.className = 'ob-err show';
       return;
     }
 
