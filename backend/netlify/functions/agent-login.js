@@ -66,7 +66,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         success:            true,
         agent_id:           data.agent_id,
-        name:               data.name,
+        name:               data.name || data.agent_id || 'Agent',
         phone:              data.phone,
         location:           data.location_name,
         float_balance_kobo: data.float_balance_kobo,
