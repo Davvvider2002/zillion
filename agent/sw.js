@@ -1,8 +1,8 @@
-// Zillion Agent — Service Worker v1.0.0
+// Zillion Agent — Service Worker v1.0.9
 // Offline-first: app shell cached, API calls network-first with offline queue
 'use strict';
 
-const CACHE_NAME    = 'zillion-agent-v1.0.8';
+const CACHE_NAME    = 'zillion-agent-v1.0.9';
 const OFFLINE_QUEUE = 'zillion-agent-offline-queue';
 
 // App shell — cache these on install
@@ -15,7 +15,7 @@ const SHELL_FILES = [
 
 // ── INSTALL: cache app shell ──────────────────────────────────────────────────
 self.addEventListener('install', event => {
-  console.log('[SW] Installing agent v1.0.0');
+  console.log('[SW] Installing agent v1.0.9');
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return cache.addAll(SHELL_FILES).catch(err => {
@@ -27,7 +27,7 @@ self.addEventListener('install', event => {
 
 // ── ACTIVATE: clean old caches ────────────────────────────────────────────────
 self.addEventListener('activate', event => {
-  console.log('[SW] Activating agent v1.0.0');
+  console.log('[SW] Activating agent v1.0.9');
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
