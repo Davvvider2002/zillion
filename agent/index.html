@@ -637,6 +637,11 @@ async function doLogin() {
     setTimeout(processPendingClaim, 800);
   } catch(e) {
     hideL();
+    // If showApp() partially ran, re-show login screen
+    var lsEl = document.getElementById('ls');
+    var asEl = document.getElementById('as');
+    if (lsEl) lsEl.style.display = 'flex';
+    if (asEl) asEl.style.display = 'none';
     var emsg = e.message || 'Login failed';
     if (emsg.includes('expired') || emsg.includes('jwt')) {
       localStorage.removeItem('zs');
@@ -702,6 +707,7 @@ async function fetchProfile(id, tk) {
 }
 
 function showApp() {
+  if (!AP) { console.error('[agent] showApp called with null AP'); return; }
   document.getElementById('ls').style.display = 'none';
   document.getElementById('as').style.display = 'block';
   // MUST load hlog before fillProfile/updateStats — they depend on it
@@ -716,22 +722,24 @@ function showApp() {
 }
 
 function fillProfile() {
-  const p = AP;
-  const ini = p.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-  const fmt = k => '₦' + (k/100).toLocaleString();
-  document.getElementById('haid').textContent  = p.agent_id;
-  document.getElementById('pav').textContent   = ini;
-  document.getElementById('pname').textContent = p.name;
-  document.getElementById('pid').textContent   = p.agent_id;
-  document.getElementById('ploc').textContent  = p.location || '—';
-  document.getElementById('pflot').textContent = fmt(p.float_balance_kobo);
-  document.getElementById('prid').textContent  = p.agent_id;
-  document.getElementById('prname').textContent= p.name;
-  document.getElementById('prphone').textContent=p.phone||'—';
-  document.getElementById('prloc').textContent = p.location||'—';
-  document.getElementById('prfloat').textContent=fmt(p.float_balance_kobo);
-  document.getElementById('prstatus').textContent=p.status;
-  document.getElementById('pronb').textContent = p.onboarded_at ? new Date(p.onboarded_at).toLocaleDateString() : '—';
+  const p    = AP || {};
+  const name = p.name || p.agent_id || 'Agent';  // null-safe
+  const ini  = name.split(' ').map(function(n){return n[0]||'';}).join('').slice(0,2).toUpperCase() || 'AG';
+  const fmt  = function(k){ return '₦' + ((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
+  function setText(id, val) { var el=document.getElementById(id); if(el) el.textContent = val||''; }
+  setText('haid',     p.agent_id || '—');
+  setText('pav',      ini);
+  setText('pname',    name);
+  setText('pid',      p.agent_id || '—');
+  setText('ploc',     p.location || '—');
+  setText('pflot',    fmt(p.float_balance_kobo));
+  setText('prid',     p.agent_id || '—');
+  setText('prname',   name);
+  setText('prphone',  p.phone || '—');
+  setText('prloc',    p.location || '—');
+  setText('prfloat',  fmt(p.float_balance_kobo));
+  setText('prstatus', p.status || '—');
+  setText('pronb',    p.onboarded_at ? new Date(p.onboarded_at).toLocaleDateString() : '—');
   updateStats();
 }
 
