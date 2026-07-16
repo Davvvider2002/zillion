@@ -1799,13 +1799,19 @@ async function agConfirmReceive() {
     const res = agResp;
     const data = await res.json();
 
-    if (res.ok && data.success) {
-      // Update hlog entry to SETTLED
+    if (res.ok && (data.success || data.redeemed)) {
       const hIdx = hlog.findIndex(function(h){
         return h.status === 'PENDING_SYNC' && h.received_coin_ids &&
                h.received_coin_ids.some(function(id){ return rcIds.includes(id); });
       });
       if (hIdx >= 0) hlog[hIdx].status = 'SETTLED';
+      if (data.rejected && data.rejected.length > 0) {
+        notify(data.rejected.length + ' coin(s) rejected by server', true);
+      }
+      if (data.total_kobo && isCashoutBundle) {
+        AP.float_balance_kobo = (AP.float_balance_kobo || 0) - (data.total_kobo || 0);
+        fillProfile();
+      }
 
       // Handle conflicts (e.g. already-spent coins)
       if (data.conflicts && data.conflicts.length > 0) {
