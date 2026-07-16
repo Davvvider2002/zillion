@@ -3528,7 +3528,7 @@ function copyQRLink() {
 async function shareSendQRWhatsApp() {
   if(!_sendQrClaimUrl){toast('No QR to share',true);return;}
   var fmt2=fmtNaira(_sendQrBundle&&_sendQrBundle.total_kobo||0);
-  if(!_sendQrImgData)_sendQrImgData=await captureQRCanvas('send-qr-canvas');
+  if(!_sendQrImgData){var _c=document.querySelector('#send-qr-canvas canvas');if(_c)_sendQrImgData=_c.toDataURL('image/png');}
   var msg='\uD83D\uDC9A *Zillion Payment - '+fmt2+'*\n\n'
     +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
     +'\uD83D\uDC46 OR tap: '+_sendQrClaimUrl+'\n\n'
