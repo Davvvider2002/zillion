@@ -2645,6 +2645,10 @@ async function trySync() {
     // PENDING_TRANSFER coins: mark as SPENT locally (sent, waiting for recipient to sync)
     // They stay in vault as SPENT so user can see them in history but not spend again
     STATE.vault.forEach(c => { if (c._status === 'PENDING_TRANSFER') c._status = 'SPENT_LOCAL'; });
+    try { if (window._lastSyncRejected && window._lastSyncRejected.length > 0) {
+      window._lastSyncRejected.forEach(function(r){var rid=(typeof r==='string')?r:r.coin_id;var ci=STATE.vault.findIndex(function(c){return (c.coin_id||c.id)===rid;});if(ci>=0)STATE.vault[ci]._status='HELD';});
+      toast(window._lastSyncRejected.length+' coin(s) returned to wallet',true); window._lastSyncRejected=[];
+    }} catch(e){}
     STATE.lastSync = new Date().toISOString();
     save(); refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
     updateSyncStatus('Synced locally · ' + new Date().toLocaleTimeString());
