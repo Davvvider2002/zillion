@@ -1877,7 +1877,14 @@ async function generateToken() {
   if (!agentId) { errEl.textContent='Select an agent.'; errEl.className='tok-err show'; return; }
   btn.disabled=true; btn.textContent='Generating...';
   try {
-    const res  = await fetch(`${API}/agent-token`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:agentId,agent_name:agentName,admin_secret:secret})});
+    const res  = await fetch(`${API}/agent-token`, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+adminToken,  // use logged-in admin JWT
+      },
+      body:JSON.stringify({agent_id:agentId, agent_name:agentName}),
+    });
     const data = await res.json();
     if (!res.ok) { errEl.textContent='⚠️ '+(data.error||'Failed'); errEl.className='tok-err show'; return; }
     document.getElementById('tok-val').textContent   = data.token;
