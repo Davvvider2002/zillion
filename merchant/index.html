@@ -1265,7 +1265,7 @@ function startMyQRTimer(exp) {
 
 async async function shareMyQR() {
   if(!M.myQrUrl){toast('No QR to share',true);return;}
-  if(!M.myQrImg)M.myQrImg=await captureQRCanvas('my-qr-canvas');
+  if(!M.myQrImg){var _c=document.querySelector('#my-qr-canvas canvas');if(_c)M.myQrImg=_c.toDataURL('image/png');}
   var msg='\uD83D\uDC9C *Pay '+M.business_name+' with Zillion*\n\n'
     +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
     +'\uD83D\uDC46 OR tap: '+M.myQrUrl+'\n\n'
@@ -1566,7 +1566,7 @@ function startCoQRTimer(exp) {
 
 async async function shareCashoutQR() {
   if(!M.coQrUrl){toast('No QR to share',true);return;}
-  if(!M.coQrImg)M.coQrImg=await captureQRCanvas('co-qr-canvas');
+  if(!M.coQrImg){var _c=document.querySelector('#co-qr-canvas canvas');if(_c)M.coQrImg=_c.toDataURL('image/png');}
   var isLink=M.coQrUrl.startsWith('http');
   var msg='\uD83D\uDC9C *Zillion Cash-Out - '+M.business_name+'*\n\n'
     +'\uD83D\uDCF7 Scan the QR image in this message\n\n'
