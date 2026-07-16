@@ -636,7 +636,7 @@ async function doLogin() {
     localStorage.setItem('zs', JSON.stringify({ id, tk, profile: p }));
     showApp();
     notify('Welcome, ' + (p.name||'Agent').split(' ')[0] + '!');
-    setTimeout(processPendingClaim, 800);
+    setTimeout(function(){ if(typeof processPendingClaim==='function') processPendingClaim(); }, 800);
   } catch(e) {
     hideL();
     // If showApp() partially ran, re-show login screen
