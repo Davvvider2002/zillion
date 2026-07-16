@@ -194,7 +194,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
     <div class="lf"><label>JWT Token</label><input type="password" id="lt2" placeholder="Paste your token from Admin dashboard" autocomplete="current-password"></div>
     <button class="lbtn" id="lbtn" onclick="doLogin()">Login to Agent Portal →</button>
     <div class="lerr" id="lerr"></div>
-    <div class="lhelp">No token? Ask admin at <a href="/admin" target="_blank">zillion.ng/admin</a></div>
+    <div class="lhelp">No token or token expired? <a href="/admin" target="_blank" style="font-weight:700;color:var(--p)">Get new token from Admin portal</a></div>
   </div>
 </div>
 
@@ -636,7 +636,19 @@ async function doLogin() {
     notify('Welcome, ' + (p.name||'Agent').split(' ')[0] + '!');
     setTimeout(processPendingClaim, 800);
   } catch(e) {
-    hideL(); err.textContent = '⚠️ ' + e.message; err.className = 'lerr show';
+    hideL();
+    var emsg = e.message || 'Login failed';
+    if (emsg.includes('expired') || emsg.includes('jwt')) {
+      localStorage.removeItem('zs');
+      err.innerHTML = '<b>Token expired.</b> <a href="/admin" target="_blank" style="color:#7C3AED">Get new token from Admin</a>.';
+    } else if (emsg.includes('usage_exceeded') || emsg.includes('exceeded')) {
+      err.textContent = 'Server busy — wait 1 minute and try again.';
+    } else if (emsg.includes('does not belong') || emsg.includes('mismatch')) {
+      err.textContent = 'Wrong Agent ID for this token. Check both fields.';
+    } else {
+      err.textContent = emsg;
+    }
+    err.className = 'lerr show';
   } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
 }
 
@@ -674,6 +686,10 @@ async function silentLogin(id, tk) {
     } else {
       localStorage.removeItem('zs');
       console.warn('[Agent] Session restore failed:', e.message);
+      if (e.message && (e.message.includes('expired') || e.message.includes('jwt'))) {
+        var el = document.getElementById('lerr');
+        if (el) { el.innerHTML = 'Session expired. <a href="/admin" target="_blank">Get new token from Admin</a>.'; el.className = 'lerr show'; }
+      }
     }
   }
 }
