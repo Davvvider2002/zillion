@@ -870,6 +870,7 @@ async function doCashIn() {
       window._zilPhone  = phone;
       await generateOfflineQR(zilBundle, totalKobo, d.coin_count);
       document.getElementById('ciqr').classList.add('show');
+    agentShowWireless();
       ss.ci += totalKobo; ss.cn += d.coin_count;
       updateStats(); addH('CASH IN (OFFLINE)', totalKobo, d.coin_count, 'PENDING_SYNC', queueEntry.id);
       const receiptBtn = document.getElementById('ci-receipt-btn');
@@ -1947,14 +1948,20 @@ async function coStartNFC() {
     await ndef.scan({ signal: _coNFCController.signal });
     ndef.addEventListener('reading', function(event) {
       for (const rec of event.message.records) {
-        if (rec.recordType === 'text') {
+        if (rec.recordType === 'text' || rec.recordType === 'url') {
           try {
-            const data   = JSON.parse(new TextDecoder().decode(rec.data));
-            const bundle = data.coins ? data : { coins:[data] };
+            var raw2 = new TextDecoder().decode(rec.data);
+            var bndl2;
+            if (raw2.startsWith('zilbundle://')) {
+              bndl2 = zilBundleDecode(raw2);
+            } else {
+              var obj2 = JSON.parse(raw2);
+              bndl2 = obj2.coins ? obj2 : { coins:[obj2] };
+            }
             if (statusEl) statusEl.textContent = 'Payment data received!';
-            coShowResult(bundle);
+            coShowResult(bndl2);
           } catch(e) {
-            if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+            if (statusEl) statusEl.textContent = 'NFC parse error: ' + e.message;
           }
         }
       }
@@ -2450,6 +2457,144 @@ function applyPWAUpdate() {
   window.location.reload(true);
 }
 
+
+// ================================================================
+// ZILLION BLUETOOTH LE + NFC TRANSFER ENGINE v1.0
+// Seamless offline P2P coin transfer — no internet, no WhatsApp
+// NFC:  phones tap back-to-back (2-4 cm) — Android Chrome
+// BLE:  transfer up to 10m — Android Chrome
+// ================================================================
+
+var ZILLION_BLE_SVC   = '0000ffe0-0000-1000-8000-00805f9b34fb';
+var ZILLION_BLE_TX    = '0000ffe1-0000-1000-8000-00805f9b34fb';
+var ZILLION_CHUNK     = 500;
+
+function zilBleSupported() { return !!(navigator.bluetooth); }
+function zilNfcSupported() { return !!(window.NDEFReader); }
+
+function bestZilTransfer() {
+  if (zilNfcSupported()) return 'nfc';
+  if (zilBleSupported()) return 'ble';
+  return 'qr';
+}
+
+// ── ENCODE bundle to zilbundle:// URI ──────────────────────────
+function zilBundleEncode(bundle) {
+  return 'zilbundle://' + btoa(unescape(encodeURIComponent(JSON.stringify(bundle))));
+}
+
+// ── DECODE zilbundle:// URI to bundle object ────────────────────
+function zilBundleDecode(uri) {
+  if (!uri.startsWith('zilbundle://')) throw new Error('Not a zilbundle URI');
+  return JSON.parse(decodeURIComponent(escape(atob(uri.slice(12)))));
+}
+
+// ── NFC SEND: write bundle as NDEF to nearby phone ─────────────
+async function zilNfcSend(bundle, onStatus) {
+  var st = onStatus || function(m,t){console.log('[NFC]',m);};
+  if (!zilNfcSupported()) { st('NFC not available','err'); return false; }
+  try {
+    st('Hold phones together now...');
+    var ndef = new NDEFReader();
+    await ndef.write({ records: [{ recordType: 'url', data: zilBundleEncode(bundle) }] });
+    st('Sent via NFC!');
+    return true;
+  } catch(e) {
+    if (e.name !== 'AbortError') st('NFC error: ' + e.message, 'err');
+    return false;
+  }
+}
+
+// ── NFC RECEIVE: scan for incoming zilbundle ────────────────────
+async function zilNfcReceive(onBundle, onStatus) {
+  var st = onStatus || function(m){console.log('[NFC recv]',m);};
+  if (!zilNfcSupported()) { st('NFC not available','warn'); return null; }
+  var ndef = new NDEFReader();
+  var ctrl = new AbortController();
+  st('Hold phones together to receive...');
+  await ndef.scan({ signal: ctrl.signal });
+  ndef.addEventListener('reading', function(evt) {
+    for (var i=0; i<evt.message.records.length; i++) {
+      var rec = evt.message.records[i];
+      try {
+        var text = new TextDecoder().decode(rec.data);
+        var bndl;
+        if (text.startsWith('zilbundle://')) {
+          bndl = zilBundleDecode(text);
+        } else {
+          var obj = JSON.parse(text);
+          bndl = obj.coins ? obj : { coins:[obj] };
+        }
+        ctrl.abort();
+        onBundle(bndl);
+        return;
+      } catch(e) { st('NFC read error: ' + e.message, 'err'); }
+    }
+  });
+  return ctrl;
+}
+
+// ── BLE SEND: connect to receiver GATT server and transfer ─────
+async function zilBleSend(bundle, onStatus) {
+  var st = onStatus || function(m,t){console.log('[BLE]',m);};
+  if (!zilBleSupported()) { st('Bluetooth not available (needs Android Chrome)', 'err'); return false; }
+  try {
+    st('Scanning for Zillion receiver nearby...');
+    var device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [ZILLION_BLE_SVC] }]
+    });
+    st('Connecting to ' + (device.name || 'Zillion Receiver') + '...');
+    var server  = await device.gatt.connect();
+    var service = await server.getPrimaryService(ZILLION_BLE_SVC);
+    var txChar  = await service.getCharacteristic(ZILLION_BLE_TX);
+    var encoder = new TextEncoder();
+    var bytes   = encoder.encode(JSON.stringify(bundle));
+    var total   = Math.ceil(bytes.length / ZILLION_CHUNK);
+    st('Sending ' + total + ' chunk(s) (' + bytes.length + ' bytes)...');
+    // Write header: 4-byte total chunk count
+    var hdr = new Uint8Array(4);
+    new DataView(hdr.buffer).setUint32(0, total, true);
+    await txChar.writeValueWithResponse(hdr);
+    await new Promise(function(r){setTimeout(r,50);});
+    for (var i=0; i<total; i++) {
+      var start  = i * ZILLION_CHUNK;
+      var end    = Math.min(start + ZILLION_CHUNK, bytes.length);
+      var chunk  = bytes.slice(start, end);
+      var pkt    = new Uint8Array(2 + chunk.length);
+      new DataView(pkt.buffer).setUint16(0, i, true);
+      pkt.set(chunk, 2);
+      await txChar.writeValueWithResponse(pkt);
+      st('Chunk ' + (i+1) + '/' + total);
+      await new Promise(function(r){setTimeout(r,30);});
+    }
+    await txChar.writeValueWithResponse(new Uint8Array([0xFF,0xFF,0xFF,0xFF]));
+    server.disconnect();
+    st('Transfer complete!');
+    return true;
+  } catch(e) {
+    if (e.name !== 'NotFoundError') st('BLE error: ' + e.message, 'err');
+    else st('No Zillion receiver found. Ask recipient to tap BLE Receive.', 'warn');
+    return false;
+  }
+}
+// ================================================================
+// END ZILLION BLE+NFC ENGINE
+
+function agentShowWireless() {
+  var nb = document.getElementById('a-nfc-btn');
+  var bb = document.getElementById('a-ble-btn');
+  if (nb) nb.style.display = zilNfcSupported() ? 'block' : 'none';
+  if (bb) bb.style.display = zilBleSupported() ? 'block' : 'none';
+}
+async function agentNFCSend() {
+  if (!window._zilBundle) { notify('Issue coins first', 'err'); return; }
+  await zilNfcSend(window._zilBundle, function(m,t){ notify(m, t==='err'?'err':''); });
+}
+async function agentBLESend() {
+  if (!window._zilBundle) { notify('Issue coins first', 'err'); return; }
+  await zilBleSend(window._zilBundle, function(m,t){ notify(m, t==='err'?'err':''); });
+}
+// ================================================================
 </script>
 
 <!-- PWA Update Banner -->
