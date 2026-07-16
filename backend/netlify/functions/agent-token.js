@@ -22,10 +22,19 @@ exports.handler = async (event) => {
 
   const { agent_id, agent_name, admin_secret } = body;
 
-  // Verify admin secret
-  const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET;
-  if (!admin_secret || admin_secret !== ADMIN_SECRET) {
-    return { statusCode: 401, body: JSON.stringify({ error: 'Invalid admin secret' }) };
+  // Accept EITHER admin JWT (from Authorization header) OR admin_secret in body
+  const { verifyJWT } = require('../../lib/validators');
+  const authHeader = event.headers.authorization || event.headers.Authorization || '';
+  const jwtAuth = authHeader ? verifyJWT(authHeader) : { valid: false };
+
+  if (jwtAuth.valid && jwtAuth.payload.role === 'admin') {
+    // Admin is authenticated via JWT — no secret needed
+  } else {
+    // Fallback: check raw admin_secret
+    const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET;
+    if (!admin_secret || admin_secret !== ADMIN_SECRET) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid admin secret. Log in to Admin panel and generate token from there.' }) };
+    }
   }
 
   if (!agent_id) {
