@@ -531,7 +531,8 @@ function processPendingClaim() {
   });
 
 const API = '/.netlify/functions';
-let AP = null; // agent profile
+let AP = null; // agent p
+let _loginInProgress = false; // prevents silentLogin racing with doLoginrofile
 let TK = null; // token
 let hlog = [];
 let ss = { ci:0, co:0, cn:0 };
@@ -605,6 +606,7 @@ async function doLogin() {
   err.className = 'lerr';
   if (!id || !tk) { err.textContent = 'Enter Agent ID and token.'; err.className = 'lerr show'; return; }
   btn.disabled = true; btn.textContent = 'Logging in...';
+  _loginInProgress = true;
   showL('Verifying...');
 
   // ── OFFLINE LOGIN: restore from cached profile ───────────────────────────
@@ -654,10 +656,12 @@ async function doLogin() {
       err.textContent = emsg;
     }
     err.className = 'lerr show';
-  } finally { btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
+  } finally { _loginInProgress = false; btn.disabled = false; btn.textContent = 'Login to Agent Portal →'; }
 }
 
 async function silentLogin(id, tk) {
+  // Don't race with an active doLogin
+  if (_loginInProgress) return;
   showL('Restoring session...');
   // Offline: restore from cached profile in localStorage
   if (!navigator.onLine) {
@@ -689,11 +693,17 @@ async function silentLogin(id, tk) {
         notify('⚡ Offline — using saved session');
       }
     } else {
-      localStorage.removeItem('zs');
+      // Don't wipe session here — let user manually re-login with new token
+      // Wiping here races with doLogin and breaks successful login
       console.warn('[Agent] Session restore failed:', e.message);
-      if (e.message && (e.message.includes('expired') || e.message.includes('jwt'))) {
-        var el = document.getElementById('lerr');
-        if (el) { el.innerHTML = 'Session expired. <a href="/admin" target="_blank">Get new token from Admin</a>.'; el.className = 'lerr show'; }
+      if (!_loginInProgress) {
+        // Only show error if user is not actively logging in
+        localStorage.removeItem('zs');
+        if (e.message && (e.message.includes('expired') || e.message.includes('jwt'))) {
+          hideL();
+          var el = document.getElementById('lerr');
+          if (el) { el.innerHTML = 'Previous session expired. Enter your credentials below.'; el.className = 'lerr show'; }
+        }
       }
     }
   }
