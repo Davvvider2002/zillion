@@ -485,11 +485,11 @@ async function buildAgentEntries(db, agentId, entries) {
         ts: redeemTs, date: redeemTs.slice(0,10),
         type: 'Redeem', ref: 'REDM-' + (coin.coin_id||'').slice(4,14),
         coin_id: coin.coin_id,
-        narration:    'Cash-Out Redeemed (Float Restored)',
-        debit_kobo:   0,
-        credit_kobo:  coin.amount || 0,
+        narration:    'Cash-Out Paid to Customer',
+        debit_kobo:   coin.amount || 0,
+        credit_kobo:  0,
         counterparty: 'Customer/Merchant',
-        status: 'SETTLED', direction: 'CR',
+        status: 'SETTLED', direction: 'DR',
       });
     } else {
       // Float top-up credit — admin minted this coin and assigned to agent
