@@ -296,6 +296,16 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
             💾 Save QR Image
           </button>
         </div>
+        <div id="a-wireless-btns" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <button id="a-nfc-btn" onclick="agentNFCSend()"
+            style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+            📡 NFC Send
+          </button>
+          <button id="a-ble-btn" onclick="agentBLESend()"
+            style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+            📶 Bluetooth
+          </button>
+        </div>
         <div style="margin-top:10px;padding:10px 12px;background:var(--gl);border-radius:8px;font-size:11px;color:#0A5C35;line-height:1.6">
           ✅ Customer opens Zillion wallet → tap <strong>Scan QR</strong> → point camera at this code → coins added instantly
         </div>
@@ -2581,10 +2591,12 @@ async function zilBleSend(bundle, onStatus) {
 // END ZILLION BLE+NFC ENGINE
 
 function agentShowWireless() {
+  var wdiv = document.getElementById('a-wireless-btns');
+  if (wdiv) wdiv.style.display = (zilNfcSupported()||zilBleSupported()) ? 'grid' : 'none';
   var nb = document.getElementById('a-nfc-btn');
   var bb = document.getElementById('a-ble-btn');
-  if (nb) nb.style.display = zilNfcSupported() ? 'block' : 'none';
-  if (bb) bb.style.display = zilBleSupported() ? 'block' : 'none';
+  if (nb) nb.style.display = zilNfcSupported() ? '' : 'none';
+  if (bb) bb.style.display = zilBleSupported() ? '' : 'none';
 }
 async function agentNFCSend() {
   if (!window._zilBundle) { notify('Issue coins first', 'err'); return; }
