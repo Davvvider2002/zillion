@@ -3611,10 +3611,10 @@ window.addEventListener('DOMContentLoaded', () => {
           const nw = reg.installing;
           nw.addEventListener('statechange', () => {
             if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-              if (confirm('New version of Zillion Wallet available. Update now?')) {
-                nw.postMessage({ type: 'SKIP_WAITING' });
-                window.location.reload();
-              }
+              // Auto-apply update silently — no blocking confirm()
+              console.log('[PWA] New version available — applying update');
+              nw.postMessage({ type: 'SKIP_WAITING' });
+              setTimeout(function() { window.location.reload(); }, 400);
             }
           });
         });
@@ -4639,13 +4639,7 @@ async function zilBleSend(bundle, onStatus) {
 
 function walletShowWireless() {
   var el = document.getElementById('send-wireless-btns');
-  if (!el) return;
-  var show = zilNfcSupported() || zilBleSupported();
-  el.style.display = show ? 'grid' : 'none';
-  var nb = document.getElementById('w-nfc-send-btn');
-  var bb = document.getElementById('w-ble-send-btn');
-  if (nb) nb.style.display = zilNfcSupported() ? '' : 'none';
-  if (bb) bb.style.display = zilBleSupported() ? '' : 'none';
+  if (el) el.style.display = 'grid';
 }
 async function walletNFCSend() {
   if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
