@@ -1536,6 +1536,7 @@ async function generateCashoutQR() {
     } catch(e3) { hideL(); toast('QR encode failed', true); return; }
   }
 
+  try {
   hideL();
   M.coQrUrl=cashoutClaimUrl; M.coQrImg=null;
     // Mark selected coins as PENDING_CASHOUT in vault
