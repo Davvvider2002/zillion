@@ -702,6 +702,16 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
             <button class="btn btn-wa" onclick="shareCashoutQR()">📱 Share via WhatsApp</button>
             <button class="btn" style="background:var(--grl);color:var(--gr);border:1px solid var(--grb);flex:0;padding:12px 16px;border-radius:10px" onclick="saveCashoutImg()">💾</button>
           </div>
+          <div id="m-wireless-btns" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <button id="m-nfc-send-btn" onclick="merchantNFCSend()"
+              style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              📡 NFC Send
+            </button>
+            <button id="m-ble-send-btn" onclick="merchantBLESend()"
+              style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              📶 Bluetooth
+            </button>
+          </div>
         </div>
       </div>
       <div class="alert alert-am">Visit a Zillion agent with this QR. They scan it, verify your coins, and pay you naira cash.</div>
