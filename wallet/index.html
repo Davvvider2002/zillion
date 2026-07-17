@@ -1189,7 +1189,7 @@ function triggerPWAInstall() {
             style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📡 NFC
           </button>
-          <button onclick="walletBLESend()" id="w-ble-send-btn"
+          <button onclick="walletShareLink()" id="w-ble-send-btn"
             style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📶 Bluetooth
           </button>
@@ -2562,7 +2562,7 @@ async function manualWalletRecover() {
   try {
     const token  = STATE.user?.token || STATE.user?.agentToken || '';
     const phone  = STATE.user?.phone || STATE.user?.phone_number || '';
-    const devId  = STATE.user?.device_id || '';
+    const devId  = STATE.user?.deviceId || STATE.user?.device_id || localStorage.getItem('zillion_device_id') || '';
     if (!token || !phone) {
       if (status) status.textContent = 'Please log in first';
       return;
@@ -2573,12 +2573,13 @@ async function manualWalletRecover() {
       body:    JSON.stringify({ phone, device_id: devId }),
     });
     if (!resp.ok) {
-      if (status) status.textContent = 'Server error — try again';
+      const ed = await resp.json().catch(function(){return {};});
+      if (status) status.textContent = 'Error: '+(ed.error||resp.status)+' — try again';
       return;
     }
     const data = await resp.json();
     if (!data.coins || data.coins.length === 0) {
-      if (status) status.textContent = 'No coins found for this account';
+      if (status) status.textContent = 'No coins found for ' + phone + '. Contact your Zillion agent.';
       return;
     }
     const seen = new Set(STATE.vault.map(c => c.coin_id));
@@ -4652,18 +4653,37 @@ async function walletNFCSend() {
     save(); toast('Coins sent via NFC!'); goTo('screen-home'); setTimeout(trySync,1500);
   }
 }
-async function walletBLESend() {
+async function walletShareLink() {
   if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
-  var ok = await zilBleSend(STATE.sendBundle, function(m,t){ toast(m, t==='err'); });
+  var ok = await zilShareLink(STATE.sendBundle, function(m,t){ toast(m, t==='err'); });
   if (ok) {
     STATE.sendBundle.coins.forEach(function(c){
       var i = STATE.vault.findIndex(function(v){ return (v.coin_id||v.id)===(c.coin_id||c.id); });
       if (i>=0) STATE.vault[i]._status = 'SPENT_LOCAL';
     });
-    save(); toast('Coins sent via Bluetooth!'); goTo('screen-home'); setTimeout(trySync,1500);
+    save(); toast('Coins shared!'); goTo('screen-home'); setTimeout(trySync,1500);
   }
 }
 // ================================================================
+
+async function zilShareLink(bundle, onStatus) {
+  var st = onStatus || function(m,t){console.log('[Share]',m);};
+  try {
+    var uri  = zilBundleEncode(bundle);
+    var text = 'Tap to receive your Zillion coins: ' + uri;
+    if (navigator.share) {
+      await navigator.share({ title: 'Zillion Coins', text: text });
+      st('Shared!');
+    } else {
+      await navigator.clipboard.writeText(uri);
+      st('Link copied to clipboard');
+    }
+    return true;
+  } catch(e) {
+    if (e.name !== 'AbortError') st('Share failed: ' + e.message, 'err');
+    return false;
+  }
+}
 </script>
 </body>
 </html>
