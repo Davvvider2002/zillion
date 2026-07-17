@@ -707,7 +707,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
               style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
               📡 NFC Send
             </button>
-            <button id="m-ble-send-btn" onclick="merchantBLESend()"
+            <button id="m-ble-send-btn" onclick="merchantShareLink()"
               style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
               📶 Bluetooth
             </button>
@@ -2659,6 +2659,25 @@ async function merchantBLESend() {
   var bndl = window._merchantCashoutBundle;
   if (!bndl) { toast('Generate cashout QR first', true); return; }
   await zilBleSend(bndl, function(m,t){ toast(m, t==='err'); });
+}
+
+async function zilShareLink(bundle, onStatus) {
+  var st = onStatus || function(m,t){console.log('[Share]',m);};
+  try {
+    var uri  = zilBundleEncode(bundle);
+    var text = 'Tap to receive your Zillion coins: ' + uri;
+    if (navigator.share) {
+      await navigator.share({ title: 'Zillion Coins', text: text });
+      st('Shared!');
+    } else {
+      await navigator.clipboard.writeText(uri);
+      st('Link copied to clipboard');
+    }
+    return true;
+  } catch(e) {
+    if (e.name !== 'AbortError') st('Share failed: ' + e.message, 'err');
+    return false;
+  }
 }
 </script>
 </body>
