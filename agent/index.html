@@ -259,6 +259,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
     <button class="tab"        data-tab="statement" onclick="switchTab(this)">📊 Statement</button>
     <button class="tab"        data-tab="history"   onclick="switchTab(this)">📋 History</button>
     <button class="tab"        data-tab="profile"   onclick="switchTab(this)">👤 Profile</button>
+    <button class="tab" data-tab="earnings" onclick="switchTab(this)">💰 Earnings</button>
   </div>
 
   <!-- CASH IN -->
@@ -568,6 +569,7 @@ function switchTab(el) {
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'history') { renderHistory(); updateStats(); }
   if (name === 'statement') loadStatement();
+  if (name === 'earnings') loadAgentEarnings();
 }
 
 // ── Login ─────────────────────────────────────────────────────────────────────
@@ -2622,6 +2624,44 @@ async function zilShareLink(bundle, onStatus) {
     return false;
   }
 }
+
+async function loadAgentEarnings(){
+  try{
+    var base='/.netlify/functions'.replace('/.netlify/functions','');
+    var url=location.origin+'/api/v1/agent-commission';
+    var r=await fetch(url,{headers:{'Authorization':'Bearer '+TK}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    var fmtK=function(k){return '₦'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2});};
+    var setEl=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
+    setEl('earn-today',fmtK(d.today_kobo));
+    setEl('earn-pending',fmtK(d.pending_kobo));
+    setEl('earn-lifetime',fmtK(d.lifetime_kobo));
+    setEl('earn-last-payout',d.last_payout_at?new Date(d.last_payout_at).toLocaleDateString('en-NG'):'Not yet');
+    var evEl=document.getElementById('earn-events');
+    if(evEl){
+      var evts=d.recent_events||[];
+      if(!evts.length){evEl.textContent='No earnings yet — they appear after each cash-in or cash-out';return;}
+      evEl.innerHTML='<table style="width:100%;border-collapse:collapse"><thead>'
+        +'<tr style="border-bottom:1px solid var(--border)">'
+        +'<th style="padding:6px;text-align:left">Date</th>'
+        +'<th style="padding:6px;text-align:left">Type</th>'
+        +'<th style="padding:6px;text-align:right">Transaction</th>'
+        +'<th style="padding:6px;text-align:right;color:var(--g)">Your Share</th></tr></thead><tbody>'
+        +evts.map(function(e){
+          return '<tr style="border-bottom:1px solid var(--border)">'
+            +'<td style="padding:6px">'+new Date(e.created_at).toLocaleDateString('en-NG')+'</td>'
+            +'<td style="padding:6px">'+(e.txn_type||'').replace('_',' ')+'</td>'
+            +'<td style="padding:6px;text-align:right">'+fmtK(e.txn_amount_kobo)+'</td>'
+            +'<td style="padding:6px;text-align:right;color:var(--g);font-weight:700">'+fmtK(e.agent_kobo)+'</td></tr>';
+        }).join('')+'</tbody></table>';
+    }
+  }catch(e){
+    var evEl=document.getElementById('earn-events');
+    if(evEl)evEl.textContent='Could not load earnings: '+e.message;
+  }
+}
+
 </script>
 
 <!-- PWA Update Banner -->
@@ -2641,4 +2681,31 @@ async function zilShareLink(bundle, onStatus) {
   ">Update Now</button>
 </div>
 </body>
-</html>
+</html
+  <!-- EARNINGS TAB -->
+  <div id="tab-earnings" class="pn2" style="display:none">
+    <div style="padding:16px">
+      <h3 style="margin-bottom:16px;font-size:16px">My Commission Earnings</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Today's Earnings</div>
+          <div id="earn-today" style="font-size:22px;font-weight:700;color:var(--g,#10B981);margin-top:4px">—</div>
+        </div>
+        <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Pending Payout</div>
+          <div id="earn-pending" style="font-size:22px;font-weight:700;color:var(--am,#F59E0B);margin-top:4px">—</div>
+        </div>
+        <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Lifetime Total</div>
+          <div id="earn-lifetime" style="font-size:22px;font-weight:700;margin-top:4px">—</div>
+        </div>
+        <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Last Payout</div>
+          <div id="earn-last-payout" style="font-size:14px;font-weight:500;margin-top:8px">—</div>
+        </div>
+      </div>
+      <h4 style="margin-bottom:10px;font-size:13px">Recent Commission Events</h4>
+      <div id="earn-events" style="font-size:12px;color:var(--gr);text-align:center;padding:20px">Loading...</div>
+    </div>
+  </div>
+>
