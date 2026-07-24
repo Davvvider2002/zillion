@@ -1186,6 +1186,95 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
 </div>
+
+
+<!-- COMMISSIONS -->
+<div id="sec-commission" class="sec">
+  <div style="margin-bottom:8px"><h2 style="font-size:18px;font-weight:700">Commission Configuration</h2>
+  <p style="font-size:13px;color:var(--gr);margin-top:4px">Rates apply at 3 levels — most specific wins: <strong>Agent</strong> > <strong>MFB Partner</strong> > <strong>Global</strong>. Changes take effect immediately on next transaction.</p></div>
+  <div class="metrics" style="margin-bottom:20px">
+    <div class="metric"><div class="mlabel">Today Fees</div><div class="mvalue" id="comm-today-fee">—</div></div>
+    <div class="metric bl"><div class="mlabel">Zillion Cut</div><div class="mvalue" id="comm-today-zil">—</div></div>
+    <div class="metric am"><div class="mlabel">MFB Cut</div><div class="mvalue" id="comm-today-mfb">—</div></div>
+    <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">Agent Earnings</div><div class="mvalue" id="comm-today-agt">—</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Add / Update Rate</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="flabel">Transaction type</label>
+        <select id="cc-txn-type" class="finput" style="width:100%">
+          <option value="cash_in">Cash-In</option><option value="cash_out">Cash-Out</option>
+          <option value="p2p">P2P Transfer</option><option value="merchant">Merchant Payment</option>
+        </select></div>
+      <div><label class="flabel">Scope</label>
+        <select id="cc-scope" class="finput" style="width:100%">
+          <option value="global">Global (all)</option>
+          <option value="mfb">Specific MFB Partner</option>
+          <option value="agent">Specific Agent</option>
+        </select></div>
+      <div><label class="flabel">Scope ID (MFB/Agent)</label>
+        <input id="cc-scope-id" class="finput" placeholder="e.g. ACCESS_MFB_KANO or AGENT-00001" style="width:100%"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px">
+      <div><label class="flabel">Fee % (e.g. 1.5)</label><input id="cc-fee-pct" type="number" step="0.1" min="0" max="5" value="1.5" class="finput" style="width:100%"></div>
+      <div><label class="flabel">Min fee (₦)</label><input id="cc-floor" type="number" value="10" class="finput" style="width:100%"></div>
+      <div><label class="flabel">Max fee (₦)</label><input id="cc-cap" type="number" value="200" class="finput" style="width:100%"></div>
+      <div><label class="flabel">MFB share %</label>
+        <input id="cc-mfb-share" type="number" step="1" min="0" max="50" value="20" class="finput" style="width:100%"
+          oninput="var a=100-(+this.value)-(+document.getElementById('cc-zil-share').value||0);document.getElementById('cc-agt-calc').textContent=a.toFixed(0)+'%'"></div>
+      <div><label class="flabel">Zillion share %</label>
+        <input id="cc-zil-share" type="number" step="1" min="0" max="50" value="30" class="finput" style="width:100%"
+          oninput="var a=100-(+this.value)-(+document.getElementById('cc-mfb-share').value||0);document.getElementById('cc-agt-calc').textContent=a.toFixed(0)+'%'"></div>
+    </div>
+    <div style="background:var(--gl2,#e8f5e9);border-radius:8px;padding:8px 16px;font-size:13px;margin-bottom:12px;color:var(--g)">
+      Agent share: <strong id="cc-agt-calc">50%</strong> (automatically = 100% minus MFB minus Zillion)
+    </div>
+    <div><label class="flabel">Note / reason (audit trail)</label>
+      <input id="cc-note" class="finput" placeholder="e.g. Agreed with Access MFB Kano — 22% negotiated 2026-07-17" style="width:100%"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="saveCommConfig()" style="padding:10px 24px;border-radius:8px;background:#7C3AED;color:#fff;border:none;cursor:pointer;font-weight:700;font-size:14px;font-family:inherit">Save Rate</button>
+      <span id="cc-msg" style="font-size:13px;color:var(--gr);align-self:center"></span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Active Rate Configurations <button class="rbtn" onclick="loadCommConfigs()">↻</button></div>
+    <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px;text-align:left">Type</th><th style="padding:8px;text-align:left">Scope</th>
+        <th style="padding:8px;text-align:left">ID</th><th style="padding:8px;text-align:right">Fee%</th>
+        <th style="padding:8px;text-align:right">Min</th><th style="padding:8px;text-align:right">Max</th>
+        <th style="padding:8px;text-align:right">MFB%</th><th style="padding:8px;text-align:right">Zil%</th>
+        <th style="padding:8px;text-align:right">Agt%</th><th style="padding:8px;text-align:left">Note</th>
+        <th style="padding:8px"></th>
+      </tr></thead>
+      <tbody id="cc-list"></tbody>
+    </table></div>
+    <div id="cc-list-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click Commissions to load</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Commission Events
+      <div style="display:flex;gap:8px">
+        <input id="comm-filter-agent" placeholder="Agent ID" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px;width:130px">
+        <select id="comm-filter-type" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px">
+          <option value="">All types</option><option value="cash_in">Cash-In</option>
+          <option value="cash_out">Cash-Out</option><option value="p2p">P2P</option><option value="merchant">Merchant</option>
+        </select>
+        <button onclick="loadCommEvents()" class="rbtn">Filter</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:6px;text-align:left">Date</th><th style="padding:6px;text-align:left">Type</th>
+        <th style="padding:6px;text-align:left">Agent</th><th style="padding:6px;text-align:right">Txn</th>
+        <th style="padding:6px;text-align:right">Fee</th><th style="padding:6px;text-align:right">MFB</th>
+        <th style="padding:6px;text-align:right">Zillion</th><th style="padding:6px;text-align:right">Agent</th>
+        <th style="padding:6px;text-align:left">Status</th>
+      </tr></thead>
+      <tbody id="comm-events-list"></tbody>
+    </table></div>
+    <div id="comm-events-loading" style="text-align:center;padding:12px;color:var(--gr);font-size:12px"></div>
+  </div>
+</div>
     </div>
   </div>
 
@@ -3410,92 +3499,5 @@ async function loadCommEvents(){
 
 </script>
 </body>
-</html
-<!-- COMMISSIONS -->
-<div id="sec-commission" class="sec">
-  <div style="margin-bottom:8px"><h2 style="font-size:18px;font-weight:700">Commission Configuration</h2>
-  <p style="font-size:13px;color:var(--gr);margin-top:4px">Rates apply at 3 levels — most specific wins: <strong>Agent</strong> > <strong>MFB Partner</strong> > <strong>Global</strong>. Changes take effect immediately on next transaction.</p></div>
-  <div class="metrics" style="margin-bottom:20px">
-    <div class="metric"><div class="mlabel">Today Fees</div><div class="mvalue" id="comm-today-fee">—</div></div>
-    <div class="metric bl"><div class="mlabel">Zillion Cut</div><div class="mvalue" id="comm-today-zil">—</div></div>
-    <div class="metric am"><div class="mlabel">MFB Cut</div><div class="mvalue" id="comm-today-mfb">—</div></div>
-    <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">Agent Earnings</div><div class="mvalue" id="comm-today-agt">—</div></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Add / Update Rate</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label class="flabel">Transaction type</label>
-        <select id="cc-txn-type" class="finput" style="width:100%">
-          <option value="cash_in">Cash-In</option><option value="cash_out">Cash-Out</option>
-          <option value="p2p">P2P Transfer</option><option value="merchant">Merchant Payment</option>
-        </select></div>
-      <div><label class="flabel">Scope</label>
-        <select id="cc-scope" class="finput" style="width:100%">
-          <option value="global">Global (all)</option>
-          <option value="mfb">Specific MFB Partner</option>
-          <option value="agent">Specific Agent</option>
-        </select></div>
-      <div><label class="flabel">Scope ID (MFB/Agent)</label>
-        <input id="cc-scope-id" class="finput" placeholder="e.g. ACCESS_MFB_KANO or AGENT-00001" style="width:100%"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px">
-      <div><label class="flabel">Fee % (e.g. 1.5)</label><input id="cc-fee-pct" type="number" step="0.1" min="0" max="5" value="1.5" class="finput" style="width:100%"></div>
-      <div><label class="flabel">Min fee (₦)</label><input id="cc-floor" type="number" value="10" class="finput" style="width:100%"></div>
-      <div><label class="flabel">Max fee (₦)</label><input id="cc-cap" type="number" value="200" class="finput" style="width:100%"></div>
-      <div><label class="flabel">MFB share %</label>
-        <input id="cc-mfb-share" type="number" step="1" min="0" max="50" value="20" class="finput" style="width:100%"
-          oninput="var a=100-(+this.value)-(+document.getElementById('cc-zil-share').value||0);document.getElementById('cc-agt-calc').textContent=a.toFixed(0)+'%'"></div>
-      <div><label class="flabel">Zillion share %</label>
-        <input id="cc-zil-share" type="number" step="1" min="0" max="50" value="30" class="finput" style="width:100%"
-          oninput="var a=100-(+this.value)-(+document.getElementById('cc-mfb-share').value||0);document.getElementById('cc-agt-calc').textContent=a.toFixed(0)+'%'"></div>
-    </div>
-    <div style="background:var(--gl2,#e8f5e9);border-radius:8px;padding:8px 16px;font-size:13px;margin-bottom:12px;color:var(--g)">
-      Agent share: <strong id="cc-agt-calc">50%</strong> (automatically = 100% minus MFB minus Zillion)
-    </div>
-    <div><label class="flabel">Note / reason (audit trail)</label>
-      <input id="cc-note" class="finput" placeholder="e.g. Agreed with Access MFB Kano — 22% negotiated 2026-07-17" style="width:100%"></div>
-    <div style="display:flex;gap:10px;margin-top:16px">
-      <button onclick="saveCommConfig()" style="padding:10px 24px;border-radius:8px;background:#7C3AED;color:#fff;border:none;cursor:pointer;font-weight:700;font-size:14px;font-family:inherit">Save Rate</button>
-      <span id="cc-msg" style="font-size:13px;color:var(--gr);align-self:center"></span>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title">Active Rate Configurations <button class="rbtn" onclick="loadCommConfigs()">↻</button></div>
-    <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="border-bottom:2px solid var(--border)">
-        <th style="padding:8px;text-align:left">Type</th><th style="padding:8px;text-align:left">Scope</th>
-        <th style="padding:8px;text-align:left">ID</th><th style="padding:8px;text-align:right">Fee%</th>
-        <th style="padding:8px;text-align:right">Min</th><th style="padding:8px;text-align:right">Max</th>
-        <th style="padding:8px;text-align:right">MFB%</th><th style="padding:8px;text-align:right">Zil%</th>
-        <th style="padding:8px;text-align:right">Agt%</th><th style="padding:8px;text-align:left">Note</th>
-        <th style="padding:8px"></th>
-      </tr></thead>
-      <tbody id="cc-list"></tbody>
-    </table></div>
-    <div id="cc-list-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click Commissions to load</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Commission Events
-      <div style="display:flex;gap:8px">
-        <input id="comm-filter-agent" placeholder="Agent ID" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px;width:130px">
-        <select id="comm-filter-type" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px">
-          <option value="">All types</option><option value="cash_in">Cash-In</option>
-          <option value="cash_out">Cash-Out</option><option value="p2p">P2P</option><option value="merchant">Merchant</option>
-        </select>
-        <button onclick="loadCommEvents()" class="rbtn">Filter</button>
-      </div>
-    </div>
-    <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="border-bottom:2px solid var(--border)">
-        <th style="padding:6px;text-align:left">Date</th><th style="padding:6px;text-align:left">Type</th>
-        <th style="padding:6px;text-align:left">Agent</th><th style="padding:6px;text-align:right">Txn</th>
-        <th style="padding:6px;text-align:right">Fee</th><th style="padding:6px;text-align:right">MFB</th>
-        <th style="padding:6px;text-align:right">Zillion</th><th style="padding:6px;text-align:right">Agent</th>
-        <th style="padding:6px;text-align:left">Status</th>
-      </tr></thead>
-      <tbody id="comm-events-list"></tbody>
-    </table></div>
-    <div id="comm-events-loading" style="text-align:center;padding:12px;color:var(--gr);font-size:12px"></div>
-  </div>
-</div>
+</html>
 >
