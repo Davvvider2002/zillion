@@ -11,6 +11,7 @@
 
 'use strict';
 
+const { applyCommission } = require('../../lib/commission');
 const { issueCoinBatch }     = require('../../lib/mint');
 const { insertCoins, markCoinsHeld, getAgentFloat, updateAgentFloat } = require('../../lib/supabase');
 const { validateIssueRequest, verifyJWT } = require('../../lib/validators');
@@ -193,6 +194,8 @@ exports.handler = async (event) => {
     console.warn('[issue] Transaction record write failed (non-fatal):', txErr.message);
     // Non-fatal — coins already issued
   }
+
+  try { await applyCommission({ txnType:'cash_in', amountKobo:body.amount, agentId:body.agent_id, mfbId:body.mfb_id||null, coinId:coins[0]?.coin_id||null }); } catch(ce){ console.warn('[commission] cash_in:',ce.message); }
 
   return {
     statusCode: 200,
