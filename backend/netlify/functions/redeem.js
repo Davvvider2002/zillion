@@ -12,6 +12,7 @@
 'use strict';
 
 const { redeemCoins, updateAgentFloat } = require('../../lib/supabase');
+const { applyCommission } = require('../../lib/commission');
 const { verifyJWT }                     = require('../../lib/validators');
 
 exports.handler = async (event) => {
@@ -54,6 +55,7 @@ exports.handler = async (event) => {
       await updateAgentFloat(body.agent_id, result.total_kobo);
     }
 
+    if(result.total_kobo>0){try{await applyCommission({txnType:'cash_out',amountKobo:result.total_kobo,agentId:body.agent_id,mfbId:body.mfb_id||null,coinId:body.coin_ids[0]||null});}catch(ce){console.warn('[commission]',ce.message);}}
     const totalNaira = result.total_kobo / 100;
 
     return {
