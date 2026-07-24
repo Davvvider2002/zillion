@@ -933,6 +933,10 @@ function triggerPWAInstall() {
         <span class="action-icon">⬡</span>
         <div class="action-label">My Vault</div>
       </button>
+      <button class="action-btn" onclick="goTo('screen-topup')" style="border-color:#14532D;background:#052e16">
+        <span class="action-icon" style="color:#4ADE80">⬆</span>
+        <div class="action-label" style="color:#4ADE80">Top Up</div>
+      </button>
       <button class="action-btn" onclick="goTo('screen-history')">
         <span class="action-icon">≡</span>
         <div class="action-label">History</div>
@@ -1368,6 +1372,95 @@ function triggerPWAInstall() {
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 10 — PROFILE & SETTINGS
 ══════════════════════════════════════════════════════════════ -->
+
+<div id="screen-topup" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="back-btn" onclick="goBack()">‹</button>
+    <div class="hdr-title">Top Up Wallet</div>
+  </div>
+  <div class="scroll-body" style="padding:20px">
+
+    <!-- Virtual account card -->
+    <div style="background:linear-gradient(135deg,#052e16,#14532D);border-radius:16px;padding:20px;margin-bottom:20px">
+      <div style="color:#86efac;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
+        Your Zillion Virtual Account
+      </div>
+      <div id="topup-vacc-number" style="color:#fff;font-size:24px;font-weight:700;letter-spacing:.1em;margin-bottom:4px">
+        — — — —
+      </div>
+      <div style="color:#86efac;font-size:12px" id="topup-vacc-bank">MFB Partner Bank</div>
+      <div style="color:#4ADE80;font-size:13px;margin-top:12px">
+        Transfer to this account from any bank to load your Zillion wallet
+      </div>
+    </div>
+
+    <!-- Copy button -->
+    <button onclick="copyVirtualAccount()" style="width:100%;padding:13px;background:#1A1A1A;border:1.5px solid #333;
+      border-radius:12px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:16px;font-family:inherit">
+      📋 Copy Account Number
+    </button>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="flex:1;height:1px;background:#222"></div>
+      <span style="color:#555;font-size:12px">or load via USSD</span>
+      <div style="flex:1;height:1px;background:#222"></div>
+    </div>
+
+    <!-- USSD quick dial -->
+    <div style="background:#1A1A1A;border:1.5px solid #333;border-radius:14px;padding:18px;margin-bottom:20px">
+      <div style="color:#86efac;font-size:12px;font-weight:600;text-transform:uppercase;margin-bottom:12px">USSD Self-Load</div>
+      <div style="color:#aaa;font-size:13px;margin-bottom:16px;line-height:1.6">
+        Works on any phone, even without internet. Dial the shortcode and confirm with your MFB PIN.
+      </div>
+      <div style="background:#0D0D0D;border-radius:10px;padding:12px 16px;margin-bottom:12px;
+           font-family:monospace;font-size:20px;color:#4ADE80;text-align:center;letter-spacing:.1em"
+           id="ussd-display">*737*5*1000#</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div>
+          <label style="color:#666;font-size:11px;font-weight:600;display:block;margin-bottom:4px">AMOUNT (₦)</label>
+          <select id="ussd-amount-sel" onchange="updateUSSD()"
+            style="width:100%;background:#0D0D0D;border:1px solid #333;border-radius:8px;
+                   padding:9px;color:#fff;font-size:14px;font-family:inherit">
+            <option value="500">₦500</option>
+            <option value="1000" selected>₦1,000</option>
+            <option value="2000">₦2,000</option>
+            <option value="5000">₦5,000</option>
+          </select>
+        </div>
+        <div>
+          <label style="color:#666;font-size:11px;font-weight:600;display:block;margin-bottom:4px">DENOMINATION</label>
+          <select id="ussd-denom-sel" onchange="updateUSSD()"
+            style="width:100%;background:#0D0D0D;border:1px solid #333;border-radius:8px;
+                   padding:9px;color:#fff;font-size:14px;font-family:inherit">
+            <option value="500">₦500 coins</option>
+            <option value="1000" selected>₦1,000 coins</option>
+            <option value="2000">₦2,000 coins</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="dialUSSD()" style="width:100%;padding:13px;background:#14532D;border:none;
+        border-radius:10px;color:#4ADE80;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+        📞 Dial Now
+      </button>
+      <div id="ussd-result" style="margin-top:12px;font-size:13px;color:#4ADE80;display:none"></div>
+    </div>
+
+    <!-- Instructions -->
+    <div style="background:#111;border-radius:12px;padding:16px">
+      <div style="color:#666;font-size:12px;font-weight:600;text-transform:uppercase;margin-bottom:10px">How it works</div>
+      <div style="color:#888;font-size:13px;line-height:1.9">
+        1. Choose amount and denomination above<br>
+        2. Dial the shortcode on your phone<br>
+        3. Enter your MFB bank PIN to confirm<br>
+        4. Coins are issued to your Zillion wallet<br>
+        5. Open wallet — coins sync automatically<br>
+        6. Use offline for any payment
+      </div>
+    </div>
+  </div>
+</div>
 <div id="screen-profile" class="screen hidden">
   <div class="sb"></div>
   <div class="profile-banner">
@@ -1623,6 +1716,7 @@ function onScreenEnter(id) {
   if (id === 'screen-vault') refreshVault();
   if (id === 'screen-history') refreshHistory();
   if (id === 'screen-profile') refreshProfile();
+  if (id === 'screen-topup') loadVirtualAccount();
 }
 
 // -- Toast & Loader ---------------------------------------------
@@ -4684,6 +4778,49 @@ async function zilShareLink(bundle, onStatus) {
     return false;
   }
 }
+
+function updateUSSD() {
+  var amt   = document.getElementById('ussd-amount-sel');
+  var denom = document.getElementById('ussd-denom-sel');
+  var disp  = document.getElementById('ussd-display');
+  if (amt && denom && disp) disp.textContent = '*737*5*' + (amt.value||'1000') + '#';
+}
+
+function loadVirtualAccount() {
+  var phone  = STATE.user && (STATE.user.phone || STATE.user.phone_number);
+  var numEl  = document.getElementById('topup-vacc-number');
+  var bankEl = document.getElementById('topup-vacc-bank');
+  if (!phone) { if(numEl) numEl.textContent = 'Log in to see your account'; return; }
+  var hash = 0;
+  for (var i=0; i<phone.length; i++) hash = ((hash<<5)-hash+phone.charCodeAt(i))|0;
+  var acc = '302' + Math.abs(hash).toString().slice(0,7).padEnd(7,'0');
+  if (numEl) numEl.textContent = acc.match(/.{1,4}/g).join(' ');
+  if (bankEl) bankEl.textContent = 'Account name: Zillion / ' + phone;
+  window._zilVirtualAccount = acc;
+}
+
+function copyVirtualAccount() {
+  var acc = window._zilVirtualAccount || '';
+  if (!acc) { toast('Log in first', true); return; }
+  navigator.clipboard.writeText(acc.replace(/\s/g,'')).then(function(){
+    toast('Account number copied!');
+  }).catch(function(){ toast('Copy: ' + acc.replace(/\s/g,'')); });
+}
+
+function dialUSSD() {
+  var amt   = (document.getElementById('ussd-amount-sel')||{}).value || '1000';
+  var code  = '*737*5*' + amt + '#';
+  var resEl = document.getElementById('ussd-result');
+  if (window.location.protocol === 'https:') {
+    window.location.href = 'tel:' + encodeURIComponent(code);
+  } else {
+    if (resEl) {
+      resEl.style.display = 'block';
+      resEl.textContent = 'On a real device: open dialler → type ' + code + ' → press call';
+    }
+  }
+}
+
 </script>
 </body>
 </html>
