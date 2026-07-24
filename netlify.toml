@@ -356,4 +356,9 @@
   from = "/api/v1/agent-commission"
   to   = "/.netlify/functions/commission-agent"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/ussd-simulate"
+  to   = "/.netlify/functions/ussd-simulate"
+  status = 200
 # validate.js regex removed — deploy trigger 1782778054
