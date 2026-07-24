@@ -63,3 +63,8 @@
 /api/v1/admin-reconcile-all  /.netlify/functions/admin-reconcile-all  200
 
 /api/v1/merchant-recover  /.netlify/functions/merchant-recover  200
+
+  # ── Commission routes ───────────────────────────────────
+  /api/v1/admin/commission-config  /.netlify/functions/commission-config  200
+  /api/v1/admin/commission-events  /.netlify/functions/commission-events  200
+  /api/v1/agent-commission         /.netlify/functions/commission-agent   200
