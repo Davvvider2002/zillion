@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zillion USSD Simulator — Demo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#111;min-height:100vh;
+     display:flex;align-items:center;justify-content:center;padding:20px}
+
+.page{display:flex;gap:40px;align-items:flex-start;max-width:900px;width:100%;flex-wrap:wrap;justify-content:center}
+
+/* ── PHONE MOCKUP ─────────────────── */
+.phone{width:280px;background:#1C1C1E;border-radius:40px;border:6px solid #333;
+       box-shadow:0 30px 80px rgba(0,0,0,.8);flex-shrink:0;overflow:hidden;position:relative}
+.phone-top{display:flex;justify-content:space-between;align-items:center;
+           padding:14px 20px 8px;color:#fff;font-size:12px}
+.phone-time{font-weight:600}
+.phone-icons{display:flex;gap:4px}
+.phone-screen{background:#000;padding:0}
+
+/* USSD overlay */
+.ussd-overlay{background:#1E1E1E;border-radius:14px;margin:12px;overflow:hidden}
+.ussd-header{background:#2C2C2E;padding:12px 16px;display:flex;align-items:center;gap:10px}
+.ussd-logo{width:32px;height:32px;background:#14532D;border-radius:8px;
+           display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#4ADE80}
+.ussd-title{color:#fff;font-size:14px;font-weight:600}
+.ussd-sub{color:#8E8E93;font-size:11px}
+.ussd-body{padding:16px;min-height:220px}
+.ussd-prompt{color:#E5E7EB;font-size:13px;line-height:1.6;margin-bottom:16px;white-space:pre-wrap}
+.ussd-input-wrap{background:#2C2C2E;border-radius:10px;padding:10px 14px;margin-bottom:12px;
+                 display:flex;align-items:center;gap:8px}
+.ussd-input{background:transparent;border:none;color:#fff;font-size:16px;flex:1;
+            outline:none;font-family:inherit;caret-color:#4ADE80}
+.ussd-input::placeholder{color:#636366}
+.ussd-footer{padding:0 12px 12px;display:flex;gap:8px}
+.ussd-btn{flex:1;padding:10px;border-radius:10px;border:none;cursor:pointer;
+          font-size:14px;font-weight:600;font-family:inherit}
+.ussd-btn.cancel{background:#2C2C2E;color:#FF453A}
+.ussd-btn.send{background:#4ADE80;color:#1C1C1E}
+.ussd-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* SMS confirmation */
+.sms-bubble{background:#2C2C2E;border-radius:14px;border-bottom-left-radius:4px;
+            padding:12px 14px;margin:8px 12px 0;font-size:12px;color:#E5E7EB;line-height:1.7;white-space:pre-wrap}
+.sms-label{color:#636366;font-size:10px;margin:4px 12px 12px}
+
+/* ── CONTROL PANEL ───────────────── */
+.panel{background:#1C1C1E;border-radius:20px;padding:28px;width:360px;color:#fff}
+.panel-title{font-size:22px;font-weight:700;margin-bottom:4px}
+.panel-sub{color:#8E8E93;font-size:13px;margin-bottom:24px}
+
+.sim-badge{display:inline-flex;align-items:center;gap:6px;background:#78350F;
+           color:#FCD34D;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:20px}
+.sim-dot{width:6px;height:6px;background:#FCD34D;border-radius:50%;animation:blink 1.2s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.field{margin-bottom:16px}
+.field label{display:block;color:#8E8E93;font-size:12px;font-weight:600;
+             text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.field input, .field select{width:100%;background:#2C2C2E;border:1.5px solid #3A3A3C;
+  border-radius:10px;padding:11px 14px;color:#fff;font-size:15px;font-family:inherit;outline:none;
+  transition:border-color .2s;-webkit-appearance:none}
+.field input:focus, .field select:focus{border-color:#4ADE80}
+.field select option{background:#2C2C2E}
+
+.accounts-hint{background:#2C2C2E;border-radius:10px;padding:12px;margin-bottom:20px;font-size:12px;color:#8E8E93;line-height:1.7}
+.accounts-hint strong{color:#E5E7EB}
+.accounts-hint span{color:#4ADE80;font-family:monospace}
+
+.dial-btn{width:100%;background:#4ADE80;color:#1C1C1E;border:none;border-radius:12px;
+          padding:14px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;
+          transition:opacity .2s;margin-bottom:12px}
+.dial-btn:hover{opacity:.9}
+.dial-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.reset-btn{width:100%;background:#2C2C2E;color:#E5E7EB;border:none;border-radius:10px;
+           padding:12px;font-size:14px;cursor:pointer;font-family:inherit}
+
+.result-box{border-radius:12px;padding:14px;margin-top:16px;font-size:13px;line-height:1.6;display:none}
+.result-box.ok{background:#052e16;color:#4ADE80;border:1px solid #166534}
+.result-box.err{background:#1C0505;color:#FF453A;border:1px solid #7f1d1d}
+.result-row{display:flex;justify-content:space-between;margin-bottom:4px}
+.result-label{color:#86efac;font-size:12px}
+.result-value{font-weight:600}
+
+.steps{margin-top:24px;border-top:1px solid #2C2C2E;padding-top:20px}
+.steps-title{color:#8E8E93;font-size:12px;font-weight:600;text-transform:uppercase;
+             letter-spacing:.04em;margin-bottom:12px}
+.step{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start}
+.step-num{width:22px;height:22px;border-radius:50%;background:#2C2C2E;color:#8E8E93;
+          font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-num.done{background:#14532D;color:#4ADE80}
+.step-num.active{background:#4ADE80;color:#1C1C1E;animation:blink 1s ease infinite}
+.step-text{color:#8E8E93;font-size:13px;line-height:1.5}
+.step-text.done{color:#E5E7EB}
+.step-text.active{color:#4ADE80}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── PHONE MOCKUP ── -->
+  <div class="phone">
+    <div class="phone-top">
+      <span class="phone-time" id="phone-time">13:26</span>
+      <div class="phone-icons">
+        <span style="font-size:10px;color:#fff">●●●</span>
+        <span style="font-size:10px;color:#fff">WiFi</span>
+        <span style="font-size:10px;color:#fff">100%</span>
+      </div>
+    </div>
+    <div class="phone-screen" id="phone-screen">
+      <!-- IDLE state -->
+      <div id="state-idle" style="padding:20px;text-align:center;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:40px;margin-bottom:12px">📱</div>
+        <div style="color:#636366;font-size:13px">Dial *737*5*AMOUNT# to<br>load your Zillion wallet</div>
+        <div style="margin-top:16px;background:#2C2C2E;border-radius:10px;padding:10px 16px;color:#4ADE80;font-size:14px;font-family:monospace">
+          *737*5*2000#
+        </div>
+      </div>
+
+      <!-- DIALLING state -->
+      <div id="state-dialling" style="display:none;padding:20px;min-height:300px">
+        <div style="color:#8E8E93;font-size:11px;margin-bottom:8px">Dialling...</div>
+        <div style="color:#4ADE80;font-family:monospace;font-size:18px;letter-spacing:.1em" id="dial-display"></div>
+        <div style="color:#636366;font-size:12px;margin-top:8px">Connecting to MFB gateway...</div>
+      </div>
+
+      <!-- USSD MENU state -->
+      <div id="state-ussd" style="display:none">
+        <div class="ussd-overlay">
+          <div class="ussd-header">
+            <div class="ussd-logo">Z</div>
+            <div>
+              <div class="ussd-title">Zillion</div>
+              <div class="ussd-sub">*737*5#</div>
+            </div>
+          </div>
+          <div class="ussd-body">
+            <div class="ussd-prompt" id="ussd-prompt">Welcome to Zillion Wallet
+
+Enter your 4-digit PIN to
+confirm this transaction:</div>
+            <div class="ussd-input-wrap">
+              <span style="color:#4ADE80;font-size:16px">›</span>
+              <input type="tel" class="ussd-input" id="ussd-pin-input" placeholder="PIN" maxlength="4"
+                inputmode="numeric" autocomplete="off">
+            </div>
+          </div>
+          <div class="ussd-footer">
+            <button class="ussd-btn cancel" onclick="resetPhone()">Cancel</button>
+            <button class="ussd-btn send" id="ussd-confirm-btn" onclick="confirmUSSD()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROCESSING state -->
+      <div id="state-processing" style="display:none;padding:30px;text-align:center;min-height:300px;
+           display:none;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:36px;margin-bottom:14px" id="proc-icon">⏳</div>
+        <div style="color:#E5E7EB;font-size:14px;font-weight:600" id="proc-text">Processing...</div>
+        <div style="color:#636366;font-size:12px;margin-top:6px" id="proc-sub">Contacting MFB gateway</div>
+      </div>
+
+      <!-- SMS state -->
+      <div id="state-sms" style="display:none;min-height:300px">
+        <div style="background:#2C2C2E;padding:10px 14px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">💬</span>
+          <div>
+            <div style="color:#fff;font-size:13px;font-weight:600">MFB Nigeria</div>
+            <div style="color:#8E8E93;font-size:11px">now</div>
+          </div>
+        </div>
+        <div class="sms-bubble" id="sms-text"></div>
+        <div class="sms-label">SMS Confirmation</div>
+        <div style="padding:0 12px 16px">
+          <button onclick="goToWallet()" style="width:100%;background:#14532D;color:#4ADE80;border:none;
+            border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+            Open Zillion Wallet ›
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CONTROL PANEL ── -->
+  <div class="panel">
+    <div class="panel-title">USSD Self-Load Simulator</div>
+    <div class="panel-sub">Demo environment — simulates *737*5*AMOUNT# dial</div>
+
+    <div class="sim-badge"><span class="sim-dot"></span> SIMULATION MODE</div>
+
+    <div class="field">
+      <label>Customer phone number</label>
+      <select id="sim-phone">
+        <option value="+2348012345678">+2348012345678 — Kola Adekunle (₦50,000 bal)</option>
+        <option value="+2348126426726">+2348126426726 — Demo Customer (₦25,000 bal)</option>
+        <option value="+2349012345678">+2349012345678 — Amina Bello (₦15,000 bal)</option>
+        <option value="+2348055555555">+2348055555555 — Test User Five (₦10,000 bal)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Amount to load (₦)</label>
+      <select id="sim-amount">
+        <option value="500">₦500</option>
+        <option value="1000" selected>₦1,000</option>
+        <option value="2000">₦2,000</option>
+        <option value="5000">₦5,000</option>
+        <option value="10000">₦10,000</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Coin denomination</label>
+      <select id="sim-denom">
+        <option value="500">₦500 coins</option>
+        <option value="1000" selected>₦1,000 coins</option>
+        <option value="2000">₦2,000 coins</option>
+      </select>
+    </div>
+
+    <div class="accounts-hint">
+      <strong>Demo PIN:</strong> <span>1234</span><br>
+      Enter this in the USSD prompt on the phone to confirm.<br>
+      In production this is the customer's MFB banking PIN.
+    </div>
+
+    <button class="dial-btn" id="dial-btn" onclick="startDial()">
+      📞 Dial *737*5*AMOUNT#
+    </button>
+    <button class="reset-btn" onclick="resetAll()">↺ Reset demo</button>
+
+    <div class="result-box" id="result-box">
+      <div class="result-row"><span class="result-label">Status</span><span class="result-value" id="r-status"></span></div>
+      <div class="result-row"><span class="result-label">Coins issued</span><span class="result-value" id="r-coins"></span></div>
+      <div class="result-row"><span class="result-label">MFB balance after</span><span class="result-value" id="r-bal"></span></div>
+      <div class="result-row"><span class="result-label">Reference</span><span class="result-value" id="r-ref"></span></div>
+    </div>
+
+    <!-- Progress steps -->
+    <div class="steps">
+      <div class="steps-title">Transaction flow</div>
+      <div class="step"><div class="step-num" id="s1">1</div><div class="step-text" id="st1">Customer dials USSD shortcode</div></div>
+      <div class="step"><div class="step-num" id="s2">2</div><div class="step-text" id="st2">MFB gateway validates PIN</div></div>
+      <div class="step"><div class="step-num" id="s3">3</div><div class="step-text" id="st3">MFB debits customer account</div></div>
+      <div class="step"><div class="step-num" id="s4">4</div><div class="step-text" id="st4">Webhook fires to Zillion backend</div></div>
+      <div class="step"><div class="step-num" id="s5">5</div><div class="step-text" id="st5">Coins issued & signed</div></div>
+      <div class="step"><div class="step-num" id="s6">6</div><div class="step-text" id="st6">SMS confirmation sent to customer</div></div>
+      <div class="step"><div class="step-num" id="s7">7</div><div class="step-text" id="st7">Wallet synced — ready for offline use</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var currentStep = 0;
+var lastResult  = null;
+
+function setStep(n) {
+  for (var i=1; i<=7; i++) {
+    var num = document.getElementById('s'+i);
+    var txt = document.getElementById('st'+i);
+    if (i < n)  { num.className='step-num done'; txt.className='step-text done'; }
+    else if (i===n) { num.className='step-num active'; txt.className='step-text active'; }
+    else { num.className='step-num'; txt.className='step-text'; }
+  }
+  currentStep = n;
+}
+
+function showState(id) {
+  ['state-idle','state-dialling','state-ussd','state-processing','state-sms'].forEach(function(s){
+    var el=document.getElementById(s);
+    el.style.display = s===id ? (s==='state-processing'?'flex':'block') : 'none';
+  });
+}
+
+function startDial() {
+  var phone  = document.getElementById('sim-phone').value;
+  var amount = document.getElementById('sim-amount').value;
+  document.getElementById('dial-btn').disabled = true;
+  setStep(1);
+  showState('state-dialling');
+  var code = '*737*5*' + amount + '#';
+  var disp = document.getElementById('dial-display');
+  var i=0;
+  var t = setInterval(function(){
+    disp.textContent = code.slice(0,i+1);
+    i++;
+    if (i>=code.length) {
+      clearInterval(t);
+      setTimeout(showUSSD, 600);
+    }
+  }, 80);
+}
+
+function showUSSD() {
+  var phone  = document.getElementById('sim-phone').value;
+  var amount = document.getElementById('sim-amount').value;
+  document.getElementById('ussd-prompt').textContent =
+    'Welcome to Zillion Wallet
+
+Loading ₦' + parseInt(amount).toLocaleString('en-NG') +
+    ' to ' + phone.slice(-4).padStart(phone.length,'*') +
+    '
+
+Enter 4-digit MFB PIN to confirm:';
+  document.getElementById('ussd-pin-input').value = '';
+  showState('state-ussd');
+  setStep(2);
+  setTimeout(function(){ document.getElementById('ussd-pin-input').focus(); }, 100);
+}
+
+function confirmUSSD() {
+  var pin = document.getElementById('ussd-pin-input').value;
+  if (pin.length !== 4) { alert('Enter your 4-digit PIN'); return; }
+  showState('state-processing');
+  document.getElementById('proc-icon').textContent = '⏳';
+  document.getElementById('proc-text').textContent = 'Validating PIN...';
+  document.getElementById('proc-sub').textContent  = 'Contacting MFB gateway';
+  setStep(3);
+  setTimeout(function(){
+    document.getElementById('proc-text').textContent = 'Debiting MFB account...';
+    document.getElementById('proc-sub').textContent  = 'Checking balance';
+    setStep(4);
+    setTimeout(callBackend.bind(null, pin), 1200);
+  }, 900);
+}
+
+function callBackend(pin) {
+  document.getElementById('proc-text').textContent = 'Issuing Zil coins...';
+  document.getElementById('proc-sub').textContent  = 'Zillion signing coins';
+  setStep(5);
+  var body = {
+    phone:             document.getElementById('sim-phone').value,
+    amount_naira:      parseInt(document.getElementById('sim-amount').value),
+    denomination_naira:parseInt(document.getElementById('sim-denom').value),
+    pin:               pin,
+  };
+  fetch('/api/v1/ussd-simulate', {
+    method:  'POST',
+    headers: {'Content-Type':'application/json'},
+    body:    JSON.stringify(body),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.success) {
+      lastResult = data;
+      setStep(6);
+      showSMS(data);
+      showResult(data);
+    } else {
+      showError(data.error || 'Unknown error');
+    }
+  })
+  .catch(function(e){ showError('Network error: ' + e.message); });
+}
+
+function showSMS(data) {
+  document.getElementById('sms-text').textContent = data.ussd_response;
+  showState('state-sms');
+}
+
+function goToWallet() {
+  window.open('/wallet/', '_blank');
+}
+
+function showResult(data) {
+  var box = document.getElementById('result-box');
+  box.className = 'result-box ok';
+  box.style.display = 'block';
+  document.getElementById('r-status').textContent  = '✅ Success';
+  document.getElementById('r-coins').textContent   = data.coin_count + ' coin(s) × ₦' + data.denomination.toLocaleString('en-NG');
+  document.getElementById('r-bal').textContent     = '₦' + (data.sim_mfb_balance||0).toLocaleString('en-NG');
+  document.getElementById('r-ref').textContent     = data.ref;
+  setStep(7);
+}
+
+function showError(msg) {
+  showState('state-idle');
+  var box = document.getElementById('result-box');
+  box.className = 'result-box err';
+  box.style.display = 'block';
+  document.getElementById('r-status').textContent  = '❌ ' + msg;
+  document.getElementById('r-coins').textContent   = '—';
+  document.getElementById('r-bal').textContent     = '—';
+  document.getElementById('r-ref').textContent     = '—';
+  document.getElementById('dial-btn').disabled = false;
+  setStep(1);
+}
+
+function resetPhone() {
+  showState('state-idle');
+  document.getElementById('dial-btn').disabled = false;
+}
+
+function resetAll() {
+  showState('state-idle');
+  document.getElementById('dial-btn').disabled = false;
+  document.getElementById('result-box').style.display = 'none';
+  for (var i=1; i<=7; i++) {
+    document.getElementById('s'+i).className  = 'step-num';
+    document.getElementById('st'+i).className = 'step-text';
+  }
+  currentStep = 0;
+}
+
+// Live clock
+function tick(){
+  var d=new Date();
+  document.getElementById('phone-time').textContent =
+    String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+tick(); setInterval(tick,10000);
+
+// Enter key on PIN field
+document.addEventListener('keydown', function(e){
+  if (e.key==='Enter' && document.getElementById('state-ussd').style.display!=='none') confirmUSSD();
+});
+</script>
+</body>
+</html>
