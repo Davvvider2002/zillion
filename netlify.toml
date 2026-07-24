@@ -340,5 +340,8 @@
 [[redirects]]
   from = "/api/v1/admin-force-reconcile"
   to   = "/.netlify/functions/admin-force-reconcile"
+    to   = "/.netlify/functions/commission-config"
+    to   = "/.netlify/functions/commission-events"
+    to   = "/.netlify/functions/commission-agent"
   status = 200
 # validate.js regex removed — deploy trigger 1782778054
