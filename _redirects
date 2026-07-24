@@ -68,3 +68,7 @@
   /api/v1/admin/commission-config  /.netlify/functions/commission-config  200
   /api/v1/admin/commission-events  /.netlify/functions/commission-events  200
   /api/v1/agent-commission         /.netlify/functions/commission-agent   200
+  # ── USSD self-load simulation ────────────────────────────────
+  /api/v1/ussd-simulate  /.netlify/functions/ussd-simulate  200
+  /ussd-sim              /ussd-sim.html                     200
+
