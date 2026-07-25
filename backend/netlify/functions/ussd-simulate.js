@@ -1,28 +1,25 @@
 'use strict';
 /**
  * POST /api/v1/ussd-simulate
- * DEMO/TEST ONLY — simulates what a real MFB USSD gateway would send
- * to Zillion when a customer dials *737*Zillion*AMOUNT#
+ * DEMO/TEST ONLY — simulates the MFB USSD gateway webhook.
+ * Uses the exact same coin issuance path as issue.js.
  *
- * In production this endpoint is replaced by the real MFB webhook.
- * The self-load logic (coin issuance) is identical in both paths.
- *
- * Body: { phone, amount_naira, pin }
- * pin must match the SIM_PIN env var (default: "1234") for demo security
+ * Body: { phone, amount_naira, denomination_naira, pin }
+ * PIN must match USSD_SIM_PIN env var (default: "1234")
  */
 
-const { issueCoinBatch, getAgentFloat, getDeviceByPhone } = require('../../lib/supabase');
-const { applyCommission } = require('../../lib/commission');
+const { issueCoinBatch }   = require('../../lib/mint');
+const { insertCoins, markCoinsHeld } = require('../../lib/supabase');
+const { applyCommission }  = require('../../lib/commission');
 
 const SIM_PIN = process.env.USSD_SIM_PIN || '1234';
 
-// Simulated MFB account balances (demo only)
 const SIM_ACCOUNTS = {
-  '+2348012345678': { name: 'Kola Adekunle',    balance_naira: 50000 },
-  '+2348126426726': { name: 'Demo Customer',      balance_naira: 25000 },
-  '+2349012345678': { name: 'Amina Bello',        balance_naira: 15000 },
-  '+2348055555555': { name: 'Test User Five',     balance_naira: 10000 },
-  '+27621685478':   { name: 'David (SA Demo)',   balance_naira: 100000 },
+  '+27621685478':   { name: 'David (SA Demo)',    balance_naira: 100000 },
+  '+2348012345678': { name: 'Kola Adekunle',      balance_naira: 50000  },
+  '+2348126426726': { name: 'Demo Customer',       balance_naira: 25000  },
+  '+2349012345678': { name: 'Amina Bello',         balance_naira: 15000  },
+  '+2348055555555': { name: 'Test User Five',      balance_naira: 10000  },
 };
 
 exports.handler = async (event) => {
@@ -32,118 +29,119 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
+  const ok  = b     => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
+  const err = (c,m) => ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: hdr, body: '' };
-  if (event.httpMethod !== 'POST')
-    return { statusCode: 405, headers: hdr, body: JSON.stringify({ error: 'POST only' }) };
+  if (event.httpMethod !== 'POST') return err(405, 'POST only');
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
-  catch { return { statusCode: 400, headers: hdr, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
+  catch { return err(400, 'Invalid JSON'); }
 
   const { phone, amount_naira, pin, denomination_naira } = body;
 
-  // ── Validation ──────────────────────────────────────────────
+  // ── Validation ────────────────────────────────────────────────
   if (!phone || !amount_naira || !pin)
-    return { statusCode: 400, headers: hdr,
-      body: JSON.stringify({ error: 'phone, amount_naira and pin are required' }) };
+    return err(400, 'phone, amount_naira and pin are required');
 
   if (String(pin) !== String(SIM_PIN))
-    return { statusCode: 401, headers: hdr,
-      body: JSON.stringify({ error: 'Incorrect PIN. (SIM demo PIN: 1234)' }) };
+    return err(401, 'Incorrect PIN (demo PIN is 1234)');
 
   const amountNaira = parseInt(amount_naira, 10);
   if (isNaN(amountNaira) || amountNaira < 100 || amountNaira > 50000)
-    return { statusCode: 400, headers: hdr,
-      body: JSON.stringify({ error: 'Amount must be between ₦100 and ₦50,000' }) };
+    return err(400, 'Amount must be between N100 and N50,000');
 
-  // ── Simulate MFB account check ───────────────────────────────
+  // ── Simulated MFB account ─────────────────────────────────────
   const account = SIM_ACCOUNTS[phone];
   if (!account)
-    return { statusCode: 404, headers: hdr,
-      body: JSON.stringify({ error: `No simulated MFB account for ${phone}. Use +2348012345678 or +2348126426726.` }) };
+    return err(404, 'No simulated account for ' + phone + '. Use +27621685478 or +2348012345678.');
 
   if (account.balance_naira < amountNaira)
-    return { statusCode: 422, headers: hdr,
-      body: JSON.stringify({
-        error: `Insufficient MFB balance. Available: ₦${account.balance_naira.toLocaleString()}`,
-        sim_balance: account.balance_naira,
-      }) };
+    return err(422, 'Insufficient MFB balance. Available: N' + account.balance_naira.toLocaleString());
 
-  // ── Deduct from simulated balance ────────────────────────────
   account.balance_naira -= amountNaira;
 
-  // ── Work out coin denomination ───────────────────────────────
-  const denomNaira = parseInt(denomination_naira, 10) || 1000;
-  const denomKobo  = denomNaira * 100;
-  const totalKobo  = amountNaira * 100;
+  // ── Coin parameters ───────────────────────────────────────────
+  const denomNaira  = parseInt(denomination_naira, 10) || 1000;
+  const denomKobo   = denomNaira  * 100;
+  const totalKobo   = amountNaira * 100;
 
-  if (totalKobo % denomKobo !== 0)
-    return { statusCode: 400, headers: hdr,
-      body: JSON.stringify({
-        error: `Amount (₦${amountNaira}) must be a multiple of the denomination (₦${denomNaira})`,
-      }) };
+  if (totalKobo % denomKobo !== 0) {
+    account.balance_naira += amountNaira; // refund sim balance
+    return err(400, 'Amount (N' + amountNaira + ') must be a multiple of denomination (N' + denomNaira + ')');
+  }
 
   const coinCount = totalKobo / denomKobo;
 
-  // ── Issue coins via existing Zillion engine ──────────────────
+  // ── Issue coins — identical to issue.js ───────────────────────
   let coins;
   try {
     coins = await issueCoinBatch({
-      agent_id:    'USSD-SELF-LOAD',
-      phone:        phone,
-      amount:       totalKobo,
-      denomination: denomKobo,
-      coin_count:   coinCount,
-      source:       'ussd_self_load',
-      mfb_ref:      'SIM-' + Date.now(),
+      totalAmountKobo:  totalKobo,
+      coinValueKobo:    denomKobo,
+      recipientPhone:   phone,
+      recipientDevice:  'USSD-SELF-LOAD',
+      agentId:          'USSD-SELF-LOAD',
+      mintPrivateKey:   process.env.MINT_PRIVATE_KEY_HEX,
+      mintId:           process.env.MINT_ID || 'ZILLION-MINT-01',
+      ownerSalt:        process.env.SUPABASE_SERVICE_KEY,
+      sequenceStart:    Date.now(),
+      expiryDays:       parseInt(process.env.COIN_EXPIRY_DAYS || '90'),
     });
   } catch (issueErr) {
-    // Re-credit simulated balance on failure
-    account.balance_naira += amountNaira;
-    return { statusCode: 500, headers: hdr,
-      body: JSON.stringify({ error: 'Coin issuance failed: ' + issueErr.message }) };
+    account.balance_naira += amountNaira; // refund sim balance on failure
+    return err(500, 'Coin issuance failed: ' + issueErr.message);
   }
 
-  // ── Record commission (USSD self-load, no agent) ─────────────
+  // ── Persist coins to Supabase ─────────────────────────────────
+  try {
+    await insertCoins(coins, 'USSD-SELF-LOAD');
+    // Derive holder hash from phone (same as wallet registration)
+    const crypto    = require('crypto');
+    const salt      = process.env.SUPABASE_SERVICE_KEY || 'zillion-salt';
+    const holderHash = crypto.createHmac('sha256', salt).update(phone).digest('hex');
+    await markCoinsHeld(coins.map(c => c.coin_id), holderHash);
+  } catch (dbErr) {
+    console.error('[ussd-sim] DB persist failed:', dbErr.message);
+    // coins were minted but not saved — non-fatal for demo, log for production
+  }
+
+  // ── Commission ────────────────────────────────────────────────
   try {
     await applyCommission({
       txnType:    'cash_in',
       amountKobo: totalKobo,
       agentId:    null,
       mfbId:      'SIM_MFB',
-      coinId:     coins[0]?.coin_id || null,
+      coinId:     coins[0] && coins[0].coin_id,
     });
-  } catch(ce) {
-    console.warn('[commission] ussd self-load (non-fatal):', ce.message);
+  } catch (ce) {
+    console.warn('[commission] ussd self-load non-fatal:', ce.message);
   }
 
-  // ── Build SMS-style USSD confirmation (what the real gateway sends) ──
+  // ── SMS confirmation text ─────────────────────────────────────
   const ref = 'ZIL' + Date.now().toString(36).toUpperCase();
-  const confirmMsg = [
+  const smsLines = [
     'Zillion Load Successful',
-    `Amount: N${amountNaira.toLocaleString()}`,
-    `Coins: ${coinCount} x N${denomNaira.toLocaleString()}`,
-    `Ref: ${ref}`,
-    `MFB balance: N${account.balance_naira.toLocaleString()}`,
-    'Open Zillion Wallet to use offline.',
-  ].join('\n');
+    'Amount:  N' + amountNaira.toLocaleString(),
+    'Coins:   ' + coinCount + ' x N' + denomNaira.toLocaleString(),
+    'Ref:     ' + ref,
+    'MFB bal: N' + account.balance_naira.toLocaleString(),
+    'Open Zillion Wallet to spend offline.',
+  ];
 
-  return {
-    statusCode: 200,
-    headers: hdr,
-    body: JSON.stringify({
-      success:         true,
-      sim_mode:        true,
-      phone,
-      amount_naira:    amountNaira,
-      coin_count:      coinCount,
-      denomination:    denomNaira,
-      coins_issued:    coins.length,
-      ref,
-      ussd_response:   confirmMsg,
-      sim_mfb_balance: account.balance_naira,
-      message:         `${coinCount} Zillion coin(s) of ₦${denomNaira.toLocaleString()} issued to ${phone}. Sync wallet to load coins.`,
-    }),
-  };
+  return ok({
+    success:          true,
+    sim_mode:         true,
+    phone,
+    amount_naira:     amountNaira,
+    coin_count:       coinCount,
+    denomination:     denomNaira,
+    coins_issued:     coins.length,
+    ref,
+    ussd_response:    smsLines.join('\n'),
+    sim_mfb_balance:  account.balance_naira,
+    message:          coinCount + ' Zillion coin(s) of N' + denomNaira.toLocaleString() + ' issued to ' + phone,
+  });
 };
