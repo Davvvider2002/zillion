@@ -55,6 +55,36 @@ exports.handler = async (event) => {
       await updateAgentFloat(body.agent_id, result.total_kobo);
     }
 
+
+    // ── DOUBLE-ENTRY: write CASH_OUT transaction record ──────────
+    if (result.redeemed.length > 0) {
+      try {
+        const db2 = (require('../../lib/supabase')).getServiceClient();
+        const txRows = result.redeemed.map(function(coinId) {
+          return {
+            tx_id:    'CASHOUT-' + coinId.slice(-12),
+            coin_id:  coinId,
+            from_hash: body.holder_hash,   // customer surrenders coin
+            to_hash:   body.agent_id,      // agent receives for cash-out
+            amount:    null,               // amount fetched from coin record
+            tx_ts:     new Date().toISOString(),
+            sync_ts:   new Date().toISOString(),
+            env_sig:   'CASH_OUT',
+            status:    'SETTLED',
+            tx_type:   'CASH_OUT',
+            mfb_id:    body.mfb_id || null,
+            agent_id:  body.agent_id,
+          };
+        });
+        // Set correct amounts from total
+        const amtEach = Math.round(result.total_kobo / result.redeemed.length);
+        txRows.forEach(function(r){ r.amount = amtEach; });
+        await db2.from('transactions').insert(txRows);
+      } catch(txErr) {
+        console.warn('[redeem] tx record write failed (non-fatal):', txErr.message);
+      }
+    }
+
     if(result.total_kobo>0){try{await applyCommission({txnType:'cash_out',amountKobo:result.total_kobo,agentId:body.agent_id,mfbId:body.mfb_id||null,coinId:body.coin_ids[0]||null});}catch(ce){console.warn('[commission]',ce.message);}}
     const totalNaira = result.total_kobo / 100;
 
