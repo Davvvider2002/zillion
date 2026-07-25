@@ -1203,8 +1203,12 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div><label class="flabel">Transaction type</label>
         <select id="cc-txn-type" class="finput" style="width:100%">
-          <option value="cash_in">Cash-In</option><option value="cash_out">Cash-Out</option>
-          <option value="p2p">P2P Transfer</option><option value="merchant">Merchant Payment</option>
+          <option value="cash_in">Cash-In (agent)</option>
+          <option value="cash_out">Cash-Out (agent)</option>
+          <option value="p2p">P2P Transfer</option>
+          <option value="merchant">Merchant Payment</option>
+          <option value="ussd_self_load">USSD Self-Load (no agent)</option>
+          <option value="nip_self_load">NIP Self-Load (virtual account)</option>
         </select></div>
       <div><label class="flabel">Scope</label>
         <select id="cc-scope" class="finput" style="width:100%">
@@ -1256,8 +1260,13 @@ tbody tr:last-child td{border-bottom:none;}
       <div style="display:flex;gap:8px">
         <input id="comm-filter-agent" placeholder="Agent ID" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px;width:130px">
         <select id="comm-filter-type" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px">
-          <option value="">All types</option><option value="cash_in">Cash-In</option>
-          <option value="cash_out">Cash-Out</option><option value="p2p">P2P</option><option value="merchant">Merchant</option>
+          <option value="">All types</option>
+          <option value="cash_in">Cash-In (agent)</option>
+          <option value="cash_out">Cash-Out</option>
+          <option value="p2p">P2P</option>
+          <option value="merchant">Merchant</option>
+          <option value="ussd_self_load">USSD Self-Load</option>
+          <option value="nip_self_load">NIP Self-Load</option>
         </select>
         <button onclick="loadCommEvents()" class="rbtn">Filter</button>
       </div>
@@ -3476,21 +3485,30 @@ async function loadCommEvents(){
     var evts=d.events||[];
     var today=new Date();today.setHours(0,0,0,0);
     var tod=evts.filter(function(e){return new Date(e.created_at)>=today;});
-    var t=tod.reduce(function(a,e){return{f:a.f+(e.fee_kobo||0),z:a.z+(e.zillion_kobo||0),m:a.m+(e.mfb_kobo||0),ag:a.ag+(e.agent_kobo||0)};},{f:0,z:0,m:0,ag:0});
+    var t=tod.reduce(function(a,e){
+      var sl=!e.agent_id;
+      return{f:a.f+(e.fee_kobo||0),mfb:a.mfb+(e.mfb_kobo||0),
+        zil:a.zil+(sl?(e.zillion_kobo||0)+(e.agent_kobo||0):(e.zillion_kobo||0)),
+        ag:a.ag+(sl?0:(e.agent_kobo||0))};
+    },{f:0,mfb:0,zil:0,ag:0});
     ['comm-today-fee','comm-today-zil','comm-today-mfb','comm-today-agt'].forEach(function(id,i){
-      var e2=document.getElementById(id);if(e2)e2.textContent=fmtK([t.f,t.z,t.m,t.ag][i]);});
+      var e2=document.getElementById(id);if(e2)e2.textContent=fmtK([t.f,t.zil,t.mfb,t.ag][i]);});
     el.innerHTML=evts.map(function(e){
       var dt=new Date(e.created_at).toLocaleString('en-NG',{dateStyle:'short',timeStyle:'short'});
       var sc=e.status==='SETTLED'?'var(--g)':e.status==='FAILED'?'var(--r)':'var(--am)';
+      var isSelfLoad=!e.agent_id;
+      var dispZil=isSelfLoad?fmtK((e.zillion_kobo||0)+(e.agent_kobo||0)):fmtK(e.zillion_kobo||0);
+      var dispAgt=isSelfLoad?'—':fmtK(e.agent_kobo||0);
+      var selfBadge=isSelfLoad?'<span style="background:#052e16;color:#4ADE80;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">self</span>':'';
       return '<tr style="border-bottom:1px solid var(--grb)">'
         +'<td style="padding:6px">'+dt+'</td>'
-        +'<td style="padding:6px">'+(e.txn_type||'').replace('_',' ')+'</td>'
-        +'<td style="padding:6px;font-size:11px">'+(e.agent_id||'—')+'</td>'
+        +'<td style="padding:6px">'+(e.txn_type||'').replace(/_/g,' ')+selfBadge+'</td>'
+        +'<td style="padding:6px;font-size:11px">'+(e.agent_id||'<span style="color:var(--gr);font-size:10px">self-load</span>')+'</td>'
         +'<td style="padding:6px;text-align:right">'+fmtK(e.txn_amount_kobo||0)+'</td>'
         +'<td style="padding:6px;text-align:right;font-weight:700">'+fmtK(e.fee_kobo||0)+'</td>'
         +'<td style="padding:6px;text-align:right;color:var(--am)">'+fmtK(e.mfb_kobo||0)+'</td>'
-        +'<td style="padding:6px;text-align:right;color:var(--bl)">'+fmtK(e.zillion_kobo||0)+'</td>'
-        +'<td style="padding:6px;text-align:right;color:var(--g)">'+fmtK(e.agent_kobo||0)+'</td>'
+        +'<td style="padding:6px;text-align:right;color:var(--bl)">'+dispZil+'</td>'
+        +'<td style="padding:6px;text-align:right;color:var(--g)">'+dispAgt+'</td>'
         +'<td style="padding:6px"><span style="color:'+sc+';font-size:11px">'+(e.status||'')+'</span></td>'
         +'</tr>';
     }).join('')||'<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gr)">No events yet</td></tr>';
