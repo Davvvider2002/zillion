@@ -195,6 +195,34 @@ exports.handler = async (event) => {
     // Non-fatal — coins already issued
   }
 
+
+  // ── DOUBLE-ENTRY: write CASH_IN transaction record ───────────
+  // This ensures the transactions table captures every value entry.
+  // Without this, cash-ins are invisible in the transaction ledger.
+  try {
+    const db2 = (require('../../lib/supabase')).getServiceClient();
+    const txRows = coins.map(function(c) {
+      return {
+        tx_id:      'CASHIN-' + c.coin_id.slice(-12),
+        coin_id:    c.coin_id,
+        from_hash:  body.agent_id,        // agent debits float
+        to_hash:    body.recipient_hash || body.recipient_phone || 'CUSTOMER',
+        amount:     c.amount,
+        tx_ts:      new Date().toISOString(),
+        sync_ts:    new Date().toISOString(),
+        env_sig:    'CASH_IN',
+        status:     'SETTLED',
+        tx_type:    'CASH_IN',
+        mfb_id:     body.mfb_id || null,
+        agent_id:   body.agent_id,
+        source:     body.mfb_id ? 'agent_cash_in' : 'agent_cash_in',
+      };
+    });
+    await db2.from('transactions').insert(txRows);
+  } catch(txErr) {
+    console.warn('[issue] tx record write failed (non-fatal):', txErr.message);
+  }
+
   try { await applyCommission({ txnType:'cash_in', amountKobo:body.amount, agentId:body.agent_id, mfbId:body.mfb_id||null, coinId:coins[0]?.coin_id||null }); } catch(ce){ console.warn('[commission] cash_in:',ce.message); }
 
   return {
