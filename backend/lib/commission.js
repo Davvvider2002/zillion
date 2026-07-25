@@ -118,6 +118,11 @@ async function recordCommission({
     const db  = getServiceClient();
     const now = new Date().toISOString();
 
+    // Self-load (USSD/NIP, no agent): orphaned agent share goes to Zillion platform
+    const isSelfLoad           = !agentId;
+    const effectiveZillionKobo = isSelfLoad ? zillionKobo + agentKobo : zillionKobo;
+    const effectiveAgentKobo   = isSelfLoad ? 0 : agentKobo;
+
     // Write event
     await db.from('commission_events').insert({
       coin_id:         coinId   || null,
@@ -125,8 +130,8 @@ async function recordCommission({
       txn_amount_kobo: txnAmountKobo,
       fee_kobo:        feeKobo,
       mfb_kobo:        mfbKobo,
-      zillion_kobo:    zillionKobo,
-      agent_kobo:      agentKobo,
+      zillion_kobo:    effectiveZillionKobo,
+      agent_kobo:      effectiveAgentKobo,
       agent_id:        agentId  || null,
       mfb_id:          mfbId    || null,
       merchant_id:     merchantId || null,
@@ -134,11 +139,11 @@ async function recordCommission({
       created_at:      now,
     });
 
-    // Credit agent commission wallet
-    if (agentId && agentKobo > 0) {
+    // Credit agent only when a real agent performed the transaction
+    if (agentId && effectiveAgentKobo > 0) {
       await db.rpc('increment_agent_commission', {
         p_agent_id:    agentId,
-        p_kobo:        agentKobo,
+        p_kobo:        effectiveAgentKobo,
       });
     }
   } catch (err) {
@@ -152,7 +157,10 @@ async function recordCommission({
  * Returns { feeKobo, mfbKobo, zillionKobo, agentKobo, config }.
  */
 async function applyCommission({ txnType, amountKobo, agentId, mfbId, merchantId, coinId }) {
-  const config     = await getConfig(txnType, agentId, mfbId);
+  // USSD/NIP self-load uses cash_in rate
+  const effectiveTxnType = (txnType === 'ussd_self_load' || txnType === 'nip_self_load')
+    ? 'cash_in' : txnType;
+  const config     = await getConfig(effectiveTxnType, agentId, mfbId);
   const feeKobo    = computeFee(amountKobo, config);
   const split      = splitFee(feeKobo, config);
 
