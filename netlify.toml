@@ -362,3 +362,8 @@
   to   = "/.netlify/functions/ussd-simulate"
   status = 200
 # validate.js regex removed — deploy trigger 1782778054
+
+[[redirects]]
+  from = "/api/v1/admin/mfb-dashboard"
+  to   = "/.netlify/functions/admin-mfb-dashboard"
+  status = 200
