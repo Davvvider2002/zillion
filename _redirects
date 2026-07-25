@@ -72,3 +72,5 @@
   /api/v1/ussd-simulate  /.netlify/functions/ussd-simulate  200
   /ussd-sim              /ussd-sim.html                     200
 
+
+  /api/v1/admin/mfb-dashboard  /.netlify/functions/admin-mfb-dashboard  200
