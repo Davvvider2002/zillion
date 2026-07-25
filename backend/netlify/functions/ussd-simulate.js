@@ -22,6 +22,7 @@ const SIM_ACCOUNTS = {
   '+2348126426726': { name: 'Demo Customer',      balance_naira: 25000 },
   '+2349012345678': { name: 'Amina Bello',        balance_naira: 15000 },
   '+2348055555555': { name: 'Test User Five',     balance_naira: 10000 },
+  '+27621685478':   { name: 'David (SA Demo)',   balance_naira: 100000 },
 };
 
 exports.handler = async (event) => {
