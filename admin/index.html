@@ -3410,7 +3410,7 @@ async function loadCommConfigs(){
   var el=document.getElementById('cc-list'),ld=document.getElementById('cc-list-loading');
   if(!el)return;
   try{
-    var r=await fetch(API+'/admin/commission-config',{headers:{'Authorization':'Bearer '+adminToken}});
+    var r=await fetch('/api/v1/admin/commission-config',{headers:{'Authorization':'Bearer '+adminToken}});
     var d=await r.json();if(ld)ld.style.display='none';
     var cfgs=(d.configs||[]).filter(function(c){return c.active;});
     el.innerHTML=cfgs.map(function(c){
@@ -3447,7 +3447,7 @@ async function saveCommConfig(){
       fee_cap_kobo:Math.round(parseFloat(document.getElementById('cc-cap').value||0)*100),
       mfb_share_pct:mfb,zillion_share_pct:zil,
       note:document.getElementById('cc-note').value||''};
-    var r=await fetch(API+'/admin/commission-config',{method:'POST',
+    var r=await fetch('/api/v1/admin/commission-config',{method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},
       body:JSON.stringify(body)});
     var d=await r.json();
@@ -3459,7 +3459,7 @@ async function saveCommConfig(){
 async function deactivateCommConfig(id){
   if(!confirm('Deactivate this rate? The next broader config takes effect.'))return;
   try{
-    await fetch(API+'/admin/commission-config?id='+id,{method:'DELETE',headers:{'Authorization':'Bearer '+adminToken}});
+    await fetch('/api/v1/admin/commission-config?id='+id,{method:'DELETE',headers:{'Authorization':'Bearer '+adminToken}});
     loadCommConfigs();
   }catch(e){alert('Error: '+e.message);}
 }
@@ -3470,7 +3470,7 @@ async function loadCommEvents(){
   if(!el)return;
   try{
     var qs='?limit=100'+(ag?'&agent_id='+ag:'')+(tp?'&txn_type='+tp:'');
-    var r=await fetch(API+'/admin/commission-events'+qs,{headers:{'Authorization':'Bearer '+adminToken}});
+    var r=await fetch('/api/v1/admin/commission-events'+qs,{headers:{'Authorization':'Bearer '+adminToken}});
     var d=await r.json();if(ld)ld.textContent='';
     var fmtK=function(k){return '₦'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2});};
     var evts=d.events||[];
