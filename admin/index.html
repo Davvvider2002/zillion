@@ -585,6 +585,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('users',this);loadAdminUsers()">
         <span class="si">👤</span> Users &amp; Access
       </button>
+      <button class="snav-item" id="nav-mfb-dashboard"
+              onclick="showSec('mfb-dashboard',this);setTimeout(loadMfbDashboard,100);">
+        <span class="si">🏦</span> MFB Dashboard
+      </button>
       <button class="snav-item" id="nav-commission"
               onclick="showSec('commission',this);setTimeout(loadCommConfigs,100);">
         <span class="si">💰</span> Commissions
@@ -1189,6 +1193,70 @@ tbody tr:last-child td{border-bottom:none;}
 
 
 <!-- COMMISSIONS -->
+
+<div id="sec-mfb-dashboard" class="sec">
+  <div style="margin-bottom:8px">
+    <h2 style="font-size:18px;font-weight:700">MFB Dashboard</h2>
+    <p style="font-size:13px;color:var(--gr);margin-top:4px">
+      Per-MFB coin metrics · Double-entry reconciliation · Coins vs Transactions audit
+    </p>
+  </div>
+
+  <!-- Platform totals -->
+  <div class="metrics" style="margin-bottom:20px" id="mfb-platform-cards">
+    <div class="metric"><div class="mlabel">Total Minted</div><div class="mvalue" id="pt-minted">—</div></div>
+    <div class="metric bl"><div class="mlabel">In Circulation</div><div class="mvalue" id="pt-held">—</div></div>
+    <div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" id="pt-redeemed">—</div></div>
+    <div class="metric" style="border-top:3px solid var(--r)"><div class="mlabel">Float Obligation</div><div class="mvalue" id="pt-float">—</div></div>
+    <div class="metric"><div class="mlabel">P2P Transfers</div><div class="mvalue" id="pt-p2p">—</div></div>
+    <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">Recon Status</div><div class="mvalue" id="pt-recon">—</div></div>
+  </div>
+
+  <!-- Double-entry proof box -->
+  <div class="card" id="mfb-deentry-box" style="margin-bottom:16px">
+    <div class="card-title">Double-Entry Reconciliation</div>
+    <div id="mfb-deentry-content" style="font-size:13px;color:var(--gr)">Loading...</div>
+  </div>
+
+  <!-- Coins vs Transactions audit -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Coins ↔ Transactions Audit
+      <span id="mfb-audit-badge" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--grl);color:var(--g)">Loading</span>
+    </div>
+    <div id="mfb-audit-content" style="font-size:13px;color:var(--gr)">Loading...</div>
+  </div>
+
+  <!-- Per-MFB breakdown table -->
+  <div class="card">
+    <div class="card-title">Per-MFB Breakdown
+      <button class="rbtn" onclick="loadMfbDashboard()">↻</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--grb)">
+            <th style="padding:8px;text-align:left">MFB</th>
+            <th style="padding:8px;text-align:right">Minted</th>
+            <th style="padding:8px;text-align:right">Value Minted</th>
+            <th style="padding:8px;text-align:right">In Circulation</th>
+            <th style="padding:8px;text-align:right">Float Obligation</th>
+            <th style="padding:8px;text-align:right">Redeemed</th>
+            <th style="padding:8px;text-align:right">P2P</th>
+            <th style="padding:8px;text-align:right">Cash-Ins</th>
+            <th style="padding:8px;text-align:right">Cash-Outs</th>
+            <th style="padding:8px;text-align:right">Self-Loads</th>
+            <th style="padding:8px;text-align:center">Balanced</th>
+          </tr>
+        </thead>
+        <tbody id="mfb-table-body"></tbody>
+      </table>
+    </div>
+    <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">
+      Click MFB Dashboard to load
+    </div>
+  </div>
+</div>
+
 <div id="sec-commission" class="sec">
   <div style="margin-bottom:8px"><h2 style="font-size:18px;font-weight:700">Commission Configuration</h2>
   <p style="font-size:13px;color:var(--gr);margin-top:4px">Rates apply at 3 levels — most specific wins: <strong>Agent</strong> > <strong>MFB Partner</strong> > <strong>Global</strong>. Changes take effect immediately on next transaction.</p></div>
@@ -3513,6 +3581,121 @@ async function loadCommEvents(){
         +'</tr>';
     }).join('')||'<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gr)">No events yet</td></tr>';
   }catch(e){if(ld)ld.textContent='Error: '+e.message;}
+}
+
+
+async function loadMfbDashboard() {
+  var ld = document.getElementById('mfb-table-loading');
+  if (ld) ld.textContent = 'Loading...';
+  try {
+    var resp = await fetch('/api/v1/admin/mfb-dashboard', {
+      headers: { 'Authorization': 'Bearer ' + adminToken }
+    });
+    var data = await resp.json();
+    if (!resp.ok) { if(ld) ld.textContent='Error: '+data.error; return; }
+
+    var fmtK = function(k){ return '₦'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
+    var fmtN = function(n){ return n.toLocaleString('en-NG'); };
+    var pt   = data.platform_totals || {};
+    var rec  = data.reconciliation  || {};
+
+    // Platform cards
+    function setEl(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
+    setEl('pt-minted',    fmtN(pt.coins_minted||0) + ' coins / ' + fmtK(pt.value_minted_kobo));
+    setEl('pt-held',      fmtN(pt.coins_held||0)   + ' coins / ' + fmtK(pt.value_held_kobo));
+    setEl('pt-redeemed',  fmtN(pt.coins_redeemed||0) + ' coins / ' + fmtK(pt.value_redeemed_kobo));
+    setEl('pt-float',     fmtK(pt.float_obligation_kobo));
+    setEl('pt-p2p',       fmtN(pt.p2p_txn_count||0) + ' txns / ' + fmtK(pt.p2p_value_kobo));
+    var reconEl = document.getElementById('pt-recon');
+    if (reconEl) {
+      reconEl.textContent = pt.all_reconciled ? '✅ Balanced' : '⚠️ Discrepancy';
+      reconEl.style.color = pt.all_reconciled ? 'var(--g)' : 'var(--r)';
+    }
+
+    // Double-entry proof
+    var deEl = document.getElementById('mfb-deentry-content');
+    if (deEl) {
+      var mfbs = data.mfb_breakdown || [];
+      var proofRows = mfbs.map(function(m){
+        var ok  = m.reconciled ? '✅' : '❌';
+        var disc = m.recon_discrepancy !== 0 ? ' (gap: '+fmtK(m.recon_discrepancy)+')' : '';
+        return '<tr style="border-bottom:1px solid var(--grb)">'
+          +'<td style="padding:6px;font-weight:500">'+(m.mfb_name||m.mfb_id)+'</td>'
+          +'<td style="padding:6px;text-align:right;color:var(--bl)">'  +fmtK(m.dr_mfb_float)+'</td>'
+          +'<td style="padding:6px;text-align:right;color:var(--g)">'   +fmtK(m.cr_circulation)+'</td>'
+          +'<td style="padding:6px;text-align:right;color:var(--am)">'  +fmtK(m.dr_circulation)+'</td>'
+          +'<td style="padding:6px;text-align:right;color:var(--g)">'   +fmtK(m.cr_agent_float)+'</td>'
+          +'<td style="padding:6px;text-align:center">'+ok+disc+'</td>'
+          +'</tr>';
+      }).join('');
+      deEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<thead><tr style="border-bottom:2px solid var(--grb)">'
+        +'<th style="padding:7px;text-align:left">MFB</th>'
+        +'<th style="padding:7px;text-align:right;color:var(--bl)">DR MFB Float</th>'
+        +'<th style="padding:7px;text-align:right;color:var(--g)">CR Circulation</th>'
+        +'<th style="padding:7px;text-align:right;color:var(--am)">DR Circulation</th>'
+        +'<th style="padding:7px;text-align:right;color:var(--g)">CR Agent Float</th>'
+        +'<th style="padding:7px;text-align:center">Balanced</th>'
+        +'</tr></thead><tbody>'+proofRows+'</tbody></table>'
+        +'<p style="font-size:11px;color:var(--gr);margin-top:8px">'
+        +'DR MFB Float = CR Circulation confirms every naira issued is accounted for. '
+        +'DR Circulation = CR Agent Float confirms every redemption is matched.</p>';
+    }
+
+    // Audit box
+    var auditEl  = document.getElementById('mfb-audit-content');
+    var badgeEl  = document.getElementById('mfb-audit-badge');
+    var noTxCount = rec.coins_with_no_tx_record || 0;
+    var orphCount = rec.orphaned_transactions   || 0;
+    var auditOk   = noTxCount === 0 && orphCount === 0;
+    if (badgeEl) {
+      badgeEl.textContent = auditOk ? '✅ Clean' : '⚠️ ' + (noTxCount+orphCount) + ' issues';
+      badgeEl.style.background = auditOk ? 'var(--grl)' : 'var(--amw,#FEF3C7)';
+      badgeEl.style.color      = auditOk ? 'var(--g)'   : 'var(--am)';
+    }
+    if (auditEl) {
+      auditEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+        +'<div style="background:var(--bg);border:1px solid var(--grb);border-radius:8px;padding:12px">'
+        +'<div style="font-size:11px;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Coins with no TX record</div>'
+        +'<div style="font-size:20px;font-weight:700;color:'+(noTxCount?'var(--am)':'var(--g)')+'">'+fmtN(noTxCount)+'</div>'
+        +'<div style="font-size:11px;color:var(--gr);margin-top:2px">Value: '+fmtK(rec.coins_with_no_tx_value||0)+'</div>'
+        +'</div>'
+        +'<div style="background:var(--bg);border:1px solid var(--grb);border-radius:8px;padding:12px">'
+        +'<div style="font-size:11px;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Orphaned TX records</div>'
+        +'<div style="font-size:20px;font-weight:700;color:'+(orphCount?'var(--r)':'var(--g)')+'">'+fmtN(orphCount)+'</div>'
+        +'<div style="font-size:11px;color:var(--gr);margin-top:2px">TX with no matching coin</div>'
+        +'</div></div>'
+        +'<p style="font-size:12px;color:var(--gr);margin-top:10px">'+(rec.note||'')+'</p>';
+    }
+
+    // Per-MFB table
+    var tbody = document.getElementById('mfb-table-body');
+    if (ld) ld.style.display = 'none';
+    if (tbody) {
+      var mfbs = data.mfb_breakdown || [];
+      tbody.innerHTML = mfbs.map(function(m){
+        var bal = m.reconciled
+          ? '<span style="color:var(--g)">✅</span>'
+          : '<span style="color:var(--r)">❌ '+(m.recon_discrepancy/100).toFixed(0)+'</span>';
+        return '<tr style="border-bottom:1px solid var(--grb)">'
+          +'<td style="padding:7px;font-weight:500">'+(m.mfb_name||m.mfb_id)+'</td>'
+          +'<td style="padding:7px;text-align:right">'+fmtN(m.coins_minted)+'</td>'
+          +'<td style="padding:7px;text-align:right">'+fmtK(m.value_minted_kobo)+'</td>'
+          +'<td style="padding:7px;text-align:right;color:var(--bl)">'+fmtK(m.value_held_kobo)+'</td>'
+          +'<td style="padding:7px;text-align:right;color:var(--r)">'+fmtK(m.float_obligation_kobo)+'</td>'
+          +'<td style="padding:7px;text-align:right;color:var(--am)">'+fmtK(m.value_redeemed_kobo)+'</td>'
+          +'<td style="padding:7px;text-align:right">'+fmtN(m.p2p_txn_count)+'</td>'
+          +'<td style="padding:7px;text-align:right">'+fmtN(m.cashin_count)+'</td>'
+          +'<td style="padding:7px;text-align:right">'+fmtN(m.cashout_count)+'</td>'
+          +'<td style="padding:7px;text-align:right;color:var(--g)">'+fmtN(m.selfload_count)+'</td>'
+          +'<td style="padding:7px;text-align:center">'+bal+'</td>'
+          +'</tr>';
+      }).join('') || '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--gr)">No MFB data yet</td></tr>';
+    }
+  } catch(e) {
+    var ld2 = document.getElementById('mfb-table-loading');
+    if(ld2) { ld2.style.display=''; ld2.textContent='Error: '+e.message; }
+  }
 }
 
 </script>
