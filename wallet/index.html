@@ -4809,16 +4809,11 @@ function copyVirtualAccount() {
 
 function dialUSSD() {
   var amt   = (document.getElementById('ussd-amount-sel')||{}).value || '1000';
-  var code  = '*737*5*' + amt + '#';
-  var resEl = document.getElementById('ussd-result');
-  if (window.location.protocol === 'https:') {
-    window.location.href = 'tel:' + encodeURIComponent(code);
-  } else {
-    if (resEl) {
-      resEl.style.display = 'block';
-      resEl.textContent = 'On a real device: open dialler → type ' + code + ' → press call';
-    }
-  }
+  var denom = (document.getElementById('ussd-denom-sel')||{}).value || '1000';
+  var phone = STATE.user && (STATE.user.phone || STATE.user.phone_number || '');
+  var url   = '/ussd-sim?phone=' + encodeURIComponent(phone) +
+              '&amount=' + amt + '&denom=' + denom;
+  window.open(url, '_blank');
 }
 
 </script>
