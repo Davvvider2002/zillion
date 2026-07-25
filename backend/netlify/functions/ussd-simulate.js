@@ -107,6 +107,31 @@ exports.handler = async (event) => {
     // coins were minted but not saved — non-fatal for demo, log for production
   }
 
+
+  // ── DOUBLE-ENTRY: write SELF_LOAD transaction record ──────────
+  try {
+    const db2 = require('../../lib/supabase').getServiceClient();
+    const txRows2 = coins.map(function(c) {
+      return {
+        tx_id:    'SELFLOAD-' + c.coin_id.slice(-12),
+        coin_id:  c.coin_id,
+        from_hash: 'MFB-FLOAT',          // MFB float is debited
+        to_hash:   phone,                 // customer wallet credited
+        amount:    c.amount,
+        tx_ts:     new Date().toISOString(),
+        sync_ts:   new Date().toISOString(),
+        env_sig:   'USSD_SELF_LOAD',
+        status:    'SETTLED',
+        tx_type:   'USSD_SELF_LOAD',
+        mfb_id:    'SIM_MFB',
+        agent_id:  null,
+      };
+    });
+    await db2.from('transactions').insert(txRows2);
+  } catch(txErr2) {
+    console.warn('[ussd-sim] tx record write failed (non-fatal):', txErr2.message);
+  }
+
   // ── Commission ────────────────────────────────────────────────
   try {
     await applyCommission({
