@@ -23,11 +23,15 @@ exports.handler = async (event) => {
   try {
     const db = getServiceClient();
     let q = db.from('transactions')
-      .select('*, coins(amount,status,issuer_id)', {count:'exact'})
+      .select('tx_id, coin_id, amount, tx_type, status, from_hash, to_hash, mfb_id, agent_id, tx_ts, sync_ts, env_sig, coins(amount,status,issuer_id)', {count:'exact'})
       .order('tx_ts', {ascending:false})
       .range(offset, offset+limit-1);
 
-    if (status) q = q.eq('status', status);
+    if (status)   q = q.eq('status',  status);
+    const txType = p.tx_type;
+    if (txType)   q = q.eq('tx_type', txType);
+    const mfbId  = p.mfb_id;
+    if (mfbId)    q = q.eq('mfb_id',  mfbId);
 
     const { data:txns, count, error } = await q;
     if (error) throw error;
