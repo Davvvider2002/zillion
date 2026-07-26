@@ -593,6 +593,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('commission',this);setTimeout(loadCommConfigs,100);">
         <span class="si">💰</span> Commissions
       </button>
+      <button class="snav-item" id="nav-compliance"
+              onclick="showSec('compliance',this);setTimeout(loadCompliance,100);">
+        <span class="si">📋</span> Compliance
+      </button>
       <button class="snav-item" id="nav-system"
               onclick="showSec('system',this)">
         <span class="si">⚙️</span> System
@@ -1142,10 +1146,97 @@ tbody tr:last-child td{border-bottom:none;}
         <tbody id="fraud-table-body"><tr><td colspan="7" class="no-data">🛡️ No fraud events</td></tr></tbody>
       </table>
     </div>
-  </div>
+  
+
+      <div class="card" style="border:1px solid var(--r);margin-top:14px" data-sec="fraud">
+        <div class="card-title" style="color:var(--r)">&#x1F9CA; Freeze / Unfreeze Coin
+          <span style="font-size:11px;font-weight:400;color:var(--gr)">Admin override — requires reason</span>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 2fr;gap:10px;align-items:end;margin-bottom:10px">
+          <div><label class="flabel">Coin ID</label><input id="freeze-coin-id" class="finput" placeholder="ZIL-..." style="width:100%"></div>
+          <div><label class="flabel">Action</label>
+            <select id="freeze-action" class="finput" style="width:100%">
+              <option value="freeze">Freeze</option>
+              <option value="unfreeze">Unfreeze</option>
+            </select>
+          </div>
+          <div><label class="flabel">Reason / Note</label><input id="freeze-reason" class="finput" placeholder="e.g. Double-spend investigation" style="width:100%"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button onclick="executeCoinFreeze()" style="padding:9px 18px;background:var(--r);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Execute</button>
+          <span id="freeze-msg" style="font-size:13px;color:var(--gr)"></span>
+        </div>
+      </div></div>
 </div>
 
 <!-- SYSTEM -->
+
+<div id="sec-compliance" class="sec">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="card" style="border:2px solid var(--am)">
+      <div class="card-title" style="color:var(--am)">&#x1F4CB; Currency Transaction Reports (CTR)
+        <span style="font-size:11px;font-weight:400;color:var(--gr)">CBN: transactions &ge;&#x20a6;1,000,000</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div><label class="flabel">From</label><input type="date" id="ctr-from" class="finput" style="width:100%"></div>
+        <div><label class="flabel">To</label><input type="date" id="ctr-to" class="finput" style="width:100%"></div>
+        <div style="display:flex;align-items:flex-end"><button onclick="loadCTR()" style="padding:9px 16px;background:var(--am);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;width:100%">Pull CTRs</button></div>
+      </div>
+      <div id="ctr-loading" style="font-size:13px;color:var(--gr)">Enter date range and click Pull CTRs</div>
+      <div style="overflow-x:auto;margin-top:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:2px solid var(--grb)">
+            <th style="padding:6px;text-align:left">Date</th>
+            <th style="padding:6px;text-align:left">TX ID</th>
+            <th style="padding:6px;text-align:right">Amount</th>
+            <th style="padding:6px;text-align:left">Type</th>
+            <th style="padding:6px;text-align:left">Agent</th>
+          </tr></thead>
+          <tbody id="ctr-tbody"></tbody>
+        </table>
+      </div>
+      <div id="ctr-summary" style="margin-top:10px;font-size:13px;color:var(--gr)"></div>
+      <button id="ctr-export-btn" style="display:none;margin-top:8px;padding:7px 14px;background:var(--w);border:1px solid var(--grb);border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit" onclick="exportCTR()">&#x2193; Export CSV</button>
+    </div>
+
+    <div class="card" style="border:2px solid var(--r)">
+      <div class="card-title" style="color:var(--r)">&#x26A0; Suspicious Transaction Reports (STR)
+        <span style="font-size:11px;font-weight:400;color:var(--gr)">CBN AML/CFT requirement</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div><label class="flabel">From</label><input type="date" id="str-from" class="finput" style="width:100%"></div>
+        <div><label class="flabel">To</label><input type="date" id="str-to" class="finput" style="width:100%"></div>
+        <div style="display:flex;align-items:flex-end"><button onclick="loadSTR()" style="padding:9px 16px;background:var(--r);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;width:100%">Pull STRs</button></div>
+      </div>
+      <div id="str-loading" style="font-size:13px;color:var(--gr)">Enter date range and click Pull STRs</div>
+      <div style="overflow-x:auto;margin-top:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:2px solid var(--grb)">
+            <th style="padding:6px;text-align:left">Date</th>
+            <th style="padding:6px;text-align:left">Device</th>
+            <th style="padding:6px;text-align:left">Reason</th>
+            <th style="padding:6px;text-align:right">TX Count</th>
+            <th style="padding:6px;text-align:right">Total</th>
+          </tr></thead>
+          <tbody id="str-tbody"></tbody>
+        </table>
+      </div>
+      <div id="str-summary" style="margin-top:10px;font-size:13px;color:var(--gr)"></div>
+      <button id="str-export-btn" style="display:none;margin-top:8px;padding:7px 14px;background:var(--w);border:1px solid var(--grb);border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit" onclick="exportSTR()">&#x2193; Export CSV</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">KYC / NIN Verification Status</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:var(--bg);border-radius:8px;padding:12px"><div style="font-size:11px;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Tier 1 (Unverified)</div><div id="kyc-tier1" style="font-size:20px;font-weight:700">—</div><div style="font-size:11px;color:var(--gr)">Limit: &#x20a6;50,000/day</div></div>
+      <div style="background:var(--bg);border-radius:8px;padding:12px"><div style="font-size:11px;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Tier 2 (NIN Verified)</div><div id="kyc-tier2" style="font-size:20px;font-weight:700;color:var(--g)">—</div><div style="font-size:11px;color:var(--gr)">Limit: &#x20a6;200,000/day</div></div>
+      <div style="background:var(--bg);border-radius:8px;padding:12px"><div style="font-size:11px;color:var(--gr);text-transform:uppercase;margin-bottom:4px">Verification rate</div><div id="kyc-rate" style="font-size:20px;font-weight:700;color:var(--bl)">—</div></div>
+    </div>
+    <div id="kyc-note" style="font-size:12px;color:var(--gr)">KYC verification upgrades customers from Tier 1 (&#x20a6;50k/day limit) to Tier 2 (&#x20a6;200k/day) via NIN check through Paystack Identity API. Route: POST /api/v1/kyc/verify-nin</div>
+  </div>
+</div>
+
 <div id="sec-system" class="sec">
         <!-- TOTP Setup Card -->
         <div class="card" style="border:2px solid var(--am);background:rgba(245,158,11,.04)" id="totp-setup-card">
@@ -1797,7 +1888,7 @@ function showSec(name, el) {
     customers: loadUsers,    merchants: loadMerchants, agents: loadAgents,
     coins: loadCoins,        transactions: loadTransactions, fraud: loadFraud,
     system: checkSystem,     ledger: initLedger, tokens: loadTokens,
-    mfbs: loadMfbs,          commission: loadCommConfigs, users: loadUsers
+    mfbs: loadMfbs,          commission: loadCommConfigs, users: loadUsers, compliance: loadCompliance
   };
   if (loaders[name]) loaders[name]();
 }
@@ -4103,6 +4194,103 @@ document.addEventListener('DOMContentLoaded', function() {
   var ov = document.getElementById('sec-overview');
   if (ov) ov.classList.add('active');
 });
+
+
+
+var _ctrData = []; var _strData = [];
+
+function loadCompliance() {
+  var today = new Date().toISOString().slice(0,10);
+  var firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
+  ['ctr-from','ctr-to','str-from','str-to'].forEach(function(id,i){
+    var el=document.getElementById(id); if(el&&!el.value) el.value=(i%2===0)?firstDay:today;
+  });
+}
+
+async function loadCTR() {
+  var from = (document.getElementById('ctr-from')||{}).value||'';
+  var to   = (document.getElementById('ctr-to')||{}).value||'';
+  var ld   = document.getElementById('ctr-loading');
+  if(ld) ld.textContent='Loading...';
+  try {
+    var resp = await fetch('/api/v1/compliance/ctr?from='+from+'&to='+to,
+                          {headers:{'Authorization':'Bearer '+adminToken}});
+    var data = await resp.json();
+    if(!resp.ok) { if(ld) ld.textContent='Error: '+(data.error||'failed'); return; }
+    _ctrData = data.transactions||[];
+    if(ld) ld.textContent=_ctrData.length+' CTR records found (total: '+(data.total_kobo/100).toLocaleString('en-NG',{minimumFractionDigits:2})+')';
+    var tbody=document.getElementById('ctr-tbody');
+    if(tbody) tbody.innerHTML=_ctrData.map(function(t){
+      return '<tr style="border-bottom:1px solid var(--grb)">'
+        +'<td style="padding:6px;font-size:11px">'+((t.tx_ts||t.sync_ts||'').slice(0,16).replace('T',' '))+'</td>'
+        +'<td style="padding:6px;font-family:monospace;font-size:10px">'+((t.tx_id||'').slice(-14))+'</td>'
+        +'<td style="padding:6px;text-align:right;font-weight:700">\u20a6'+((t.amount||0)/100).toLocaleString()+'</td>'
+        +'<td style="padding:6px">'+(t.tx_type||'—')+'</td>'
+        +'<td style="padding:6px;font-size:11px">'+(t.agent_id||'—')+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--gr)">No CTR records</td></tr>';
+    var btn=document.getElementById('ctr-export-btn'); if(btn) btn.style.display='inline-block';
+  } catch(e) { if(ld) ld.textContent='Error: '+e.message; }
+}
+
+async function loadSTR() {
+  var from = (document.getElementById('str-from')||{}).value||'';
+  var to   = (document.getElementById('str-to')||{}).value||'';
+  var ld   = document.getElementById('str-loading');
+  if(ld) ld.textContent='Loading...';
+  try {
+    var resp = await fetch('/api/v1/compliance/str?from='+from+'&to='+to,
+                          {headers:{'Authorization':'Bearer '+adminToken}});
+    var data = await resp.json();
+    if(!resp.ok) { if(ld) ld.textContent='Error: '+(data.error||'failed'); return; }
+    _strData = data.reports||[];
+    if(ld) ld.textContent=_strData.length+' suspicious pattern(s) detected';
+    var tbody=document.getElementById('str-tbody');
+    if(tbody) tbody.innerHTML=_strData.map(function(r){
+      return '<tr style="border-bottom:1px solid var(--grb)">'
+        +'<td style="padding:6px;font-size:11px">'+(r.date||'—')+'</td>'
+        +'<td style="padding:6px;font-family:monospace;font-size:10px">'+(r.device_hash||'—').slice(0,16)+'</td>'
+        +'<td style="padding:6px">'+(r.reason||r.pattern||'—')+'</td>'
+        +'<td style="padding:6px;text-align:right">'+(r.tx_count||0)+'</td>'
+        +'<td style="padding:6px;text-align:right">\u20a6'+((r.total_kobo||0)/100).toLocaleString()+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--gr)">No suspicious patterns in range</td></tr>';
+    var btn=document.getElementById('str-export-btn'); if(btn) btn.style.display='inline-block';
+  } catch(e) { if(ld) ld.textContent='Error: '+e.message; }
+}
+
+function exportCTR() {
+  if(!_ctrData.length) return;
+  var rows=[['Date','TX ID','Amount NGN','Type','Agent ID']];
+  _ctrData.forEach(function(t){ rows.push([(t.tx_ts||'').slice(0,16),t.tx_id,(t.amount||0)/100,t.tx_type,t.agent_id]); });
+  downloadCSV(rows,'ctr-report-'+new Date().toISOString().slice(0,10)+'.csv');
+}
+function exportSTR() {
+  if(!_strData.length) return;
+  var rows=[['Date','Device Hash','Reason','TX Count','Total NGN']];
+  _strData.forEach(function(r){ rows.push([r.date,r.device_hash,r.reason||r.pattern,r.tx_count,(r.total_kobo||0)/100]); });
+  downloadCSV(rows,'str-report-'+new Date().toISOString().slice(0,10)+'.csv');
+}
+
+async function executeCoinFreeze() {
+  var coinId = (document.getElementById('freeze-coin-id')||{}).value||'';
+  var action = (document.getElementById('freeze-action')||{}).value||'freeze';
+  var reason = (document.getElementById('freeze-reason')||{}).value||'';
+  var msg    = document.getElementById('freeze-msg');
+  if(!coinId||!reason) { if(msg) msg.textContent='Coin ID and reason required'; return; }
+  if(msg) msg.textContent='Executing...';
+  try {
+    var resp = await fetch('/api/v1/coins/freeze', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},
+      body: JSON.stringify({coin_ids:[coinId], action:action, reason:reason})
+    });
+    var data = await resp.json();
+    if(!resp.ok) { if(msg) { msg.textContent='Error: '+(data.error||'failed'); msg.style.color='var(--r)'; } return; }
+    if(msg) { msg.textContent='\u2714 '+action+' applied to '+coinId; msg.style.color='var(--g)'; }
+    document.getElementById('freeze-coin-id').value='';
+    document.getElementById('freeze-reason').value='';
+    loadFraud();
+  } catch(e) { if(msg) { msg.textContent=e.message; msg.style.color='var(--r)'; } }
+}
 
 </script>
 </body>
