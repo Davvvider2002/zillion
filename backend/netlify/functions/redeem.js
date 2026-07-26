@@ -66,7 +66,7 @@ exports.handler = async (event) => {
             coin_id:  coinId,
             from_hash: body.holder_hash,   // customer surrenders coin
             to_hash:   body.agent_id,      // agent receives for cash-out
-            amount:    null,               // amount fetched from coin record
+            amount:    result.total_kobo ? Math.round(result.total_kobo / result.redeemed.length) : 0,
             tx_ts:     new Date().toISOString(),
             sync_ts:   new Date().toISOString(),
             env_sig:   'CASH_OUT',
