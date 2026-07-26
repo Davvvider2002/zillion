@@ -367,3 +367,8 @@
   from = "/api/v1/admin/mfb-dashboard"
   to   = "/.netlify/functions/admin-mfb-dashboard"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin/mfb"
+  to   = "/.netlify/functions/admin-mfb"
+  status = 200
