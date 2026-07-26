@@ -158,8 +158,15 @@ async function recordCommission({
  */
 async function applyCommission({ txnType, amountKobo, agentId, mfbId, merchantId, coinId }) {
   // USSD/NIP self-load uses cash_in rate
-  const effectiveTxnType = (txnType === 'ussd_self_load' || txnType === 'nip_self_load')
-    ? 'cash_in' : txnType;
+  const _typeMap = {
+    ussd_self_load: 'cash_in',
+    nip_self_load:  'cash_in',
+    MERCHANT:       'merchant',
+    merchant:       'merchant',
+    P2P:            'p2p',
+    p2p:            'p2p',
+  };
+  const effectiveTxnType = _typeMap[txnType] || txnType;
   const config     = await getConfig(effectiveTxnType, agentId, mfbId);
   const feeKobo    = computeFee(amountKobo, config);
   const split      = splitFee(feeKobo, config);
