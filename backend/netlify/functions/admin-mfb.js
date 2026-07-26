@@ -92,15 +92,16 @@ exports.handler = async (event) => {
 
     // ── Build per-MFB report ──────────────────────────────────
     const mfbIds = new Set([
-      ...Object.keys(agentsByMfb),
-      ...(partners||[]).map(p2 => p2.mfb_id),
+      ...(partners||[]).map(p2 => p2.mfb_id),  // partners first
+      ...Object.keys(agentsByMfb).filter(id => id !== 'UNASSIGNED'),
     ]);
+    // Always include all registered partners even with no agents yet
     if (mfbFilter) { mfbIds.clear(); mfbIds.add(mfbFilter); }
 
     const reports = [];
 
     for (const mfbId of mfbIds) {
-      if (mfbId === 'UNASSIGNED' && !mfbFilter) continue; // skip unassigned in list view
+      if ((mfbId === 'UNASSIGNED' || mfbId === 'UNKNOWN_MFB') && !mfbFilter) continue;
 
       const partner = partnerMap[mfbId] || {};
       const mfbAgents = agentsByMfb[mfbId] || [];
