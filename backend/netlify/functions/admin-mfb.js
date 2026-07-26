@@ -72,7 +72,9 @@ exports.handler = async (event) => {
     });
 
     // ── MFB partners table (if exists) ────────────────────────
-    const { data: partners } = await db.from('mfb_partners').select('*').catch(() => ({ data: [] }));
+    let partners = [];
+    try { const { data: pd2, error: pe2 } = await db.from('mfb_partners').select('*');
+      if (!pe2) partners = pd2||[]; } catch(_){}
     const partnerMap = {};
     (partners||[]).forEach(p2 => { partnerMap[p2.mfb_id] = p2; });
 
