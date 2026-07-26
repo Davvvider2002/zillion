@@ -589,6 +589,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('mfb-dashboard',this);setTimeout(loadMfbDashboard,100);">
         <span class="si">🏦</span> MFB Dashboard
       </button>
+      <button class="snav-item" id="nav-mfbs"
+              onclick="showSec('mfbs',this);setTimeout(loadMfbs,100);">
+        <span class="si">🏦</span> MFB Partners
+      </button>
       <button class="snav-item" id="nav-commission"
               onclick="showSec('commission',this);setTimeout(loadCommConfigs,100);">
         <span class="si">💰</span> Commissions
@@ -1293,6 +1297,92 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click MFB Dashboard to load</div>
   </div>
+
+<div id="sec-mfbs" class="sec">
+
+  <!-- ── Register MFB form ─────────────────────────────────── -->
+  <div class="card" style="border:2px solid var(--bl);margin-bottom:20px">
+    <div class="card-title" style="color:var(--bl)">&#x1F3E6; Register MFB Partner
+      <span style="font-size:12px;font-weight:400;color:var(--gr)">Run migration_mfb_partners.sql in Supabase first</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="flabel">MFB ID (unique)</label><input id="mfb-reg-id" class="finput" placeholder="e.g. ACCESS_MFB_KANO" style="width:100%"></div>
+      <div><label class="flabel">MFB Name</label><input id="mfb-reg-name" class="finput" placeholder="Access Microfinance Bank Kano" style="width:100%"></div>
+      <div><label class="flabel">State</label>
+        <select id="mfb-reg-state" class="finput" style="width:100%">
+          <option>Kano</option><option>Kaduna</option><option>Benue</option>
+          <option>Niger</option><option>Lagos</option><option>Abuja</option>
+        </select>
+      </div>
+      <div><label class="flabel">Contact Name</label><input id="mfb-reg-contact" class="finput" placeholder="Contact person" style="width:100%"></div>
+      <div><label class="flabel">Contact Email</label><input id="mfb-reg-email" class="finput" type="email" placeholder="email@bank.com" style="width:100%"></div>
+      <div><label class="flabel">Contact Phone</label><input id="mfb-reg-phone" class="finput" placeholder="+234..." style="width:100%"></div>
+      <div><label class="flabel">Licence No.</label><input id="mfb-reg-licence" class="finput" placeholder="CBN/MFB/..." style="width:100%"></div>
+      <div><label class="flabel">Tier</label>
+        <select id="mfb-reg-tier" class="finput" style="width:100%">
+          <option value="MFB">Microfinance Bank (MFB)</option>
+          <option value="CBN_MFB">CBN-licensed MFB</option>
+          <option value="PTSP">Payment Terminal Service Provider</option>
+        </select>
+      </div>
+      <div><label class="flabel">Notes</label><input id="mfb-reg-notes" class="finput" placeholder="Partnership notes..." style="width:100%"></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button onclick="registerMfb()" style="padding:10px 20px;background:var(--bl);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Register Partner</button>
+      <span id="mfb-reg-msg" style="font-size:13px;color:var(--gr)"></span>
+    </div>
+  </div>
+
+  <!-- ── Platform totals ──────────────────────────────────── -->
+  <div class="metrics" style="margin-bottom:20px">
+    <div class="metric"><div class="mlabel">MFB Partners</div><div class="mvalue" id="mfb-pt-count">&#8212;</div></div>
+    <div class="metric bl"><div class="mlabel">Total Minted</div><div class="mvalue" id="mfb-pt-minted">&#8212;</div></div>
+    <div class="metric" style="border-top:3px solid #6366f1"><div class="mlabel">In Circulation</div><div class="mvalue" id="mfb-pt-held">&#8212;</div></div>
+    <div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" id="mfb-pt-redeemed">&#8212;</div></div>
+    <div class="metric" style="border-top:3px solid var(--r)"><div class="mlabel">Float Obligation</div><div class="mvalue" id="mfb-pt-float">&#8212;</div></div>
+    <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">MFB Commission</div><div class="mvalue" id="mfb-pt-comm">&#8212;</div></div>
+  </div>
+
+  <!-- ── MFB cards grid ────────────────────────────────────── -->
+  <div id="mfb-cards-grid" class="grid3" style="margin-bottom:24px"></div>
+
+  <!-- ── MFB table ─────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">All MFB Partners
+      <button class="rbtn" onclick="loadMfbs()">&#8635;</button>
+      <button class="rbtn" onclick="exportMfbs()">&#x2193; CSV</button>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="mfb-search" placeholder="Search MFB name or ID..." oninput="filterMfbTable()">
+      <select class="filter-select" id="mfb-state-filter" onchange="filterMfbTable()">
+        <option value="">All States</option>
+        <option>Kano</option><option>Kaduna</option><option>Benue</option>
+        <option>Niger</option><option>Lagos</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>MFB ID</th><th>Name</th><th>State</th>
+          <th>Agents</th><th>Minted</th><th>Circulation</th>
+          <th>Redeemed</th><th>Float Oblig.</th>
+          <th>Cash-Ins</th><th>Cash-Outs</th><th>Self-Loads</th><th>P2P</th>
+          <th>MFB Comm.</th><th>CIF Ratio</th><th>Balanced</th>
+        </tr></thead>
+        <tbody id="mfb-table-body2"></tbody>
+      </table>
+    </div>
+    <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Loading...</div>
+  </div>
+
+  <!-- ── Detail modal ───────────────────────────────────────── -->
+  <div id="mfb-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:none;align-items:center;justify-content:center">
+    <div style="background:var(--card);border-radius:16px;max-width:860px;width:95%;max-height:90vh;overflow-y:auto;padding:24px;position:relative">
+      <button onclick="closeMfbDetail()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--gr)">&#10005;</button>
+      <div id="mfb-detail-content"></div>
+    </div>
+  </div>
+</div>
 <div id="sec-commission" class="sec">
   <div style="margin-bottom:8px"><h2 style="font-size:18px;font-weight:700">Commission Configuration</h2>
   <p style="font-size:13px;color:var(--gr);margin-top:4px">Rates apply at 3 levels — most specific wins: <strong>Agent</strong> > <strong>MFB Partner</strong> > <strong>Global</strong>. Changes take effect immediately on next transaction.</p></div>
@@ -1667,7 +1757,7 @@ function showSec(name, el) {
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('sec-' + name).classList.add('active');
-  const loaders = { customers:loadUsers, merchants:loadMerchants, agents:loadAgents, coins:loadCoins, transactions:loadTransactions, fraud:loadFraud, system:checkSystem, ledger:initLedger };
+  const loaders = { customers:loadUsers, merchants:loadMerchants, agents:loadAgents, coins:loadCoins, transactions:loadTransactions, fraud:loadFraud, system:checkSystem, ledger:initLedger, mfbs:loadMfbs };
   if (loaders[name]) loaders[name]();
 }
 
@@ -3732,6 +3822,231 @@ async function loadMfbDashboard() {
     var ld2 = document.getElementById('mfb-table-loading');
     if(ld2) { ld2.style.display=''; ld2.textContent='Error: '+e.message; }
   }
+}
+
+
+
+var _mfbData = [];
+
+async function loadMfbs() {
+  var ld = document.getElementById('mfb-table-loading');
+  if (ld) { ld.style.display='block'; ld.textContent='Loading...'; }
+  try {
+    var resp = await fetch('/api/v1/admin/mfb', { headers: {'Authorization':'Bearer '+adminToken} });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error||'Load error');
+    _mfbData = data.mfb_partners || [];
+    var t = data.totals || {};
+    var fmtK = function(k){ return '\u20a6'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
+    var fmtN = function(n){ return (n||0).toLocaleString(); };
+    var setEl = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+
+    // Platform cards
+    setEl('mfb-pt-count',    fmtN(t.mfb_count));
+    setEl('mfb-pt-minted',   fmtK(t.value_minted_kobo));
+    setEl('mfb-pt-held',     fmtK(t.value_held_kobo));
+    setEl('mfb-pt-redeemed', fmtK(t.value_redeemed_kobo));
+    setEl('mfb-pt-float',    fmtK(t.float_obligation_kobo));
+    setEl('mfb-pt-comm',     fmtK(t.commission_mfb_kobo));
+
+    // Cards grid
+    var grid = document.getElementById('mfb-cards-grid');
+    if (grid) {
+      grid.innerHTML = _mfbData.map(function(m, i) {
+        var cifColor = m.cif_ratio===null?'var(--gr)':m.cif_ratio>0.85?'var(--r)':m.cif_ratio<0.5?'var(--am)':'var(--g)';
+        var bal = m.balanced
+          ? '<span style="color:var(--g)">\u2714 Balanced</span>'
+          : '<span style="color:var(--r)">\u2716 '+m.recon_note+'</span>';
+        var ini = (m.mfb_name||m.mfb_id).slice(0,2).toUpperCase();
+        return '<div class="ucard" onclick="openMfbDetail('+i+')" style="cursor:pointer">'
+          +'<div class="ucard-top" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">'
+          +'<div class="uavatar" style="background:#2563eb;color:#fff">'+ini+'</div>'
+          +'<div><div class="ucard-name" style="color:#fff">'+(m.mfb_name||m.mfb_id)+'</div>'
+          +'<div class="ucard-id" style="color:#93c5fd">'+m.mfb_id+'</div></div></div>'
+          +'<div class="ucard-body">'
+          +'<div class="ustat-row"><span class="ustat-key">State</span><span class="ustat-val">'+(m.state||'—')+'</span></div>'
+          +'<div class="ustat-row"><span class="ustat-key">Agents</span><span class="ustat-val">'+fmtN(m.agent_count)+'</span></div>'
+          +'<div class="ustat-row"><span class="ustat-key">In Circulation</span><span class="ustat-val" style="color:var(--bl)">'+fmtK(m.value_held_kobo)+'</span></div>'
+          +'<div class="ustat-row"><span class="ustat-key">Float Obligation</span><span class="ustat-val" style="color:var(--r)">'+fmtK(m.float_obligation_kobo)+'</span></div>'
+          +'<div class="ustat-row"><span class="ustat-key">CIF Ratio</span><span class="ustat-val" style="color:'+cifColor+'">'+( m.cif_ratio!==null?(m.cif_ratio*100).toFixed(0)+'%':'—' )+'</span></div>'
+          +'<div class="ustat-row"><span class="ustat-key">Reconciled</span><span class="ustat-val">'+bal+'</span></div>'
+          +'</div></div>';
+      }).join('') || '<div class="no-data" style="padding:20px;color:var(--gr)">No MFB partners — register above or run SQL migration</div>';
+    }
+
+    renderMfbTable(_mfbData);
+    if (ld) ld.style.display='none';
+  } catch(e) {
+    if (ld) { ld.style.display='block'; ld.textContent='Error: '+e.message; }
+  }
+}
+
+function renderMfbTable(data) {
+  var tbody = document.getElementById('mfb-table-body2');
+  var ld    = document.getElementById('mfb-table-loading');
+  if (!tbody) return;
+  if (ld) ld.style.display='none';
+  var fmtK = function(k){ return '\u20a6'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
+  var fmtN = function(n){ return (n||0).toLocaleString(); };
+  tbody.innerHTML = data.map(function(m, i) {
+    var cifColor = m.cif_ratio===null?'':m.cif_ratio>0.85?'color:var(--r)':m.cif_ratio<0.5?'color:var(--am)':'color:var(--g)';
+    var bal = m.balanced
+      ? '<span style="color:var(--g)">\u2714</span>'
+      : '<span style="color:var(--r)" title="'+m.recon_note+'">\u2716</span>';
+    return '<tr onclick="openMfbDetail('+i+')" style="cursor:pointer" title="Click for full report">'
+      +'<td style="font-weight:bold;color:var(--bl)">'+m.mfb_id+'</td>'
+      +'<td>'+m.mfb_name+'</td>'
+      +'<td>'+(m.state||'—')+'</td>'
+      +'<td style="text-align:right">'+fmtN(m.agent_count)+'</td>'
+      +'<td style="text-align:right">'+fmtN(m.coins_minted)+'</td>'
+      +'<td style="text-align:right;color:var(--bl)">'+fmtK(m.value_held_kobo)+'</td>'
+      +'<td style="text-align:right;color:var(--am)">'+fmtK(m.value_redeemed_kobo)+'</td>'
+      +'<td style="text-align:right;color:var(--r)">'+fmtK(m.float_obligation_kobo)+'</td>'
+      +'<td style="text-align:right">'+fmtN(m.cashin_count)+'</td>'
+      +'<td style="text-align:right">'+fmtN(m.cashout_count)+'</td>'
+      +'<td style="text-align:right;color:var(--g)">'+fmtN(m.selfload_count)+'</td>'
+      +'<td style="text-align:right;color:var(--gr)">'+fmtN(m.p2p_count)+'</td>'
+      +'<td style="text-align:right;color:var(--am)">'+fmtK(m.commission_mfb_kobo)+'</td>'
+      +'<td style="text-align:right;font-weight:600;'+cifColor+'">'+( m.cif_ratio!==null?(m.cif_ratio*100).toFixed(0)+'%':'—' )+'</td>'
+      +'<td style="text-align:center">'+bal+'</td>'
+      +'</tr>';
+  }).join('') || '<tr><td colspan="15" class="no-data">No MFB partners found</td></tr>';
+}
+
+function filterMfbTable() {
+  var q     = (document.getElementById('mfb-search')||{}).value||'';
+  var state = (document.getElementById('mfb-state-filter')||{}).value||'';
+  var filtered = _mfbData.filter(function(m){
+    var matchQ = !q || m.mfb_id.toLowerCase().includes(q.toLowerCase()) || m.mfb_name.toLowerCase().includes(q.toLowerCase());
+    var matchS = !state || m.state === state;
+    return matchQ && matchS;
+  });
+  renderMfbTable(filtered);
+}
+
+function openMfbDetail(idx) {
+  var m = _mfbData[idx];
+  if (!m) return;
+  var fmtK = function(k){ return '\u20a6'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
+  var fmtN = function(n){ return (n||0).toLocaleString(); };
+  var cifColor = m.cif_ratio===null?'var(--gr)':m.cif_ratio>0.85?'var(--r)':m.cif_ratio<0.5?'var(--am)':'var(--g)';
+  var cifLabel = m.cif_ratio===null?'N/A':(m.cif_ratio*100).toFixed(1)+'%';
+  var balBlock = m.balanced
+    ? '<span style="color:var(--g);font-weight:700">\u2714 Fully Reconciled</span>'
+    : '<span style="color:var(--r);font-weight:700">\u2716 '+m.recon_note+'</span>';
+
+  var agentRows = (m.agents||[]).map(function(a){
+    return '<tr style="border-bottom:1px solid var(--grb)">'
+      +'<td style="padding:6px;font-family:monospace;font-size:11px">'+a.agent_id+'</td>'
+      +'<td style="padding:6px">'+a.name+'</td>'
+      +'<td style="padding:6px;font-size:11px">'+(a.location_name||'—')+'</td>'
+      +'<td style="padding:6px;text-align:right;color:var(--g)">'+fmtK(a.float_balance_kobo)+'</td>'
+      +'<td style="padding:6px"><span class="badge '+(a.status==='ACTIVE'?'b-ok':'b-warn')+'">'+a.status+'</span></td>'
+      +'</tr>';
+  }).join('');
+
+  document.getElementById('mfb-detail-content').innerHTML =
+    '<h2 style="font-size:20px;font-weight:700;margin-bottom:4px">'+m.mfb_name+'</h2>'
+    +'<div style="font-size:12px;color:var(--gr);margin-bottom:20px;font-family:monospace">'+m.mfb_id+'  &middot;  '+m.state+'  &middot;  '+m.tier+'</div>'
+
+    // Contact
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;font-size:13px">'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Contact</div>'+(m.contact_name||'—')+'</div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Email</div>'+(m.contact_email||'—')+'</div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Licence</div>'+(m.licence_number||'—')+'</div>'
+    +'</div>'
+
+    // Coin metrics
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">'
+    +'<div class="metric"><div class="mlabel">Minted</div><div class="mvalue" style="font-size:16px">'+fmtN(m.coins_minted)+'</div><div class="msub">'+fmtK(m.value_minted_kobo)+'</div></div>'
+    +'<div class="metric bl"><div class="mlabel">In Circulation</div><div class="mvalue" style="font-size:16px">'+fmtN(m.coins_held)+'</div><div class="msub">'+fmtK(m.value_held_kobo)+'</div></div>'
+    +'<div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" style="font-size:16px">'+fmtN(m.coins_redeemed)+'</div><div class="msub">'+fmtK(m.value_redeemed_kobo)+'</div></div>'
+    +'<div class="metric" style="border-top:3px solid var(--r)"><div class="mlabel">Float Obligation</div><div class="mvalue" style="font-size:16px;color:var(--r)">'+fmtK(m.float_obligation_kobo)+'</div><div class="msub">Must be held by MFB</div></div>'
+    +'</div>'
+
+    // Transaction breakdown
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;font-size:12px">'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center"><div style="color:var(--gr);font-size:10px;text-transform:uppercase;margin-bottom:4px">Cash-Ins</div><div style="font-size:18px;font-weight:700">'+fmtN(m.cashin_count)+'</div></div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center"><div style="color:var(--gr);font-size:10px;text-transform:uppercase;margin-bottom:4px">Cash-Outs</div><div style="font-size:18px;font-weight:700">'+fmtN(m.cashout_count)+'</div></div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center"><div style="color:var(--gr);font-size:10px;text-transform:uppercase;margin-bottom:4px">Self-Loads</div><div style="font-size:18px;font-weight:700;color:var(--g)">'+fmtN(m.selfload_count)+'</div></div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center"><div style="color:var(--gr);font-size:10px;text-transform:uppercase;margin-bottom:4px">P2P (velocity)</div><div style="font-size:18px;font-weight:700;color:var(--gr)">'+fmtN(m.p2p_count)+'</div><div style="font-size:10px;color:var(--gr)">'+fmtK(m.p2p_value_kobo)+'</div></div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center"><div style="color:var(--gr);font-size:10px;text-transform:uppercase;margin-bottom:4px">Merchant</div><div style="font-size:18px;font-weight:700">'+fmtN(m.merchant_count||0)+'</div></div>'
+    +'</div>'
+
+    // Commission + CIF
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;font-size:13px">'
+    +'<div style="background:var(--bg);border-radius:8px;padding:12px"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:6px">Total Fee Collected</div><div style="font-size:16px;font-weight:700">'+fmtK(m.commission_fee_kobo)+'</div></div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:12px"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:6px">MFB Commission Share</div><div style="font-size:16px;font-weight:700;color:var(--am)">'+fmtK(m.commission_mfb_kobo)+'</div></div>'
+    +'<div style="background:var(--bg);border-radius:8px;padding:12px"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:6px">CIF Ratio</div><div style="font-size:16px;font-weight:700;color:'+cifColor+'">'+cifLabel+'</div><div style="font-size:11px;color:var(--gr)">Healthy: 50%\u201385%</div></div>'
+    +'</div>'
+
+    // Double-entry
+    +'<div style="background:var(--bg);border-radius:8px;padding:12px;margin-bottom:20px;font-size:12px">'
+    +'<div style="font-weight:600;margin-bottom:8px">Double-Entry Reconciliation: '+balBlock+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-family:monospace">'
+    +'<div><div style="color:var(--gr);font-size:10px">DR MFB Float</div><div>'+fmtK(m.dr_mfb_float)+'</div></div>'
+    +'<div><div style="color:var(--gr);font-size:10px">CR Circulation</div><div>'+fmtK(m.cr_coins_circulation)+'</div></div>'
+    +'<div><div style="color:var(--gr);font-size:10px">DR Circulation</div><div>'+fmtK(m.dr_coins_circulation)+'</div></div>'
+    +'<div><div style="color:var(--gr);font-size:10px">CR Agent Float</div><div>'+fmtK(m.cr_agent_float)+'</div></div>'
+    +'</div></div>'
+
+    // Agents table
+    +'<div style="font-weight:600;font-size:14px;margin-bottom:8px">Agents ('+fmtN(m.agent_count)+')</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+    +'<thead><tr style="border-bottom:2px solid var(--grb)">'
+    +'<th style="padding:6px;text-align:left">Agent ID</th>'
+    +'<th style="padding:6px;text-align:left">Name</th>'
+    +'<th style="padding:6px;text-align:left">Location</th>'
+    +'<th style="padding:6px;text-align:right">Float</th>'
+    +'<th style="padding:6px;text-align:left">Status</th>'
+    +'</tr></thead><tbody>'+agentRows+'</tbody></table></div>';
+
+  var modal = document.getElementById('mfb-detail-modal');
+  if (modal) { modal.style.display='flex'; }
+}
+
+function closeMfbDetail() {
+  var modal = document.getElementById('mfb-detail-modal');
+  if (modal) modal.style.display='none';
+}
+
+async function registerMfb() {
+  var msg = document.getElementById('mfb-reg-msg');
+  var body = {
+    mfb_id:         (document.getElementById('mfb-reg-id')||{}).value||'',
+    mfb_name:       (document.getElementById('mfb-reg-name')||{}).value||'',
+    state:          (document.getElementById('mfb-reg-state')||{}).value||'',
+    contact_name:   (document.getElementById('mfb-reg-contact')||{}).value||'',
+    contact_email:  (document.getElementById('mfb-reg-email')||{}).value||'',
+    contact_phone:  (document.getElementById('mfb-reg-phone')||{}).value||'',
+    licence_number: (document.getElementById('mfb-reg-licence')||{}).value||'',
+    tier:           (document.getElementById('mfb-reg-tier')||{}).value||'MFB',
+    notes:          (document.getElementById('mfb-reg-notes')||{}).value||'',
+  };
+  if (!body.mfb_id || !body.mfb_name) { if(msg) msg.textContent='MFB ID and Name required'; return; }
+  if (msg) msg.textContent='Registering...';
+  try {
+    var resp = await fetch('/api/v1/admin/mfb', {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},
+      body: JSON.stringify(body),
+    });
+    var data = await resp.json();
+    if (!resp.ok) { if(msg) msg.textContent='Error: '+data.error; return; }
+    if (msg) msg.textContent='\u2714 Registered: '+body.mfb_id;
+    loadMfbs();
+  } catch(e) { if(msg) msg.textContent='Error: '+e.message; }
+}
+
+function exportMfbs() {
+  var rows = [['MFB ID','Name','State','Agents','Minted Coins','Value Minted','In Circulation','Redeemed','Float Obligation','Cash-Ins','Cash-Outs','Self-Loads','P2P','MFB Commission','CIF Ratio','Balanced']];
+  _mfbData.forEach(function(m){
+    rows.push([m.mfb_id,m.mfb_name,m.state,m.agent_count,m.coins_minted,
+      m.value_minted_kobo/100,m.value_held_kobo/100,m.value_redeemed_kobo/100,
+      m.float_obligation_kobo/100,m.cashin_count,m.cashout_count,m.selfload_count,
+      m.p2p_count,m.commission_mfb_kobo/100,
+      m.cif_ratio!==null?(m.cif_ratio*100).toFixed(1)+'%':'N/A',m.balanced?'Yes':'No']);
+  });
+  downloadCSV(rows, 'zillion-mfb-partners.csv');
 }
 
 </script>
