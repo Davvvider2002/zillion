@@ -637,19 +637,19 @@ tbody tr:last-child td{border-bottom:none;}
     <div id="reconcile-result" style="width:100%"></div>
   </div>
 
-  <div class="metrics" data-sec="overview">
+  <div class="metrics">
     <div class="metric"><div class="mlabel">Total Users</div><div class="mvalue" id="m-users">—</div><div class="msub" id="m-users-sub">Loading...</div><div class="micon">👥</div></div>
     <div class="metric bl"><div class="mlabel">Agent Float</div><div class="mvalue" id="m-float">—</div><div class="msub">Across all agents</div><div class="micon">💰</div></div>
     <div class="metric am"><div class="mlabel">Coins Issued</div><div class="mvalue" id="m-coins">—</div><div class="msub" id="m-coins-sub">—</div><div class="micon">🪙</div></div>
     <div class="metric rd"><div class="mlabel">Fraud Events</div><div class="mvalue" id="m-fraud">—</div><div class="msub">Unresolved flags</div><div class="micon">🚨</div></div>
   </div>
-  <div class="metrics" data-sec="overview">
+  <div class="metrics">
     <div class="metric pu"><div class="mlabel">Merchants</div><div class="mvalue" id="m-merchants">—</div><div class="msub">Registered</div><div class="micon">🛒</div></div>
     <div class="metric"><div class="mlabel">PWA Customers</div><div class="mvalue" id="m-pwa">—</div><div class="msub">Registered devices</div><div class="micon">📱</div></div>
     <div class="metric am"><div class="mlabel">Transactions</div><div class="mvalue" id="m-txcount">—</div><div class="msub">Registry settled</div><div class="micon">📋</div></div>
     <div class="metric bl"><div class="mlabel">Active Agents</div><div class="mvalue" id="m-agents">—</div><div class="msub">Of 5 pilot</div><div class="micon">🏪</div></div>
   </div>
-  <div class="grid2" data-sec="overview">
+  <div class="grid2">
     <div class="card">
       <div class="card-title">Live Activity <button class="rbtn" onclick="loadOverview()">↻</button></div>
       <div class="card-sub">Latest platform events</div>
@@ -661,7 +661,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div id="vol-chart"><div class="no-data">Loading...</div></div>
     </div>
   </div>
-  <div class="grid3" data-sec="overview">
+  <div class="grid3">
     <div class="card">
       <div class="card-title">User Breakdown</div>
       <div id="user-breakdown"><div class="no-data">Loading...</div></div>
@@ -710,7 +710,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="metric am"><div class="mlabel">Total Payments</div><div class="mvalue" id="merch-m-payments">—</div><div class="msub">QR claims</div><div class="micon">📲</div></div>
     <div class="metric bl"><div class="mlabel">Total Volume</div><div class="mvalue" id="merch-m-volume">—</div><div class="msub">All-time</div><div class="micon">₦</div></div>
   </div>
-  <div class="card" data-sec="merchants">
+  <div class="card">
     <div class="card-title">
       All Merchants
       <div style="display:flex;gap:8px">
@@ -740,7 +740,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="no-data" style="grid-column:1/-1">Click Refresh to load merchants</div>
     </div>
   </div>
-  <div class="card" data-sec="merchants">
+  <div class="card">
     <div class="card-title">Merchant Registry</div>
     <div class="table-wrap">
       <table>
@@ -807,12 +807,12 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
   <!-- ── AGENT MANAGEMENT ──────────────────────────────────────── -->
-  <div class="card" data-sec="agents">
+  <div class="card">
     <div class="card-title">Agent Management<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportAgents()">&#x2B07; CSV</button><button class="rbtn" onclick="loadAgents()">&#x21BB;</button></div></div>
     <div class="card-sub">All registered pilot agents. Use Tokens tab to generate JWT.</div>
     <div id="agent-cards-grid" class="user-grid"><div class="no-data">Loading...</div></div>
   </div>
-  <div class="card" data-sec="agents">
+  <div class="card">
     <div class="card-title">Agent Activity</div>
     <div class="table-wrap">
       <table>
@@ -830,7 +830,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="card" style="padding:16px"><div class="mlabel">Currently Held</div><div class="mvalue" id="coin-m-held" style="color:var(--g)">—</div></div>
     <div class="card" style="padding:16px"><div class="mlabel">Redeemed</div><div class="mvalue" id="coin-m-redeemed" style="color:var(--am)">—</div></div>
   </div>
-  <div class="card" data-sec="coins">
+  <div class="card">
     <div class="card-title">Coin Registry<div style="display:flex;gap:8px"><button class="rbtn" onclick="loadCoins()">↻</button></div></div>
     <div class="toolbar">
       <select class="filter-select" id="coin-status-filter" onchange="loadCoins()">
@@ -857,12 +857,12 @@ tbody tr:last-child td{border-bottom:none;}
 
 
 <!-- Coin Lookup Card -->
-<div class="card" style="border-top:3px solid var(--bl)">
-  <div class="card-title" data-sec="coins">🔍 Coin Lookup
+<div class="card" style="border-top:3px solid var(--bl)" data-sec="coins">
+  <div class="card-title">🔍 Coin Lookup
     <span style="font-size:11px;font-weight:400;color:var(--gr)">Find full coin ID by partial match</span>
   </div>
-  <div class="card-sub" data-sec="coins">The merchant vault display truncates coin IDs to 28 chars. Use this to find the full ID before reconciling.</div>
-  <div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end;flex-wrap:wrap" data-sec="coins">
+  <div class="card-sub">The merchant vault display truncates coin IDs to 28 chars. Use this to find the full ID before reconciling.</div>
+  <div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end;flex-wrap:wrap">
     <div style="flex:1;min-width:220px">
       <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Partial Coin ID</label>
       <input id="coin-lookup-input" type="text" placeholder="ZIL-20260624-76AFEE62-178234"
@@ -871,16 +871,16 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <button onclick="lookupCoin()" style="padding:10px 18px;background:var(--bl);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:flex-end">🔍 Search</button>
   </div>
-  <div id="coin-lookup-result" style="margin-top:12px;display:none" data-sec="coins"></div>
+  <div id="coin-lookup-result" style="margin-top:12px;display:none"></div>
 </div>
 
 <!-- Force Reconcile Card (inside sec-coins) -->
-<div class="card" style="border-top:3px solid var(--am)">
-  <div class="card-title" data-sec="coins">🔧 Force Reconcile Stuck Coin
+<div class="card" style="border-top:3px solid var(--am)" data-sec="coins">
+  <div class="card-title">🔧 Force Reconcile Stuck Coin
     <span style="font-size:11px;font-weight:400;color:var(--gr)">Admin override for stuck PENDING_CASHOUT coins</span>
   </div>
-  <div class="card-sub" data-sec="coins">Use when a merchant's coin shows "Sent to agent — awaiting confirmation" but agent never redeemed. Enter the full Coin ID from the merchant's vault.</div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end" data-sec="coins">
+  <div class="card-sub">Use when a merchant's coin shows "Sent to agent — awaiting confirmation" but agent never redeemed. Enter the full Coin ID from the merchant's vault.</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
     <div style="flex:2;min-width:220px">
       <label style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Coin ID</label>
       <input id="recon-coin-id" type="text" placeholder="ZIL-20260624-76AFEE62-1782340 (or partial — admin will resolve)"
@@ -905,7 +905,7 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <button onclick="runForceReconcile()" style="padding:10px 20px;background:var(--am);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:flex-end">⚡ Execute</button>
   </div>
-  <div id="recon-result" style="margin-top:12px;display:none" data-sec="coins"></div>
+  <div id="recon-result" style="margin-top:12px;display:none"></div>
 </div>
 
 </div>
@@ -1060,7 +1060,7 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- Audit Log Card -->
-  <div class="card" id="audit-log-card" style="display:none" data-sec="users">
+  <div class="card" id="audit-log-card" style="display:none">
     <div class="card-title">🔍 Audit Log
       <div style="display:flex;gap:8px">
         <input id="audit-filter-user" type="text" placeholder="Filter by username..." style="padding:7px 12px;border:1.5px solid var(--grb);border-radius:8px;font-size:12px;width:180px">
@@ -1134,7 +1134,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="card" style="padding:16px"><div class="mlabel">Open Fraud Events</div><div class="mvalue" id="fraud-m-open" style="color:var(--r)">—</div></div>
     <div class="card" style="padding:16px"><div class="mlabel">High-Risk Devices</div><div class="mvalue" id="fraud-m-devices" style="color:var(--am)">—</div></div>
   </div>
-  <div class="card" data-sec="fraud">
+  <div class="card">
     <div class="card-title">Fraud Registry<button class="rbtn" style="margin-left:auto" onclick="loadFraud()">↻</button></div>
     <div class="table-wrap">
       <table>
@@ -1180,7 +1180,7 @@ tbody tr:last-child td{border-bottom:none;}
           </div>
         </div>
 
-  <div class="grid2" data-sec="system">
+  <div class="grid2">
     <div class="card">
       <div class="card-title">System Health <button class="rbtn" onclick="checkSystem()">↻ Check</button></div>
       <div class="srow"><div class="sdot" style="background:var(--g)"></div><div class="sinfo"><div class="stitle">Netlify Functions</div><div class="ssub">Deployed</div></div><div class="sbadge"><span class="badge b-ok">LIVE</span></div></div>
@@ -1215,9 +1215,9 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="metric" style="border-top:3px solid var(--r)" data-sec="system"><div class="mlabel">Float Obligation</div><div class="mvalue" id="pt-float">&#8212;</div></div>
     <div class="metric" style="border-top:3px solid var(--g)" data-sec="system"><div class="mlabel">Recon Status</div><div class="mvalue" id="pt-recon">&#8212;</div></div>
   </div>
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-title" data-sec="system">Accounting Formulas</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px" data-sec="system">
+  <div class="card" style="margin-bottom:16px" data-sec="system">
+    <div class="card-title">Accounting Formulas</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
       <div style="background:var(--bg);border-radius:8px;padding:10px 14px">
         <div style="color:var(--gr);margin-bottom:4px;font-weight:600;text-transform:uppercase;font-size:11px">Conservation law</div>
         <div style="font-family:monospace;color:var(--tx);line-height:2">ISSUED + HELD + REDEEMED = MINTED<br>Float obligation = SUM(HELD coins)<br>Available = COUNT(status=ISSUED)</div>
@@ -1228,9 +1228,9 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
   </div>
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-title" data-sec="system">Double-Entry Reconciliation <button class="rbtn" onclick="loadMfbDashboard()">&#8635;</button></div>
-    <div style="overflow-x:auto" data-sec="system">
+  <div class="card" style="margin-bottom:16px" data-sec="system">
+    <div class="card-title">Double-Entry Reconciliation <button class="rbtn" onclick="loadMfbDashboard()">&#8635;</button></div>
+    <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:2px solid var(--grb)">
           <th style="padding:7px;text-align:left">MFB</th>
@@ -1247,13 +1247,13 @@ tbody tr:last-child td{border-bottom:none;}
         <tbody id="mfb-deentry-tbody"></tbody>
       </table>
     </div>
-    <div id="mfb-deentry-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px" data-sec="system">Click MFB Dashboard to load</div>
+    <div id="mfb-deentry-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click MFB Dashboard to load</div>
   </div>
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-title" data-sec="system">Coins &#8596; Transactions Audit
+  <div class="card" style="margin-bottom:16px" data-sec="system">
+    <div class="card-title">Coins &#8596; Transactions Audit
       <span id="mfb-audit-badge" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--grl);color:var(--g)">&#8212;</span>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;margin-top:8px" data-sec="system">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;margin-top:8px">
       <div style="background:var(--bg);border-radius:8px;padding:10px">
         <div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Coins with TX</div>
         <div id="audit-matched" style="font-weight:700;color:var(--g)">&#8212;</div>
@@ -1267,11 +1267,11 @@ tbody tr:last-child td{border-bottom:none;}
         <div id="audit-orphan" style="font-weight:700;color:var(--am)">&#8212;</div>
       </div>
     </div>
-    <div id="audit-note" style="margin-top:8px;font-size:12px;color:var(--gr)" data-sec="system"></div>
+    <div id="audit-note" style="margin-top:8px;font-size:12px;color:var(--gr)"></div>
   </div>
-  <div class="card">
-    <div class="card-title" data-sec="system">Per-MFB Breakdown</div>
-    <div style="overflow-x:auto" data-sec="system">
+  <div class="card" data-sec="system">
+    <div class="card-title">Per-MFB Breakdown</div>
+    <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:2px solid var(--grb)">
           <th style="padding:7px;text-align:left">MFB</th>
@@ -1290,7 +1290,7 @@ tbody tr:last-child td{border-bottom:none;}
         <tbody id="mfb-table-body"></tbody>
       </table>
     </div>
-    <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px" data-sec="system">Click MFB Dashboard to load</div>
+    <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click MFB Dashboard to load</div>
   </div>
 
 <div id="sec-mfbs" class="sec">
@@ -1329,7 +1329,7 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ── Platform totals ──────────────────────────────────── -->
-  <div class="metrics" style="margin-bottom:20px" data-sec="mfbs">
+  <div class="metrics" style="margin-bottom:20px">
     <div class="metric"><div class="mlabel">MFB Partners</div><div class="mvalue" id="mfb-pt-count">&#8212;</div></div>
     <div class="metric bl"><div class="mlabel">Total Minted</div><div class="mvalue" id="mfb-pt-minted">&#8212;</div></div>
     <div class="metric" style="border-top:3px solid #6366f1"><div class="mlabel">In Circulation</div><div class="mvalue" id="mfb-pt-held">&#8212;</div></div>
@@ -1376,10 +1376,10 @@ tbody tr:last-child td{border-bottom:none;}
 
 
   <!-- ── MFB cards grid ────────────────────────────────────── -->
-  <div id="mfb-cards-grid" class="grid3" style="margin-bottom:24px" data-sec="mfbs"></div>
+  <div id="mfb-cards-grid" class="grid3" style="margin-bottom:24px"></div>
 
   <!-- ── MFB table ─────────────────────────────────────────── -->
-  <div class="card" data-sec="mfbs">
+  <div class="card">
     <div class="card-title">All MFB Partners
       <button class="rbtn" onclick="loadMfbs()">&#8635;</button>
       <button class="rbtn" onclick="exportMfbs()">&#x2193; CSV</button>
@@ -1408,7 +1408,7 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ── Detail modal ───────────────────────────────────────── -->
-  <div id="mfb-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:none;align-items:center;justify-content:center" data-sec="mfbs">
+  <div id="mfb-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:none;align-items:center;justify-content:center">
     <div style="background:var(--card);border-radius:16px;max-width:860px;width:95%;max-height:90vh;overflow-y:auto;padding:24px;position:relative">
       <button onclick="closeMfbDetail()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--gr)">&#10005;</button>
       <div id="mfb-detail-content"></div>
@@ -1418,13 +1418,13 @@ tbody tr:last-child td{border-bottom:none;}
 <div id="sec-commission" class="sec">
   <div style="margin-bottom:8px"><h2 style="font-size:18px;font-weight:700">Commission Configuration</h2>
   <p style="font-size:13px;color:var(--gr);margin-top:4px">Rates apply at 3 levels — most specific wins: <strong>Agent</strong> > <strong>MFB Partner</strong> > <strong>Global</strong>. Changes take effect immediately on next transaction.</p></div>
-  <div class="metrics" style="margin-bottom:20px" data-sec="commission">
+  <div class="metrics" style="margin-bottom:20px">
     <div class="metric"><div class="mlabel">Today Fees</div><div class="mvalue" id="comm-today-fee">—</div></div>
     <div class="metric bl"><div class="mlabel">Zillion Cut</div><div class="mvalue" id="comm-today-zil">—</div></div>
     <div class="metric am"><div class="mlabel">MFB Cut</div><div class="mvalue" id="comm-today-mfb">—</div></div>
     <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">Agent Earnings</div><div class="mvalue" id="comm-today-agt">—</div></div>
   </div>
-  <div class="card" data-sec="commission">
+  <div class="card">
     <div class="card-title">Add / Update Rate</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div><label class="flabel">Transaction type</label>
@@ -1466,7 +1466,7 @@ tbody tr:last-child td{border-bottom:none;}
       <span id="cc-msg" style="font-size:13px;color:var(--gr);align-self:center"></span>
     </div>
   </div>
-  <div class="card" data-sec="commission">
+  <div class="card">
     <div class="card-title">Active Rate Configurations <button class="rbtn" onclick="loadCommConfigs()">↻</button></div>
     <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="border-bottom:2px solid var(--border)">
@@ -1481,7 +1481,7 @@ tbody tr:last-child td{border-bottom:none;}
     </table></div>
     <div id="cc-list-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click Commissions to load</div>
   </div>
-  <div class="card" data-sec="commission">
+  <div class="card">
     <div class="card-title">Commission Events
       <div style="display:flex;gap:8px">
         <input id="comm-filter-agent" placeholder="Agent ID" style="padding:7px;border:1px solid var(--grb);border-radius:8px;background:var(--w);font-size:12px;width:130px">
