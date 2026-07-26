@@ -148,6 +148,10 @@ async function processSyncBatch(txBatch) {
 
     // ── Clean transaction — write to transactions table ───────
     const txId = `TX-${Date.now()}-${tx.coin_id.slice(-8)}`;
+    // Determine tx_type from env_sig or explicit field
+    const txType = rawTx.tx_type || tx.env_sig || 'P2P';
+    const resolvedType = (['CASH_IN','CASH_OUT','MERCHANT','USSD_SELF_LOAD','NIP_SELF_LOAD'].includes((txType||'').toUpperCase()))
+      ? txType.toUpperCase() : 'P2P';
     const { error: txError } = await db.from('transactions').insert({
       tx_id:      txId,
       coin_id:    tx.coin_id,
@@ -158,6 +162,9 @@ async function processSyncBatch(txBatch) {
       sync_ts:    new Date().toISOString(),
       env_sig:    tx.env_sig,
       status:     'SETTLED',
+      tx_type:    resolvedType,
+      agent_id:   rawTx.agent_id || null,
+      mfb_id:     coinStatus.mfb_id || null,
     });
 
     if (txError && !txError.message.includes('duplicate')) {
@@ -177,6 +184,22 @@ async function processSyncBatch(txBatch) {
     }).eq('coin_id', tx.coin_id);
 
     settled.push(tx.coin_id);
+
+    // Apply commission for P2P and MERCHANT transfers (non-fatal)
+    if (resolvedType === 'P2P' || resolvedType === 'MERCHANT') {
+      try {
+        const { applyCommission } = require('../commission');
+        await applyCommission({
+          txnType:    resolvedType.toLowerCase(),
+          amountKobo: coinStatus.amount,
+          agentId:    rawTx.agent_id || null,
+          mfbId:      coinStatus.mfb_id || null,
+          coinId:     tx.coin_id,
+        });
+      } catch(commErr) {
+        console.warn('[sync] Commission non-fatal:', commErr.message);
+      }
+    }
   }
 
   return { settled, conflicts };
