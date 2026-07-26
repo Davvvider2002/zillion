@@ -1,3 +1,24 @@
+/api/v1/compliance/ctr           /.netlify/functions/compliance-ctr           200
+/api/v1/compliance/str           /.netlify/functions/compliance-str           200
+/api/v1/kyc/verify-nin           /.netlify/functions/kyc-verify-nin           200
+/api/v1/coins/freeze             /.netlify/functions/coins-freeze             200
+/api/v1/coins/split              /.netlify/functions/coins-split              200
+/api/v1/coins/grace              /.netlify/functions/coins-grace              200
+/api/v1/coins/grace-redeem       /.netlify/functions/coins-grace-redeem       200
+/api/v1/bank/activate-customer   /.netlify/functions/bank-activate-customer   200
+/api/v1/bank/customer            /.netlify/functions/bank-customer            200
+/api/v1/bank/fund-agent-float    /.netlify/functions/bank-fund-agent-float    200
+/api/v1/bank/report-suspicious   /.netlify/functions/bank-report-suspicious   200
+/api/v1/bank/agent-float         /.netlify/functions/bank-agent-float         200
+/api/v1/customer/limits          /.netlify/functions/customer-limits          200
+/mfb/             /mfb/index.html          200
+/api/v1/issue-secure             /.netlify/functions/issue-secure             200
+/api/v1/create-claim-pin         /.netlify/functions/create-claim-pin         200
+/api/v1/fetch-claim-pin          /.netlify/functions/fetch-claim-pin          200
+/api/v1/create-claim-offline-pin /.netlify/functions/create-claim-offline-pin 200
+/api/v1/fetch-claim-offline-pin  /.netlify/functions/fetch-claim-offline-pin  200
+/api/v1/register-device          /.netlify/functions/register-device          200
+/api/v1/health                   /.netlify/functions/health                   200
 /api/v1/merchant-history  /.netlify/functions/merchant-history  200
 /api/v1/recover-coins  /.netlify/functions/recover-coins  200
 # ═══════════════════════════════════════════════════════════
