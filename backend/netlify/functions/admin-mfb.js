@@ -103,7 +103,7 @@ exports.handler = async (event) => {
     for (const mfbId of mfbIds) {
       if ((mfbId === 'UNASSIGNED' || mfbId === 'UNKNOWN_MFB') && !mfbFilter) continue;
 
-      const partner = partnerMap[mfbId] || {};
+      const partner = partnerMap[mfbId] || partnerMap[mfbId.toLowerCase()] || {};
       const mfbAgents = agentsByMfb[mfbId] || [];
       const agentIds  = new Set(mfbAgents.map(a => a.agent_id));
 
@@ -170,7 +170,7 @@ exports.handler = async (event) => {
 
       reports.push({
         mfb_id:           mfbId,
-        mfb_name:         partner.mfb_name || mfbId,
+        mfb_name:         partner.mfb_name || mfbNames[mfbId] || mfbId,
         contact_name:     partner.contact_name || '',
         contact_email:    partner.contact_email || '',
         contact_phone:    partner.contact_phone || '',
