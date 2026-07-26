@@ -181,6 +181,13 @@ exports.handler = async (event) => {
       process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY,
       { auth: { persistSession: false } }
     );
+    // Look up agent's MFB for attribution
+    let agentMfbId = null;
+    try {
+      const { data: agentRow } = await tdb.from('agents')
+        .select('mfb_id').eq('agent_id', body.agent_id).maybeSingle();
+      agentMfbId = agentRow?.mfb_id || null;
+    } catch(_) {}
     const txRecord = {
       coin_id:   coins[0]?.coin_id || 'BATCH-' + Date.now(),
       from_hash: body.agent_id,
@@ -188,6 +195,9 @@ exports.handler = async (event) => {
       amount:    body.amount,
       tx_ts:     new Date().toISOString(),
       status:    'SETTLED',
+      tx_type:   'CASH_IN',
+      agent_id:  body.agent_id,
+      mfb_id:    agentMfbId,
     };
     await tdb.from('transactions').insert(txRecord);
   } catch(txErr) {
