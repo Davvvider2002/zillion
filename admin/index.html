@@ -919,10 +919,19 @@ tbody tr:last-child td{border-bottom:none;}
         <option value="">All Status</option><option value="SETTLED">Settled</option>
         <option value="CONFLICT">Conflict</option><option value="REJECTED">Rejected</option>
       </select>
+      <select class="filter-select" id="tx-type-filter" onchange="loadTransactions()">
+        <option value="">All Types</option>
+        <option value="CASH_IN">Cash-In (agent)</option>
+        <option value="CASH_OUT">Cash-Out</option>
+        <option value="USSD_SELF_LOAD">USSD Self-Load</option>
+        <option value="NIP_SELF_LOAD">NIP Self-Load</option>
+        <option value="P2P">P2P Transfer</option>
+        <option value="MERCHANT">Merchant Payment</option>
+      </select>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>TX ID</th><th>Coin ID</th><th>Amount</th><th>From</th><th>To</th><th>TX Time</th><th>Sync Time</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>TX ID</th><th>Type</th><th>Coin</th><th>Amount</th><th>From</th><th>To</th><th>MFB</th><th>TX Time</th><th>Status</th></tr></thead>
         <tbody id="tx-table-body"><tr><td colspan="8" class="no-data">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -1195,68 +1204,95 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- COMMISSIONS -->
 
 <div id="sec-mfb-dashboard" class="sec">
-  <div style="margin-bottom:8px">
+  <div style="margin-bottom:12px">
     <h2 style="font-size:18px;font-weight:700">MFB Dashboard</h2>
-    <p style="font-size:13px;color:var(--gr);margin-top:4px">
-      Per-MFB coin metrics · Double-entry reconciliation · Coins vs Transactions audit
-    </p>
+    <p style="font-size:13px;color:var(--gr);margin-top:4px">Per-MFB metrics &middot; Corrected double-entry proof &middot; Coins &harr; Transactions audit</p>
   </div>
-
-  <!-- Platform totals -->
   <div class="metrics" style="margin-bottom:20px" id="mfb-platform-cards">
-    <div class="metric"><div class="mlabel">Total Minted</div><div class="mvalue" id="pt-minted">—</div></div>
-    <div class="metric bl"><div class="mlabel">In Circulation</div><div class="mvalue" id="pt-held">—</div></div>
-    <div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" id="pt-redeemed">—</div></div>
-    <div class="metric" style="border-top:3px solid var(--r)"><div class="mlabel">Float Obligation</div><div class="mvalue" id="pt-float">—</div></div>
-    <div class="metric"><div class="mlabel">P2P Transfers</div><div class="mvalue" id="pt-p2p">—</div></div>
-    <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">Recon Status</div><div class="mvalue" id="pt-recon">—</div></div>
+    <div class="metric"><div class="mlabel">Total Minted</div><div class="mvalue" id="pt-minted">&#8212;</div></div>
+    <div class="metric bl"><div class="mlabel">In Circulation (HELD)</div><div class="mvalue" id="pt-held">&#8212;</div></div>
+    <div class="metric" style="border-top:3px solid #6366f1"><div class="mlabel">Undelivered (ISSUED)</div><div class="mvalue" id="pt-issued">&#8212;</div></div>
+    <div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" id="pt-redeemed">&#8212;</div></div>
+    <div class="metric" style="border-top:3px solid var(--r)"><div class="mlabel">Float Obligation</div><div class="mvalue" id="pt-float">&#8212;</div></div>
+    <div class="metric" style="border-top:3px solid var(--g)"><div class="mlabel">Recon Status</div><div class="mvalue" id="pt-recon">&#8212;</div></div>
   </div>
-
-  <!-- Double-entry proof box -->
-  <div class="card" id="mfb-deentry-box" style="margin-bottom:16px">
-    <div class="card-title">Double-Entry Reconciliation</div>
-    <div id="mfb-deentry-content" style="font-size:13px;color:var(--gr)">Loading...</div>
-  </div>
-
-  <!-- Coins vs Transactions audit -->
   <div class="card" style="margin-bottom:16px">
-    <div class="card-title">Coins ↔ Transactions Audit
-      <span id="mfb-audit-badge" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--grl);color:var(--g)">Loading</span>
+    <div class="card-title">Accounting Formulas</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
+      <div style="background:var(--bg);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--gr);margin-bottom:4px;font-weight:600;text-transform:uppercase;font-size:11px">Conservation law</div>
+        <div style="font-family:monospace;color:var(--tx);line-height:2">ISSUED + HELD + REDEEMED = MINTED<br>Float obligation = SUM(HELD coins)<br>Available = COUNT(status=ISSUED)</div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--gr);margin-bottom:4px;font-weight:600;text-transform:uppercase;font-size:11px">Double-entry proof</div>
+        <div style="font-family:monospace;color:var(--tx);line-height:2">ISSUE: DR MFB Float / CR Circulation<br>REDEEM: DR Circulation / CR Agent Float<br>P2P: DR Sender / CR Receiver (float neutral)</div>
+      </div>
     </div>
-    <div id="mfb-audit-content" style="font-size:13px;color:var(--gr)">Loading...</div>
   </div>
-
-  <!-- Per-MFB breakdown table -->
-  <div class="card">
-    <div class="card-title">Per-MFB Breakdown
-      <button class="rbtn" onclick="loadMfbDashboard()">↻</button>
-    </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Double-Entry Reconciliation <button class="rbtn" onclick="loadMfbDashboard()">&#8635;</button></div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead>
-          <tr style="border-bottom:2px solid var(--grb)">
-            <th style="padding:8px;text-align:left">MFB</th>
-            <th style="padding:8px;text-align:right">Minted</th>
-            <th style="padding:8px;text-align:right">Value Minted</th>
-            <th style="padding:8px;text-align:right">In Circulation</th>
-            <th style="padding:8px;text-align:right">Float Obligation</th>
-            <th style="padding:8px;text-align:right">Redeemed</th>
-            <th style="padding:8px;text-align:right">P2P</th>
-            <th style="padding:8px;text-align:right">Cash-Ins</th>
-            <th style="padding:8px;text-align:right">Cash-Outs</th>
-            <th style="padding:8px;text-align:right">Self-Loads</th>
-            <th style="padding:8px;text-align:center">Balanced</th>
-          </tr>
-        </thead>
+        <thead><tr style="border-bottom:2px solid var(--grb)">
+          <th style="padding:7px;text-align:left">MFB</th>
+          <th style="padding:7px;text-align:right">DR MFB Float</th>
+          <th style="padding:7px;text-align:right">CR Circulation</th>
+          <th style="padding:7px;text-align:right">DR Circulation</th>
+          <th style="padding:7px;text-align:right">CR Agent Float</th>
+          <th style="padding:7px;text-align:right">Float Obligation</th>
+          <th style="padding:7px;text-align:center">Issue</th>
+          <th style="padding:7px;text-align:center">Redeem</th>
+          <th style="padding:7px;text-align:center">Conservation</th>
+          <th style="padding:7px;text-align:left">Note</th>
+        </tr></thead>
+        <tbody id="mfb-deentry-tbody"></tbody>
+      </table>
+    </div>
+    <div id="mfb-deentry-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click MFB Dashboard to load</div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Coins &#8596; Transactions Audit
+      <span id="mfb-audit-badge" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--grl);color:var(--g)">&#8212;</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;margin-top:8px">
+      <div style="background:var(--bg);border-radius:8px;padding:10px">
+        <div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Coins with TX</div>
+        <div id="audit-matched" style="font-weight:700;color:var(--g)">&#8212;</div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:10px">
+        <div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Coins missing TX</div>
+        <div id="audit-missing" style="font-weight:700;color:var(--r)">&#8212;</div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:10px">
+        <div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Orphaned TXs</div>
+        <div id="audit-orphan" style="font-weight:700;color:var(--am)">&#8212;</div>
+      </div>
+    </div>
+    <div id="audit-note" style="margin-top:8px;font-size:12px;color:var(--gr)"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Per-MFB Breakdown</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:2px solid var(--grb)">
+          <th style="padding:7px;text-align:left">MFB</th>
+          <th style="padding:7px;text-align:right">Minted</th>
+          <th style="padding:7px;text-align:right">Circulation</th>
+          <th style="padding:7px;text-align:right">Undelivered</th>
+          <th style="padding:7px;text-align:right">Redeemed</th>
+          <th style="padding:7px;text-align:right">Float Oblig.</th>
+          <th style="padding:7px;text-align:right">P2P Velocity</th>
+          <th style="padding:7px;text-align:right">Cash-Ins</th>
+          <th style="padding:7px;text-align:right">Cash-Outs</th>
+          <th style="padding:7px;text-align:right">Self-Loads</th>
+          <th style="padding:7px;text-align:right">MFB Comm.</th>
+          <th style="padding:7px;text-align:center">Balanced</th>
+        </tr></thead>
         <tbody id="mfb-table-body"></tbody>
       </table>
     </div>
-    <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">
-      Click MFB Dashboard to load
-    </div>
+    <div id="mfb-table-loading" style="text-align:center;padding:20px;color:var(--gr);font-size:13px">Click MFB Dashboard to load</div>
   </div>
-</div>
-
 <div id="sec-commission" class="sec">
   <div style="margin-bottom:8px"><h2 style="font-size:18px;font-weight:700">Commission Configuration</h2>
   <p style="font-size:13px;color:var(--gr);margin-top:4px">Rates apply at 3 levels — most specific wins: <strong>Agent</strong> > <strong>MFB Partner</strong> > <strong>Global</strong>. Changes take effect immediately on next transaction.</p></div>
