@@ -123,7 +123,7 @@ exports.handler = async (event) => {
         env_sig:   'USSD_SELF_LOAD',
         status:    'SETTLED',
         tx_type:   'USSD_SELF_LOAD',
-        mfb_id:    'SIM_MFB',
+        mfb_id:    body.mfb_id || 'SIM_MFB',
         agent_id:  null,
       };
     });
@@ -135,7 +135,8 @@ exports.handler = async (event) => {
   // ── Commission ────────────────────────────────────────────────
   try {
     await applyCommission({
-      txnType:    'cash_in',
+      txnType:    'ussd_self_load',
+      mfbId:      body.mfb_id || 'SIM_MFB',
       amountKobo: totalKobo,
       agentId:    null,
       mfbId:      'SIM_MFB',
