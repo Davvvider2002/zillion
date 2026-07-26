@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#1e3a5f">
+<title>Zillion MFB Portal</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--card:#1e293b;--border:#334155;
+  --text:#f1f5f9;--gr:#94a3b8;--g:#22c55e;--r:#ef4444;
+  --am:#f59e0b;--bl:#3b82f6;--pur:#8b5cf6;
+  --g-dark:#15803d;--card2:#263548;
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+/* ── LOGIN ── */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:20px}
+.login-card{background:var(--card);border-radius:20px;padding:40px;width:100%;max-width:400px;
+  border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.login-brand{text-align:center;margin-bottom:32px}
+.login-logo{display:inline-flex;align-items:center;gap:10px;margin-bottom:8px}
+.login-mark{width:44px;height:44px;background:var(--bl);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff}
+.login-name{font-size:24px;font-weight:800;color:#fff;letter-spacing:.02em}
+.login-sub{font-size:13px;color:var(--gr)}
+.lfield{margin-bottom:14px}
+.lfield label{display:block;font-size:12px;font-weight:600;color:var(--gr);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.lfield input{width:100%;padding:11px 14px;background:#0f172a;border:1.5px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:15px;font-family:inherit;outline:none;transition:.2s}
+.lfield input:focus{border-color:var(--bl)}
+.lerr{font-size:13px;color:var(--r);text-align:center;margin-bottom:8px;min-height:20px}
+.lbtn{width:100%;padding:13px;background:var(--bl);color:#fff;border:none;border-radius:12px;
+  font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;transition:.15s}
+.lbtn:hover{background:#2563eb}
+.lbtn:disabled{opacity:.5;cursor:not-allowed}
+.login-footer{text-align:center;margin-top:20px;font-size:12px;color:var(--gr)}
+/* ── APP SHELL ── */
+#app-screen{display:none;min-height:100vh}
+.app-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+/* ── SIDEBAR ── */
+.sidebar{background:var(--card);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:240px;z-index:10}
+.sb-hdr{padding:20px;border-bottom:1px solid var(--border)}
+.sb-logo{display:flex;align-items:center;gap:10px}
+.sb-mark{width:36px;height:36px;background:var(--bl);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff}
+.sb-title{font-size:15px;font-weight:700}
+.sb-sub{font-size:11px;color:var(--gr)}
+.sb-user{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sb-avatar{width:34px;height:34px;background:var(--bl);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.sb-uname{font-size:13px;font-weight:600}
+.sb-urole{font-size:11px;color:var(--gr)}
+.sb-dot{width:8px;height:8px;background:var(--g);border-radius:50%;margin-left:auto;flex-shrink:0}
+.sb-nav{flex:1;overflow-y:auto;padding:8px}
+.sb-section{font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;
+  letter-spacing:.08em;padding:8px 10px 4px}
+.snav{width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;
+  border:none;background:none;color:var(--gr);font-size:13px;font-weight:500;
+  border-radius:10px;cursor:pointer;font-family:inherit;text-align:left;transition:.15s}
+.snav:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.snav.active{background:rgba(59,130,246,.15);color:var(--bl);font-weight:700}
+.snav .si{font-size:15px;width:20px;text-align:center}
+.sb-foot{padding:14px 16px;border-top:1px solid var(--border)}
+.signout-btn{width:100%;padding:9px;background:rgba(239,68,68,.1);color:var(--r);
+  border:1px solid rgba(239,68,68,.2);border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit}
+/* ── MAIN CONTENT ── */
+.main{margin-left:240px;display:flex;flex-direction:column;min-height:100vh}
+.main-hdr{padding:16px 24px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;background:var(--card);
+  position:sticky;top:0;z-index:5}
+.main-title{font-size:18px;font-weight:700;color:var(--text)}
+.main-badges{display:flex;align-items:center;gap:10px}
+.badge{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.badge-green{background:rgba(34,197,94,.15);color:var(--g);border:1px solid rgba(34,197,94,.2)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--bl);border:1px solid rgba(59,130,246,.2)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--r);border:1px solid rgba(239,68,68,.2)}
+.badge-amber{background:rgba(245,158,11,.15);color:var(--am);border:1px solid rgba(245,158,11,.2)}
+.page-body{padding:24px;flex:1}
+/* ── SEC VISIBILITY ── */
+.sec{display:none}.sec.active{display:block}
+/* ── METRIC CARDS ── */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;
+  border-top:3px solid var(--border)}
+.metric.g{border-top-color:var(--g)}.metric.r{border-top-color:var(--r)}
+.metric.bl{border-top-color:var(--bl)}.metric.am{border-top-color:var(--am)}
+.metric.pur{border-top-color:var(--pur)}
+.mlabel{font-size:11px;font-weight:600;color:var(--gr);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.mvalue{font-size:22px;font-weight:700;color:var(--text)}
+.msub{font-size:11px;color:var(--gr);margin-top:2px}
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;
+  justify-content:space-between;color:var(--text)}
+.card-sub{font-size:13px;color:var(--gr);margin-bottom:14px}
+.rbtn{padding:6px 12px;background:var(--card2);border:1px solid var(--border);
+  border-radius:8px;color:var(--gr);font-size:12px;cursor:pointer;font-family:inherit}
+.rbtn:hover{color:var(--text)}
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:600;color:var(--gr);padding:8px 10px;
+  border-bottom:2px solid var(--border);text-transform:uppercase;letter-spacing:.04em}
+td{padding:9px 10px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.no-data{text-align:center;color:var(--gr);padding:24px}
+/* ── ALERT CARD ── */
+.alert-item{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;
+  border-radius:10px;margin-bottom:8px;font-size:13px}
+.alert-item.HIGH{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2)}
+.alert-item.MEDIUM{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2)}
+.alert-item.LOW{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2)}
+.alert-icon{font-size:18px;flex-shrink:0}
+.alert-text{flex:1}
+.alert-level{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px}
+.alert-item.HIGH .alert-level{color:var(--r)}
+.alert-item.MEDIUM .alert-level{color:var(--am)}
+.alert-item.LOW .alert-level{color:var(--bl)}
+/* ── CHARTS (pure CSS bar) ── */
+.bar-chart{display:flex;flex-direction:column;gap:6px}
+.bar-row{display:flex;align-items:center;gap:10px;font-size:12px}
+.bar-label{width:80px;color:var(--gr);text-align:right;flex-shrink:0}
+.bar-track{flex:1;background:rgba(255,255,255,.06);border-radius:4px;height:18px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s ease;display:flex;align-items:center;padding:0 6px}
+.bar-val{font-size:11px;font-weight:600;color:#fff;white-space:nowrap}
+/* ── TOOLBAR ── */
+.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.filter-select,.search-input{padding:8px 12px;background:var(--card2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.filter-select:focus,.search-input:focus{border-color:var(--bl)}
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  .app-shell{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .metrics{grid-template-columns:1fr 1fr}
+}
+/* ── LOADING ── */
+.loading{text-align:center;padding:40px;color:var(--gr)}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);
+  border-top-color:var(--bl);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ════ LOGIN ════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo">
+        <div class="login-mark">Z</div>
+        <div class="login-name">ZILLION</div>
+      </div>
+      <div class="login-sub">MFB Partner Portal</div>
+    </div>
+
+    <div id="login-step1">
+      <div class="lfield">
+        <label>MFB Partner ID</label>
+        <input type="text" id="l-mfb-id" placeholder="e.g. KANO_MFB_001"
+               autocomplete="username" autocapitalize="none" autocorrect="off"
+               onkeydown="if(event.key==='Enter')document.getElementById('l-pw').focus()">
+      </div>
+      <div class="lfield">
+        <label>Password</label>
+        <input type="password" id="l-pw" placeholder="Your portal password"
+               autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')doMfbLogin()">
+      </div>
+      <div class="lerr" id="lerr"></div>
+      <button class="lbtn" id="lbtn" onclick="doMfbLogin()">Sign In →</button>
+      <div class="login-footer">
+        First login: use your MFB ID as the password<br>
+        You will be prompted to set a new password
+      </div>
+    </div>
+
+    <div id="login-step-changepw" style="display:none">
+      <div style="text-align:center;margin-bottom:20px;font-size:13px;color:var(--gr)">
+        First login detected. Please set a new password.
+      </div>
+      <div class="lfield">
+        <label>New Password (min 8 chars)</label>
+        <input type="password" id="l-newpw" placeholder="Min 8 characters"
+               onkeydown="if(event.key==='Enter')document.getElementById('l-newpw2').focus()">
+      </div>
+      <div class="lfield">
+        <label>Confirm Password</label>
+        <input type="password" id="l-newpw2" placeholder="Repeat password"
+               onkeydown="if(event.key==='Enter')doChangePassword()">
+      </div>
+      <div class="lerr" id="changepw-err"></div>
+      <button class="lbtn" onclick="doChangePassword()">Set Password &amp; Enter →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ APP ════ -->
+<div id="app-screen">
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sb-hdr">
+      <div class="sb-logo">
+        <div class="sb-mark">Z</div>
+        <div>
+          <div class="sb-title">ZILLION</div>
+          <div class="sb-sub">MFB Portal</div>
+        </div>
+      </div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-avatar" id="sb-avatar">M</div>
+      <div>
+        <div class="sb-uname" id="sb-mfb-name">MFB Partner</div>
+        <div class="sb-urole" id="sb-mfb-id">—</div>
+      </div>
+      <div class="sb-dot"></div>
+    </div>
+    <div class="sb-nav">
+      <div class="sb-section">Overview</div>
+      <button class="snav active" id="nav-dashboard" onclick="showSec('dashboard',this)">
+        <span class="si">📊</span> Dashboard
+      </button>
+
+      <div class="sb-section">Finance</div>
+      <button class="snav" id="nav-coins" onclick="showSec('coins',this)">
+        <span class="si">🪙</span> Coin Ledger
+      </button>
+      <button class="snav" id="nav-transactions" onclick="showSec('transactions',this)">
+        <span class="si">📋</span> Transactions
+      </button>
+      <button class="snav" id="nav-commission" onclick="showSec('commission',this)">
+        <span class="si">💰</span> Commission
+      </button>
+
+      <div class="sb-section">Operations</div>
+      <button class="snav" id="nav-agents" onclick="showSec('agents',this)">
+        <span class="si">🏪</span> Agents
+      </button>
+      <button class="snav" id="nav-alerts" onclick="showSec('alerts',this)">
+        <span class="si">🚨</span> Alerts
+        <span id="alert-badge" style="display:none;background:var(--r);color:#fff;padding:1px 7px;border-radius:10px;font-size:11px;margin-left:auto">0</span>
+      </button>
+
+      <div class="sb-section">Account</div>
+      <button class="snav" id="nav-profile" onclick="showSec('profile',this)">
+        <span class="si">👤</span> Profile
+      </button>
+    </div>
+    <div class="sb-foot">
+      <button class="signout-btn" onclick="signOut()">← Sign Out</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="main-hdr">
+      <div class="main-title" id="main-title">Dashboard</div>
+      <div class="main-badges">
+        <span class="badge badge-green" id="hdr-status">● ACTIVE</span>
+        <span class="badge badge-blue" id="hdr-tier">MFB</span>
+        <button class="rbtn" onclick="refreshAll()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- DASHBOARD -->
+      <div id="sec-dashboard" class="sec active">
+        <div class="metrics" id="dash-metrics">
+          <div class="metric bl"><div class="mlabel">In Circulation</div><div class="mvalue" id="d-held">—</div><div class="msub" id="d-held-n">—</div></div>
+          <div class="metric g"><div class="mlabel">Total Minted</div><div class="mvalue" id="d-minted">—</div><div class="msub" id="d-minted-n">—</div></div>
+          <div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" id="d-redeemed">—</div><div class="msub" id="d-redeemed-n">—</div></div>
+          <div class="metric r"><div class="mlabel">Float Obligation</div><div class="mvalue" id="d-float">—</div><div class="msub">Must be held by MFB</div></div>
+          <div class="metric pur"><div class="mlabel">MFB Commission</div><div class="mvalue" id="d-comm">—</div><div class="msub" id="d-comm-events">—</div></div>
+          <div class="metric" id="d-cif-card"><div class="mlabel">CIF Ratio</div><div class="mvalue" id="d-cif">—</div><div class="msub">Healthy: 50–85%</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div class="card">
+            <div class="card-title">Transaction Breakdown</div>
+            <div class="bar-chart" id="dash-tx-chart"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">30-Day Volume
+              <span style="font-size:12px;font-weight:400;color:var(--gr)">daily fees (&#x20a6;)</span>
+            </div>
+            <div id="dash-daily-chart" style="height:120px;position:relative"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Active Alerts
+            <span id="dash-alert-count" style="font-size:12px;font-weight:400;color:var(--gr)">none</span>
+          </div>
+          <div id="dash-alerts"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Recent Transactions
+            <button class="rbtn" onclick="showSec('transactions',document.getElementById('nav-transactions'))">View All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Type</th><th>Agent</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody id="dash-tx-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- COIN LEDGER -->
+      <div id="sec-coins" class="sec">
+        <div class="metrics">
+          <div class="metric g"><div class="mlabel">Total Minted</div><div class="mvalue" id="c-minted">—</div></div>
+          <div class="metric bl"><div class="mlabel">In Circulation (HELD)</div><div class="mvalue" id="c-held">—</div></div>
+          <div class="metric" style="border-top-color:#6366f1"><div class="mlabel">Undelivered (ISSUED)</div><div class="mvalue" id="c-issued">—</div></div>
+          <div class="metric am"><div class="mlabel">Redeemed</div><div class="mvalue" id="c-redeemed">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:12px;font-size:12px;color:var(--gr);line-height:1.8;background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.2)">
+          <strong style="color:var(--bl)">Conservation check:</strong>
+          ISSUED + HELD + REDEEMED = MINTED &nbsp;|&nbsp;
+          Float obligation = SUM(HELD coins) &nbsp;|&nbsp;
+          P2P transfers are velocity only — not deducted
+        </div>
+        <div class="card">
+          <div class="card-title">Coin Registry
+            <div style="display:flex;gap:8px">
+              <button class="rbtn" onclick="exportCoins()">&#x2B07; CSV</button>
+              <button class="rbtn" onclick="loadCoins()">↻</button>
+            </div>
+          </div>
+          <div class="toolbar">
+            <select class="filter-select" id="coin-status-filter" onchange="loadCoins()">
+              <option value="">All Status</option>
+              <option value="HELD">HELD</option>
+              <option value="ISSUED">ISSUED</option>
+              <option value="REDEEMED">REDEEMED</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Coin ID</th><th>Amount</th><th>Status</th><th>Issued By</th><th>Issued At</th></tr></thead>
+              <tbody id="coins-tbody"></tbody>
+            </table>
+          </div>
+          <div id="coins-loading" class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div id="sec-transactions" class="sec">
+        <div class="card">
+          <div class="card-title">Transaction History
+            <div style="display:flex;gap:8px">
+              <button class="rbtn" onclick="exportTx()">&#x2B07; CSV</button>
+              <button class="rbtn" onclick="loadTransactions()">↻</button>
+            </div>
+          </div>
+          <div class="toolbar">
+            <select class="filter-select" id="tx-type-filter" onchange="loadTransactions()">
+              <option value="">All Types</option>
+              <option value="CASH_IN">Cash-In (agent)</option>
+              <option value="CASH_OUT">Cash-Out</option>
+              <option value="USSD_SELF_LOAD">USSD Self-Load</option>
+              <option value="NIP_SELF_LOAD">NIP Self-Load</option>
+              <option value="P2P">P2P Transfer</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date &amp; Time</th><th>Type</th><th>Coin</th><th>Amount</th><th>Agent</th><th>Status</th></tr></thead>
+              <tbody id="tx-tbody"></tbody>
+            </table>
+          </div>
+          <div id="tx-loading" class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- COMMISSION -->
+      <div id="sec-commission" class="sec">
+        <div class="metrics">
+          <div class="metric am"><div class="mlabel">Total Fees Collected</div><div class="mvalue" id="comm-total-fee">—</div></div>
+          <div class="metric g"><div class="mlabel">MFB Commission Share</div><div class="mvalue" id="comm-mfb">—</div></div>
+          <div class="metric bl"><div class="mlabel">Zillion Platform</div><div class="mvalue" id="comm-zil">—</div></div>
+          <div class="metric pur"><div class="mlabel">Agent Commissions</div><div class="mvalue" id="comm-agt">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Monthly Commission Breakdown
+            <button class="rbtn" onclick="exportCommission()">&#x2B07; CSV</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Month</th><th>Transactions</th><th>Total Fee</th><th>MFB Share</th><th>Zillion</th><th>Agents</th></tr></thead>
+              <tbody id="comm-monthly-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Recent Commission Events</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Type</th><th>Source</th><th>Fee</th><th>MFB Share</th></tr></thead>
+              <tbody id="comm-events-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENTS -->
+      <div id="sec-agents" class="sec">
+        <div class="card">
+          <div class="card-title">Agent Roster
+            <button class="rbtn" onclick="loadAgents()">↻</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Agent ID</th><th>Name</th><th>Location</th><th>Float (&#x20a6;)</th><th>Status</th></tr></thead>
+              <tbody id="agents-tbody"></tbody>
+            </table>
+          </div>
+          <div id="agents-loading" class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- ALERTS -->
+      <div id="sec-alerts" class="sec">
+        <div class="card">
+          <div class="card-title">Compliance &amp; Operations Alerts</div>
+          <div id="alerts-container"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Double-Entry Reconciliation</div>
+          <div id="recon-detail" style="font-size:13px;line-height:2;color:var(--gr)">Loading...</div>
+        </div>
+      </div>
+
+      <!-- PROFILE -->
+      <div id="sec-profile" class="sec">
+        <div class="card">
+          <div class="card-title">MFB Partner Details</div>
+          <div id="profile-detail"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Change Password</div>
+          <div class="lfield"><label>New Password</label><input type="password" id="p-newpw" placeholder="Min 8 characters" style="width:100%;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;outline:none"></div>
+          <div class="lfield"><label>Confirm Password</label><input type="password" id="p-newpw2" placeholder="Repeat" style="width:100%;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;outline:none"></div>
+          <button onclick="changePassword()" style="padding:10px 20px;background:var(--bl);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Update Password</button>
+          <div id="pw-msg" style="margin-top:8px;font-size:13px;color:var(--gr)"></div>
+        </div>
+      </div>
+
+    </div><!-- /page-body -->
+  </div><!-- /main -->
+</div><!-- /app-shell -->
+</div><!-- /app-screen -->
+
+<script>
+const API = '/.netlify/functions';
+const MFB_API = '/api/v1/mfb-portal';
+var mfbToken    = localStorage.getItem('zil_mfb_token') || '';
+var mfbId       = '';
+var mfbName     = '';
+var sessionToken= '';
+var _dashData   = null;
+
+// ── SECTION VISIBILITY ─────────────────────────────────────────
+function showSec(name, el) {
+  document.querySelectorAll('.snav').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.sec').forEach(function(s){ s.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  var secEl = document.getElementById('sec-' + name);
+  if (secEl) secEl.classList.add('active');
+  var titles = {
+    dashboard: 'Dashboard', coins: 'Coin Ledger', transactions: 'Transactions',
+    commission: 'Commission', agents: 'Agents', alerts: 'Alerts & Compliance',
+    profile: 'Profile & Settings',
+  };
+  var t = document.getElementById('main-title');
+  if (t) t.textContent = titles[name] || name;
+  var loaders = {
+    coins: loadCoins, transactions: loadTransactions,
+    commission: loadCommission, agents: loadAgents, alerts: loadAlerts,
+    profile: loadProfile,
+  };
+  if (loaders[name]) loaders[name]();
+}
+
+// ── AUTH ───────────────────────────────────────────────────────
+async function doMfbLogin() {
+  var mfbIdVal = (document.getElementById('l-mfb-id').value||'').trim();
+  var pw       = (document.getElementById('l-pw').value||'').trim();
+  var errEl    = document.getElementById('lerr');
+  var btn      = document.getElementById('lbtn');
+  if (!mfbIdVal || !pw) { errEl.textContent = 'Enter MFB ID and password.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  errEl.textContent = '';
+  try {
+    var resp = await fetch('/api/v1/mfb-login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mfb_id: mfbIdVal, password: pw }),
+    });
+    var data = await resp.json();
+    if (!resp.ok) { errEl.textContent = '⚠️ ' + (data.error||'Login failed'); return; }
+    if (data.step === 'change_password') {
+      sessionToken = data.session_token;
+      mfbName = data.mfb_name;
+      document.getElementById('login-step1').style.display = 'none';
+      document.getElementById('login-step-changepw').style.display = 'block';
+      return;
+    }
+    // Success
+    mfbToken = data.token; mfbId = data.mfb_id; mfbName = data.mfb_name;
+    localStorage.setItem('zil_mfb_token', mfbToken);
+    localStorage.setItem('zil_mfb_id', mfbId);
+    enterApp(data);
+  } catch(e) { errEl.textContent = '⚠️ ' + e.message; }
+  finally { btn.disabled=false; btn.textContent='Sign In →'; }
+}
+
+async function doChangePassword() {
+  var pw  = (document.getElementById('l-newpw').value||'').trim();
+  var pw2 = (document.getElementById('l-newpw2').value||'').trim();
+  var errEl = document.getElementById('changepw-err');
+  if (pw.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; return; }
+  try {
+    var resp = await fetch(MFB_API, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+sessionToken},
+      body: JSON.stringify({ action:'change_password', new_password: pw }),
+    });
+    var data = await resp.json();
+    if (!resp.ok) { errEl.textContent = data.error||'Error'; return; }
+    mfbToken = data.token;
+    localStorage.setItem('zil_mfb_token', mfbToken);
+    enterApp({ mfb_id: mfbId, mfb_name: mfbName });
+    loadDashboard();
+  } catch(e) { errEl.textContent = e.message; }
+}
+
+function enterApp(data) {
+  mfbId   = data.mfb_id   || mfbId;
+  mfbName = data.mfb_name || mfbName;
+  var av = document.getElementById('sb-avatar');
+  var nm = document.getElementById('sb-mfb-name');
+  var id = document.getElementById('sb-mfb-id');
+  if (av) av.textContent = (mfbName||'M').slice(0,1).toUpperCase();
+  if (nm) nm.textContent = mfbName;
+  if (id) id.textContent = mfbId;
+  var tier = document.getElementById('hdr-tier');
+  if (tier && data.tier) tier.textContent = data.tier;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  loadDashboard();
+}
+
+function signOut() {
+  localStorage.removeItem('zil_mfb_token');
+  localStorage.removeItem('zil_mfb_id');
+  mfbToken = ''; mfbId = ''; mfbName = '';
+  location.reload();
+}
+
+// ── DATA HELPERS ──────────────────────────────────────────────
+var fmtK = function(k){ return '₦'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
+var fmtN = function(n){ return ((n||0)).toLocaleString(); };
+
+async function apiFetch(params) {
+  var url = MFB_API + (params ? '?' + new URLSearchParams(params).toString() : '');
+  var r = await fetch(url, { headers:{'Authorization':'Bearer '+mfbToken} });
+  if (r.status === 401) { signOut(); return null; }
+  return r.json();
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    var data = await apiFetch();
+    if (!data || !data.success) return;
+    _dashData = data;
+    var cm = data.coin_metrics || {};
+    var tc = data.transaction_counts || {};
+    var co = data.commission || {};
+
+    var setEl = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+    setEl('d-held',    fmtK(cm.value_held_kobo));
+    setEl('d-held-n',  fmtN(cm.coins_held)+' coins');
+    setEl('d-minted',  fmtK(cm.value_minted_kobo));
+    setEl('d-minted-n',fmtN(cm.coins_minted)+' coins');
+    setEl('d-redeemed',fmtK(cm.value_redeemed_kobo));
+    setEl('d-redeemed-n',fmtN(cm.coins_redeemed)+' coins');
+    setEl('d-float',   fmtK(cm.float_obligation_kobo));
+    setEl('d-comm',    fmtK(co.mfb_kobo));
+    setEl('d-comm-events', fmtN(co.event_count)+' events');
+
+    // CIF ratio colour
+    var cif = cm.cif_ratio || 0;
+    var cifEl = document.getElementById('d-cif');
+    var cifCard = document.getElementById('d-cif-card');
+    if (cifEl) cifEl.textContent = (cif*100).toFixed(1)+'%';
+    if (cifCard) cifCard.style.borderTopColor = cif>0.85?'var(--r)':cif>0.75?'var(--am)':'var(--g)';
+
+    // TX bar chart
+    var chart = document.getElementById('dash-tx-chart');
+    if (chart) {
+      var txItems = [
+        {label:'Cash-In',  val:tc.cashin,   col:'var(--g)'},
+        {label:'Cash-Out', val:tc.cashout,  col:'var(--am)'},
+        {label:'Self-Load',val:tc.selfload, col:'var(--bl)'},
+        {label:'P2P',      val:tc.p2p,      col:'var(--pur)'},
+        {label:'Merchant', val:tc.merchant||0,col:'#06b6d4'},
+      ];
+      var maxVal = Math.max(...txItems.map(function(i){return i.val||0}), 1);
+      chart.innerHTML = txItems.map(function(item){
+        var pct = Math.round(((item.val||0)/maxVal)*100);
+        return '<div class="bar-row">'
+          +'<div class="bar-label">'+item.label+'</div>'
+          +'<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+item.col+'">'
+          +'<span class="bar-val">'+fmtN(item.val||0)+'</span></div></div></div>';
+      }).join('');
+    }
+
+    // Daily chart (sparkline using CSS)
+    var daily = data.daily_volumes || {};
+    var dailyChart = document.getElementById('dash-daily-chart');
+    if (dailyChart) {
+      var days = Object.keys(daily).sort().slice(-14);
+      var maxFee = Math.max(...days.map(function(d){return daily[d].fee||0}), 1);
+      if (days.length === 0) {
+        dailyChart.innerHTML = '<div style="text-align:center;padding:30px;color:var(--gr);font-size:12px">No data yet</div>';
+      } else {
+        dailyChart.innerHTML = '<div style="display:flex;align-items:flex-end;gap:3px;height:100%;padding-bottom:4px">'
+          +days.map(function(d){
+            var h = Math.max(8, Math.round(((daily[d].fee||0)/maxFee)*100));
+            var label = d.slice(5);
+            return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
+              +'<div title="'+d+': '+fmtK(daily[d].fee)+'" style="width:100%;height:'+h+'%;background:var(--bl);border-radius:2px 2px 0 0;opacity:.8"></div>'
+              +'<div style="font-size:9px;color:var(--gr)">'+label+'</div></div>';
+          }).join('')
+          +'</div>';
+      }
+    }
+
+    // Alerts
+    var alerts = data.alerts || [];
+    var alertBadge = document.getElementById('alert-badge');
+    var alertCount = document.getElementById('dash-alert-count');
+    if (alertBadge) { alertBadge.textContent = alerts.length; alertBadge.style.display = alerts.length?'':'none'; }
+    if (alertCount) alertCount.textContent = alerts.length + ' alert'+(alerts.length!==1?'s':'');
+    var alertsEl = document.getElementById('dash-alerts');
+    if (alertsEl) {
+      alertsEl.innerHTML = alerts.length === 0
+        ? '<div style="text-align:center;padding:16px;color:var(--gr);font-size:13px">✔ No alerts — all systems healthy</div>'
+        : alerts.map(function(a){
+            var icon = a.level==='HIGH'?'🚨':a.level==='MEDIUM'?'⚠️':'ℹ️';
+            return '<div class="alert-item '+a.level+'"><span class="alert-icon">'+icon+'</span>'
+              +'<div class="alert-text"><div class="alert-level">'+a.level+'</div>'+a.msg+'</div></div>';
+          }).join('');
+    }
+
+    // Recent transactions
+    var txEl = document.getElementById('dash-tx-tbody');
+    if (txEl) {
+      var txns = data.recent_transactions || [];
+      txEl.innerHTML = txns.map(function(tx){
+        var dt = new Date(tx.tx_ts||tx.created_at||'').toLocaleString('en-NG',{dateStyle:'short',timeStyle:'short'});
+        var t = (tx.tx_type||'P2P').replace(/_/g,' ');
+        var sc = tx.status==='SETTLED'?'var(--g)':'var(--am)';
+        return '<tr><td>'+dt+'</td><td>'+t+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+(tx.agent_id||'—')+'</td>'
+          +'<td>'+fmtK(tx.amount||0)+'</td>'
+          +'<td><span style="color:'+sc+';font-size:11px">'+(tx.status||'')+'</span></td></tr>';
+      }).join('') || '<tr><td colspan="5" class="no-data">No recent transactions</td></tr>';
+    }
+
+    // Profile section pre-fill
+    var partner = data.partner || {};
+    loadProfileData(partner);
+
+  } catch(e) { console.error('Dashboard load error:', e); }
+}
+
+// ── COIN LEDGER ───────────────────────────────────────────────
+async function loadCoins() {
+  var ld = document.getElementById('coins-loading');
+  var tb = document.getElementById('coins-tbody');
+  if (!tb) return;
+  if (ld) ld.style.display='block';
+  var status = (document.getElementById('coin-status-filter')||{}).value||'';
+  try {
+    var params = { section:'coins' };
+    if (status) params.status = status;
+    var data = await apiFetch(params);
+    if (!data) return;
+    var coins = data.coins || [];
+    // Update summary from dashboard data if available
+    if (_dashData && _dashData.coin_metrics) {
+      var cm = _dashData.coin_metrics;
+      var setEl = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+      setEl('c-minted',  fmtK(cm.value_minted_kobo));
+      setEl('c-held',    fmtK(cm.value_held_kobo));
+      setEl('c-issued',  fmtK(cm.value_issued_kobo||0));
+      setEl('c-redeemed',fmtK(cm.value_redeemed_kobo));
+    }
+    // Filter client-side if needed
+    var filtered = status ? coins.filter(function(c){ return c.status===status; }) : coins;
+    tb.innerHTML = filtered.map(function(c){
+      var sc = c.status==='HELD'?'var(--g)':c.status==='REDEEMED'?'var(--am)':'var(--bl)';
+      var dt = c.issued_at ? new Date(c.issued_at).toLocaleString('en-NG',{dateStyle:'short',timeStyle:'short'}) : '—';
+      return '<tr>'
+        +'<td style="font-family:monospace;font-size:11px">'+(c.coin_id||'').slice(0,24)+'...</td>'
+        +'<td>'+fmtK(c.amount)+'</td>'
+        +'<td><span style="color:'+sc+';font-weight:600">'+c.status+'</span></td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(c.issuer_id||'—')+'</td>'
+        +'<td>'+dt+'</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="no-data">No coins found</td></tr>';
+  } catch(e) { if(tb) tb.innerHTML='<tr><td colspan="5" class="no-data">Error: '+e.message+'</td></tr>'; }
+  finally { if(ld) ld.style.display='none'; }
+}
+
+// ── TRANSACTIONS ──────────────────────────────────────────────
+async function loadTransactions() {
+  var ld = document.getElementById('tx-loading');
+  var tb = document.getElementById('tx-tbody');
+  if (!tb) return;
+  if (ld) ld.style.display='block';
+  var txType = (document.getElementById('tx-type-filter')||{}).value||'';
+  try {
+    var data = await apiFetch({ section:'transactions' });
+    if (!data) return;
+    var txns = data.transactions || [];
+    if (txType) txns = txns.filter(function(tx){ return (tx.tx_type||'').toUpperCase()===txType; });
+    tb.innerHTML = txns.map(function(tx){
+      var dt = new Date(tx.tx_ts||'').toLocaleString('en-NG',{dateStyle:'short',timeStyle:'short'});
+      var t = (tx.tx_type||'P2P').replace(/_/g,' ');
+      var sc = tx.status==='SETTLED'?'var(--g)':'var(--am)';
+      return '<tr><td>'+dt+'</td><td>'+t+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(tx.coin_id||'').slice(0,16)+'...</td>'
+        +'<td>'+fmtK(tx.amount||0)+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(tx.agent_id||'—')+'</td>'
+        +'<td><span style="color:'+sc+'">'+tx.status+'</span></td></tr>';
+    }).join('') || '<tr><td colspan="6" class="no-data">No transactions found</td></tr>';
+  } catch(e) { if(tb) tb.innerHTML='<tr><td colspan="6" class="no-data">Error: '+e.message+'</td></tr>'; }
+  finally { if(ld) ld.style.display='none'; }
+}
+
+// ── COMMISSION ────────────────────────────────────────────────
+async function loadCommission() {
+  try {
+    var data = await apiFetch({ section:'commission' });
+    if (!data) return;
+    // Totals from dashboard
+    if (_dashData && _dashData.commission) {
+      var co = _dashData.commission;
+      var setEl = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+      setEl('comm-total-fee', fmtK(co.fee_kobo));
+      setEl('comm-mfb',       fmtK(co.mfb_kobo));
+      setEl('comm-zil',       fmtK(co.zillion_kobo));
+      setEl('comm-agt',       fmtK(co.agent_kobo));
+    }
+    // Monthly breakdown
+    var monthly = data.monthly_breakdown || {};
+    var months  = Object.keys(monthly).sort().reverse();
+    var mtb = document.getElementById('comm-monthly-tbody');
+    if (mtb) {
+      mtb.innerHTML = months.map(function(m){
+        var d = monthly[m];
+        return '<tr>'
+          +'<td>'+m+'</td><td>'+fmtN(d.count)+'</td>'
+          +'<td>'+fmtK(d.fee)+'</td>'
+          +'<td style="color:var(--am)">'+fmtK(d.mfb)+'</td>'
+          +'<td style="color:var(--bl)">'+fmtK(d.zil)+'</td>'
+          +'<td style="color:var(--g)">'+fmtK(d.agt)+'</td></tr>';
+      }).join('') || '<tr><td colspan="6" class="no-data">No commission data yet</td></tr>';
+    }
+    // Recent events
+    var etb = document.getElementById('comm-events-tbody');
+    if (etb) {
+      var events = (data.events||[]).slice(0,50);
+      etb.innerHTML = events.map(function(e){
+        var dt = new Date(e.created_at||'').toLocaleString('en-NG',{dateStyle:'short',timeStyle:'short'});
+        var src = e.agent_id ? 'Agent' : 'Self-load';
+        return '<tr><td>'+dt+'</td><td>'+(e.txn_type||'').replace(/_/g,' ')+'</td>'
+          +'<td>'+src+'</td>'
+          +'<td>'+fmtK(e.fee_kobo||0)+'</td>'
+          +'<td style="color:var(--am)">'+fmtK(e.mfb_kobo||0)+'</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="no-data">No events</td></tr>';
+    }
+  } catch(e) { console.error('Commission load error:', e); }
+}
+
+// ── AGENTS ────────────────────────────────────────────────────
+async function loadAgents() {
+  var ld = document.getElementById('agents-loading');
+  var tb = document.getElementById('agents-tbody');
+  if (!tb) return;
+  if (ld) ld.style.display='block';
+  try {
+    var data = await apiFetch({ section:'agents' });
+    if (!data) return;
+    tb.innerHTML = (data.agents||[]).map(function(a){
+      var sc = a.status==='ACTIVE'?'var(--g)':'var(--r)';
+      return '<tr>'
+        +'<td style="font-family:monospace;font-size:12px">'+a.agent_id+'</td>'
+        +'<td>'+a.name+'</td>'
+        +'<td>'+(a.location_name||'—')+'</td>'
+        +'<td>'+fmtK(a.float_balance_kobo||0)+'</td>'
+        +'<td><span style="color:'+sc+';font-weight:600">'+(a.status||'UNKNOWN')+'</span></td></tr>';
+    }).join('') || '<tr><td colspan="5" class="no-data">No agents assigned to this MFB</td></tr>';
+  } catch(e) { if(tb) tb.innerHTML='<tr><td colspan="5" class="no-data">Error: '+e.message+'</td></tr>'; }
+  finally { if(ld) ld.style.display='none'; }
+}
+
+// ── ALERTS ────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    var data = await apiFetch({ section:'alerts' });
+    if (!data) return;
+    var ac = document.getElementById('alerts-container');
+    var alerts = data.alerts || [];
+    if (ac) {
+      ac.innerHTML = alerts.length === 0
+        ? '<div style="text-align:center;padding:24px;color:var(--g)">✔ No active alerts — all compliance checks passed</div>'
+        : alerts.map(function(a){
+            var icon = a.level==='HIGH'?'🚨':a.level==='MEDIUM'?'⚠️':'ℹ️';
+            return '<div class="alert-item '+a.level+'"><span class="alert-icon">'+icon+'</span>'
+              +'<div class="alert-text"><div class="alert-level">'+a.level+'</div>'+a.msg
+              +(a.value?'<br><small style="color:var(--gr)">Value: '+(a.value*100).toFixed(1)+'%</small>':'')
+              +'</div></div>';
+          }).join('');
+    }
+    // Reconciliation
+    var rd = document.getElementById('recon-detail');
+    if (rd && _dashData && _dashData.coin_metrics) {
+      var cm = _dashData.coin_metrics;
+      var conservation = cm.value_minted_kobo === (cm.value_held_kobo + cm.value_issued_kobo + cm.value_redeemed_kobo);
+      rd.innerHTML =
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px">'
+        +'<div><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Coins Minted</div><div style="font-weight:700">'+fmtK(cm.value_minted_kobo)+'</div></div>'
+        +'<div><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">In Circulation (HELD)</div><div style="font-weight:700;color:var(--bl)">'+fmtK(cm.value_held_kobo)+'</div></div>'
+        +'<div><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Undelivered (ISSUED)</div><div style="font-weight:700;color:var(--pur)">'+fmtK(cm.value_issued_kobo||0)+'</div></div>'
+        +'<div><div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:4px">Redeemed</div><div style="font-weight:700;color:var(--am)">'+fmtK(cm.value_redeemed_kobo)+'</div></div>'
+        +'</div>'
+        +'<div style="margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;'
+        +(conservation?'background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--g)':'background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--r)')+'">'
+        +(conservation?'✔ Conservation law holds: ISSUED + HELD + REDEEMED = MINTED'
+                      :'✖ Conservation mismatch — contact Zillion support')
+        +'</div>';
+    }
+  } catch(e) { console.error('Alerts load error:', e); }
+}
+
+// ── PROFILE ───────────────────────────────────────────────────
+function loadProfile() {
+  if (_dashData && _dashData.partner) loadProfileData(_dashData.partner);
+}
+function loadProfileData(p) {
+  var el = document.getElementById('profile-detail');
+  if (!el || !p.mfb_id) return;
+  el.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">'
+    +['mfb_id','mfb_name','state','tier','licence_number','contact_name','contact_email','status'].map(function(k){
+      return '<div style="background:var(--card2);border-radius:8px;padding:10px">'
+        +'<div style="color:var(--gr);font-size:11px;text-transform:uppercase;margin-bottom:3px">'+k.replace(/_/g,' ')+'</div>'
+        +'<div style="font-weight:500">'+(p[k]||'—')+'</div></div>';
+    }).join('')+'</div>';
+}
+
+async function changePassword() {
+  var pw  = (document.getElementById('p-newpw').value||'').trim();
+  var pw2 = (document.getElementById('p-newpw2').value||'').trim();
+  var msg = document.getElementById('pw-msg');
+  if (pw.length < 8) { if(msg) msg.textContent='Min 8 characters'; return; }
+  if (pw !== pw2)    { if(msg) msg.textContent='Passwords do not match'; return; }
+  if (msg) msg.textContent = 'Saving...';
+  try {
+    var r = await fetch(MFB_API, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+mfbToken},
+      body: JSON.stringify({action:'change_password',new_password:pw}),
+    });
+    var d = await r.json();
+    if (!r.ok) { if(msg) msg.textContent='Error: '+(d.error||'Failed'); return; }
+    mfbToken = d.token; localStorage.setItem('zil_mfb_token', mfbToken);
+    if(msg) msg.textContent='✔ Password updated successfully';
+  } catch(e) { if(msg) msg.textContent=e.message; }
+}
+
+// ── EXPORTS ───────────────────────────────────────────────────
+function downloadCSV(rows, filename) {
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('
+');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = filename; a.click();
+}
+function exportCoins() {
+  if (!_dashData) return;
+  var rows = [['Coin ID','Amount (N)','Status','Issued By','Issued At']];
+  // Note: full coin list requires separate fetch
+  alert('Full CSV export: the coin registry page shows current page only. For full export contact Zillion admin.');
+}
+function exportTx() { alert('Transaction export: contact Zillion admin for full CSV.'); }
+function exportCommission() {
+  if (!_dashData || !_dashData.commission) return;
+  alert('Commission export: monthly breakdown visible above. Contact Zillion admin for full audit export.');
+}
+function refreshAll() {
+  loadDashboard();
+  var active = document.querySelector('.sec.active');
+  if (active && active.id !== 'sec-dashboard') {
+    var name = active.id.replace('sec-','');
+    var loaders = {coins:loadCoins,transactions:loadTransactions,commission:loadCommission,agents:loadAgents,alerts:loadAlerts};
+    if (loaders[name]) loaders[name]();
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+(function init() {
+  if (mfbToken) {
+    // Try to restore session
+    try {
+      var parts = mfbToken.split('.');
+      var payload = JSON.parse(atob(parts[1]));
+      if (payload.exp && payload.exp < Date.now()/1000) {
+        signOut(); return;
+      }
+      mfbId   = payload.mfb_id   || localStorage.getItem('zil_mfb_id') || '';
+      mfbName = payload.mfb_name || mfbId;
+      enterApp({ mfb_id: mfbId, mfb_name: mfbName, tier: payload.tier||'MFB' });
+    } catch(e) { signOut(); }
+  }
+})();
+</script>
+</body>
+</html>
