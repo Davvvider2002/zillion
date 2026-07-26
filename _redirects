@@ -74,3 +74,4 @@
 
 
   /api/v1/admin/mfb-dashboard  /.netlify/functions/admin-mfb-dashboard  200
+  /api/v1/admin/mfb           /.netlify/functions/admin-mfb            200
