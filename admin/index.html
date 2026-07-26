@@ -3716,7 +3716,7 @@ async function loadMfbDashboard() {
     if (!resp.ok) { if(ld) ld.textContent='Error: '+data.error; return; }
 
     var fmtK = function(k){ return '₦'+((k||0)/100).toLocaleString('en-NG',{minimumFractionDigits:2}); };
-    var fmtN = function(n){ return n.toLocaleString('en-NG'); };
+    var fmtN = function(n){ return ((n||0)).toLocaleString('en-NG'); };
     var pt   = data.platform_totals || {};
     var rec  = data.reconciliation  || {};
 
@@ -3871,7 +3871,6 @@ async function loadMfbs() {
 
     renderMfbTable(_mfbData);
     if (ld) ld.style.display='none';
-    setTimeout(loadMfbDashboard,300);
     setTimeout(loadMfbDashboard,300);
   } catch(e) {
     if (ld) { ld.style.display='block'; ld.textContent='Error: '+e.message; }
