@@ -382,3 +382,28 @@
   from = "/api/v1/mfb-portal"
   to   = "/.netlify/functions/mfb-portal"
   status = 200
+
+[[redirects]]
+  from   = "/api/v1/issue-secure"
+  to     = "/.netlify/functions/issue-secure"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/create-claim-pin"
+  to     = "/.netlify/functions/create-claim-pin"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/fetch-claim-pin"
+  to     = "/.netlify/functions/fetch-claim-pin"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/create-claim-offline-pin"
+  to     = "/.netlify/functions/create-claim-offline-pin"
+  status = 200
+
+[[redirects]]
+  from   = "/api/v1/fetch-claim-offline-pin"
+  to     = "/.netlify/functions/fetch-claim-offline-pin"
+  status = 200
