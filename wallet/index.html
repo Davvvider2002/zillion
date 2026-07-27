@@ -1759,15 +1759,18 @@ function updateBnav(id) {
   }
 }
 function onScreenEnter(id) {
+  // Always ensure history is available when navigating to any screen
+  if (!STATE.history || !STATE.history.length) {
+    try { var _sh = loadHistory(); if (_sh.length) STATE.history = _sh; } catch(e) {}
+  }
   try {
     if (id === 'screen-home')    refreshHome();
     if (id === 'screen-vault')   refreshVault();
     if (id === 'screen-history') refreshHistory();
     if (id === 'screen-profile') refreshProfile();
     if (id === 'screen-topup')   loadVirtualAccount();
-    if (id === 'screen-send')    refreshSendScreen && refreshSendScreen();
   } catch(e) {
-    console.warn('[onScreenEnter]', id, e.message);
+    console.warn('[onScreenEnter] error on', id, ':', e.message);
   }
 }
 
@@ -2618,13 +2621,6 @@ function rejectImport() {
 
 // -- History ----------------------------------------------------
 let histFilter = 'all';
-function filterHistory(f, el) {
-  histFilter = f;
-  document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  refreshHistory();
-}
-
 function filterHistory(f, btn) {
   histFilter = f || 'all';
   document.querySelectorAll('.filter-tab').forEach(function(b){ b.classList.remove('active'); });
@@ -5058,6 +5054,19 @@ function showReceipt(tx) {
 }
 
 // ── walletBleSend — BLE coin transfer with device picker ───────
+
+// ── Bluetooth method: SPP (Classic) preferred, BLE fallback ──────────────────
+function zilBtMethod() {
+  if (window.ZillionNative && ZillionNative.isNativeApp()) {
+    return window._sppAvailable ? 'spp' : 'ble';
+  }
+  return 'web';
+}
+function _zilBtClose() {
+  var el = document.getElementById('zil-bt-picker'); if (el) el.remove();
+}
+window._zilBtPickerMethod = 'ble';
+function _zilBtScanClick() { startZilBtScan(window._zilBtPickerMethod); }
 async function walletBleSend() {
   if (!STATE.sendBundle) STATE.sendBundle = window._sendBundle || null;
   if (!STATE.sendBundle) {
