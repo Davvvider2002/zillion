@@ -1759,11 +1759,16 @@ function updateBnav(id) {
   }
 }
 function onScreenEnter(id) {
-  if (id === 'screen-home') refreshHome();
-  if (id === 'screen-vault') refreshVault();
-  if (id === 'screen-history') refreshHistory();
-  if (id === 'screen-profile') refreshProfile();
-  if (id === 'screen-topup') loadVirtualAccount();
+  try {
+    if (id === 'screen-home')    refreshHome();
+    if (id === 'screen-vault')   refreshVault();
+    if (id === 'screen-history') refreshHistory();
+    if (id === 'screen-profile') refreshProfile();
+    if (id === 'screen-topup')   loadVirtualAccount();
+    if (id === 'screen-send')    refreshSendScreen && refreshSendScreen();
+  } catch(e) {
+    console.warn('[onScreenEnter]', id, e.message);
+  }
 }
 
 // -- Toast & Loader ---------------------------------------------
@@ -2650,7 +2655,7 @@ function txRow(tx) {
   }
   // Resend / action buttons
   var resendBtns = '';
-  var txId = tx.id || '';
+  var txId = (tx && tx.id) ? String(tx.id) : 'TX' + Date.now();
   var txIdSafe = txId.replace(/[^a-zA-Z0-9]/g,'');
   if (!isIn && isPendingXfr) {
     // Pending outgoing — show resend options
@@ -2684,21 +2689,24 @@ function txRow(tx) {
 function refreshProfile() {
   const u = STATE.user;
   if (!u) return;
-  const initials = (u.phone||'?').slice(-4,-2)||'ZL';
-  document.getElementById('profile-avatar').textContent = initials;
-  document.getElementById('profile-name').textContent = u.phone||'-';
-  document.getElementById('profile-phone').textContent = u.phone||'-';
-  document.getElementById('settings-phone').textContent = u.phone||'-';
-  document.getElementById('settings-role').textContent = (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1);
-  document.getElementById('settings-device').textContent = u.deviceId||'-';
-  document.getElementById('settings-network').textContent = STATE.isOnline?'Online':'Offline';
-  const hasToken2 = !!(STATE.user?.token || STATE.user?.agentToken);
-  if (STATE.lastSync) {
-    document.getElementById('settings-last-sync').textContent =
-      (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync);
-  } else {
-    document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
+  // Null-safe helper — never throws if element doesn't exist yet
+  function setEl(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
   }
+  const initials = (u.phone||'?').slice(-4,-2) || 'ZL';
+  setEl('profile-avatar',    initials);
+  setEl('profile-name',      u.phone || '-');
+  setEl('profile-phone',     u.phone || '-');
+  setEl('settings-phone',    u.phone || '-');
+  setEl('settings-role',     (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1));
+  setEl('settings-device',   u.deviceId || '-');
+  setEl('settings-network',  STATE.isOnline ? 'Online' : 'Offline');
+  const hasToken2 = !!(u.token || u.agentToken);
+  const syncText  = STATE.lastSync
+    ? (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync)
+    : (hasToken2 ? 'Never synced' : 'Re-login to enable sync');
+  setEl('settings-last-sync', syncText);
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
