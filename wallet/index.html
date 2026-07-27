@@ -2912,7 +2912,8 @@ async function shareViaWhatsApp(opts) {
 }
 async function trySync() {
   if (!STATE.isOnline || !STATE.user) return;
-  const token = STATE.user.token || STATE.user.agentToken || '';
+  const token    = STATE.user.token || STATE.user.agentToken || '';
+  const deviceId = STATE.user?.deviceId || STATE.user?.device_id || '';
   if (!token) {
     // No JWT — settle locally so UI shows correct state
     STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
@@ -3029,7 +3030,7 @@ async function trySync() {
   }
 
   updateSyncStatus('Syncing ' + pending.length + ' item(s)...');
-  const deviceId = STATE.user.deviceId;
+  // deviceId already declared above
 
   // Build tx_batch — extract tx fields from coin's tx_history chain
   const tx_batch = pending.map(c => {
