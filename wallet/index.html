@@ -5065,6 +5065,24 @@ function dialUSSD() {
   window.open(url, '_blank');
 }
 
+
+// ── ANDROID: auto-restore session on app start ─────────────────
+(function() {
+  function nativeAutoRestore() {
+    if (window.ZillionNative && ZillionNative.isNativeApp()) {
+      if (typeof tryRestoreSession === 'function') {
+        tryRestoreSession();
+      }
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(nativeAutoRestore, 400);
+    });
+  } else {
+    setTimeout(nativeAutoRestore, 400);
+  }
+})();
 </script>
 </body>
 </html>
