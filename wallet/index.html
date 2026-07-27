@@ -1935,7 +1935,12 @@ async function verifyOtp() {
     STATE._verifiedPhone = STATE._pendingPhone;
     STATE._verifiedToken = data.token || '';   // save JWT for sync
     clearInterval(otpTimer);
-    goTo('screen-pin');
+    // Pre-load history so it's ready when user reaches home
+  try {
+    var _ph = loadHistory();
+    if (_ph.length && !STATE.history.length) STATE.history = _ph;
+  } catch(e) {}
+  goTo('screen-pin');
 
   } catch(e) {
     hideLoader();
@@ -2619,20 +2624,50 @@ function filterHistory(f, el) {
   el.classList.add('active');
   refreshHistory();
 }
+
+function filterHistory(f, btn) {
+  histFilter = f || 'all';
+  document.querySelectorAll('.filter-tab').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  refreshHistory();
+}
 function refreshHistory() {
+  // Merge localStorage history in case STATE was populated before history loaded
+  try {
+    var stored = loadHistory();
+    if (stored.length > STATE.history.length) {
+      var seenIds = new Set(STATE.history.map(function(h){ return h.id; }));
+      stored.forEach(function(h){ if (h.id && !seenIds.has(h.id)) STATE.history.push(h); });
+      STATE.history.sort(function(a,b){ return new Date(b.ts||0) - new Date(a.ts||0); });
+    }
+  } catch(e) { console.warn('[refreshHistory] merge error:', e.message); }
+
+  const isPending = function(t) { return t.status==='PENDING_TRANSFER' || t.status==='PENDING_SYNC'; };
   const filtered = histFilter==='all' ? STATE.history
-    : STATE.history.filter(t => {
+    : STATE.history.filter(function(t) {
         if (histFilter==='received') return t.type==='received';
         if (histFilter==='sent')     return t.type==='sent';
-        if (histFilter==='pending')  return t.status==='PENDING_SYNC';
+        if (histFilter==='pending')  return isPending(t);
         return true;
       });
+
   const el = document.getElementById('history-list');
+  if (!el) return;
+
   if (!filtered.length) {
-    el.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No transactions</div><div class="empty-sub">No ${histFilter==='all'?'':histFilter+' '}transactions yet.</div></div>`;
+    el.innerHTML = '<div class="empty-state">' +
+      '<span class="empty-icon">&#x1F4CB;</span>' +
+      '<div class="empty-title">No transactions</div>' +
+      '<div class="empty-sub">No ' + (histFilter==='all'?'':histFilter+' ') + 'transactions yet.</div>' +
+      '</div>';
     return;
   }
-  el.innerHTML = `<div class="tx-card">${filtered.map(txRow).join('')}</div>`;
+  var rows = '';
+  filtered.forEach(function(tx) {
+    try { rows += txRow(tx); }
+    catch(e) { console.warn('[history] txRow error tx', tx&&tx.id, e.message); }
+  });
+  el.innerHTML = '<div class="tx-card">' + rows + '</div>';
 }
 function txRow(tx) {
   const isIn         = tx.type==='received' || tx.type==='cashin';
