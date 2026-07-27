@@ -5527,6 +5527,179 @@ function startZilBleScan() {
   }, 10000);
 }
 
+
+
+function zilBtMethod() {
+  if (window.ZillionNative && ZillionNative.isNativeApp()) {
+    return window._sppAvailable ? 'spp' : 'ble';
+  }
+  return 'web';
+}
+function _zilBtClose() {
+  var el = document.getElementById('zil-bt-picker');
+  if (el) el.remove();
+}
+window._zilBtPickerMethod = 'ble';
+function _zilBtScanClick() { startZilBtScan(window._zilBtPickerMethod); }
+async function walletBleSend() {
+  if (!STATE.sendBundle) STATE.sendBundle = window._sendBundle || null;
+  if (!STATE.sendBundle) {
+    var pc = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
+    if (pc.length) STATE.sendBundle = {
+      zillion_version:'1.0', bundle_id:'AUTO-'+Date.now(),
+      created_at:new Date().toISOString(),
+      sender_device:STATE.user&&STATE.user.deviceId||'UNKNOWN',
+      type:'cashin',
+      total_kobo:pc.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
+      coin_count:pc.length, coins:pc, offline_mode:true
+    };
+  }
+  if (!STATE.sendBundle) { toast('Select coins to send first', true); return; }
+  var method = zilBtMethod();
+  if (method === 'web') { toast('Bluetooth transfers require the Zillion Android app', false, 5000); return; }
+  var uri = (typeof zilBundleEncode === 'function') ? zilBundleEncode(STATE.sendBundle)
+            : ('zilbundle://' + btoa(unescape(encodeURIComponent(JSON.stringify(STATE.sendBundle)))));
+  showZilBtPicker(uri, STATE.sendBundle, method);
+}
+function showZilBtPicker(uri, bundle, method) {
+  _zilBtClose();
+  window._blePendingUri    = uri;
+  window._blePendingBundle = bundle;
+  window._zilBtPickerMethod = method;
+  var methodLabel = method === 'spp' ? 'Bluetooth Classic' : 'Bluetooth LE';
+  var o = document.createElement('div');
+  o.id = 'zil-bt-picker';
+  o.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:flex-end;justify-content:center';
+  var inner = document.createElement('div');
+  inner.style.cssText = 'background:#0f1f38;border-radius:20px 20px 0 0;padding:24px 20px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto';
+  inner.innerHTML =
+    '<div style="font-size:17px;font-weight:700;color:#e8f0fe;margin-bottom:4px">Send via ' + methodLabel + '</div>' +
+    '<div id="bt-scan-status" style="text-align:center;padding:14px;color:#6b8ab5;font-size:13px;margin-bottom:8px">Tap Find Devices to scan</div>' +
+    '<div id="bt-device-list" style="margin-bottom:12px"></div>';
+  var scanBtn = document.createElement('button');
+  scanBtn.id = 'bt-scan-btn';
+  scanBtn.style.cssText = 'width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px';
+  scanBtn.textContent = 'Find Devices';
+  scanBtn.onclick = _zilBtScanClick;
+  var cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'width:100%;padding:11px;background:transparent;color:#6b8ab5;border:1px solid #1e3358;border-radius:12px;font-size:13px;cursor:pointer;font-family:inherit';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = _zilBtClose;
+  inner.appendChild(scanBtn);
+  inner.appendChild(cancelBtn);
+  o.appendChild(inner);
+  document.body.appendChild(o);
+  window.onBleSent = function() {
+    _zilBtClose();
+    markCoinsSettled(window._blePendingBundle ? window._blePendingBundle.coins : []);
+    STATE.history.unshift({id:'TX-'+Date.now(),type:'sent',
+      amount:window._blePendingBundle?window._blePendingBundle.total_kobo:0,
+      coin_count:window._blePendingBundle?window._blePendingBundle.coins.length:0,
+      ts:new Date().toISOString(),status:'SETTLED',method:'bluetooth',name:'Sent via Bluetooth'});
+    save(); toast('Coins sent via Bluetooth!'); goTo('screen-home'); setTimeout(trySync,1500);
+  };
+  window.onBleTransferProgress = function(done, total) {
+    var st=document.getElementById('bt-scan-status'); if(!st) return;
+    var pct=total>0?Math.round((done/total)*100):0;
+    var bars=''; for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
+    st.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
+  };
+  window.onBleError = function(msg) {
+    var st=document.getElementById('bt-scan-status');
+    if(st) st.innerHTML='<span style="color:#ef4444"><strong>Error:</strong> '+msg+'</span>';
+    var bn=document.getElementById('bt-scan-btn');
+    if(bn){bn.textContent='Try Again';bn.disabled=false;}
+  };
+  window.onBleDeviceFound = function(addr, name, signal) {
+    var list=document.getElementById('bt-device-list');
+    if(!list||document.getElementById('btd-'+addr.replace(/:/g,''))) return;
+    var sc=signal==='Strong'?'#22c55e':signal==='Medium'?'#f59e0b':'#ef4444';
+    var btn=document.createElement('button');
+    btn.id='btd-'+addr.replace(/:/g,'');
+    btn.style.cssText='width:100%;padding:14px;background:#0f1f38;color:#e8f0fe;border:1px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px';
+    btn.innerHTML='<div style="width:38px;height:38px;background:#1e3a5f;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#x1F4F1;</div>'+
+      '<div style="flex:1"><div style="font-weight:700">'+(name||'Zillion Wallet')+'</div>'+
+      '<div style="font-size:11px;color:#6b8ab5;font-family:monospace">'+addr+'</div></div>'+
+      '<div style="font-size:11px;color:'+sc+';font-weight:700">'+(signal||'')+'</div>';
+    var _addr=addr; var _name=name||'Zillion Wallet'; var _m=window._zilBtPickerMethod;
+    btn.onclick=function(){
+      list.querySelectorAll('button').forEach(function(b){b.style.borderColor='#1e3358';});
+      btn.style.borderColor='#2563eb';
+      var st=document.getElementById('bt-scan-status');
+      if(st) st.innerHTML='Sending to '+_name+'...';
+      if(window.ZillionNative){
+        if(_m==='spp') ZillionNative.sendViaSpp(window._blePendingUri,_addr);
+        else ZillionNative.sendViaBle(window._blePendingUri,_addr);
+      }
+    };
+    list.appendChild(btn);
+    var n=list.querySelectorAll('button').length;
+    var st2=document.getElementById('bt-scan-status');
+    if(st2) st2.textContent='Found '+n+' device(s) - tap to send';
+  };
+  window.onBleScanComplete = function() {
+    var bn=document.getElementById('bt-scan-btn');
+    if(bn){bn.textContent='Find Devices';bn.disabled=false;}
+    var st=document.getElementById('bt-scan-status');
+    var li=document.getElementById('bt-device-list');
+    if(st&&(!li||!li.children.length)) st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.';
+  };
+}
+function startZilBtScan(method) {
+  var st=document.getElementById('bt-scan-status');
+  var li=document.getElementById('bt-device-list');
+  var bn=document.getElementById('bt-scan-btn');
+  if(st) st.textContent='Scanning for Zillion devices...';
+  if(li) li.innerHTML='';
+  if(bn){bn.textContent='Scanning...';bn.disabled=true;}
+  if(window.ZillionNative){
+    if(method==='spp') ZillionNative.discoverSppDevices();
+    else ZillionNative.startBleScan();
+  }
+}
+function zilStartBLEReceive(statusId) {
+  var st=statusId?document.getElementById(statusId):null;
+  function setS(html,color){if(!st)return;st.innerHTML=html;st.style.color=color||'var(--am)';}
+  if(window.ZillionNative&&ZillionNative.isNativeApp()){
+    setS('Starting Bluetooth...');
+    ZillionNative.startBleServer();
+    if(window._sppAvailable) ZillionNative.startSppServer();
+    window.onBleServerReady=function(){
+      setS('<strong style="color:var(--g)">&#10003; Bluetooth LE ready</strong><br>'+
+           '<span style="font-weight:400;font-size:12px;color:var(--gm)">Waiting for sender...</span>');
+    };
+    window.onSppServerReady=function(){
+      setS('<strong style="color:var(--g)">&#10003; Bluetooth Classic ready</strong><br>'+
+           '<span style="font-weight:400;font-size:12px;color:var(--gm)">Waiting for sender...</span>');
+    };
+    var _prev=window.onBleBundle;
+    window.onBleBundle=function(uri){
+      setS('<strong style="color:var(--g)">Receiving coins...</strong>');
+      var b=zilDecodeAny(uri);
+      if(b){zilReceiveBundle(b,'Bluetooth',function(coins,total){
+        setS('<strong style="color:var(--g)">&#10003; Received &#x20A6;'+(total/100).toLocaleString('en-NG',{minimumFractionDigits:2})+
+             '</strong><br><span style="font-weight:400;font-size:12px">'+coins.length+' coin(s) added</span>');
+      });}else{zilToast('Invalid bundle',true);}
+      window.onBleBundle=_prev;
+    };
+    window.onBleTransferProgress=function(done,total){
+      var pct=total>0?Math.round((done/total)*100):0;
+      var bars='';for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
+      setS('<strong>Receiving '+pct+'%</strong> ['+bars+']');
+    };
+    window.onBleError=function(msg){
+      setS('<strong style="color:#ef4444">Error: '+msg+'</strong><br>'+
+           '<span style="font-weight:400;font-size:12px">Tap Start to retry</span>','#ef4444');
+    };
+    window.onSppError=function(msg){
+      setS('<strong style="color:#ef4444">SPP error: '+msg+'</strong>','#ef4444');
+    };
+    return;
+  }
+  setS('Requires the Zillion Android app');
+  zilToast('Bluetooth transfers require the Zillion Android app',false,5000);
+}
+
 </script>
 </body>
 </html>
