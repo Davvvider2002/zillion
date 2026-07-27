@@ -1188,7 +1188,7 @@ function triggerPWAInstall() {
         <button class="btn btn-g" id="send-qr-btn" onclick="generateSendQR()">
           📲 Generate QR Code →
         </button>
-        <div id="send-wireless-btns" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <div id="send-wireless-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
           <button onclick="walletNFCSend()" id="w-nfc-send-btn"
             style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📡 NFC
@@ -1648,6 +1648,16 @@ function save() {
   };
   localStorage.setItem(DB_KEY, JSON.stringify(toSave));
   saveHistory(STATE.history); // always persist history separately
+  // Persist to native Android secure storage if running in the app
+  if (window.ZillionNative && ZillionNative.isNativeApp()) {
+    try {
+      ZillionNative.saveSession(JSON.stringify({
+        user:    STATE.user,
+        vault:   STATE.vault,
+        history: STATE.history.slice(0, 100),
+      }));
+    } catch(e) {}
+  }
 }
 function load() {
   try {
@@ -1996,16 +2006,59 @@ async function completeOnboarding() {
 
 // -- Session restore --------------------------------------------
 function tryRestoreSession() {
+  // ── NATIVE ANDROID APP: restore session from secure storage ──
+  // The Android app calls ZillionNative.getSession() which returns
+  // a JSON string with {user, vault, history} saved from last session.
+  if (window.ZillionNative && window.ZillionNative.isNativeApp()) {
+    try {
+      var nativeSession = ZillionNative.getSession();
+      if (nativeSession) {
+        var ns = JSON.parse(nativeSession);
+        if (ns.user && ns.user.token) {
+          STATE.user    = ns.user;
+          STATE.vault   = ns.vault    || [];
+          STATE.history = ns.history  || [];
+          save(); // populate localStorage so subsequent loads work
+          goTo('screen-home');
+          refreshHome();
+          refreshProfile();
+          // Force sync immediately to get server-confirmed balance
+          setTimeout(function() {
+            STATE.isOnline = navigator.onLine;
+            if (STATE.isOnline) trySync();
+          }, 500);
+          return;
+        }
+      }
+    } catch(e) { console.warn('[Native] Session restore failed:', e.message); }
+  }
+
+  // ── STANDARD: restore from localStorage ──────────────────────
   if (load() && STATE.user) {
     goTo('screen-home');
     refreshHome();
     refreshProfile();
+    // Persist to native secure storage if in the app
+    saveToNative();
     // Attempt sync immediately on restore — registers device, settles pending
     setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
   } else {
     toast('No account found — please set up a new account', true);
     goTo('screen-phone'); // take them to phone entry, not just a toast
   }
+}
+
+// ── Persist session to Android secure storage (Keystore) ───────
+function saveToNative() {
+  if (!window.ZillionNative || !ZillionNative.isNativeApp()) return;
+  try {
+    var sessionData = JSON.stringify({
+      user:    STATE.user,
+      vault:   STATE.vault,
+      history: STATE.history.slice(0, 100), // cap history size
+    });
+    ZillionNative.saveSession(sessionData);
+  } catch(e) { console.warn('[Native] saveToNative failed:', e.message); }
 }
 
 // -- Home -------------------------------------------------------
@@ -2212,7 +2265,7 @@ async function sendViaWhatsApp(fileOnly=false) {
     coin_count:selected.length, ts:new Date().toISOString(),
     status:'PENDING_TRANSFER', method:'whatsapp', name:'Sent via WhatsApp',
   });
-  save(); refreshHome(); // saves immediately so re-click sees PENDING_TRANSFER
+  save(); refreshHome(); if (window.saveToNative) saveToNative(); // saves immediately so re-click sees PENDING_TRANSFER
 
   // ── Recipient binding (Merchant, Agent, OR Customer) — same rule as QR ──────
   const waRecvType = _sendRecvType || 'merchant';
