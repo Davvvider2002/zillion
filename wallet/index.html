@@ -2604,13 +2604,35 @@ function txRow(tx) {
     statusLabel = isIn ? '✓ Received' : '✓ Settled';
     statusColor = 'var(--g)';
   }
-  return `<div class="tx-row">
-    <div class="tx-dot ${dotClass}">${icon}</div>
-    <div class="tx-info">
-      <div class="tx-name">${tx.name||'Transaction'}</div>
-      <div class="tx-meta">${fmtTime(tx.ts)}&nbsp;·&nbsp;<span style="color:${statusColor};font-weight:600">${statusLabel}</span></div>
+  // Resend / action buttons
+  var resendBtns = '';
+  var txId = tx.id || '';
+  var txIdSafe = txId.replace(/[^a-zA-Z0-9]/g,'');
+  if (!isIn && isPendingXfr) {
+    // Pending outgoing — show resend options
+    resendBtns = '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'qr\')" style="padding:5px 10px;background:#1e3358;border:1px solid #2563eb;border-radius:8px;color:#93c5fd;font-size:11px;cursor:pointer;font-family:inherit">📱 QR Code</button>'
+      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'whatsapp\')" style="padding:5px 10px;background:#1e3358;border:1px solid #16a34a;border-radius:8px;color:#86efac;font-size:11px;cursor:pointer;font-family:inherit">📲 WhatsApp</button>'
+      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'ble\')" style="padding:5px 10px;background:#1e3358;border:1px solid #d97706;border-radius:8px;color:#fcd34d;font-size:11px;cursor:pointer;font-family:inherit">📶 Bluetooth</button>'
+      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'nfc\')" style="padding:5px 10px;background:#1e3358;border:1px solid #7c3aed;border-radius:8px;color:#c4b5fd;font-size:11px;cursor:pointer;font-family:inherit">📡 NFC</button>'
+      + '<button onclick="cancelTx(\'' + txIdSafe + '\')" style="padding:5px 10px;background:transparent;border:1px solid #7f1d1d;border-radius:8px;color:#f87171;font-size:11px;cursor:pointer;font-family:inherit">✕ Cancel</button>'
+      + '</div>';
+  } else if (!isIn && !isPendingXfr) {
+    // Settled outgoing — receipt only
+    resendBtns = '<div style="margin-top:6px">'
+      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'receipt\')" style="padding:4px 10px;background:transparent;border:1px solid #1e3358;border-radius:7px;color:#6b8ab5;font-size:11px;cursor:pointer;font-family:inherit">🧾 Receipt</button>'
+      + '</div>';
+  }
+  return `<div class="tx-row" style="display:block;padding:12px 14px;border-bottom:1px solid var(--grb)">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="tx-dot ${dotClass}">${icon}</div>
+      <div class="tx-info" style="flex:1;min-width:0">
+        <div class="tx-name">${tx.name||'Transaction'}</div>
+        <div class="tx-meta">${fmtTime(tx.ts)}&nbsp;·&nbsp;<span style="color:${statusColor};font-weight:600">${statusLabel}</span></div>
+      </div>
+      <div class="tx-amount ${amtClass}" style="white-space:nowrap">${prefix}${fmtNaira(tx.amount)}</div>
     </div>
-    <div class="tx-amount ${amtClass}">${prefix}${fmtNaira(tx.amount)}</div>
+    ${resendBtns}
   </div>`;
 }
 
@@ -4435,6 +4457,13 @@ function generateOfflineQR(selectedCoins, existingBundle) {
     offline_mode:    true,
   };
 
+  // ── Store bundle for BLE/NFC use ──────────────────────────
+  // Must set STATE.sendBundle so BLE, NFC, Share buttons work
+  bundle.coins       = selectedCoins;
+  bundle.total_kobo  = selectedCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
+  STATE.sendBundle   = bundle;
+  window._sendBundle = bundle;   // extra global for safety
+
   // Lock coins
   selectedCoins.forEach(function(c) {
     const vi = STATE.vault.findIndex(function(v){return (v.coin_id||v.id)===(c.coin_id||c.id);});
@@ -4815,9 +4844,123 @@ function markCoinsSettled(coins) {
   save(); refreshHome();
 }
 
+
+// ── Resend a pending transaction via chosen method ─────────────
+function resendTx(txIdSafe, method) {
+  // Find the tx in history by sanitised ID
+  var tx = STATE.history.find(function(h){
+    return (h.id||'').replace(/[^a-zA-Z0-9]/g,'') === txIdSafe;
+  });
+  if (!tx) { toast('Transaction not found', true); return; }
+
+  // Rebuild the bundle from the pending vault coins
+  var pendingCoins = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
+  if (!pendingCoins.length) {
+    toast('No pending coins found — may have already been delivered', false, 4000); return;
+  }
+
+  var bundle = {
+    zillion_version: '1.0',
+    bundle_id:  'RESEND-' + tx.id + '-' + Date.now(),
+    created_at: new Date().toISOString(),
+    sender_device: STATE.user&&STATE.user.deviceId || 'UNKNOWN',
+    type: 'cashin',
+    total_kobo:  pendingCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
+    coin_count:  pendingCoins.length,
+    coins:       pendingCoins,
+    offline_mode: !navigator.onLine,
+    resend:      true,
+  };
+
+  STATE.sendBundle   = bundle;
+  window._sendBundle = bundle;
+
+  switch(method) {
+    case 'qr':
+      // Navigate to send screen with QR tab active
+      goTo('screen-send');
+      setTimeout(function(){ generateOfflineQR(pendingCoins, bundle); }, 200);
+      break;
+    case 'whatsapp':
+      walletWhatsAppSend();
+      break;
+    case 'ble':
+      walletBleSend();
+      break;
+    case 'nfc':
+      walletNFCSend();
+      break;
+    case 'receipt':
+      showReceipt(tx);
+      break;
+  }
+}
+
+// ── Cancel a pending outgoing transaction ──────────────────────
+function cancelTx(txIdSafe) {
+  var tx = STATE.history.find(function(h){
+    return (h.id||'').replace(/[^a-zA-Z0-9]/g,'') === txIdSafe;
+  });
+  if (!tx) return;
+  if (!confirm('Cancel this pending transfer? The coins will return to your wallet.')) return;
+
+  // Restore locked coins
+  STATE.vault.forEach(function(c){
+    if (c._status === 'PENDING_TRANSFER') c._status = 'HELD';
+  });
+  // Mark tx as cancelled
+  tx.status = 'CANCELLED';
+  tx.name   = (tx.name||'Transfer') + ' (Cancelled)';
+  STATE.sendBundle   = null;
+  window._sendBundle = null;
+  save(); refreshHome();
+  toast('Transfer cancelled — coins returned to wallet');
+}
+
+// ── Show a receipt for a settled transaction ────────────────────
+function showReceipt(tx) {
+  var lines = [
+    'ZILLION DIGITAL CASH — RECEIPT',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    'TX ID:    ' + (tx.id||'—'),
+    'Amount:   ' + fmtNaira(tx.amount||0),
+    'Coins:    ' + (tx.coin_count||1),
+    'Method:   ' + (tx.method||'—').toUpperCase(),
+    'Date:     ' + new Date(tx.ts||Date.now()).toLocaleString('en-NG'),
+    'Status:   ' + (tx.status||'—'),
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━',
+  ].join('\n');
+  if (navigator.share) {
+    navigator.share({ title: 'Zillion Receipt', text: lines }).catch(function(){});
+  } else {
+    toast(lines.split('\n').slice(0,4).join(' | '), false, 5000);
+  }
+}
+
 // ── walletBleSend — BLE coin transfer with device picker ───────
 async function walletBleSend() {
-  if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
+  // Recover bundle from global or from pending vault coins if not set
+  if (!STATE.sendBundle) {
+    STATE.sendBundle = window._sendBundle || null;
+  }
+  if (!STATE.sendBundle) {
+    // Auto-build bundle from PENDING_TRANSFER coins in vault
+    var pendingCoins = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
+    if (pendingCoins.length) {
+      STATE.sendBundle = {
+        zillion_version: '1.0',
+        bundle_id:  'AUTO-'+Date.now(),
+        created_at: new Date().toISOString(),
+        sender_device: STATE.user&&STATE.user.deviceId||'UNKNOWN',
+        type: 'cashin',
+        total_kobo: pendingCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
+        coin_count: pendingCoins.length,
+        coins: pendingCoins,
+        offline_mode: true,
+      };
+    }
+  }
+  if (!STATE.sendBundle) { toast('Select coins to send first', true); return; }
   var bundle = STATE.sendBundle;
   var uri    = zilBundleEncode(bundle);
 
@@ -4973,7 +5116,21 @@ function receiveIncomingBundle(bundle, method) {
 }
 
 async function walletNFCSend() {
-  if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
+  if (!STATE.sendBundle) STATE.sendBundle = window._sendBundle || null;
+  if (!STATE.sendBundle) {
+    var pc = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
+    if (pc.length) {
+      STATE.sendBundle = {
+        zillion_version:'1.0', bundle_id:'AUTO-'+Date.now(),
+        created_at:new Date().toISOString(),
+        sender_device:STATE.user&&STATE.user.deviceId||'UNKNOWN',
+        type:'cashin',
+        total_kobo:pc.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
+        coin_count:pc.length, coins:pc, offline_mode:true,
+      };
+    }
+  }
+  if (!STATE.sendBundle) { toast('Select coins to send first', true); return; }
   // Use native Android NFC bridge if in the Zillion app
   if (window.ZillionNative && window.ZillionNative.isNativeApp()) {
     var uri = zilBundleEncode(STATE.sendBundle);
