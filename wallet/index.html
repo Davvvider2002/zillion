@@ -3749,7 +3749,7 @@ function startSendQRTimer(exp) {
   tick(); _sendQrTimer=setInterval(tick,1000);
 }
 
-async // ── Resend last QR to beneficiary ────────────────────────────────────────────
+// ── Resend last QR to beneficiary ────────────────────────────────────────────
 async function resendLastQR() {
   if (!_sendQrClaimUrl && !_sendQrImgData) {
     toast('No QR to resend — generate a QR first');
