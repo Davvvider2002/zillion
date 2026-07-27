@@ -1496,21 +1496,25 @@ function triggerPWAInstall() {
     </div>
   </div>
 </div>
-<div id="screen-profile" class="screen hidden">
+<div <div id="screen-profile" class="screen hidden">
   <div class="sb"></div>
+
+  <!-- Banner -->
   <div class="profile-banner">
-    <div class="profile-avatar" id="profile-avatar">?</div>
-    <div class="profile-name" id="profile-name">Your Name</div>
-    <div class="profile-phone" id="profile-phone">+234 — —</div>
+    <div class="profile-avatar" id="profile-avatar">ZL</div>
+    <div class="profile-name"  id="profile-name">Your Name</div>
+    <div class="profile-phone" id="profile-phone">+234 &#x2014; &#x2014;</div>
   </div>
+
   <div class="scroll-body">
     <div class="profile-body">
 
+      <!-- ACCOUNT -->
       <div class="settings-group">
         <div class="settings-group-label">Account</div>
         <div class="settings-row">
           <span class="settings-label">Phone Number</span>
-          <span class="settings-value" id="settings-phone">—</span>
+          <span class="settings-value" id="settings-phone">&#x2014;</span>
         </div>
         <div class="settings-row">
           <span class="settings-label">Role</span>
@@ -1518,15 +1522,16 @@ function triggerPWAInstall() {
         </div>
         <div class="settings-row">
           <span class="settings-label">Device ID</span>
-          <span class="settings-value" id="settings-device" style="font-family:monospace;font-size:11px">—</span>
+          <span class="settings-value" id="settings-device" style="font-family:monospace;font-size:11px">&#x2014;</span>
         </div>
       </div>
 
+      <!-- SECURITY -->
       <div class="settings-group">
         <div class="settings-group-label">Security</div>
-        <div class="settings-row" onclick="showChangePinFlow()">
+        <div class="settings-row" onclick="showChangePinFlow()" style="cursor:pointer">
           <span class="settings-label">Change PIN</span>
-          <span class="settings-value">›</span>
+          <span class="settings-value">&#x203A;</span>
         </div>
         <div class="settings-row">
           <span class="settings-label">Biometric Unlock</span>
@@ -1542,8 +1547,9 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <!-- SYNC & NETWORK -->
       <div class="settings-group">
-        <div class="settings-group-label">Sync & Network</div>
+        <div class="settings-group-label">Sync &amp; Network</div>
         <div class="settings-row">
           <span class="settings-label">Auto-Sync</span>
           <button class="toggle on" id="toggle-sync" onclick="toggleSetting(this)">
@@ -1554,67 +1560,70 @@ function triggerPWAInstall() {
           <span class="settings-label">Last Synced</span>
           <span class="settings-value" id="settings-last-sync">Never</span>
         </div>
-        <div class="settings-row" onclick="forceSync()">
+        <div class="settings-row" onclick="forceSync()" style="cursor:pointer">
           <span class="settings-label">Sync Now</span>
-          <span class="settings-value">↻</span>
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-label">Wallet</div>
-        <div class="settings-row" onclick="exportVaultBackup()">
-          <span class="settings-label">Export Backup</span>
-          <span class="settings-value">›</span>
+          <span class="settings-value">&#x21BB;</span>
         </div>
         <div class="settings-row">
-          <span class="settings-label">Vault Version</span>
-          <span class="settings-value">v1.0.4</span>
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-label">App</div>
-        <div class="settings-row">
-          <span class="settings-label">App Version</span>
-          <span class="settings-value">PWA v1.0.4</span>
-        </div>
-                <div class="settings-row" style="padding:16px 0">
-          <button onclick="manualWalletRecover()" style="
-            width:100%;padding:14px;background:#00C896;color:#0A1F14;
-            border:none;border-radius:10px;font-weight:700;font-size:15px;
-            cursor:pointer;font-family:inherit;
-          ">🔄 Recover Wallet from Server</button>
-          <div id="recover-status" style="font-size:12px;color:#6B7280;margin-top:6px;text-align:center"></div>
-        </div>
-<div class="settings-row">
           <span class="settings-label">Network Mode</span>
           <span class="settings-value" id="settings-network">Online</span>
         </div>
       </div>
 
-      <div style="margin-top:8px">
-        <div style="background:rgba(217,119,6,.08);border:2px dashed #D97706;border-radius:12px;padding:14px;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Restore Coins from Server</div>
-          <div style="font-size:11px;color:var(--gr);margin-bottom:10px;line-height:1.5">Re-installed or new phone? Pull your coins back from Zillion servers.</div>
-          <button class="btn" style="width:100%;padding:10px;background:#D97706;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="recoverAccountCoins()">
-            Restore My Coins
-          </button>
+      <!-- WALLET -->
+      <div class="settings-group">
+        <div class="settings-group-label">Wallet</div>
+        <div class="settings-row" onclick="exportVaultBackup()" style="cursor:pointer">
+          <span class="settings-label">Export Backup</span>
+          <span class="settings-value">&#x203A;</span>
         </div>
-        <button class="btn btn-outline" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
-          onclick="resetWallet()">Reset Wallet</button>
-        <button class="btn btn-ghost" onclick="logout()">Log Out</button>
+        <div class="settings-row" onclick="manualWalletRecover()" style="cursor:pointer">
+          <span class="settings-label">Recover Coins from Server</span>
+          <span class="settings-value" id="settings-recover-icon">&#x21BA;</span>
+        </div>
+        <div id="recover-status" style="padding:0 16px 10px;font-size:12px;color:var(--gm);display:none"></div>
+        <div class="settings-row">
+          <span class="settings-label">Vault Version</span>
+          <span class="settings-value" id="settings-vault-ver">v1.0.6</span>
+        </div>
       </div>
-      <div style="height:20px"></div>
-    </div>
-  </div>
+
+      <!-- APP -->
+      <div class="settings-group">
+        <div class="settings-group-label">App</div>
+        <div class="settings-row">
+          <span class="settings-label">App Version</span>
+          <span class="settings-value" id="settings-app-ver">v1.0.6</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Build</span>
+          <span class="settings-value" id="settings-build">20260727b</span>
+        </div>
+      </div>
+
+      <!-- LOGOUT -->
+      <div style="padding:16px 0 8px">
+        <button onclick="doLogout()" style="
+          width:100%;padding:14px;background:transparent;
+          border:1.5px solid var(--r,#ef4444);border-radius:12px;
+          color:var(--r,#ef4444);font-weight:700;font-size:15px;
+          cursor:pointer;font-family:inherit">
+          Log Out
+        </button>
+      </div>
+
+    </div><!-- /profile-body -->
+  </div><!-- /scroll-body -->
+
   <div class="bnav">
-    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
-    <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
-    <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">&#x2302;</span><span class="bnav-label">Home</span></button>
+    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">&#x2B21;</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">&#x21C5;</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">&#x2261;</span><span class="bnav-label">History</span></button>
+    <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">&#x25CB;</span><span class="bnav-label">Profile</span></button>
   </div>
 </div>
+
 
 <!-- ═══════════════════════════════════════════════════════════════
      JAVASCRIPT — APP ENGINE
@@ -2720,25 +2729,28 @@ function txRow(tx) {
 function refreshProfile() {
   const u = STATE.user;
   if (!u) return;
-  // Null-safe helper — never throws if element doesn't exist yet
-  function setEl(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  }
-  const initials = (u.phone||'?').slice(-4,-2) || 'ZL';
+  function setEl(id, val) { var el=document.getElementById(id); if(el) el.textContent=val; }
+
+  // Avatar: last 2 digits of phone
+  const initials = (u.phone||'').replace(/\D/g,'').slice(-2) || 'ZL';
   setEl('profile-avatar',    initials);
   setEl('profile-name',      u.phone || '-');
   setEl('profile-phone',     u.phone || '-');
   setEl('settings-phone',    u.phone || '-');
   setEl('settings-role',     (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1));
-  setEl('settings-device',   u.deviceId || '-');
+  setEl('settings-device',   u.deviceId || u.device_id || '-');
   setEl('settings-network',  STATE.isOnline ? 'Online' : 'Offline');
+  setEl('settings-vault-ver','v' + (window.ZILLION_VERSION||'1.0.6'));
+  setEl('settings-app-ver',  'v' + (window.ZILLION_VERSION||'1.0.6'));
+  setEl('settings-build',    window.ZILLION_BUILD || '20260727b');
+
   const hasToken2 = !!(u.token || u.agentToken);
   const syncText  = STATE.lastSync
     ? (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync)
     : (hasToken2 ? 'Never synced' : 'Re-login to enable sync');
   setEl('settings-last-sync', syncText);
 }
+
 function toggleSetting(el) { el.classList.toggle('on'); }
 function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
 function exportVaultBackup() {
