@@ -5307,16 +5307,46 @@ window.onBleError  = function(m)   {
 window.onBleServerReady = function() {
   var st=document.getElementById('ble-scan-status'); if(st) st.textContent='Ready - waiting for sender...';
 };
-window.onBleDeviceFound = function(addr, name) {
+window.onBleDeviceFound = function(addr, name, signal) {
   var list = document.getElementById('ble-picker-list') || document.getElementById('ble-device-list');
-  if (!list || document.getElementById('bled-'+addr.replace(/:/g,''))) return;
+  if (!list) return;
+  // Deduplicate by address
+  var existing = document.getElementById('bled-'+addr.replace(/:/g,''));
+  if (existing) {
+    // Update signal if device already listed
+    var sigEl = existing.querySelector('.ble-signal');
+    if (sigEl && signal) sigEl.textContent = signalIcon(signal);
+    return;
+  }
+  function signalIcon(s) {
+    if (s === 'Strong') return '?? Strong';
+    if (s === 'Medium') return '?? Medium';
+    return '?? Weak';
+  }
   var btn = document.createElement('button');
   btn.id = 'bled-'+addr.replace(/:/g,'');
-  btn.style.cssText = 'width:100%;padding:13px;background:#142540;color:#e8f0fe;border:1px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:8px;text-align:left';
-  btn.innerHTML = '<strong>'+(name||'Zillion Wallet')+'</strong><small style="display:block;color:#6b8ab5">'+addr+'</small>';
-  btn.onclick = function(){ if(window.ZillionNative && window._blePendingUri) ZillionNative.sendViaBle(window._blePendingUri, addr); };
+  btn.style.cssText = 'width:100%;padding:14px 16px;background:#0f1f38;color:#e8f0fe;border:1px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:10px;text-align:left;display:flex;align-items:center;gap:12px';
+  btn.innerHTML =
+    '<div style="width:40px;height:40px;background:#1e3a5f;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">??</div>'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-weight:700;font-size:15px;margin-bottom:2px">'+(name||'Zillion Wallet')+'</div>'
+      +'<div style="font-size:11px;color:#6b8ab5;font-family:monospace">'+addr+'</div>'
+    +'</div>'
+    +'<div class="ble-signal" style="font-size:12px;color:#6b8ab5;white-space:nowrap">'+signalIcon(signal||'')+'</div>';
+  btn.onclick = function() {
+    // Visual feedback — mark as selected
+    list.querySelectorAll('button').forEach(function(b){ b.style.borderColor='#1e3358'; });
+    btn.style.borderColor = '#2563eb';
+    var st = document.getElementById('ble-scan-status');
+    if (st) st.textContent = '?? Sending to '+(name||'Zillion Wallet')+'...';
+    if (window.ZillionNative && window._blePendingUri) {
+      ZillionNative.sendViaBle(window._blePendingUri, addr);
+    }
+  };
   list.appendChild(btn);
-  var st = document.getElementById('ble-scan-status'); if(st) st.textContent='Found '+list.children.length+' device(s)';
+  var count = list.querySelectorAll('button').length;
+  var st = document.getElementById('ble-scan-status');
+  if (st) st.textContent = 'Found '+count+' Zillion wallet'+(count!==1?'s':'')+' nearby — tap to send';
 };
 function zilStartNFCReceive(statusId) {
   var st = statusId ? document.getElementById(statusId) : null;
@@ -5365,7 +5395,11 @@ function zilShowBlePicker(bundleUri, bundle, onSent) {
   o.innerHTML =
     '<div style="background:#0f1f38;border-radius:20px 20px 0 0;padding:24px 20px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto">' +
     '<div style="font-size:17px;font-weight:700;color:#e8f0fe;margin-bottom:4px">Send via Bluetooth</div>' +
-    '<div style="font-size:13px;color:#6b8ab5;margin-bottom:16px">Recipient must open Zillion app on Receive screen</div>' +
+    '<div style="font-size:13px;color:#6b8ab5;margin-bottom:16px;line-height:1.6">'
+    +'<strong style="color:#e8f0fe">Step 1:</strong> Ask recipient to open Zillion app<br>'
+    +'<strong style="color:#e8f0fe">Step 2:</strong> Tap <em>Receive → Bluetooth tab → Start</em><br>'
+    +'<strong style="color:#e8f0fe">Step 3:</strong> Tap Find Devices below, then tap their name'
+    +'</div>' +
     '<div id="ble-scan-status" style="text-align:center;padding:12px;color:#6b8ab5;font-size:13px;margin-bottom:8px">Tap Find Devices to scan</div>' +
     '<div id="ble-picker-list" style="margin-bottom:12px"></div>' +
     '<button onclick="startZilBleScan()" id="ble-scan-btn" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Find Devices</button>' +
@@ -5382,10 +5416,17 @@ function startZilBleScan() {
   var st = document.getElementById('ble-scan-status');
   var li = document.getElementById('ble-picker-list');
   var bn = document.getElementById('ble-scan-btn');
-  if(st) st.textContent='Scanning for Zillion devices...';
+  if(st) st.textContent='⏳ Scanning for Zillion devices nearby... (10s)';
   if(li) li.innerHTML='';
-  if(bn) bn.textContent='Scanning...';
+  if(bn) { bn.textContent='⏳ Scanning...'; bn.disabled=true; }
   if(window.ZillionNative) ZillionNative.startBleScan();
+  // Re-enable after 10s when scan auto-stops
+  setTimeout(function() {
+    if(bn) { bn.textContent='?? Find Devices'; bn.disabled=false; }
+    if(st && !st.textContent.includes('Found') && !st.textContent.includes('Sending')) {
+      st.textContent = 'No devices found. Ensure recipient is on Receive > Bluetooth screen.';
+    }
+  }, 10000);
 }
 
 </script>
