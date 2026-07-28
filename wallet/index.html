@@ -781,16 +781,47 @@ function triggerPWAInstall() {
       <button class="btn btn-g" onclick="verifyOtp()">Verify Code</button>
       <!-- BT SEND PANEL -->
       <div id="send-panel-bt" class="method-panel" style="display:none">
-        <div style="padding:20px 20px 10px;text-align:center">
+        <div style="padding:18px 20px 10px;text-align:center">
           <div style="font-size:44px;margin-bottom:8px">&#x1F4F6;</div>
           <div style="font-size:17px;font-weight:800;color:var(--tx)">Send via Bluetooth</div>
-          <div style="font-size:12px;color:var(--gr);margin-top:5px;line-height:1.6">Generate QR first, then tap Find Devices.<br>Recipient: Receive &#x2192; Bluetooth &#x2192; Start.</div>
+          <div style="font-size:12px;color:var(--gr);margin-top:5px;line-height:1.6">
+            No internet needed &#x2022; Works up to 10m
+          </div>
         </div>
         <div style="padding:0 20px 16px">
-          <div id="bt-send-status" style="padding:11px;background:var(--grl);border-radius:10px;font-size:13px;color:var(--gr);margin-bottom:10px;text-align:center;min-height:38px">Generate QR first, then tap Find Devices</div>
+
+          <!-- HOW IT WORKS -->
+          <div style="background:var(--grl);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">How it works</div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">1</div>
+                <div style="font-size:12px;color:var(--tx)">Recipient opens Zillion &#x2192; Receive &#x2192; <strong>Bluetooth</strong></div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">2</div>
+                <div style="font-size:12px;color:var(--tx)">Recipient taps <strong>Start Bluetooth Receive</strong></div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">3</div>
+                <div style="font-size:12px;color:var(--tx)">Tap <strong>Find Devices</strong> below &#x2192; select their name</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">4</div>
+                <div style="font-size:12px;color:var(--tx)">Coins transfer automatically &#x2014; no internet</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="bt-send-status" style="padding:10px;background:var(--grl);border-radius:10px;font-size:13px;color:var(--gr);margin-bottom:10px;text-align:center;min-height:36px">
+            Tap Find Devices to scan for nearby Zillion wallets
+          </div>
           <div id="bt-device-list" style="margin-bottom:10px"></div>
-          <button id="bt-find-btn" onclick="walletBtScan()" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px">&#x1F50D; Find Devices</button>
-          <div style="font-size:11px;color:var(--gr);text-align:center">Requires Zillion Android app &#x2022; Works offline</div>
+          <button id="bt-find-btn" onclick="walletBtPrepareScan()"
+            style="width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px">
+            &#x1F50D; Find Devices
+          </button>
+          <div style="font-size:11px;color:var(--gr);text-align:center">Requires Zillion Android app &#x2022; Works fully offline</div>
         </div>
       </div>
 
@@ -5141,6 +5172,40 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 600);
 });
 
+
+function walletBtPrepareScan() {
+  // If bundle already exists (QR was generated), use it directly
+  if (STATE.sendBundle && STATE.sendBundle.coins && STATE.sendBundle.coins.length) {
+    walletBtScan(); return;
+  }
+  // Build bundle from current send amount selection
+  var amount = STATE.sendAmount || 0;
+  if (!amount || amount <= 0) {
+    toast('Select an amount to send first', true); return;
+  }
+  var available = STATE.vault.filter(function(c){ return c._status==='HELD' || c._status==='PENDING_SYNC'; });
+  var totalAvail = available.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); },0);
+  if (amount > totalAvail) { toast('Insufficient balance', true); return; }
+  var sorted = available.slice().sort(function(a,b){ return (a.amount||a.value_kobo||0)-(b.amount||b.value_kobo||0); });
+  var remain = amount; var selected = [];
+  sorted.forEach(function(c){ if(remain<=0) return; selected.push(c); remain-=(c.amount||c.value_kobo||0); });
+  if (!selected.length) { toast('No coins available', true); return; }
+  selected.forEach(function(c){
+    var i=STATE.vault.findIndex(function(v){return(v.coin_id||v.id)===(c.coin_id||c.id);});
+    if(i>=0) STATE.vault[i]._status='PENDING_TRANSFER';
+  });
+  STATE.sendBundle = {
+    zillion_version:'1.0', bundle_id:'BT-'+Date.now(),
+    created_at:new Date().toISOString(),
+    sender_device:STATE.user&&STATE.user.deviceId||'UNKNOWN',
+    type:'cashin', offline_mode:true,
+    total_kobo:selected.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
+    coin_count:selected.length, coins:selected,
+  };
+  window._sendBundle = STATE.sendBundle;
+  save();
+  walletBtScan();
+}
 </script>
 </body>
 </html>
