@@ -2915,6 +2915,7 @@ function mBtScan(btn){
   if(st) st.textContent='Scanning for Zillion wallets...';
   if(li) li.innerHTML='';
   if(btn){btn.textContent='Scanning...';btn.disabled=true;}
+  try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'merchant',method:window._mBtMethod||'spp',event:'scan_start',detail:'Merchant scanning for customer wallets',extra:'',level:'INFO'});_dc.close();}catch(e){}
   if(!window.ZillionNative) return;
   if(window._mBtMethod==='spp') ZillionNative.discoverSppDevices();
   else ZillionNative.startBleScan();
