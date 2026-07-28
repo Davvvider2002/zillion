@@ -707,7 +707,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
               style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
               📡 NFC Send
             </button>
-            <button id="m-ble-send-btn" onclick="zilShowBlePicker(window._merchantBundleUri, window._merchantBundle, function(){mRefreshHome();})"
+            <button id="m-ble-send-btn" onclick="mBtSend()"
               style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
               📶 Bluetooth
             </button>
@@ -2824,6 +2824,102 @@ function startZilBleScan() {
   if(window.ZillionNative) ZillionNative.startBleScan();
 }
 
+
+// ── MERCHANT BLUETOOTH ENGINE ─────────────────────────────────
+function mBtMethod() {
+  return (window.ZillionNative && ZillionNative.isNativeApp())
+    ? (window._sppAvailable !== false ? 'spp' : 'ble') : 'web';
+}
+function mBtSend() {
+  var uri    = window._merchantBundleUri;
+  var bundle = window._merchantBundle;
+  if (!uri || !bundle) { mToast('Generate cashout QR first', true); return; }
+  if (mBtMethod() === 'web') { mToast('Requires Zillion Android app', false, 5000); return; }
+  mBtShowPicker(uri, bundle, mBtMethod());
+}
+function mBtShowPicker(uri, bundle, method) {
+  var ex=document.getElementById('m-bt-picker'); if(ex) ex.remove();
+  window._mBtUri=uri; window._mBtMethod=method;
+  var label=method==='spp'?'Bluetooth Classic':'Bluetooth';
+  var o=document.createElement('div'); o.id='m-bt-picker';
+  o.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:flex-end;justify-content:center';
+  var inner=document.createElement('div');
+  inner.style.cssText='background:#162C20;border-radius:20px 20px 0 0;padding:22px 20px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto';
+  inner.innerHTML=
+    '<div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:4px">&#x1F4F6; Send via '+label+'</div>'+
+    '<div style="font-size:12px;color:#aaa;margin-bottom:12px">Recipient: Receive &#x2192; Bluetooth &#x2192; Start</div>'+
+    '<div id="m-bt-status" style="text-align:center;padding:10px;color:#aaa;font-size:13px;margin-bottom:8px">Tap Find Devices to scan</div>'+
+    '<div id="m-bt-list" style="margin-bottom:10px"></div>';
+  var scanBtn=document.createElement('button');
+  scanBtn.style.cssText='width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px';
+  scanBtn.textContent='Find Devices';
+  scanBtn.onclick=function(){mBtScan(scanBtn);};
+  var cancelBtn=document.createElement('button');
+  cancelBtn.style.cssText='width:100%;padding:11px;background:transparent;color:#aaa;border:1px solid #555;border-radius:12px;font-size:13px;cursor:pointer;font-family:inherit';
+  cancelBtn.textContent='Cancel';
+  cancelBtn.onclick=function(){var el=document.getElementById('m-bt-picker');if(el)el.remove();};
+  inner.appendChild(scanBtn); inner.appendChild(cancelBtn);
+  o.appendChild(inner); document.body.appendChild(o);
+  window.onBleDeviceFound=function(addr,name,signal){
+    var list=document.getElementById('m-bt-list');
+    if(!list||document.getElementById('mbt-'+addr.replace(/:/g,''))) return;
+    var sc=signal==='Strong'?'#22c55e':signal==='Medium'?'#f59e0b':'#ef4444';
+    var btn=document.createElement('button');
+    btn.id='mbt-'+addr.replace(/:/g,'');
+    btn.style.cssText='width:100%;padding:12px;background:#0f1f38;color:#e8f0fe;border:1.5px solid #1e3358;border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:8px;display:flex;align-items:center;gap:10px;text-align:left';
+    btn.innerHTML='<div style="font-size:20px">&#x1F4F1;</div>'+
+      '<div style="flex:1"><div style="font-weight:700">'+(name||'Zillion Wallet')+'</div>'+
+      '<div style="font-size:11px;color:#6b8ab5;font-family:monospace">'+addr+'</div></div>'+
+      '<div style="font-size:11px;color:'+sc+';font-weight:700">'+(signal||'')+'</div>';
+    var _a=addr; var _m=window._mBtMethod;
+    btn.onclick=function(){
+      list.querySelectorAll('button').forEach(function(b){b.style.borderColor='#1e3358';});
+      btn.style.borderColor='#2563eb';
+      var st=document.getElementById('m-bt-status');
+      if(st) st.innerHTML='Sending to '+(name||'Zillion Wallet')+'...';
+      if(window.ZillionNative&&window._mBtUri){
+        if(_m==='spp') ZillionNative.sendViaSpp(window._mBtUri,_a);
+        else           ZillionNative.sendViaBle(window._mBtUri,_a);
+      }
+    };
+    list.appendChild(btn);
+    var n=list.querySelectorAll('button').length;
+    var st=document.getElementById('m-bt-status');
+    if(st) st.textContent='Found '+n+' device(s) - tap to send';
+  };
+  window.onBleScanComplete=function(){
+    var st=document.getElementById('m-bt-status');
+    var li=document.getElementById('m-bt-list');
+    if(st&&(!li||!li.children.length)) st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.';
+  };
+  window.onBleSent=function(){
+    var el=document.getElementById('m-bt-picker'); if(el) el.remove();
+    mToast('Coins sent via Bluetooth!');
+    if(typeof mRefreshHome==='function') mRefreshHome();
+  };
+  window.onBleTransferProgress=function(done,total){
+    var pct=total>0?Math.round((done/total)*100):0;
+    var bars=''; for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
+    var st=document.getElementById('m-bt-status');
+    if(st) st.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
+  };
+  window.onBleError=function(msg){
+    var st=document.getElementById('m-bt-status');
+    if(st) st.innerHTML='<span style="color:#ef4444">Error: '+msg+'</span>';
+    scanBtn.textContent='Try Again'; scanBtn.disabled=false;
+  };
+}
+function mBtScan(btn){
+  var st=document.getElementById('m-bt-status');
+  var li=document.getElementById('m-bt-list');
+  if(st) st.textContent='Scanning for Zillion wallets...';
+  if(li) li.innerHTML='';
+  if(btn){btn.textContent='Scanning...';btn.disabled=true;}
+  if(!window.ZillionNative) return;
+  if(window._mBtMethod==='spp') ZillionNative.discoverSppDevices();
+  else ZillionNative.startBleScan();
+  setTimeout(function(){if(btn){btn.textContent='Find Devices';btn.disabled=false;}},12000);
+}
 </script>
 </body>
 </html>
