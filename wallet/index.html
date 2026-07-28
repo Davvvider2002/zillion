@@ -4940,10 +4940,28 @@ function walletBtStartReceive() {
     try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:'spp',event:'server_ready',detail:'SPP RFCOMM server started — listening for connections',extra:'',level:'INFO'});_dc.close();}catch(e){}
   };
   window.onBleBundle = function(uri) {
-    setS('<strong style="color:var(--g)">Receiving coins...</strong>');
+    setS('<strong style="color:var(--g)">&#10003; Processing coins...</strong>');
     var b = zilDecodeBundle(uri);
-    if (b) zilAcceptBundle(b, 'bluetooth');
-    else   toast('Invalid Bluetooth bundle', true);
+    if (!b) { setS('<strong style="color:var(--r)">Invalid bundle</strong>'); toast('Invalid bundle',true); return; }
+    var newCoins=(b.coins||[]).filter(function(c){
+      var id=c.coin_id||c.id;
+      return !STATE.vault.find(function(v){return(v.coin_id||v.id)===id;});
+    });
+    if(!newCoins.length){ setS('<strong style="color:var(--am)">Already received</strong>'); return; }
+    newCoins.forEach(function(c){c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();});
+    newCoins.forEach(function(c){STATE.vault.push(c);});
+    var total=newCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
+    STATE.history.unshift({
+      id:'TX-'+Date.now(),type:'received',amount:total,
+      coin_count:newCoins.length,ts:new Date().toISOString(),
+      status:'PENDING_SYNC',method:'bluetooth',name:'Received via Bluetooth',
+      received_coin_ids:newCoins.map(function(c){return c.coin_id||c.id;}),
+    });
+    save(); refreshHome();
+    setS('<strong style="color:var(--g)">&#10003; Received '+fmtNaira(total)+'!</strong><br>'+
+         '<span style="font-size:12px;color:var(--gr)">Tap Start to receive again</span>');
+    toast('Received '+fmtNaira(total)+' via Bluetooth!');
+    setTimeout(function(){ goTo('screen-home'); trySync(); }, 2500);
   };
   window.onBleTransferProgress = function(done, total) {
     var pct = total>0 ? Math.round((done/total)*100) : 0;
@@ -4995,8 +5013,22 @@ function walletBtScan() {
         var i=STATE.vault.findIndex(function(v){return(v.coin_id||v.id)===(c.coin_id||c.id);});
         if(i>=0) STATE.vault[i]._status='SPENT_LOCAL';
       });
+      STATE.history.unshift({
+        id:'TX-BT-'+Date.now(), type:'sent',
+        amount:STATE.sendBundle.total_kobo||0,
+        coin_count:(STATE.sendBundle.coins||[]).length,
+        ts:new Date().toISOString(),
+        status:'SETTLED', method:'bluetooth', name:'Sent via Bluetooth',
+        sent_coin_ids:(STATE.sendBundle.coins||[]).map(function(c){return c.coin_id||c.id;}),
+      });
     }
-    save(); toast('Coins sent via Bluetooth!'); goTo('screen-home'); setTimeout(trySync,1500);
+    STATE.sendBundle=null; window._zilBtPendingUri=null; window._zilBtPendingBundle=null;
+    var st=document.getElementById('bt-send-status');
+    if(st) st.textContent='Tap Find Devices to start a new transfer';
+    var li=document.getElementById('bt-device-list'); if(li) li.innerHTML='';
+    save(); refreshHome();
+    toast('\u2713 Coins sent via Bluetooth!');
+    goTo('screen-home'); setTimeout(trySync,1500);
   };
   window.onBleTransferProgress=function(done,total){
     var pct=total>0?Math.round((done/total)*100):0;
@@ -5079,15 +5111,26 @@ function walletBtShowPicker(uri,bundle,method){
     var pst=document.getElementById('bt-picker-status');
     if(pst) pst.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
   };
-  window.onBleSent=function(){
+    window.onBleSent=function(){
     var el=document.getElementById('zil-bt-picker'); if(el) el.remove();
     if(STATE.sendBundle&&STATE.sendBundle.coins){
       STATE.sendBundle.coins.forEach(function(c){
         var i=STATE.vault.findIndex(function(v){return(v.coin_id||v.id)===(c.coin_id||c.id);});
         if(i>=0) STATE.vault[i]._status='SPENT_LOCAL';
       });
+      STATE.history.unshift({
+        id:'TX-BT-'+Date.now(), type:'sent',
+        amount:STATE.sendBundle.total_kobo||0,
+        coin_count:(STATE.sendBundle.coins||[]).length,
+        ts:new Date().toISOString(),
+        status:'SETTLED', method:'bluetooth', name:'Sent via Bluetooth',
+        sent_coin_ids:(STATE.sendBundle.coins||[]).map(function(c){return c.coin_id||c.id;}),
+      });
     }
-    save(); toast('Coins sent via Bluetooth!'); goTo('screen-home'); setTimeout(trySync,1500);
+    STATE.sendBundle=null; window._zilBtPendingUri=null; window._zilBtPendingBundle=null;
+    save(); refreshHome();
+    toast('\u2713 Coins sent via Bluetooth!');
+    goTo('screen-home'); setTimeout(trySync,1500);
   };
   window.onBleError=function(msg){
     var pst=document.getElementById('bt-picker-status');
@@ -5164,16 +5207,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 function walletBtPrepareScan() {
-  // If bundle already exists (QR was generated), use it directly
-  if (STATE.sendBundle && STATE.sendBundle.coins && STATE.sendBundle.coins.length) {
-    walletBtScan(); return;
-  }
+  // Always start fresh — clear any leftover bundle from previous transfer
+  STATE.sendBundle = null;
+  window._zilBtPendingUri = null; window._zilBtPendingBundle = null;
   // Build bundle from current send amount selection
   var amount = STATE.sendAmount || 0;
   if (!amount || amount <= 0) {
     toast('Select an amount to send first', true); return;
   }
-  var available = STATE.vault.filter(function(c){ return c._status==='HELD' || c._status==='PENDING_SYNC'; });
+  var available = STATE.vault.filter(function(c){ return c._status==='HELD'; });
   var totalAvail = available.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); },0);
   if (amount > totalAvail) { toast('Insufficient balance', true); return; }
   var sorted = available.slice().sort(function(a,b){ return (a.amount||a.value_kobo||0)-(b.amount||b.value_kobo||0); });
