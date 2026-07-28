@@ -4932,10 +4932,12 @@ function walletBtStartReceive() {
   window.onBleServerReady = function() {
     setS('<strong style="color:var(--g)">&#10003; Bluetooth ready (BLE)</strong><br>' +
          '<span style="font-size:12px;color:var(--gr)">Waiting for sender to connect...</span>');
+    try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:'ble',event:'server_ready',detail:'BLE GATT server started — advertising Zillion UUID',extra:'Nordic UART 6e400001',level:'INFO'});_dc.close();}catch(e){}
   };
   window.onSppServerReady = function() {
     setS('<strong style="color:var(--g)">&#10003; Bluetooth ready (Classic)</strong><br>' +
          '<span style="font-size:12px;color:var(--gr)">Waiting for sender to connect...</span>');
+    try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:'spp',event:'server_ready',detail:'SPP RFCOMM server started — listening for connections',extra:'',level:'INFO'});_dc.close();}catch(e){}
   };
   window.onBleBundle = function(uri) {
     setS('<strong style="color:var(--g)">Receiving coins...</strong>');
@@ -4951,8 +4953,12 @@ function walletBtStartReceive() {
   window.onBleError = function(msg) {
     setS('<strong style="color:var(--r)">Error: '+msg+'</strong><br>' +
          '<span style="font-size:12px">Tap Start to retry</span>');
+    try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:'ble',event:'error',detail:'BLE error on receive: '+msg,extra:msg,level:'ERROR'});_dc.close();}catch(e){}
   };
-  window.onSppError = function() { ZillionNative.startBleServer(); };
+  window.onSppError = function(msg) {
+    try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:'spp',event:'spp_unavailable',detail:'SPP server error: '+(msg||'unknown'),extra:'Falling back to BLE',level:'WARN'});_dc.close();}catch(e){}
+    ZillionNative.startBleServer();
+  };
 }
 function walletBtSend() {
   if (!STATE.sendBundle) { toast('Generate QR first to load coins', true); return; }
@@ -4980,6 +4986,7 @@ function walletBtScan() {
     : 'zilbundle://'+btoa(unescape(encodeURIComponent(JSON.stringify(STATE.sendBundle))));
   window._zilBtPendingBundle = STATE.sendBundle;
   window._zilBtPendingMethod = zilBtMethod();
+  try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:window._zilBtPendingMethod,event:'scan_start',detail:'Scanning for Zillion devices via '+window._zilBtPendingMethod.toUpperCase(),extra:'bundle_kobo='+(STATE.sendBundle.total_kobo||0),level:'INFO'});_dc.close();}catch(e){}
   window.onBleDeviceFound    = walletBtInlineDeviceFound;
   window.onBleScanComplete   = walletBtInlineScanComplete;
   window.onBleSent = function() {
@@ -5007,6 +5014,7 @@ function walletBtScan() {
 function walletBtInlineDeviceFound(addr,name,signal){
   var list=document.getElementById('bt-device-list'); if(!list) return;
   if(document.getElementById('btdi-'+addr.replace(/:/g,''))) return;
+  try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:window._zilBtPendingMethod||'spp',event:'device_found',detail:'Found: '+(name||'Zillion')+'  Signal: '+(signal||'?'),extra:addr,level:'INFO'});_dc.close();}catch(e){}
   var sc=signal==='Strong'?'#22c55e':signal==='Medium'?'#f59e0b':'#ef4444';
   var btn=document.createElement('button');
   btn.id='btdi-'+addr.replace(/:/g,'');
@@ -5035,6 +5043,8 @@ function walletBtInlineScanComplete(){
   if(bn){bn.textContent='Find Devices';bn.disabled=false;}
   var st=document.getElementById('bt-send-status');
   var li=document.getElementById('bt-device-list');
+  var found = li?li.children.length:0;
+  try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:window._zilBtPendingMethod||'spp',event:found?'scan_complete':'no_devices',detail:found?('Scan complete — '+found+' device(s) found'):'Scan timed out — 0 devices found',extra:'',level:found?'INFO':'WARN'});_dc.close();}catch(e){}
   if(st&&(!li||!li.children.length)) st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.';
 }
 function walletBtShowPicker(uri,bundle,method){
