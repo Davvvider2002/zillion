@@ -1188,12 +1188,12 @@ function triggerPWAInstall() {
         <button class="btn btn-g" id="send-qr-btn" onclick="generateSendQR()">
           📲 Generate QR Code →
         </button>
-        <div id="send-wireless-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <div id="send-wireless-btns" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
           <button onclick="walletNFCSend()" id="w-nfc-send-btn"
             style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📡 NFC
           </button>
-          <button onclick="walletBleSend()" id="w-ble-send-btn"
+          <button onclick="walletShareLink()" id="w-ble-send-btn"
             style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📶 Bluetooth
           </button>
@@ -1228,10 +1228,9 @@ function triggerPWAInstall() {
 
   <!-- METHOD TABS -->
   <div style="display:flex;background:var(--grl);border-bottom:1px solid var(--grb);flex-shrink:0">
-    <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">Scan QR</button>
-    <button id="recv-tab-nfc"  class="method-tab"        onclick="switchRecvTab('nfc')">NFC</button>
-    <button id="recv-tab-ble"  class="method-tab"        onclick="switchRecvTab('ble')">Bluetooth</button>
-    <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">File</button>
+    <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">📷 Scan QR</button>
+    <button id="recv-tab-nfc"  class="method-tab"        onclick="switchRecvTab('nfc')">📡 NFC</button>
+    <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">📂 Import File</button>
   </div>
 
   <!-- QR SCANNER PANEL -->
@@ -1300,43 +1299,9 @@ function triggerPWAInstall() {
     <span style="font-size:56px">📡</span>
     <div style="font-size:18px;font-weight:800;color:var(--tx);margin-top:12px">NFC Receive</div>
     <div style="font-size:13px;color:var(--gm);margin-top:8px;line-height:1.6">Hold your phone against the sender's.<br>The coin transfers automatically.</div>
-    <button onclick="zilStartNFCReceive('nfc-status-text')" class="btn btn-g" style="margin-top:20px;width:100%;font-size:15px;padding:14px">Start NFC Receive</button>
-    <div id="nfc-status-text" style="margin-top:14px;font-size:13px;color:var(--am);min-height:20px;font-weight:600"></div>
+    <button onclick="startNFCReceive()" class="btn btn-g" style="margin-top:20px;width:100%">📡 Start NFC Receive</button>
+    <div style="font-size:11px;color:var(--gm);margin-top:12px">Requires Android Chrome with NFC enabled</div>
   </div>
-  <div id="recv-panel-ble" style="display:none;padding:24px 20px;flex-direction:column;align-items:center;text-align:center">
-    <div style="font-size:48px;margin-bottom:8px">&#x1F4E1;</div>
-    <div style="font-size:18px;font-weight:800;color:var(--tx)">Bluetooth Receive</div>
-    <div style="font-size:12px;color:var(--gm);margin-top:4px">No internet needed &#x2022; Works up to 10m</div>
-    <div style="margin:16px 0;width:100%;text-align:left;background:var(--grl);border-radius:12px;padding:14px 16px">
-      <div style="font-size:11px;font-weight:700;color:var(--gm);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">How it works</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <div style="width:22px;height:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
-          <div style="font-size:13px;color:var(--tx)">Tap <strong>Start</strong> below &#x2014; device starts advertising</div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <div style="width:22px;height:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
-          <div style="font-size:13px;color:var(--tx)">Sender: Zillion &#x2192; <strong>Send &#x2192; Bluetooth</strong></div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <div style="width:22px;height:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
-          <div style="font-size:13px;color:var(--tx)">Sender taps <strong>Find Devices</strong> &#x2192; your name</div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <div style="width:22px;height:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">4</div>
-          <div style="font-size:13px;color:var(--tx)">Coins arrive &#x2014; balance updates instantly</div>
-        </div>
-      </div>
-    </div>
-    <button onclick="zilStartBLEReceive('recv-ble-status')" class="btn btn-g" style="width:100%;font-size:15px;padding:14px;margin-bottom:10px">
-      Start Bluetooth Receive
-    </button>
-    <div id="recv-ble-status" style="font-size:13px;color:var(--am);min-height:24px;font-weight:600;line-height:1.5;width:100%;text-align:center"></div>
-    <div style="margin-top:14px;padding:11px 13px;background:#fff8e1;border-radius:10px;width:100%;text-align:left">
-      <div style="font-size:12px;font-weight:700;color:#e65100;margin-bottom:3px">If Bluetooth is unreliable</div>
-      <div style="font-size:12px;color:#e65100;line-height:1.5">Use <strong>File tab</strong> &#x2014; sender shares .zil file via WhatsApp. Works on any phone.</div>
-    </div>
-  </div</div>
   <div id="recv-panel-file" style="display:none;flex:1;overflow-y:auto;background:var(--bg)">
     <div style="padding:14px 18px 0">
       <div class="alert alert-g" style="margin:0 0 14px">
@@ -1499,55 +1464,122 @@ function triggerPWAInstall() {
 <div id="screen-profile" class="screen hidden">
   <div class="sb"></div>
   <div class="profile-banner">
-    <div class="profile-avatar" id="profile-avatar">ZL</div>
-    <div class="profile-name"  id="profile-name">Your Name</div>
-    <div class="profile-phone" id="profile-phone">+234 &#x2014; &#x2014;</div>
+    <div class="profile-avatar" id="profile-avatar">?</div>
+    <div class="profile-name" id="profile-name">Your Name</div>
+    <div class="profile-phone" id="profile-phone">+234 — —</div>
   </div>
-  <div class="scroll-body"><div class="profile-body">
-    <div class="settings-group">
-      <div class="settings-group-label">Account</div>
-      <div class="settings-row"><span class="settings-label">Phone Number</span><span class="settings-value" id="settings-phone">&#x2014;</span></div>
-      <div class="settings-row"><span class="settings-label">Role</span><span class="settings-value" id="settings-role">Customer</span></div>
-      <div class="settings-row"><span class="settings-label">Device ID</span><span class="settings-value" id="settings-device" style="font-family:monospace;font-size:11px">&#x2014;</span></div>
+  <div class="scroll-body">
+    <div class="profile-body">
+
+      <div class="settings-group">
+        <div class="settings-group-label">Account</div>
+        <div class="settings-row">
+          <span class="settings-label">Phone Number</span>
+          <span class="settings-value" id="settings-phone">—</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Role</span>
+          <span class="settings-value" id="settings-role">Customer</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Device ID</span>
+          <span class="settings-value" id="settings-device" style="font-family:monospace;font-size:11px">—</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Security</div>
+        <div class="settings-row" onclick="showChangePinFlow()">
+          <span class="settings-label">Change PIN</span>
+          <span class="settings-value">›</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Biometric Unlock</span>
+          <button class="toggle on" id="toggle-biometric" onclick="toggleSetting(this)">
+            <div class="toggle-dot"></div>
+          </button>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Transaction PIN</span>
+          <button class="toggle" id="toggle-txpin" onclick="toggleSetting(this)">
+            <div class="toggle-dot"></div>
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Sync & Network</div>
+        <div class="settings-row">
+          <span class="settings-label">Auto-Sync</span>
+          <button class="toggle on" id="toggle-sync" onclick="toggleSetting(this)">
+            <div class="toggle-dot"></div>
+          </button>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Last Synced</span>
+          <span class="settings-value" id="settings-last-sync">Never</span>
+        </div>
+        <div class="settings-row" onclick="forceSync()">
+          <span class="settings-label">Sync Now</span>
+          <span class="settings-value">↻</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Wallet</div>
+        <div class="settings-row" onclick="exportVaultBackup()">
+          <span class="settings-label">Export Backup</span>
+          <span class="settings-value">›</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Vault Version</span>
+          <span class="settings-value">v1.0.4</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">App</div>
+        <div class="settings-row">
+          <span class="settings-label">App Version</span>
+          <span class="settings-value">PWA v1.0.4</span>
+        </div>
+                <div class="settings-row" style="padding:16px 0">
+          <button onclick="manualWalletRecover()" style="
+            width:100%;padding:14px;background:#00C896;color:#0A1F14;
+            border:none;border-radius:10px;font-weight:700;font-size:15px;
+            cursor:pointer;font-family:inherit;
+          ">🔄 Recover Wallet from Server</button>
+          <div id="recover-status" style="font-size:12px;color:#6B7280;margin-top:6px;text-align:center"></div>
+        </div>
+<div class="settings-row">
+          <span class="settings-label">Network Mode</span>
+          <span class="settings-value" id="settings-network">Online</span>
+        </div>
+      </div>
+
+      <div style="margin-top:8px">
+        <div style="background:rgba(217,119,6,.08);border:2px dashed #D97706;border-radius:12px;padding:14px;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Restore Coins from Server</div>
+          <div style="font-size:11px;color:var(--gr);margin-bottom:10px;line-height:1.5">Re-installed or new phone? Pull your coins back from Zillion servers.</div>
+          <button class="btn" style="width:100%;padding:10px;background:#D97706;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="recoverAccountCoins()">
+            Restore My Coins
+          </button>
+        </div>
+        <button class="btn btn-outline" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
+          onclick="resetWallet()">Reset Wallet</button>
+        <button class="btn btn-ghost" onclick="logout()">Log Out</button>
+      </div>
+      <div style="height:20px"></div>
     </div>
-    <div class="settings-group">
-      <div class="settings-group-label">Security</div>
-      <div class="settings-row" onclick="showChangePinFlow()" style="cursor:pointer"><span class="settings-label">Change PIN</span><span class="settings-value">&#x203A;</span></div>
-      <div class="settings-row"><span class="settings-label">Biometric Unlock</span><button class="toggle on" id="toggle-biometric" onclick="toggleSetting(this)"><div class="toggle-dot"></div></button></div>
-      <div class="settings-row"><span class="settings-label">Transaction PIN</span><button class="toggle" id="toggle-txpin" onclick="toggleSetting(this)"><div class="toggle-dot"></div></button></div>
-    </div>
-    <div class="settings-group">
-      <div class="settings-group-label">Sync &amp; Network</div>
-      <div class="settings-row"><span class="settings-label">Auto-Sync</span><button class="toggle on" id="toggle-sync" onclick="toggleSetting(this)"><div class="toggle-dot"></div></button></div>
-      <div class="settings-row"><span class="settings-label">Last Synced</span><span class="settings-value" id="settings-last-sync">Never</span></div>
-      <div class="settings-row" onclick="forceSync()" style="cursor:pointer"><span class="settings-label">Sync Now</span><span class="settings-value">&#x21BB;</span></div>
-      <div class="settings-row"><span class="settings-label">Network Mode</span><span class="settings-value" id="settings-network">Online</span></div>
-    </div>
-    <div class="settings-group">
-      <div class="settings-group-label">Wallet</div>
-      <div class="settings-row" onclick="exportVaultBackup()" style="cursor:pointer"><span class="settings-label">Export Backup</span><span class="settings-value">&#x203A;</span></div>
-      <div class="settings-row" onclick="manualWalletRecover()" style="cursor:pointer"><span class="settings-label">Recover Coins from Server</span><span class="settings-value" id="settings-recover-icon">&#x21BA;</span></div>
-      <div id="recover-status" style="padding:0 16px 10px;font-size:12px;color:var(--gm);display:none"></div>
-      <div class="settings-row"><span class="settings-label">Vault Version</span><span class="settings-value" id="settings-vault-ver">v1.0.6</span></div>
-    </div>
-    <div class="settings-group">
-      <div class="settings-group-label">App</div>
-      <div class="settings-row"><span class="settings-label">App Version</span><span class="settings-value" id="settings-app-ver">v1.0.6</span></div>
-      <div class="settings-row"><span class="settings-label">Build</span><span class="settings-value" id="settings-build">20260727b</span></div>
-    </div>
-    <div style="padding:16px 0 8px">
-      <button onclick="doLogout()" style="width:100%;padding:14px;background:transparent;border:1.5px solid var(--r,#ef4444);border-radius:12px;color:var(--r,#ef4444);font-weight:700;font-size:15px;cursor:pointer;font-family:inherit">Log Out</button>
-    </div>
-  </div></div>
+  </div>
   <div class="bnav">
-    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">&#x2302;</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">&#x2B21;</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">&#x21C5;</span><span class="bnav-label">Send</span></button>
-    <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">&#x2261;</span><span class="bnav-label">History</span></button>
-    <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">&#x25CB;</span><span class="bnav-label">Profile</span></button>
+    <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
+    <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
   </div>
 </div>
-
 
 <!-- ═══════════════════════════════════════════════════════════════
      JAVASCRIPT — APP ENGINE
@@ -1616,18 +1648,6 @@ function save() {
   };
   localStorage.setItem(DB_KEY, JSON.stringify(toSave));
   saveHistory(STATE.history); // always persist history separately
-  // Persist to native Android secure storage if running in the app
-  if (window.ZillionNative && ZillionNative.isNativeApp()) {
-    try {
-      // Save full history — history key is also in localStorage
-      // but native secure storage is the reliable cross-update backup
-      ZillionNative.saveSession(JSON.stringify({
-        user:    STATE.user,
-        vault:   STATE.vault,
-        history: STATE.history.slice(0, 500),
-      }));
-    } catch(e) {}
-  }
 }
 function load() {
   try {
@@ -1692,6 +1712,7 @@ function updateBnav(id) {
   }
 }
 function onScreenEnter(id) {
+  // Ensure history is loaded from localStorage before any screen renders
   if (!STATE.history || !STATE.history.length) {
     try { var _h = loadHistory(); if (_h.length) STATE.history = _h; } catch(e) {}
   }
@@ -1981,66 +2002,16 @@ async function completeOnboarding() {
 
 // -- Session restore --------------------------------------------
 function tryRestoreSession() {
-  // ── NATIVE ANDROID APP: restore session from secure storage ──
-  // The Android app calls ZillionNative.getSession() which returns
-  // a JSON string with {user, vault, history} saved from last session.
-  if (window.ZillionNative && window.ZillionNative.isNativeApp()) {
-    try {
-      var nativeSession = ZillionNative.getSession();
-      if (nativeSession) {
-        var ns = JSON.parse(nativeSession);
-        if (ns.user && ns.user.token) {
-          STATE.user  = ns.user;
-          STATE.vault = ns.vault || [];
-          // Merge native + localStorage history — keeps ALL records across updates
-          var nativeHistory = ns.history || [];
-          var localHistory  = loadHistory(); // always read localStorage too
-          var merged = nativeHistory.concat(localHistory);
-          var seen   = new Set();
-          STATE.history = merged.filter(function(h){
-            if(!h.id||seen.has(h.id)) return false; seen.add(h.id); return true;
-          }).sort(function(a,b){ return new Date(b.ts||0)-new Date(a.ts||0); });
-          save(); // populate localStorage so subsequent loads work
-          goTo('screen-home');
-          refreshHome();
-          refreshProfile();
-          // Force sync immediately to get server-confirmed balance
-          setTimeout(function() {
-            STATE.isOnline = navigator.onLine;
-            if (STATE.isOnline) trySync();
-          }, 500);
-          return;
-        }
-      }
-    } catch(e) { console.warn('[Native] Session restore failed:', e.message); }
-  }
-
-  // ── STANDARD: restore from localStorage ──────────────────────
   if (load() && STATE.user) {
     goTo('screen-home');
     refreshHome();
     refreshProfile();
-    // Persist to native secure storage if in the app
-    saveToNative();
     // Attempt sync immediately on restore — registers device, settles pending
     setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
   } else {
     toast('No account found — please set up a new account', true);
     goTo('screen-phone'); // take them to phone entry, not just a toast
   }
-}
-
-// ── Persist session to Android secure storage (Keystore) ───────
-function saveToNative() {
-  if (!window.ZillionNative || !ZillionNative.isNativeApp()) return;
-  try {
-    var sessionData = JSON.stringify({
-      user:    STATE.user,
-      vault:   STATE.vault,
-      history: STATE.history.slice(0, 100), // cap history size
-    });
-    ZillionNative.saveSession(sessionData);
-  } catch(e) { console.warn('[Native] saveToNative failed:', e.message); }
 }
 
 // -- Home -------------------------------------------------------
@@ -2245,9 +2216,9 @@ async function sendViaWhatsApp(fileOnly=false) {
     id:'TX-'+Date.now(), type:'sent',
     amount: selected.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0),
     coin_count:selected.length, ts:new Date().toISOString(),
-    status:'PENDING_TRANSFER', method:'whatsapp', name:'Sent via WhatsApp',
+    status:'PENDING_SYNC', method:'whatsapp', name:'Sent via WhatsApp',
   });
-  save(); refreshHome(); if (window.saveToNative) saveToNative(); // saves immediately so re-click sees PENDING_TRANSFER
+  save(); refreshHome(); // saves immediately so re-click sees PENDING_TRANSFER
 
   // ── Recipient binding (Merchant, Agent, OR Customer) — same rule as QR ──────
   const waRecvType = _sendRecvType || 'merchant';
@@ -2553,28 +2524,26 @@ function filterHistory(f, el) {
   refreshHistory();
 }
 function refreshHistory() {
+  // Merge localStorage history in case STATE was populated before history loaded
   try {
     var stored = loadHistory();
     if (stored.length > STATE.history.length) {
-      var seen = new Set(STATE.history.map(function(h){ return h.id; }));
-      stored.forEach(function(h){ if (h.id && !seen.has(h.id)) STATE.history.push(h); });
-      STATE.history.sort(function(a,b){ return new Date(b.ts||0)-new Date(a.ts||0); });
+      var seenIds = new Set(STATE.history.map(function(h){ return h.id; }));
+      stored.forEach(function(h){ if (h.id && !seenIds.has(h.id)) STATE.history.push(h); });
+      STATE.history.sort(function(a,b){ return new Date(b.ts||0) - new Date(a.ts||0); });
     }
   } catch(e) {}
-  const isPending = function(t){ return t.status==='PENDING_TRANSFER'||t.status==='PENDING_SYNC'; };
   const filtered = histFilter==='all' ? STATE.history
-    : STATE.history.filter(function(t){
+    : STATE.history.filter(t => {
         if (histFilter==='received') return t.type==='received';
         if (histFilter==='sent')     return t.type==='sent';
-        if (histFilter==='pending')  return isPending(t);
+        if (histFilter==='pending')  return t.status==='PENDING_SYNC' || t.status==='PENDING_TRANSFER';
         return true;
       });
   const el = document.getElementById('history-list');
   if (!el) return;
   if (!filtered.length) {
-    el.innerHTML = '<div class="empty-state"><span class="empty-icon">&#x1F4CB;</span>'
-      + '<div class="empty-title">No transactions yet</div>'
-      + '<div class="empty-sub">Your transactions will appear here.</div></div>';
+    el.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No transactions</div><div class="empty-sub">No ${histFilter==='all'?'':histFilter+' '}transactions yet.</div></div>`;
     return;
   }
   var rows = '';
@@ -2584,53 +2553,19 @@ function refreshHistory() {
   el.innerHTML = '<div class="tx-card">' + rows + '</div>';
 }
 function txRow(tx) {
-  const isIn         = tx.type==='received' || tx.type==='cashin';
-  const isPendingXfr = tx.status==='PENDING_TRANSFER' || tx.status==='PENDING_SYNC';
-  const isSettled    = tx.status==='SETTLED' || tx.status==='SPENT_LOCAL';
-  const dotClass = isPendingXfr?'pending':(isIn?'in':'out');
-  const icon     = isIn?'↓':'↑';
-  const amtClass = isPendingXfr?'pending':(isIn?'in':'out');
-  const prefix   = isIn?'+':'−';
-  let statusLabel, statusColor;
-  if (isPendingXfr && !isIn) {
-    statusLabel = '⏳ Pending — awaiting recipient';
-    statusColor = 'var(--am)';
-  } else if (isPendingXfr && isIn) {
-    statusLabel = '⏳ Pending sync';
-    statusColor = 'var(--am)';
-  } else {
-    statusLabel = isIn ? '✓ Received' : '✓ Settled';
-    statusColor = 'var(--g)';
-  }
-  // Resend / action buttons
-  var resendBtns = '';
-  var txId = tx.id || '';
-  var txIdSafe = txId.replace(/[^a-zA-Z0-9]/g,'');
-  if (!isIn && isPendingXfr) {
-    // Pending outgoing — show resend options
-    resendBtns = '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
-      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'qr\')" style="padding:5px 10px;background:#1e3358;border:1px solid #2563eb;border-radius:8px;color:#93c5fd;font-size:11px;cursor:pointer;font-family:inherit">📱 QR Code</button>'
-      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'whatsapp\')" style="padding:5px 10px;background:#1e3358;border:1px solid #16a34a;border-radius:8px;color:#86efac;font-size:11px;cursor:pointer;font-family:inherit">📲 WhatsApp</button>'
-      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'ble\')" style="padding:5px 10px;background:#1e3358;border:1px solid #d97706;border-radius:8px;color:#fcd34d;font-size:11px;cursor:pointer;font-family:inherit">📶 Bluetooth</button>'
-      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'nfc\')" style="padding:5px 10px;background:#1e3358;border:1px solid #7c3aed;border-radius:8px;color:#c4b5fd;font-size:11px;cursor:pointer;font-family:inherit">📡 NFC</button>'
-      + '<button onclick="cancelTx(\'' + txIdSafe + '\')" style="padding:5px 10px;background:transparent;border:1px solid #7f1d1d;border-radius:8px;color:#f87171;font-size:11px;cursor:pointer;font-family:inherit">✕ Cancel</button>'
-      + '</div>';
-  } else if (!isIn && !isPendingXfr) {
-    // Settled outgoing — receipt only
-    resendBtns = '<div style="margin-top:6px">'
-      + '<button onclick="resendTx(\'' + txIdSafe + '\',\'receipt\')" style="padding:4px 10px;background:transparent;border:1px solid #1e3358;border-radius:7px;color:#6b8ab5;font-size:11px;cursor:pointer;font-family:inherit">🧾 Receipt</button>'
-      + '</div>';
-  }
-  return `<div class="tx-row" style="display:block;padding:12px 14px;border-bottom:1px solid var(--grb)">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="tx-dot ${dotClass}">${icon}</div>
-      <div class="tx-info" style="flex:1;min-width:0">
-        <div class="tx-name">${tx.name||'Transaction'}</div>
-        <div class="tx-meta">${fmtTime(tx.ts)}&nbsp;·&nbsp;<span style="color:${statusColor};font-weight:600">${statusLabel}</span></div>
-      </div>
-      <div class="tx-amount ${amtClass}" style="white-space:nowrap">${prefix}${fmtNaira(tx.amount)}</div>
+  const isIn = tx.type==='received' || tx.type==='cashin';
+  const isPending = tx.status==='PENDING_SYNC';
+  const dotClass = isPending?'pending':(isIn?'in':'out');
+  const icon = isIn?'↓':'↑';
+  const amtClass = isPending?'pending':(isIn?'in':'out');
+  const prefix = isIn?'+':'−';
+  return `<div class="tx-row">
+    <div class="tx-dot ${dotClass}">${icon}</div>
+    <div class="tx-info">
+      <div class="tx-name">${tx.name||'Transaction'}</div>
+      <div class="tx-meta">${fmtTime(tx.ts)}  ·  <span style="color:${isPending?'var(--am)':'var(--g)'};font-weight:600">${isPending?'Pending sync':'Settled'}</span></div>
     </div>
-    ${resendBtns}
+    <div class="tx-amount ${amtClass}">${prefix}${fmtNaira(tx.amount)}</div>
   </div>`;
 }
 
@@ -2638,23 +2573,21 @@ function txRow(tx) {
 function refreshProfile() {
   const u = STATE.user;
   if (!u) return;
-  function setEl(id, val) { var el=document.getElementById(id); if(el) el.textContent=val; }
-  const initials = (u.phone||'').replace(/\D/g,'').slice(-2) || 'ZL';
-  setEl('profile-avatar',    initials);
-  setEl('profile-name',      u.phone || '-');
-  setEl('profile-phone',     u.phone || '-');
-  setEl('settings-phone',    u.phone || '-');
-  setEl('settings-role',     (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1));
-  setEl('settings-device',   u.deviceId || u.device_id || '-');
-  setEl('settings-network',  STATE.isOnline ? 'Online' : 'Offline');
-  setEl('settings-vault-ver','v' + (window.ZILLION_VERSION||'1.0.6'));
-  setEl('settings-app-ver',  'v' + (window.ZILLION_VERSION||'1.0.6'));
-  setEl('settings-build',    window.ZILLION_BUILD || '20260727b');
-  const hasToken2 = !!(u.token || u.agentToken);
-  const syncText = STATE.lastSync
-    ? (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync)
-    : (hasToken2 ? 'Never synced' : 'Re-login to enable sync');
-  setEl('settings-last-sync', syncText);
+  const initials = (u.phone||'?').slice(-4,-2)||'ZL';
+  document.getElementById('profile-avatar').textContent = initials;
+  document.getElementById('profile-name').textContent = u.phone||'-';
+  document.getElementById('profile-phone').textContent = u.phone||'-';
+  document.getElementById('settings-phone').textContent = u.phone||'-';
+  document.getElementById('settings-role').textContent = (u.role||'customer').charAt(0).toUpperCase()+(u.role||'customer').slice(1);
+  document.getElementById('settings-device').textContent = u.deviceId||'-';
+  document.getElementById('settings-network').textContent = STATE.isOnline?'Online':'Offline';
+  const hasToken2 = !!(STATE.user?.token || STATE.user?.agentToken);
+  if (STATE.lastSync) {
+    document.getElementById('settings-last-sync').textContent =
+      (hasToken2 ? 'Synced ' : 'Local · ') + fmtTime(STATE.lastSync);
+  } else {
+    document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
+  }
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
@@ -3118,17 +3051,20 @@ document.addEventListener('drop', async e => {
 
 // -- Receive tab switcher ---------------------------------------
 function switchRecvTab(tab) {
-  ['qr','nfc','ble','file'].forEach(function(t){
-    var p=document.getElementById('recv-panel-'+t);
-    if(p) p.style.display=t===tab?(t==='file'?'block':'flex'):'none';
-    if(p && t!=='file') p.style.flexDirection='column';
-    var b=document.getElementById('recv-tab-'+t);
-    if(b) b.classList.toggle('active', t===tab);
-  });
-  if (tab==='qr' && !window._scannerRunning) startScanner();
-  if (tab!=='qr') stopScanner();
-  if (tab==='nfc') zilStartNFCReceive('nfc-status-text');
-  if (tab==='ble') zilStartBLEReceive('recv-ble-status');
+  const qrPanel   = document.getElementById('recv-panel-qr');
+  const filePanel = document.getElementById('recv-panel-file');
+  const nfcPanel  = document.getElementById('recv-panel-nfc');
+  if (qrPanel)   qrPanel.style.display   = tab==='qr'   ? 'flex'  : 'none';
+  if (filePanel) filePanel.style.display  = tab==='file' ? 'block' : 'none';
+  if (nfcPanel)  nfcPanel.style.display   = tab==='nfc'  ? 'flex'  : 'none';
+  if (qrPanel)   qrPanel.style.flexDirection = 'column';
+  document.getElementById('recv-tab-qr').classList.toggle('active',  tab==='qr');
+  document.getElementById('recv-tab-file').classList.toggle('active', tab==='file');
+  const nfcTab = document.getElementById('recv-tab-nfc');
+  if (nfcTab) nfcTab.classList.toggle('active', tab==='nfc');
+  if (tab === 'qr' && !window._scannerRunning) startScanner();
+  if (tab === 'file' || tab === 'nfc') stopScanner();
+  if (tab === 'nfc') startNFCReceive();
 }
 
 // -- QR Scanner (BarcodeDetector API) --------------------------
@@ -3550,7 +3486,7 @@ async function generateSendQR() {
   STATE.history.unshift({
     id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
     coin_count:selected.length, ts:new Date().toISOString(),
-    status:'PENDING_TRANSFER', method:'qr', name:'Sent via QR code',
+    status:'PENDING_SYNC', method:'qr', name:'Sent via QR code',
   });
   save(); refreshHome();
 
@@ -3844,7 +3780,7 @@ function openCoinSheet(idx) {
 
   // Show NFC button only if supported
   const nfcBtn = document.getElementById('cs-nfc-btn');
-  if (nfcBtn) nfcBtn.style.display = ('NDEFReader' in window || (window.ZillionNative && window.ZillionNative.isNativeApp())) ? 'flex' : 'none';
+  if (nfcBtn) nfcBtn.style.display = ('NDEFReader' in window) ? 'flex' : 'none';
 
   document.getElementById('coin-sheet-overlay').style.display = 'block';
   const sheet = document.getElementById('coin-sheet');
@@ -4455,13 +4391,6 @@ function generateOfflineQR(selectedCoins, existingBundle) {
     offline_mode:    true,
   };
 
-  // ── Store bundle for BLE/NFC use ──────────────────────────
-  // Must set STATE.sendBundle so BLE, NFC, Share buttons work
-  bundle.coins       = selectedCoins;
-  bundle.total_kobo  = selectedCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
-  STATE.sendBundle   = bundle;
-  window._sendBundle = bundle;   // extra global for safety
-
   // Lock coins
   selectedCoins.forEach(function(c) {
     const vi = STATE.vault.findIndex(function(v){return (v.coin_id||v.id)===(c.coin_id||c.id);});
@@ -4470,18 +4399,16 @@ function generateOfflineQR(selectedCoins, existingBundle) {
   STATE.history.unshift({
     id: 'TX-' + Date.now(), type: 'sent',
     amount: bundle.total_kobo, coin_count: selectedCoins.length,
-    ts: new Date().toISOString(), status: 'PENDING_TRANSFER',
+    ts: new Date().toISOString(), status: 'PENDING_SYNC',
     method: 'qr-offline', name: 'Sent via Offline QR',
-    // Store coin IDs so resend can find coins even after status change
-    sent_coin_ids: selectedCoins.map(function(c){ return c.coin_id||c.id; }),
-    bundle_snapshot: bundleJson,  // store bundle for resend without needing vault
   });
   save(); refreshHome();
 
-  // Encode as zilbundle:// — consistent with NFC/BLE format, handled by scanner
+  // The QR encodes the FULL bundle JSON — receiver scans → imports directly
+  // Limit: QR codes handle ~2KB comfortably. For larger bundles, use file share.
   const bundleJson  = JSON.stringify(bundle);
   const bundleB64   = btoa(unescape(encodeURIComponent(bundleJson)));
-  const qrContent   = 'zilbundle://' + bundleB64;
+  const qrContent   = 'zilbundle://' + bundleB64;  // scannable by receiver
 
   // Show QR
   const canvas = document.getElementById('send-qr-canvas');
@@ -4711,10 +4638,8 @@ async function recoverAccountCoins() {
 // BLE:  transfer up to 10m — Android Chrome
 // ================================================================
 
-// Nordic UART profile — matches Android ZillionActivity.kt
-var ZILLION_BLE_SVC   = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-var ZILLION_BLE_TX    = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';  // sender writes here
-var ZILLION_BLE_RX    = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';  // receiver notifies here
+var ZILLION_BLE_SVC   = '0000ffe0-0000-1000-8000-00805f9b34fb';
+var ZILLION_BLE_TX    = '0000ffe1-0000-1000-8000-00805f9b34fb';
 var ZILLION_CHUNK     = 500;
 
 function zilBleSupported() { return !!(navigator.bluetooth); }
@@ -4787,41 +4712,41 @@ async function zilBleSend(bundle, onStatus) {
   var st = onStatus || function(m,t){console.log('[BLE]',m);};
   if (!zilBleSupported()) { st('Bluetooth not available (needs Android Chrome)', 'err'); return false; }
   try {
-    st('Scanning for Zillion receiver...');
+    st('Scanning for Zillion receiver nearby...');
     var device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [ZILLION_BLE_SVC] }],
-      optionalServices: [ZILLION_BLE_SVC]
+      filters: [{ services: [ZILLION_BLE_SVC] }]
     });
-    st('Connecting to ' + (device.name || 'Zillion Wallet') + '...');
+    st('Connecting to ' + (device.name || 'Zillion Receiver') + '...');
     var server  = await device.gatt.connect();
     var service = await server.getPrimaryService(ZILLION_BLE_SVC);
     var txChar  = await service.getCharacteristic(ZILLION_BLE_TX);
-
-    // Encode bundle as zilbundle:// URI (same as NFC/QR — compatible with Android)
-    var uri    = zilBundleEncode ? zilBundleEncode(bundle) : 'zilbundle://' + btoa(unescape(encodeURIComponent(JSON.stringify(bundle))));
-    var bytes  = new TextEncoder().encode(uri);
-    var total  = Math.ceil(bytes.length / ZILLION_CHUNK);
+    var encoder = new TextEncoder();
+    var bytes   = encoder.encode(JSON.stringify(bundle));
+    var total   = Math.ceil(bytes.length / ZILLION_CHUNK);
     st('Sending ' + total + ' chunk(s) (' + bytes.length + ' bytes)...');
-
-    // Android chunk format: [index:4LE][total:4LE][data:up to 500B]
+    // Write header: 4-byte total chunk count
+    var hdr = new Uint8Array(4);
+    new DataView(hdr.buffer).setUint32(0, total, true);
+    await txChar.writeValueWithResponse(hdr);
+    await new Promise(function(r){setTimeout(r,50);});
     for (var i=0; i<total; i++) {
-      var start = i * ZILLION_CHUNK;
-      var chunk = bytes.slice(start, Math.min(start + ZILLION_CHUNK, bytes.length));
-      var pkt   = new Uint8Array(8 + chunk.length);
-      var dv    = new DataView(pkt.buffer);
-      dv.setUint32(0, i,     true);  // chunk index  (bytes 0-3)
-      dv.setUint32(4, total, true);  // total chunks (bytes 4-7)
-      pkt.set(chunk, 8);
+      var start  = i * ZILLION_CHUNK;
+      var end    = Math.min(start + ZILLION_CHUNK, bytes.length);
+      var chunk  = bytes.slice(start, end);
+      var pkt    = new Uint8Array(2 + chunk.length);
+      new DataView(pkt.buffer).setUint16(0, i, true);
+      pkt.set(chunk, 2);
       await txChar.writeValueWithResponse(pkt);
-      if (i % 5 === 0) st('Chunk ' + (i+1) + '/' + total);
-      await new Promise(function(r){setTimeout(r,20);});
+      st('Chunk ' + (i+1) + '/' + total);
+      await new Promise(function(r){setTimeout(r,30);});
     }
+    await txChar.writeValueWithResponse(new Uint8Array([0xFF,0xFF,0xFF,0xFF]));
     server.disconnect();
     st('Transfer complete!');
     return true;
   } catch(e) {
     if (e.name !== 'NotFoundError') st('BLE error: ' + e.message, 'err');
-    else st('No Zillion receiver found nearby. Ask recipient to open Receive > Bluetooth.', 'warn');
+    else st('No Zillion receiver found. Ask recipient to tap BLE Receive.', 'warn');
     return false;
   }
 }
@@ -4832,348 +4757,14 @@ function walletShowWireless() {
   var el = document.getElementById('send-wireless-btns');
   if (el) el.style.display = 'grid';
 }
-
-// ── Helper: mark coins as settled after confirmed transfer ─────
-function markCoinsSettled(coins) {
-  (coins||[]).forEach(function(c) {
-    var i = STATE.vault.findIndex(function(v){ return (v.coin_id||v.id)===(c.coin_id||c.id); });
-    if (i>=0) STATE.vault[i]._status = 'SPENT_LOCAL';
-  });
-  // Update history entry to SETTLED
-  STATE.history.forEach(function(tx){
-    if (tx.status === 'PENDING_TRANSFER') tx.status = 'SETTLED';
-  });
-  save(); refreshHome();
-}
-
-
-// ── Resend a pending transaction via chosen method ─────────────
-function resendTx(txIdSafe, method) {
-  var tx = STATE.history.find(function(h){
-    return (h.id||'').replace(/[^a-zA-Z0-9]/g,'') === txIdSafe;
-  });
-  if (!tx) { toast('Transaction not found', true); return; }
-
-  // If receipt — just show it, no coins needed
-  if (method === 'receipt') { showReceipt(tx); return; }
-
-  var coins = null;
-  var bundle = null;
-
-  // Strategy 1: restore bundle from snapshot stored in history
-  if (tx.bundle_snapshot) {
-    try {
-      bundle = JSON.parse(tx.bundle_snapshot);
-      bundle.bundle_id = 'RESEND-' + tx.id + '-' + Date.now();
-      bundle.resend = true;
-      coins = bundle.coins || [];
-    } catch(e) {}
-  }
-
-  // Strategy 2: find coins by stored coin IDs
-  if (!coins && tx.sent_coin_ids && tx.sent_coin_ids.length) {
-    coins = STATE.vault.filter(function(c){
-      return tx.sent_coin_ids.indexOf(c.coin_id||c.id) >= 0;
-    });
-    // Temporarily re-lock them for resend (they may be SPENT_LOCAL)
-    coins.forEach(function(c){
-      var vi = STATE.vault.findIndex(function(v){ return (v.coin_id||v.id)===(c.coin_id||c.id); });
-      if (vi >= 0 && STATE.vault[vi]._status !== 'PENDING_TRANSFER') {
-        STATE.vault[vi]._status = 'PENDING_TRANSFER';
-      }
-    });
-  }
-
-  // Strategy 3: any PENDING_TRANSFER coins in vault
-  if (!coins || !coins.length) {
-    coins = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
-  }
-
-  if (!coins || !coins.length) {
-    toast('No coins found for resend — they may have already been received by the recipient.', false, 5000);
-    return;
-  }
-
-  if (!bundle) {
-    bundle = {
-      zillion_version: '1.0',
-      bundle_id:  'RESEND-' + tx.id + '-' + Date.now(),
-      created_at: new Date().toISOString(),
-      sender_device: STATE.user && STATE.user.deviceId || 'UNKNOWN',
-      type: 'cashin',
-      total_kobo: coins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
-      coin_count: coins.length,
-      coins: coins,
-      offline_mode: !navigator.onLine,
-      resend: true,
-    };
-  }
-
-  STATE.sendBundle   = bundle;
-  window._sendBundle = bundle;
-  save();
-
-  switch(method) {
-    case 'qr':
-      goTo('screen-send');
-      setTimeout(function(){ generateOfflineQR(coins, bundle); }, 200);
-      break;
-    case 'whatsapp':
-      walletWhatsAppSend();
-      break;
-    case 'ble':
-      walletBleSend();
-      break;
-    case 'nfc':
-      walletNFCSend();
-      break;
-  }
-}
-
-// ── Cancel a pending outgoing transaction ──────────────────────
-function cancelTx(txIdSafe) {
-  var tx = STATE.history.find(function(h){
-    return (h.id||'').replace(/[^a-zA-Z0-9]/g,'') === txIdSafe;
-  });
-  if (!tx) return;
-  if (!confirm('Cancel this pending transfer? The coins will return to your wallet.')) return;
-
-  // Restore locked coins
-  STATE.vault.forEach(function(c){
-    if (c._status === 'PENDING_TRANSFER') c._status = 'HELD';
-  });
-  // Mark tx as cancelled
-  tx.status = 'CANCELLED';
-  tx.name   = (tx.name||'Transfer') + ' (Cancelled)';
-  STATE.sendBundle   = null;
-  window._sendBundle = null;
-  save(); refreshHome();
-  toast('Transfer cancelled — coins returned to wallet');
-}
-
-// ── Show a receipt for a settled transaction ────────────────────
-function showReceipt(tx) {
-  var lines = [
-    'ZILLION DIGITAL CASH — RECEIPT',
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━',
-    'TX ID:    ' + (tx.id||'—'),
-    'Amount:   ' + fmtNaira(tx.amount||0),
-    'Coins:    ' + (tx.coin_count||1),
-    'Method:   ' + (tx.method||'—').toUpperCase(),
-    'Date:     ' + new Date(tx.ts||Date.now()).toLocaleString('en-NG'),
-    'Status:   ' + (tx.status||'—'),
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━',
-  ].join('\n');
-  if (navigator.share) {
-    navigator.share({ title: 'Zillion Receipt', text: lines }).catch(function(){});
-  } else {
-    toast(lines.split('\n').slice(0,4).join(' | '), false, 5000);
-  }
-}
-
-// ── walletBleSend — BLE coin transfer with device picker ───────
-async function walletBleSend() {
-  // Recover bundle from global or from pending vault coins if not set
-  if (!STATE.sendBundle) {
-    STATE.sendBundle = window._sendBundle || null;
-  }
-  if (!STATE.sendBundle) {
-    // Auto-build bundle from PENDING_TRANSFER coins in vault
-    var pendingCoins = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
-    if (pendingCoins.length) {
-      STATE.sendBundle = {
-        zillion_version: '1.0',
-        bundle_id:  'AUTO-'+Date.now(),
-        created_at: new Date().toISOString(),
-        sender_device: STATE.user&&STATE.user.deviceId||'UNKNOWN',
-        type: 'cashin',
-        total_kobo: pendingCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
-        coin_count: pendingCoins.length,
-        coins: pendingCoins,
-        offline_mode: true,
-      };
-    }
-  }
-  if (!STATE.sendBundle) { toast('Select coins to send first', true); return; }
-  var bundle = STATE.sendBundle;
-  var uri    = zilBundleEncode(bundle);
-
-  // ── Android native app: show device picker overlay ─────────
-  if (window.ZillionNative && window.ZillionNative.isNativeApp()) {
-    showBlePickerNative(uri, bundle);
-    return;
-  }
-  // ── Web BLE (Chrome desktop/Android) ───────────────────────
-  if (!zilBleSupported()) {
-    toast('Bluetooth not available. Try NFC or Share Link.', true); return;
-  }
-  toast('Scanning for Zillion receiver...');
-  var ok = await zilBleSend(bundle, function(m,t){ toast(m, t==='err'); });
-  if (ok) {
-    markCoinsSettled(bundle.coins);
-    STATE.history.unshift({
-      id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
-      coin_count:bundle.coins.length, ts:new Date().toISOString(),
-      status:'SETTLED', method:'ble', name:'Sent via Bluetooth',
-    });
-    save(); goTo('screen-home'); setTimeout(trySync,1500);
-  }
-}
-
-// ── BLE device picker for native Android app ───────────────────
-function showBlePickerNative(uri, bundle) {
-  // Create overlay
-  var overlay = document.createElement('div');
-  overlay.id = 'ble-picker-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
-  overlay.innerHTML = '<div style="background:#0f1f38;border-radius:20px 20px 0 0;padding:24px 20px;width:100%;max-width:440px">' +
-    '<div style="font-size:17px;font-weight:700;color:#e8f0fe;margin-bottom:6px">📶 Send via Bluetooth</div>' +
-    '<div style="font-size:13px;color:#6b8ab5;margin-bottom:20px">The recipient must have the Zillion app open on Receive screen</div>' +
-    '<div id="ble-scan-status" style="text-align:center;padding:20px;color:#6b8ab5;font-size:13px">Tap "Find Devices" to scan for nearby Zillion wallets</div>' +
-    '<div id="ble-device-list" style="margin-bottom:16px"></div>' +
-    '<button onclick="startBleNativeScan()" id="ble-scan-btn" style="width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">🔍 Find Devices</button>' +
-    '<button onclick="closeBlePickerNative()" style="width:100%;padding:12px;background:transparent;color:#6b8ab5;border:1px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit">Cancel</button>' +
-    '</div>';
-  document.body.appendChild(overlay);
-
-  // Store bundle URI for use when device is selected
-  window._blePendingUri    = uri;
-  window._blePendingBundle = bundle;
-
-  // Register native callbacks
-  window.onBleDeviceFound = function(addr, name) {
-    var list = document.getElementById('ble-device-list');
-    if (!list) return;
-    var existing = document.getElementById('ble-dev-' + addr.replace(/:/g,''));
-    if (existing) return;
-    var btn = document.createElement('button');
-    btn.id = 'ble-dev-' + addr.replace(/:/g,'');
-    btn.style.cssText = 'width:100%;padding:14px;background:#142540;color:#e8f0fe;border:1px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:10px';
-    btn.innerHTML = '<span style="font-size:20px">📱</span><span><div style="font-weight:600">' + (name||'Zillion Wallet') + '</div><div style="font-size:11px;color:#6b8ab5">' + addr + '</div></span>';
-    btn.onclick = function() { sendBleToDevice(addr, name||'Zillion Wallet'); };
-    list.appendChild(btn);
-    document.getElementById('ble-scan-status').textContent = 'Found ' + list.children.length + ' device(s)';
-  };
-
-  window.onBleSent = function() {
-    markCoinsSettled(window._blePendingBundle ? window._blePendingBundle.coins : []);
-    STATE.history.unshift({
-      id:'TX-'+Date.now(), type:'sent',
-      amount: window._blePendingBundle ? window._blePendingBundle.total_kobo : 0,
-      coin_count: window._blePendingBundle ? window._blePendingBundle.coins.length : 0,
-      ts:new Date().toISOString(), status:'SETTLED', method:'ble', name:'Sent via Bluetooth',
-    });
-    save();
-    closeBlePickerNative();
-    toast('✅ Coins sent via Bluetooth!');
-    goTo('screen-home');
-    setTimeout(trySync, 1500);
-  };
-
-  window.onBleError = function(msg) {
-    var el = document.getElementById('ble-scan-status');
-    if (el) el.textContent = '❌ ' + msg;
-    toast('Bluetooth error: ' + msg, true);
-  };
-
-  // Start the BLE server on receiver's end and advertise
-  ZillionNative.startBleServer();
-}
-
-function startBleNativeScan() {
-  var status = document.getElementById('ble-scan-status');
-  if (status) status.textContent = 'Scanning for nearby Zillion wallets...';
-  var list = document.getElementById('ble-device-list');
-  if (list) list.innerHTML = '';
-  var btn = document.getElementById('ble-scan-btn');
-  if (btn) btn.textContent = '⏳ Scanning...';
-  // Trigger native BLE scan
-  if (window.ZillionNative) ZillionNative.startBleScan();
-}
-
-function sendBleToDevice(addr, name) {
-  var status = document.getElementById('ble-scan-status');
-  if (status) status.textContent = '📤 Sending to ' + name + '...';
-  if (window.ZillionNative && window._blePendingUri) {
-    ZillionNative.sendViaBle(window._blePendingUri, addr);
-  }
-}
-
-function closeBlePickerNative() {
-  var el = document.getElementById('ble-picker-overlay');
-  if (el) el.remove();
-  window._blePendingUri    = null;
-  window._blePendingBundle = null;
-}
-
-// ── Native app callbacks: receive coins via NFC or BLE ─────────
-// replaced by zilReceiveBundle engine
-
-// replaced by zilReceiveBundle engine
-
-// ── Process and settle an incoming bundle ──────────────────────
-function receiveIncomingBundle(bundle, method) {
-  var coins = bundle.coins || [];
-  if (!coins.length) { toast('Empty bundle received', true); return; }
-  var newCoins = []; var dupeCount = 0;
-  coins.forEach(function(c) {
-    var exists = STATE.vault.some(function(v){ return (v.coin_id||v.id)===(c.coin_id||c.id); });
-    if (!exists) {
-      c._status = 'PENDING_SYNC';
-      STATE.vault.push(c);
-      newCoins.push(c);
-    } else { dupeCount++; }
-  });
-  if (!newCoins.length) { toast('Coins already in wallet', true); return; }
-  var total = newCoins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); }, 0);
-  STATE.history.unshift({
-    id:'TX-'+Date.now(), type:'received',
-    amount: total, coin_count: newCoins.length,
-    ts: new Date().toISOString(),
-    status:'PENDING_SYNC', method: method.toLowerCase(),
-    name:'Received via ' + method,
-  });
-  save(); refreshHome();
-  toast('✅ Received ' + newCoins.length + ' coin(s) = ' + fmtNaira(total) + ' via ' + method);
-  // Queue sync to settle with server
-  setTimeout(trySync, 800);
-}
-
 async function walletNFCSend() {
-  if (!STATE.sendBundle) STATE.sendBundle = window._sendBundle || null;
-  if (!STATE.sendBundle) {
-    var pc = STATE.vault.filter(function(c){ return c._status==='PENDING_TRANSFER'; });
-    if (pc.length) {
-      STATE.sendBundle = {
-        zillion_version:'1.0', bundle_id:'AUTO-'+Date.now(),
-        created_at:new Date().toISOString(),
-        sender_device:STATE.user&&STATE.user.deviceId||'UNKNOWN',
-        type:'cashin',
-        total_kobo:pc.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0),
-        coin_count:pc.length, coins:pc, offline_mode:true,
-      };
-    }
-  }
-  if (!STATE.sendBundle) { toast('Select coins to send first', true); return; }
-  // Use native Android NFC bridge if in the Zillion app
-  if (window.ZillionNative && window.ZillionNative.isNativeApp()) {
-    var uri = zilBundleEncode(STATE.sendBundle);
-    // Register callback for when native confirms NFC sent
-    window.onNfcSent = function() {
-      markCoinsSettled(STATE.sendBundle.coins);
-      toast('Coins sent via NFC!');
-      goTo('screen-home');
-      setTimeout(trySync, 1500);
-    };
-    window.onNfcError = function(msg) { toast('NFC error: ' + msg, true); };
-    ZillionNative.sendViaNfc(uri);
-    toast('Hold phones together now...');
-    return;
-  }
-  // Web NFC (Chrome on Android)
+  if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
   var ok = await zilNfcSend(STATE.sendBundle, function(m,t){ toast(m, t==='err'); });
   if (ok) {
-    markCoinsSettled(STATE.sendBundle.coins);
+    STATE.sendBundle.coins.forEach(function(c){
+      var i = STATE.vault.findIndex(function(v){ return (v.coin_id||v.id)===(c.coin_id||c.id); });
+      if (i>=0) STATE.vault[i]._status = 'SPENT_LOCAL';
+    });
     save(); toast('Coins sent via NFC!'); goTo('screen-home'); setTimeout(trySync,1500);
   }
 }
@@ -5244,244 +4835,6 @@ function dialUSSD() {
   var url   = '/ussd-sim?phone=' + encodeURIComponent(phone) +
               '&amount=' + amt + '&denom=' + denom;
   window.open(url, '_blank');
-}
-
-
-// ── ANDROID: auto-restore session on app start ─────────────────
-(function() {
-  function nativeAutoRestore() {
-    if (window.ZillionNative && ZillionNative.isNativeApp()) {
-      if (typeof tryRestoreSession === 'function') {
-        tryRestoreSession();
-      }
-    }
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(nativeAutoRestore, 400);
-    });
-  } else {
-    setTimeout(nativeAutoRestore, 400);
-  }
-})();
-
-
-function zilReceiveBundle(bundle, method, onSuccess) {
-  if (!bundle || !bundle.coins || !bundle.coins.length) { zilToast('Empty bundle', true); return; }
-  var coins = bundle.coins;
-  var total  = bundle.total_kobo || coins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
-  var existing = (typeof M !== 'undefined' ? M.vault : (typeof STATE !== 'undefined' ? STATE.vault : []));
-  var newCoins = coins.filter(function(c){ return !existing.some(function(v){return (v.coin_id||v.id)===(c.coin_id||c.id);}); });
-  if (!newCoins.length) { zilToast('Coins already received', true); return; }
-  newCoins.forEach(function(c){ c._status='PENDING_SYNC'; c._method=method; c._receivedAt=new Date().toISOString(); });
-  if (typeof M !== 'undefined')     M.vault = M.vault.concat(newCoins);
-  if (typeof STATE !== 'undefined') STATE.vault = STATE.vault.concat(newCoins);
-  var rec = { id:'TX-'+Date.now(), type:'received', amount:total, coin_count:newCoins.length,
-              ts:new Date().toISOString(), status:'PENDING_SYNC', method:method.toLowerCase(),
-              name:'Received via '+method,
-              received_coin_ids:newCoins.map(function(c){return c.coin_id||c.id;}) };
-  if (typeof M !== 'undefined' && M.history)         M.history.unshift(rec);
-  if (typeof STATE !== 'undefined' && STATE.history) STATE.history.unshift(rec);
-  if (typeof saveM        === 'function') saveM();
-  if (typeof save         === 'function') save();
-  if (typeof refreshHome  === 'function') refreshHome();
-  if (typeof refreshVault === 'function') refreshVault();
-  if (typeof mRefreshHome === 'function') mRefreshHome();
-  zilToast('\u2705 Received '+newCoins.length+' coin(s) = \u20a6'+(total/100).toLocaleString('en-NG',{minimumFractionDigits:2})+' via '+method);
-  if (onSuccess) onSuccess(newCoins, total);
-  setTimeout(function(){
-    if (typeof trySync  === 'function') trySync();
-    if (typeof mTrySync === 'function') mTrySync();
-  }, 800);
-}
-function zilToast(msg, isErr) {
-  if (typeof toast     === 'function') { toast(msg, isErr); return; }
-  if (typeof showToast === 'function') { showToast(msg);    return; }
-  console.log((isErr?'[ERR] ':'')+msg);
-}
-function zilDecodeAny(raw) {
-  if (!raw) return null;
-  try {
-    if (raw.startsWith('zilbundle://')) return JSON.parse(decodeURIComponent(escape(atob(raw.slice(12)))));
-    if (raw.startsWith('ZILLION:'))    return JSON.parse(decodeURIComponent(escape(atob(raw.slice(8)))));
-    var p = JSON.parse(raw);
-    if (p.coins)   return p;
-    if (p.coin_id) return { coins:[p], total_kobo:p.amount||p.value_kobo||0 };
-  } catch(e) {}
-  return null;
-}
-window.onNfcBundle = function(uri) { var b=zilDecodeAny(uri); if(b) zilReceiveBundle(b,'NFC'); else zilToast('Invalid NFC bundle',true); };
-window.onBleBundle = function(uri) { var b=zilDecodeAny(uri); if(b) zilReceiveBundle(b,'Bluetooth'); else zilToast('Invalid BLE bundle',true); };
-window.onNfcSent   = function()    { zilToast('\u2705 Sent via NFC!'); };
-window.onBleSent   = function()    {
-  var el=document.getElementById('zil-ble-picker'); if(el) el.remove();
-  zilToast('\u2705 Sent via Bluetooth!');
-};
-window.onNfcError  = function(m)   { zilToast('NFC error: '+m, true); };
-window.onBleError  = function(m)   {
-  var st=document.getElementById('ble-scan-status'); if(st) st.textContent='Error: '+m;
-  zilToast('BLE error: '+m, true);
-};
-window.onBleServerReady = function() {
-  var st=document.getElementById('ble-scan-status'); if(st) st.textContent='Ready - waiting for sender...';
-};
-window.onBleDeviceFound = function(addr, name, signal) {
-  var list = document.getElementById('ble-picker-list') || document.getElementById('ble-device-list');
-  if (!list) return;
-  // Deduplicate by address
-  var existing = document.getElementById('bled-'+addr.replace(/:/g,''));
-  if (existing) {
-    // Update signal if device already listed
-    var sigEl = existing.querySelector('.ble-signal');
-    if (sigEl && signal) sigEl.textContent = signalIcon(signal);
-    return;
-  }
-  function signalIcon(s) {
-    if (s === 'Strong') return '?? Strong';
-    if (s === 'Medium') return '?? Medium';
-    return '?? Weak';
-  }
-  var btn = document.createElement('button');
-  btn.id = 'bled-'+addr.replace(/:/g,'');
-  btn.style.cssText = 'width:100%;padding:14px 16px;background:#0f1f38;color:#e8f0fe;border:1px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:10px;text-align:left;display:flex;align-items:center;gap:12px';
-  btn.innerHTML =
-    '<div style="width:40px;height:40px;background:#1e3a5f;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">??</div>'
-    +'<div style="flex:1;min-width:0">'
-      +'<div style="font-weight:700;font-size:15px;margin-bottom:2px">'+(name||'Zillion Wallet')+'</div>'
-      +'<div style="font-size:11px;color:#6b8ab5;font-family:monospace">'+addr+'</div>'
-    +'</div>'
-    +'<div class="ble-signal" style="font-size:12px;color:#6b8ab5;white-space:nowrap">'+signalIcon(signal||'')+'</div>';
-  btn.onclick = function() {
-    // Visual feedback — mark as selected
-    list.querySelectorAll('button').forEach(function(b){ b.style.borderColor='#1e3358'; });
-    btn.style.borderColor = '#2563eb';
-    var st = document.getElementById('ble-scan-status');
-    if (st) st.textContent = '?? Sending to '+(name||'Zillion Wallet')+'...';
-    if (window.ZillionNative && window._blePendingUri) {
-      ZillionNative.sendViaBle(window._blePendingUri, addr);
-    }
-  };
-  list.appendChild(btn);
-  var count = list.querySelectorAll('button').length;
-  var st = document.getElementById('ble-scan-status');
-  if (st) st.textContent = 'Found '+count+' Zillion wallet'+(count!==1?'s':'')+' nearby — tap to send';
-};
-function zilStartNFCReceive(statusId) {
-  var st = statusId ? document.getElementById(statusId) : null;
-  function setS(m){ if(st) st.textContent=m; }
-  if (window.ZillionNative && ZillionNative.isNativeApp()) {
-    ZillionNative.receiveViaNfc(); setS('\ud83d\udce1 NFC active - hold phones together'); return;
-  }
-  if (!('NDEFReader' in window)) { zilToast('NFC not available',true); setS('NFC not supported in this browser'); return; }
-  setS('Waiting - hold sender phone against yours...');
-  var ndef = new NDEFReader();
-  var ctrl = new AbortController();
-  window._nfcCtrl = ctrl;
-  ndef.scan({signal:ctrl.signal}).then(function(){
-    ndef.addEventListener('reading', function(evt){
-      for (var i=0; i<evt.message.records.length; i++){
-        var rec=evt.message.records[i];
-        try{
-          var uriVal = rec.toUri ? rec.toUri() : null;
-          var textVal = uriVal ? uriVal.toString() : new TextDecoder().decode(rec.data);
-          var bndl = zilDecodeAny(textVal);
-          if(bndl){ ctrl.abort(); setS('Bundle received!'); zilReceiveBundle(bndl,'NFC'); return; }
-        } catch(e){ setS('Read error: '+e.message); }
-      }
-    });
-  }).catch(function(e){ if(e.name!=='AbortError'){ setS('NFC error: '+e.message); } });
-}
-function zilStartBLEReceive(statusId) {
-  var st = statusId ? document.getElementById(statusId) : null;
-  function setS(html, color) {
-    if (!st) return;
-    st.innerHTML = html;
-    st.style.color = color || 'var(--am)';
-  }
-  if (window.ZillionNative && ZillionNative.isNativeApp()) {
-    setS('Starting Bluetooth server...');
-    ZillionNative.startBleServer();
-    var _prevReady = window.onBleServerReady;
-    window.onBleServerReady = function() {
-      setS('<strong style="color:var(--g)">&#10003; Bluetooth ready</strong><br>' +
-           '<span style="font-weight:400;font-size:12px;color:var(--gm)">Waiting for sender...<br>' +
-           'Ask sender: Send &#x2192; Bluetooth &#x2192; Find Devices &#x2192; your name</span>');
-      window.onBleServerReady = _prevReady;
-    };
-    var _prevBundle = window.onBleBundle;
-    window.onBleBundle = function(uri) {
-      setS('<strong style="color:var(--g)">Receiving coins...</strong>');
-      var b = zilDecodeAny(uri);
-      if (b) {
-        zilReceiveBundle(b, 'Bluetooth', function(coins, total) {
-          setS('<strong style="color:var(--g)">&#10003; Received &#x20A6;' +
-               (total/100).toLocaleString('en-NG',{minimumFractionDigits:2}) +
-               '</strong><br><span style="font-weight:400;font-size:12px">' +
-               coins.length + ' coin(s) added to wallet</span>');
-        });
-      } else { zilToast('Invalid BLE bundle', true); }
-      window.onBleBundle = _prevBundle;
-    };
-    window.onBleTransferProgress = function(done, total) {
-      var pct = total > 0 ? Math.round((done/total)*100) : 0;
-      var bars = '';
-      for (var i=0; i<10; i++) bars += i < Math.round(pct/10) ? '|' : '.';
-      setS('<strong>Receiving ' + pct + '%</strong> [' + bars + ']');
-    };
-    window.onBleError = function(msg) {
-      setS('<strong style="color:#ef4444">Error: ' + msg + '</strong><br>' +
-           '<span style="font-weight:400;font-size:12px">Tap Start to retry</span>','#ef4444');
-    };
-    return;
-  }
-  setS('Requires the Zillion Android app');
-  zilToast('Bluetooth transfers require the Zillion Android app', false, 5000);
-}
-
-function zilShowBlePicker(bundleUri, bundle, onSent) {
-  var ex = document.getElementById('zil-ble-picker'); if(ex) ex.remove();
-  window._blePendingUri    = bundleUri;
-  window._blePendingBundle = bundle;
-  if (!window.ZillionNative || !ZillionNative.isNativeApp()) {
-    zilToast('Bluetooth requires the Zillion Android app', false, 5000); return;
-  }
-  var o = document.createElement('div'); o.id='zil-ble-picker';
-  o.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:flex-end;justify-content:center';
-  o.innerHTML =
-    '<div style="background:#0f1f38;border-radius:20px 20px 0 0;padding:24px 20px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto">' +
-    '<div style="font-size:17px;font-weight:700;color:#e8f0fe;margin-bottom:4px">Send via Bluetooth</div>' +
-    '<div style="font-size:13px;color:#6b8ab5;margin-bottom:16px;line-height:1.6">'
-    +'<strong style="color:#e8f0fe">Step 1:</strong> Ask recipient to open Zillion app<br>'
-    +'<strong style="color:#e8f0fe">Step 2:</strong> Tap <em>Receive → Bluetooth tab → Start</em><br>'
-    +'<strong style="color:#e8f0fe">Step 3:</strong> Tap Find Devices below, then tap their name'
-    +'</div>' +
-    '<div id="ble-scan-status" style="text-align:center;padding:12px;color:#6b8ab5;font-size:13px;margin-bottom:8px">Tap Find Devices to scan</div>' +
-    '<div id="ble-picker-list" style="margin-bottom:12px"></div>' +
-    '<button onclick="startZilBleScan()" id="ble-scan-btn" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Find Devices</button>' +
-    '<button onclick="document.getElementById(\'zil-ble-picker\').remove()" style="width:100%;padding:11px;background:transparent;color:#6b8ab5;border:1px solid #1e3358;border-radius:12px;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>' +
-    '</div>';
-  document.body.appendChild(o);
-  if(onSent) window.onBleSent = function(){
-    var el = document.getElementById('zil-ble-picker'); if(el) el.remove();
-    zilToast('\u2705 Sent via Bluetooth!'); onSent();
-  };
-  ZillionNative.startBleServer();
-}
-function startZilBleScan() {
-  var st = document.getElementById('ble-scan-status');
-  var li = document.getElementById('ble-picker-list');
-  var bn = document.getElementById('ble-scan-btn');
-  if(st) st.textContent='⏳ Scanning for Zillion devices nearby... (10s)';
-  if(li) li.innerHTML='';
-  if(bn) { bn.textContent='⏳ Scanning...'; bn.disabled=true; }
-  if(window.ZillionNative) ZillionNative.startBleScan();
-  // Re-enable after 10s when scan auto-stops
-  setTimeout(function() {
-    if(bn) { bn.textContent='?? Find Devices'; bn.disabled=false; }
-    if(st && !st.textContent.includes('Found') && !st.textContent.includes('Sending')) {
-      st.textContent = 'No devices found. Ensure recipient is on Receive > Bluetooth screen.';
-    }
-  }, 10000);
 }
 
 </script>
