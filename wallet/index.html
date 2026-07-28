@@ -779,51 +779,6 @@ function triggerPWAInstall() {
     <button class="btn btn-g" id="phone-btn" onclick="submitPhone()">Send Code</button>
     <div id="verify-btn-wrap" style="display:none;margin-top:12px">
       <button class="btn btn-g" onclick="verifyOtp()">Verify Code</button>
-      <!-- BT SEND PANEL -->
-      <div id="send-panel-bt" class="method-panel" style="display:none">
-        <div style="padding:18px 20px 10px;text-align:center">
-          <div style="font-size:44px;margin-bottom:8px">&#x1F4F6;</div>
-          <div style="font-size:17px;font-weight:800;color:var(--tx)">Send via Bluetooth</div>
-          <div style="font-size:12px;color:var(--gr);margin-top:5px;line-height:1.6">
-            No internet needed &#x2022; Works up to 10m
-          </div>
-        </div>
-        <div style="padding:0 20px 16px">
-
-          <!-- HOW IT WORKS -->
-          <div style="background:var(--grl);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-            <div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">How it works</div>
-            <div style="display:flex;flex-direction:column;gap:7px">
-              <div style="display:flex;gap:8px;align-items:center">
-                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">1</div>
-                <div style="font-size:12px;color:var(--tx)">Recipient opens Zillion &#x2192; Receive &#x2192; <strong>Bluetooth</strong></div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">2</div>
-                <div style="font-size:12px;color:var(--tx)">Recipient taps <strong>Start Bluetooth Receive</strong></div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">3</div>
-                <div style="font-size:12px;color:var(--tx)">Tap <strong>Find Devices</strong> below &#x2192; select their name</div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">4</div>
-                <div style="font-size:12px;color:var(--tx)">Coins transfer automatically &#x2014; no internet</div>
-              </div>
-            </div>
-          </div>
-
-          <div id="bt-send-status" style="padding:10px;background:var(--grl);border-radius:10px;font-size:13px;color:var(--gr);margin-bottom:10px;text-align:center;min-height:36px">
-            Tap Find Devices to scan for nearby Zillion wallets
-          </div>
-          <div id="bt-device-list" style="margin-bottom:10px"></div>
-          <button id="bt-find-btn" onclick="walletBtPrepareScan()"
-            style="width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px">
-            &#x1F50D; Find Devices
-          </button>
-          <div style="font-size:11px;color:var(--gr);text-align:center">Requires Zillion Android app &#x2022; Works fully offline</div>
-        </div>
-      </div>
 
     </div>
   </div>
@@ -1149,7 +1104,7 @@ function triggerPWAInstall() {
       </div>
 
       <!-- WhatsApp panel -->
-      <div id="send-panel-wa" class="method-panel active">
+      <div id="send-panel-wa" class="method-panel">
         <div class="wa-info">
           <span class="wa-info-icon">📱</span>
           <div class="wa-info-title">Send via WhatsApp</div>
@@ -1258,6 +1213,31 @@ function triggerPWAInstall() {
         </div>
         <button class="btn btn-outline" onclick="sendViaWhatsApp(true)">Export .zil File</button>
       </div>
+
+      <!-- ── BLUETOOTH SEND PANEL (inside screen-send scroll-body) ── -->
+      <div id="send-panel-bt" class="method-panel">
+        <div style="padding:18px 20px 10px;text-align:center">
+          <div style="font-size:44px;margin-bottom:8px">&#x1F4F6;</div>
+          <div style="font-size:17px;font-weight:800;color:var(--tx)">Send via Bluetooth</div>
+          <div style="font-size:12px;color:var(--gr);margin-top:5px;line-height:1.5">No internet needed &#x2022; Works up to 10m</div>
+        </div>
+        <div style="padding:0 20px 16px">
+          <div style="background:var(--grl);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">How it works</div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;gap:8px;align-items:center"><div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">1</div><div style="font-size:12px;color:var(--tx)">Recipient: Zillion &#x2192; Receive &#x2192; <strong>Bluetooth</strong> &#x2192; Start</div></div>
+              <div style="display:flex;gap:8px;align-items:center"><div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">2</div><div style="font-size:12px;color:var(--tx)">Tap <strong>Find Devices</strong> below</div></div>
+              <div style="display:flex;gap:8px;align-items:center"><div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">3</div><div style="font-size:12px;color:var(--tx)">Tap the recipient&#x2019;s name to send</div></div>
+              <div style="display:flex;gap:8px;align-items:center"><div style="width:20px;height:20px;min-width:20px;border-radius:50%;background:var(--g);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">4</div><div style="font-size:12px;color:var(--tx)">Coins transfer &#x2014; no internet needed</div></div>
+            </div>
+          </div>
+          <div id="bt-send-status" style="padding:10px;background:var(--grl);border-radius:10px;font-size:13px;color:var(--gr);margin-bottom:10px;text-align:center;min-height:36px">Tap Find Devices to start</div>
+          <div id="bt-device-list" style="margin-bottom:10px"></div>
+          <button id="bt-find-btn" onclick="walletBtPrepareScan()" style="width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px">&#x1F50D; Find Devices</button>
+          <div style="font-size:11px;color:var(--gr);text-align:center">Requires Zillion Android app &#x2022; Works fully offline</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
