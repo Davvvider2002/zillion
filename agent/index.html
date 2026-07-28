@@ -2894,6 +2894,7 @@ function aBtScan(btn){
   if(st) st.textContent='Scanning for Zillion wallets...';
   if(li) li.innerHTML='';
   if(btn){btn.textContent='Scanning...';btn.disabled=true;}
+  try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'agent',method:window._aBtMethod||'spp',event:'scan_start',detail:'Agent scanning for customer wallets to issue coins',extra:'',level:'INFO'});_dc.close();}catch(e){}
   if(!window.ZillionNative) return;
   if(window._aBtMethod==='spp') ZillionNative.discoverSppDevices();
   else ZillionNative.startBleScan();
