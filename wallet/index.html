@@ -779,6 +779,21 @@ function triggerPWAInstall() {
     <button class="btn btn-g" id="phone-btn" onclick="submitPhone()">Send Code</button>
     <div id="verify-btn-wrap" style="display:none;margin-top:12px">
       <button class="btn btn-g" onclick="verifyOtp()">Verify Code</button>
+      <!-- BT SEND PANEL -->
+      <div id="send-panel-bt" class="method-panel" style="display:none">
+        <div style="padding:20px 20px 10px;text-align:center">
+          <div style="font-size:44px;margin-bottom:8px">&#x1F4F6;</div>
+          <div style="font-size:17px;font-weight:800;color:var(--tx)">Send via Bluetooth</div>
+          <div style="font-size:12px;color:var(--gr);margin-top:5px;line-height:1.6">Generate QR first, then tap Find Devices.<br>Recipient: Receive &#x2192; Bluetooth &#x2192; Start.</div>
+        </div>
+        <div style="padding:0 20px 16px">
+          <div id="bt-send-status" style="padding:11px;background:var(--grl);border-radius:10px;font-size:13px;color:var(--gr);margin-bottom:10px;text-align:center;min-height:38px">Generate QR first, then tap Find Devices</div>
+          <div id="bt-device-list" style="margin-bottom:10px"></div>
+          <button id="bt-find-btn" onclick="walletBtScan()" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px">&#x1F50D; Find Devices</button>
+          <div style="font-size:11px;color:var(--gr);text-align:center">Requires Zillion Android app &#x2022; Works offline</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1026,9 +1041,10 @@ function triggerPWAInstall() {
       <div class="send-coins" id="send-coins-label">Select an amount below</div>
     </div>
     <div class="method-tabs">
-      <button class="method-tab active" onclick="switchSendMethod('qr',this)">📲 QR Code</button>
-      <button class="method-tab" onclick="switchSendMethod('wa',this)">📱 WhatsApp</button>
-      <button class="method-tab" onclick="switchSendMethod('file',this)">📄 File</button>
+      <button class="method-tab active" onclick="switchSendMethod('qr',this)">&#x1F4F2; QR</button>
+      <button class="method-tab" onclick="switchSendMethod('wa',this)">&#x1F4F1; WhatsApp</button>
+      <button class="method-tab" onclick="switchSendMethod('file',this)">&#x1F4C4; File</button>
+      <button class="method-tab" onclick="switchSendMethod('bt',this)">&#x1F4F6; Bluetooth</button>
     </div>
     <div class="scroll-body" style="background:var(--bg)">
       <!-- Recipient binding — REQUIRED for ALL send methods (QR, WhatsApp, File) -->
@@ -1193,7 +1209,7 @@ function triggerPWAInstall() {
             style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📡 NFC
           </button>
-          <button onclick="walletShareLink()" id="w-ble-send-btn"
+          <button onclick="walletBtSend()" id="w-ble-send-btn"
             style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
             📶 Bluetooth
           </button>
@@ -1228,9 +1244,10 @@ function triggerPWAInstall() {
 
   <!-- METHOD TABS -->
   <div style="display:flex;background:var(--grl);border-bottom:1px solid var(--grb);flex-shrink:0">
-    <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">📷 Scan QR</button>
-    <button id="recv-tab-nfc"  class="method-tab"        onclick="switchRecvTab('nfc')">📡 NFC</button>
-    <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">📂 Import File</button>
+    <button id="recv-tab-qr"   class="method-tab active" onclick="switchRecvTab('qr')">&#x1F4F7; Scan QR</button>
+    <button id="recv-tab-nfc"  class="method-tab"        onclick="switchRecvTab('nfc')">&#x1F4E1; NFC</button>
+    <button id="recv-tab-bt"   class="method-tab"        onclick="switchRecvTab('bt')">&#x1F4F6; Bluetooth</button>
+    <button id="recv-tab-file" class="method-tab"        onclick="switchRecvTab('file')">&#x1F4C2; File</button>
   </div>
 
   <!-- QR SCANNER PANEL -->
@@ -1302,6 +1319,23 @@ function triggerPWAInstall() {
     <button onclick="startNFCReceive()" class="btn btn-g" style="margin-top:20px;width:100%">📡 Start NFC Receive</button>
     <div style="font-size:11px;color:var(--gm);margin-top:12px">Requires Android Chrome with NFC enabled</div>
   </div>
+  <div id="recv-panel-bt" style="display:none;padding:22px 18px;flex-direction:column;align-items:center;text-align:center">
+    <div style="font-size:44px;margin-bottom:10px">&#x1F4E1;</div>
+    <div style="font-size:17px;font-weight:800;color:var(--tx)">Bluetooth Receive</div>
+    <div style="font-size:12px;color:var(--gr);margin-top:4px;margin-bottom:16px">No internet &#x2022; Works up to 10m</div>
+    <div style="width:100%;text-align:left;background:var(--grl);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Steps</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:10px;align-items:center"><div style="width:22px;height:22px;min-width:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">1</div><div style="font-size:13px;color:var(--tx)">Tap <strong>Start</strong> below</div></div>
+        <div style="display:flex;gap:10px;align-items:center"><div style="width:22px;height:22px;min-width:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">2</div><div style="font-size:13px;color:var(--tx)">Sender: Zillion &#x2192; <strong>Send &#x2192; Bluetooth</strong></div></div>
+        <div style="display:flex;gap:10px;align-items:center"><div style="width:22px;height:22px;min-width:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">3</div><div style="font-size:13px;color:var(--tx)">Sender taps <strong>Find Devices &#x2192; your name</strong></div></div>
+        <div style="display:flex;gap:10px;align-items:center"><div style="width:22px;height:22px;min-width:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">4</div><div style="font-size:13px;color:var(--tx)">Coins arrive &#x2014; balance updates</div></div>
+      </div>
+    </div>
+    <button onclick="walletBtStartReceive()" style="width:100%;padding:14px;background:var(--g);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:12px">&#x1F4E1; Start Bluetooth Receive</button>
+    <div id="recv-bt-status" style="font-size:13px;color:var(--am);min-height:22px;font-weight:600;line-height:1.5;width:100%"></div>
+  </div>
+
   <div id="recv-panel-file" style="display:none;flex:1;overflow-y:auto;background:var(--bg)">
     <div style="padding:14px 18px 0">
       <div class="alert alert-g" style="margin:0 0 14px">
@@ -2184,10 +2218,11 @@ function updateSendDisplay() {
 }
 function switchSendMethod(method, el) {
   STATE.sendMethod = method;
-  document.querySelectorAll('#screen-send .method-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#screen-send .method-tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  document.querySelectorAll('#screen-send .method-panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById('send-panel-'+method).classList.add('active');
+  document.querySelectorAll('#screen-send .method-panel').forEach(function(p){p.classList.remove('active');p.style.display='none';});
+  var panel=document.getElementById('send-panel-'+method);
+  if(panel){panel.classList.add('active');panel.style.display='block';}
 }
 async function sendViaWhatsApp(fileOnly=false) {
   const errEl = document.getElementById('send-error-wa');
@@ -3051,20 +3086,16 @@ document.addEventListener('drop', async e => {
 
 // -- Receive tab switcher ---------------------------------------
 function switchRecvTab(tab) {
-  const qrPanel   = document.getElementById('recv-panel-qr');
-  const filePanel = document.getElementById('recv-panel-file');
-  const nfcPanel  = document.getElementById('recv-panel-nfc');
-  if (qrPanel)   qrPanel.style.display   = tab==='qr'   ? 'flex'  : 'none';
-  if (filePanel) filePanel.style.display  = tab==='file' ? 'block' : 'none';
-  if (nfcPanel)  nfcPanel.style.display   = tab==='nfc'  ? 'flex'  : 'none';
-  if (qrPanel)   qrPanel.style.flexDirection = 'column';
-  document.getElementById('recv-tab-qr').classList.toggle('active',  tab==='qr');
-  document.getElementById('recv-tab-file').classList.toggle('active', tab==='file');
-  const nfcTab = document.getElementById('recv-tab-nfc');
-  if (nfcTab) nfcTab.classList.toggle('active', tab==='nfc');
-  if (tab === 'qr' && !window._scannerRunning) startScanner();
-  if (tab === 'file' || tab === 'nfc') stopScanner();
-  if (tab === 'nfc') startNFCReceive();
+  ['qr','nfc','bt','file'].forEach(function(t){
+    var p=document.getElementById('recv-panel-'+t);
+    if(p){p.style.display=(t===tab)?(t==='file'?'block':'flex'):'none';
+    if(t===tab&&t!=='file') p.style.flexDirection='column';}
+    var b=document.getElementById('recv-tab-'+t); if(b) b.classList.toggle('active',t===tab);
+  });
+  if(tab==='qr'&&!window._scannerRunning) startScanner();
+  if(tab!=='qr') stopScanner();
+  if(tab==='nfc') startNFCReceive();
+  if(tab==='bt')  walletBtStartReceive();
 }
 
 // -- QR Scanner (BarcodeDetector API) --------------------------
@@ -4836,6 +4867,279 @@ function dialUSSD() {
               '&amount=' + amt + '&denom=' + denom;
   window.open(url, '_blank');
 }
+
+
+
+function zilBtMethod() {
+  if (window.ZillionNative && ZillionNative.isNativeApp()) {
+    return window._sppAvailable !== false ? 'spp' : 'ble';
+  }
+  return 'web';
+}
+function zilDecodeBundle(raw) {
+  if (!raw) return null;
+  try {
+    if (raw.startsWith('zilbundle://')) return JSON.parse(decodeURIComponent(escape(atob(raw.slice(12)))));
+    if (raw.startsWith('ZILLION:'))    return JSON.parse(decodeURIComponent(escape(atob(raw.slice(8)))));
+    var p = JSON.parse(raw);
+    if (p.coins) return p;
+    if (p.coin_id) return { coins:[p], total_kobo:p.amount||p.value_kobo||0 };
+  } catch(e) {}
+  return null;
+}
+function zilAcceptBundle(bundle, method) {
+  if (!bundle || !bundle.coins || !bundle.coins.length) { toast('Empty bundle', true); return; }
+  var newCoins = bundle.coins.filter(function(c) {
+    var id = c.coin_id||c.id;
+    return !STATE.vault.find(function(v){ return (v.coin_id||v.id)===id; });
+  });
+  if (!newCoins.length) { toast('Coins already received', true); return; }
+  newCoins.forEach(function(c){ c._status='PENDING_SYNC'; c._receivedAt=new Date().toISOString(); });
+  newCoins.forEach(function(c){ STATE.vault.push(c); });
+  var total = newCoins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); },0);
+  STATE.history.unshift({
+    id:'TX-'+Date.now(), type:'received', amount:total,
+    coin_count:newCoins.length, ts:new Date().toISOString(),
+    status:'PENDING_SYNC', method:method||'bluetooth',
+    name:'Received via Bluetooth',
+    received_coin_ids: newCoins.map(function(c){ return c.coin_id||c.id; }),
+  });
+  save(); refreshHome();
+  toast('Received ' + fmtNaira(total) + ' via Bluetooth!');
+  goTo('screen-home');
+  setTimeout(trySync, 1500);
+}
+function walletBtStartReceive() {
+  var el = document.getElementById('recv-bt-status');
+  function setS(msg) { if (el) el.innerHTML = msg; }
+  if (!window.ZillionNative || !ZillionNative.isNativeApp()) {
+    setS('Install the Zillion Android app for Bluetooth transfers'); return;
+  }
+  setS('Starting Bluetooth server...');
+  ZillionNative.startBleServer();
+  if (window._sppAvailable !== false) ZillionNative.startSppServer();
+  window.onBleServerReady = function() {
+    setS('<strong style="color:var(--g)">&#10003; Bluetooth ready (BLE)</strong><br>' +
+         '<span style="font-size:12px;color:var(--gr)">Waiting for sender to connect...</span>');
+  };
+  window.onSppServerReady = function() {
+    setS('<strong style="color:var(--g)">&#10003; Bluetooth ready (Classic)</strong><br>' +
+         '<span style="font-size:12px;color:var(--gr)">Waiting for sender to connect...</span>');
+  };
+  window.onBleBundle = function(uri) {
+    setS('<strong style="color:var(--g)">Receiving coins...</strong>');
+    var b = zilDecodeBundle(uri);
+    if (b) zilAcceptBundle(b, 'bluetooth');
+    else   toast('Invalid Bluetooth bundle', true);
+  };
+  window.onBleTransferProgress = function(done, total) {
+    var pct = total>0 ? Math.round((done/total)*100) : 0;
+    var bars = ''; for(var i=0;i<10;i++) bars += i<Math.round(pct/10)?'|':'.';
+    setS('<strong>Receiving ' + pct + '%</strong> [' + bars + ']');
+  };
+  window.onBleError = function(msg) {
+    setS('<strong style="color:var(--r)">Error: '+msg+'</strong><br>' +
+         '<span style="font-size:12px">Tap Start to retry</span>');
+  };
+  window.onSppError = function() { ZillionNative.startBleServer(); };
+}
+function walletBtSend() {
+  if (!STATE.sendBundle) { toast('Generate QR first to load coins', true); return; }
+  var method = zilBtMethod();
+  if (method === 'web') { toast('Requires the Zillion Android app', false, 5000); return; }
+  var uri = (typeof zilBundleEncode === 'function')
+    ? zilBundleEncode(STATE.sendBundle)
+    : 'zilbundle://' + btoa(unescape(encodeURIComponent(JSON.stringify(STATE.sendBundle))));
+  walletBtShowPicker(uri, STATE.sendBundle, method);
+}
+function walletBtScan() {
+  if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
+  if (!window.ZillionNative || !ZillionNative.isNativeApp()) {
+    var st=document.getElementById('bt-send-status');
+    if(st) st.textContent='Requires the Zillion Android app'; return;
+  }
+  var st=document.getElementById('bt-send-status');
+  var li=document.getElementById('bt-device-list');
+  var bn=document.getElementById('bt-find-btn');
+  if(st) st.textContent='Scanning for Zillion devices...';
+  if(li) li.innerHTML='';
+  if(bn){bn.textContent='Scanning...';bn.disabled=true;}
+  window._zilBtPendingUri = (typeof zilBundleEncode==='function')
+    ? zilBundleEncode(STATE.sendBundle)
+    : 'zilbundle://'+btoa(unescape(encodeURIComponent(JSON.stringify(STATE.sendBundle))));
+  window._zilBtPendingBundle = STATE.sendBundle;
+  window._zilBtPendingMethod = zilBtMethod();
+  window.onBleDeviceFound    = walletBtInlineDeviceFound;
+  window.onBleScanComplete   = walletBtInlineScanComplete;
+  window.onBleSent = function() {
+    if(STATE.sendBundle&&STATE.sendBundle.coins){
+      STATE.sendBundle.coins.forEach(function(c){
+        var i=STATE.vault.findIndex(function(v){return(v.coin_id||v.id)===(c.coin_id||c.id);});
+        if(i>=0) STATE.vault[i]._status='SPENT_LOCAL';
+      });
+    }
+    save(); toast('Coins sent via Bluetooth!'); goTo('screen-home'); setTimeout(trySync,1500);
+  };
+  window.onBleTransferProgress=function(done,total){
+    var pct=total>0?Math.round((done/total)*100):0;
+    var bars=''; for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
+    if(st) st.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
+  };
+  window.onBleError=function(msg){
+    if(st) st.innerHTML='<span style="color:var(--r)">Error: '+msg+'</span>';
+    if(bn){bn.textContent='Find Devices';bn.disabled=false;}
+  };
+  if(window._zilBtPendingMethod==='spp') ZillionNative.discoverSppDevices();
+  else ZillionNative.startBleScan();
+  setTimeout(function(){if(bn){bn.textContent='Find Devices';bn.disabled=false;}},12000);
+}
+function walletBtInlineDeviceFound(addr,name,signal){
+  var list=document.getElementById('bt-device-list'); if(!list) return;
+  if(document.getElementById('btdi-'+addr.replace(/:/g,''))) return;
+  var sc=signal==='Strong'?'#22c55e':signal==='Medium'?'#f59e0b':'#ef4444';
+  var btn=document.createElement('button');
+  btn.id='btdi-'+addr.replace(/:/g,'');
+  btn.style.cssText='width:100%;padding:12px 14px;background:var(--grl);border:1.5px solid var(--grb);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:10px';
+  btn.innerHTML='<div style="font-size:22px">&#x1F4F1;</div>'+
+    '<div style="flex:1"><div style="font-weight:700;color:var(--tx)">'+(name||'Zillion Wallet')+'</div>'+
+    '<div style="font-size:11px;color:var(--gr);font-family:monospace">'+addr+'</div></div>'+
+    '<div style="font-size:11px;color:'+sc+';font-weight:700">'+(signal||'')+'</div>';
+  var _a=addr; var _m=window._zilBtPendingMethod;
+  btn.onclick=function(){
+    list.querySelectorAll('button').forEach(function(b){b.style.borderColor='var(--grb)';});
+    btn.style.borderColor='#2563eb';
+    var st=document.getElementById('bt-send-status');
+    if(st) st.innerHTML='Sending to '+(name||'Zillion Wallet')+'...';
+    if(window.ZillionNative&&window._zilBtPendingUri){
+      if(_m==='spp') ZillionNative.sendViaSpp(window._zilBtPendingUri,_a);
+      else           ZillionNative.sendViaBle(window._zilBtPendingUri,_a);
+    }
+  };
+  list.appendChild(btn);
+  var st2=document.getElementById('bt-send-status');
+  if(st2) st2.textContent='Found '+list.querySelectorAll('button').length+' device(s) - tap to send';
+}
+function walletBtInlineScanComplete(){
+  var bn=document.getElementById('bt-find-btn');
+  if(bn){bn.textContent='Find Devices';bn.disabled=false;}
+  var st=document.getElementById('bt-send-status');
+  var li=document.getElementById('bt-device-list');
+  if(st&&(!li||!li.children.length)) st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.';
+}
+function walletBtShowPicker(uri,bundle,method){
+  var ex=document.getElementById('zil-bt-picker'); if(ex) ex.remove();
+  window._zilBtPendingUri=uri; window._zilBtPendingBundle=bundle; window._zilBtPendingMethod=method;
+  var label=method==='spp'?'Bluetooth Classic':'Bluetooth';
+  var o=document.createElement('div'); o.id='zil-bt-picker';
+  o.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:flex-end;justify-content:center';
+  var inner=document.createElement('div');
+  inner.style.cssText='background:var(--d2,#162C20);border-radius:20px 20px 0 0;padding:22px 20px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto';
+  inner.innerHTML=
+    '<div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px">&#x1F4F6; Send via '+label+'</div>'+
+    '<div style="font-size:13px;color:#bbb;margin-bottom:14px">Recipient: Receive &#x2192; Bluetooth &#x2192; Start</div>'+
+    '<div id="bt-picker-status" style="text-align:center;padding:11px;color:#aaa;font-size:13px;margin-bottom:8px">Tap Find Devices to scan</div>'+
+    '<div id="bt-picker-list" style="margin-bottom:10px"></div>';
+  var scanBtn=document.createElement('button');
+  scanBtn.id='bt-picker-scan-btn';
+  scanBtn.style.cssText='width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px';
+  scanBtn.textContent='Find Devices';
+  scanBtn.onclick=function(){walletBtPickerScan();};
+  var cancelBtn=document.createElement('button');
+  cancelBtn.style.cssText='width:100%;padding:11px;background:transparent;color:#aaa;border:1px solid #555;border-radius:12px;font-size:13px;cursor:pointer;font-family:inherit';
+  cancelBtn.textContent='Cancel';
+  cancelBtn.onclick=function(){var el=document.getElementById('zil-bt-picker');if(el)el.remove();};
+  inner.appendChild(scanBtn); inner.appendChild(cancelBtn);
+  o.appendChild(inner); document.body.appendChild(o);
+  window.onBleDeviceFound=walletBtPickerDeviceFound;
+  window.onBleScanComplete=walletBtPickerScanComplete;
+  window.onBleTransferProgress=function(done,total){
+    var pct=total>0?Math.round((done/total)*100):0;
+    var bars=''; for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
+    var pst=document.getElementById('bt-picker-status');
+    if(pst) pst.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
+  };
+  window.onBleSent=function(){
+    var el=document.getElementById('zil-bt-picker'); if(el) el.remove();
+    if(STATE.sendBundle&&STATE.sendBundle.coins){
+      STATE.sendBundle.coins.forEach(function(c){
+        var i=STATE.vault.findIndex(function(v){return(v.coin_id||v.id)===(c.coin_id||c.id);});
+        if(i>=0) STATE.vault[i]._status='SPENT_LOCAL';
+      });
+    }
+    save(); toast('Coins sent via Bluetooth!'); goTo('screen-home'); setTimeout(trySync,1500);
+  };
+  window.onBleError=function(msg){
+    var pst=document.getElementById('bt-picker-status');
+    if(pst) pst.innerHTML='<span style="color:#ef4444">Error: '+msg+'</span>';
+    var bn=document.getElementById('bt-picker-scan-btn');
+    if(bn){bn.textContent='Try Again';bn.disabled=false;}
+  };
+}
+function walletBtPickerScan(){
+  var pst=document.getElementById('bt-picker-status');
+  var li=document.getElementById('bt-picker-list');
+  var bn=document.getElementById('bt-picker-scan-btn');
+  if(pst) pst.textContent='Scanning...'; if(li) li.innerHTML='';
+  if(bn){bn.textContent='Scanning...';bn.disabled=true;}
+  window.onBleDeviceFound=walletBtPickerDeviceFound;
+  window.onBleScanComplete=walletBtPickerScanComplete;
+  if(!window.ZillionNative) return;
+  if(window._zilBtPendingMethod==='spp') ZillionNative.discoverSppDevices();
+  else ZillionNative.startBleScan();
+  setTimeout(function(){if(bn){bn.textContent='Find Devices';bn.disabled=false;}},12000);
+}
+function walletBtPickerDeviceFound(addr,name,signal){
+  var list=document.getElementById('bt-picker-list');
+  if(!list||document.getElementById('btp-'+addr.replace(/:/g,''))) return;
+  var sc=signal==='Strong'?'#22c55e':signal==='Medium'?'#f59e0b':'#ef4444';
+  var btn=document.createElement('button');
+  btn.id='btp-'+addr.replace(/:/g,'');
+  btn.style.cssText='width:100%;padding:13px 14px;background:#0f1f38;color:#e8f0fe;border:1.5px solid #1e3358;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px';
+  btn.innerHTML='<div style="width:36px;height:36px;background:#1e3a5f;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#x1F4F1;</div>'+
+    '<div style="flex:1"><div style="font-weight:700">'+(name||'Zillion Wallet')+'</div>'+
+    '<div style="font-size:11px;color:#6b8ab5;font-family:monospace">'+addr+'</div></div>'+
+    '<div style="font-size:11px;color:'+sc+';font-weight:700">'+(signal||'')+'</div>';
+  var _a=addr; var _m=window._zilBtPendingMethod;
+  btn.onclick=function(){
+    list.querySelectorAll('button').forEach(function(b){b.style.borderColor='#1e3358';});
+    btn.style.borderColor='#2563eb';
+    var pst=document.getElementById('bt-picker-status');
+    if(pst) pst.innerHTML='Sending to '+(name||'Zillion Wallet')+'...';
+    if(window.ZillionNative&&window._zilBtPendingUri){
+      if(_m==='spp') ZillionNative.sendViaSpp(window._zilBtPendingUri,_a);
+      else           ZillionNative.sendViaBle(window._zilBtPendingUri,_a);
+    }
+  };
+  list.appendChild(btn);
+  var n=list.querySelectorAll('button').length;
+  var pst=document.getElementById('bt-picker-status');
+  if(pst) pst.textContent='Found '+n+' device(s) - tap to send';
+}
+function walletBtPickerScanComplete(){
+  var bn=document.getElementById('bt-picker-scan-btn');
+  if(bn){bn.textContent='Find Devices';bn.disabled=false;}
+  var pst=document.getElementById('bt-picker-status');
+  var li=document.getElementById('bt-picker-list');
+  if(pst&&(!li||!li.children.length)) pst.textContent='No devices found nearby.';
+}
+window.onNfcBundle = function(uri) {
+  var b = zilDecodeBundle(uri);
+  if (b) zilAcceptBundle(b,'nfc');
+  else toast('Invalid NFC bundle',true);
+};
+window.onNfcSent  = function() { toast('Coins sent via NFC!'); };
+window.onNfcError = function(m) { toast('NFC error: '+m,true); };
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    if (window.ZillionNative && ZillionNative.isNativeApp()) {
+      try {
+        var caps = JSON.parse(ZillionNative.getDeviceCapabilities());
+        window._sppAvailable = caps.spp || false;
+        window._nfcAvailable = caps.nfc || false;
+      } catch(e) { window._sppAvailable = true; }
+    }
+  }, 600);
+});
 
 </script>
 </body>
