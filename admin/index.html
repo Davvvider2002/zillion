@@ -601,6 +601,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('system',this)">
         <span class="si">⚙️</span> System
       </button>
+      <button class="snav-item" id="nav-btdiag"
+              onclick="showSec('btdiag',this);btDiagInit()">
+        <span class="si">&#x1F4F6;</span> BT Diagnostics
+      </button>
     </div>
 
     <div class="sb-footer">
@@ -1602,12 +1606,114 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+  <!-- BT DIAGNOSTICS SECTION -->
+  <div id="sec-btdiag" class="sec" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700;margin:0">&#x1F4F6; Bluetooth Transfer Diagnostics</h2>
+        <p style="font-size:13px;color:var(--gr);margin:4px 0 0">Real-time SPP/BLE discovery and transfer event monitor</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="btDiagClear()" style="padding:8px 14px;background:var(--gl);border:1px solid var(--grb);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit">Clear Log</button>
+        <button onclick="btDiagExport()" style="padding:8px 14px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Export CSV</button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+      <div style="background:var(--w);border-radius:10px;padding:14px;border:1px solid var(--grb)">
+        <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Sessions</div>
+        <div id="btd-stat-sessions" style="font-size:24px;font-weight:700;color:var(--tx);margin-top:4px">0</div>
+        <div style="font-size:11px;color:var(--gr)">total scans</div>
+      </div>
+      <div style="background:var(--w);border-radius:10px;padding:14px;border:1px solid var(--grb)">
+        <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Devices Found</div>
+        <div id="btd-stat-found" style="font-size:24px;font-weight:700;color:#1D4ED8;margin-top:4px">0</div>
+        <div style="font-size:11px;color:var(--gr)">unique MACs</div>
+      </div>
+      <div style="background:var(--w);border-radius:10px;padding:14px;border:1px solid var(--grb)">
+        <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Transfers OK</div>
+        <div id="btd-stat-ok" style="font-size:24px;font-weight:700;color:var(--g);margin-top:4px">0</div>
+        <div style="font-size:11px;color:var(--gr)">successful</div>
+      </div>
+      <div style="background:var(--w);border-radius:10px;padding:14px;border:1px solid var(--grb)">
+        <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Errors</div>
+        <div id="btd-stat-errors" style="font-size:24px;font-weight:700;color:var(--r);margin-top:4px">0</div>
+        <div style="font-size:11px;color:var(--gr)">recorded</div>
+      </div>
+      <div style="background:var(--w);border-radius:10px;padding:14px;border:1px solid var(--grb)">
+        <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Last Method</div>
+        <div id="btd-stat-method" style="font-size:16px;font-weight:700;color:var(--am);margin-top:4px">&#x2014;</div>
+        <div style="font-size:11px;color:var(--gr)">SPP or BLE</div>
+      </div>
+      <div style="background:var(--w);border-radius:10px;padding:14px;border:1px solid var(--grb)">
+        <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.05em">Live Status</div>
+        <div id="btd-stat-live" style="font-size:14px;font-weight:700;color:var(--g);margin-top:4px">Waiting</div>
+        <div style="font-size:11px;color:var(--gr)">current state</div>
+      </div>
+    </div>
+
+    <!-- Simulation -->
+    <div style="background:var(--w);border-radius:10px;border:1px solid var(--grb);padding:16px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px">&#x1F9EA; Simulate BT Events — test diagnostic display without real devices</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button onclick="btDiagSimulate('scan_start')"        style="padding:7px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#1D4ED8">&#x25B6; Start Scan</button>
+        <button onclick="btDiagSimulate('device_found')"      style="padding:7px 12px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#15803D">&#x1F4F1; Device Found</button>
+        <button onclick="btDiagSimulate('no_devices')"        style="padding:7px 12px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#C2410C">&#x274C; No Devices</button>
+        <button onclick="btDiagSimulate('connect_attempt')"   style="padding:7px 12px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#6D28D9">&#x1F50C; Connect</button>
+        <button onclick="btDiagSimulate('transfer_progress')" style="padding:7px 12px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#065F46">&#x1F4E4; Transfer</button>
+        <button onclick="btDiagSimulate('transfer_ok')"       style="padding:7px 12px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#166534">&#x2705; Success</button>
+        <button onclick="btDiagSimulate('error')"             style="padding:7px 12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#DC2626">&#x26A0; Error</button>
+        <button onclick="btDiagSimulate('spp_unavailable')"   style="padding:7px 12px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#6B7280">SPP Fail</button>
+        <button onclick="btDiagSimulate('ble_fallback')"      style="padding:7px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#1D4ED8">BLE Fallback</button>
+        <button onclick="btDiagSimulate('mtu_negotiated')"    style="padding:7px 12px;background:#FEFCE8;border:1px solid #FEF08A;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:#854D0E">MTU Nego</button>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:12px;color:var(--gr);font-weight:600">Filter:</span>
+      <button onclick="btDiagFilter('all',this)"       class="btd-filter active-filter" style="padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--g);color:#fff;border:none">All</button>
+      <button onclick="btDiagFilter('error',this)"     class="btd-filter" style="padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--gl);border:1px solid var(--grb);color:var(--tx)">Errors Only</button>
+      <button onclick="btDiagFilter('discovery',this)" class="btd-filter" style="padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--gl);border:1px solid var(--grb);color:var(--tx)">Discovery</button>
+      <button onclick="btDiagFilter('transfer',this)"  class="btd-filter" style="padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--gl);border:1px solid var(--grb);color:var(--tx)">Transfers</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <div id="btd-live-dot" style="width:8px;height:8px;border-radius:50%;background:#6B7280;flex-shrink:0"></div>
+        <span id="btd-live-label" style="font-size:12px;color:var(--gr)">No active session</span>
+      </div>
+    </div>
+
+    <!-- Log table -->
+    <div style="background:var(--w);border-radius:10px;border:1px solid var(--grb);overflow:hidden;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:80px 80px 70px 140px 1fr 150px;background:#F9FAFB;border-bottom:1px solid var(--grb);padding:9px 14px;font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.04em;gap:4px">
+        <div>Time</div><div>App</div><div>Method</div><div>Event</div><div>Detail</div><div>Device/Error</div>
+      </div>
+      <div id="btd-log" style="max-height:460px;overflow-y:auto">
+        <div id="btd-empty" style="padding:40px;text-align:center;color:var(--gr);font-size:13px">
+          &#x1F4F6; No Bluetooth events logged yet.<br>
+          <span style="font-size:12px;line-height:1.8">
+            Open this admin panel and the wallet in the same browser to receive live events.<br>
+            Or use the simulation buttons above to test the diagnostic display.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-diagnosis -->
+    <div id="btd-diagnosis" style="display:none;background:var(--w);border-radius:10px;border:1px solid var(--grb);padding:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">&#x1F50D; Auto-Diagnosis</div>
+      <div id="btd-diagnosis-content"></div>
+    </div>
+  </div>
+  <!-- /BT DIAGNOSTICS -->
+
   </div>
 
 </div>
 </div>
 
-<div id="create-user-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)closeCreateUserModal()">
+<div id="create-user-overlay"
+ style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)closeCreateUserModal()">
   <div style="background:var(--w);border-radius:14px;padding:28px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
       <h3 style="font-size:16px;font-weight:800">Create Admin User</h3>
@@ -4291,6 +4397,210 @@ async function executeCoinFreeze() {
     loadFraud();
   } catch(e) { if(msg) { msg.textContent=e.message; msg.style.color='var(--r)'; } }
 }
+
+
+
+// ════════════════════════════════════════════════════════════════
+// BT DIAGNOSTICS ENGINE
+// ════════════════════════════════════════════════════════════════
+var _btdLog = [], _btdFilter = 'all', _btdChannel = null;
+var _btdStats = { sessions:0, found:new Set(), ok:0, errors:0 };
+
+function btDiagInit() {
+  if (!_btdChannel) {
+    try {
+      _btdChannel = new BroadcastChannel('zillion_bt_diag');
+      _btdChannel.onmessage = function(e) { btDiagReceive(e.data); };
+      btDiagLog('system','system','channel_open','Listening for BT events from wallet/merchant/agent tabs','','INFO');
+    } catch(ex) {
+      btDiagLog('system','system','channel_error','BroadcastChannel not supported','','WARN');
+    }
+  }
+  btDiagRender();
+}
+
+function btDiagReceive(d) {
+  if (!d || !d.event) return;
+  btDiagLog(d.app||'wallet', d.method||'?', d.event, d.detail||'', d.device||d.error||d.extra||'', d.level||'INFO');
+}
+
+function btDiagLog(app, method, event, detail, extra, level) {
+  var now = new Date();
+  var entry = { ts:now.toISOString(), time:now.toTimeString().slice(0,8),
+    app:app, method:method, event:event, detail:detail, extra:extra||'', level:level||'INFO' };
+  _btdLog.unshift(entry);
+  if (_btdLog.length > 500) _btdLog.pop();
+  if (event==='scan_start') _btdStats.sessions++;
+  if (event==='device_found') _btdStats.found.add(extra||detail);
+  if (event==='transfer_ok') _btdStats.ok++;
+  if (level==='ERROR'||event==='error') _btdStats.errors++;
+  btDiagUpdateStats(entry);
+  btDiagRender();
+  btDiagAutodiagnose();
+}
+
+function btDiagUpdateStats(last) {
+  function se(id,val){ var e=document.getElementById(id); if(e) e.textContent=val; }
+  function sc(id,c){ var e=document.getElementById(id); if(e) e.style.color=c; }
+  se('btd-stat-sessions', _btdStats.sessions);
+  se('btd-stat-found',    _btdStats.found.size);
+  se('btd-stat-ok',       _btdStats.ok);
+  se('btd-stat-errors',   _btdStats.errors);
+  se('btd-stat-method',   last.method.toUpperCase());
+  var liveMap = {
+    scan_start:       ['Scanning...',    '#2563EB','#2563EB'],
+    device_found:     ['Device found',   '#059669','#10B981'],
+    no_devices:       ['No devices',     '#D97706','#F59E0B'],
+    connect_attempt:  ['Connecting...',  '#7C3AED','#8B5CF6'],
+    transfer_progress:['Transferring...',  '#0891B2','#06B6D4'],
+    transfer_ok:      ['Transfer OK',    '#059669','#10B981'],
+    error:            ['Error',          '#DC2626','#EF4444'],
+    channel_open:     ['Listening',      '#059669','#10B981'],
+    spp_unavailable:  ['SPP Failed',     '#D97706','#F59E0B'],
+    ble_fallback:     ['BLE Fallback',   '#1D4ED8','#3B82F6'],
+  };
+  var info = liveMap[last.event] || [last.event, '#6B7280','#6B7280'];
+  se('btd-stat-live', info[0]); sc('btd-stat-live', info[1]);
+  se('btd-live-label', info[0]);
+  var dot=document.getElementById('btd-live-dot'); if(dot) dot.style.background=info[2];
+}
+
+function btDiagRender() {
+  var logEl = document.getElementById('btd-log');
+  var emptyEl = document.getElementById('btd-empty');
+  if (!logEl) return;
+  var filtered = _btdFilter==='all' ? _btdLog : _btdLog.filter(function(e){
+    if (_btdFilter==='error')     return e.level==='ERROR'||e.event==='error'||e.event==='no_devices';
+    if (_btdFilter==='discovery') return ['scan_start','device_found','no_devices','scan_complete'].indexOf(e.event)>=0;
+    if (_btdFilter==='transfer')  return ['connect_attempt','transfer_progress','transfer_ok','error','mtu_negotiated'].indexOf(e.event)>=0;
+    return true;
+  });
+  if (emptyEl) emptyEl.style.display = filtered.length ? 'none' : 'block';
+  var lc={'INFO':'#1D4ED8','WARN':'#D97706','ERROR':'#DC2626','OK':'#059669','DEBUG':'#6B7280'};
+  var ic={scan_start:'&#x25B6;',device_found:'&#x1F4F1;',no_devices:'&#x274C;',
+    connect_attempt:'&#x1F50C;',transfer_progress:'&#x1F4E4;',transfer_ok:'&#x2705;',
+    error:'&#x26A0;',channel_open:'&#x1F4E1;',spp_unavailable:'&#x1F534;',
+    ble_fallback:'&#x1F535;',mtu_negotiated:'&#x1F4CF;'};
+  logEl.innerHTML = (emptyEl?emptyEl.outerHTML:'') + filtered.slice(0,150).map(function(e){
+    var bg=e.level==='ERROR'?'#FEF2F2':e.level==='WARN'?'#FFFBEB':e.event==='transfer_ok'?'#F0FDF4':'#fff';
+    var icon=ic[e.event]||'&#x25CF;';
+    var color=lc[e.level]||'#374151';
+    var aBg=e.app==='wallet'?'#EFF6FF':e.app==='merchant'?'#F0FDF4':e.app==='agent'?'#FDF4FF':'#F9FAFB';
+    var aCl=e.app==='wallet'?'#1D4ED8':e.app==='merchant'?'#166534':e.app==='agent'?'#6B21A8':'#374151';
+    return '<div style="display:grid;grid-template-columns:80px 80px 70px 140px 1fr 150px;padding:8px 14px;border-bottom:1px solid var(--grb);background:'+bg+';font-size:12px;align-items:center;gap:4px">'
+      +'<div style="color:#6B7280;font-size:11px;font-family:monospace">'+e.time+'</div>'
+      +'<div><span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;background:'+aBg+';color:'+aCl+'">'+e.app+'</span></div>'
+      +'<div style="font-size:11px;font-weight:600;color:#6B7280">'+e.method.toUpperCase()+'</div>'
+      +'<div style="display:flex;align-items:center;gap:4px"><span>'+icon+'</span><span style="color:'+color+';font-weight:600;font-size:11px">'+e.event+'</span></div>'
+      +'<div style="color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+e.detail.replace(/"/g,'&quot;')+'">'+e.detail+'</div>'
+      +'<div style="color:#6B7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px" title="'+(e.extra||'').replace(/"/g,'&quot;')+'">'+e.extra+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function btDiagFilter(f, btn) {
+  _btdFilter = f;
+  document.querySelectorAll('.btd-filter').forEach(function(b){
+    b.style.background='var(--gl)'; b.style.color='var(--tx)'; b.style.border='1px solid var(--grb)';
+  });
+  if (btn) { btn.style.background='var(--g)'; btn.style.color='#fff'; btn.style.border='none'; }
+  btDiagRender();
+}
+
+function btDiagClear() {
+  _btdLog=[]; _btdStats={sessions:0,found:new Set(),ok:0,errors:0};
+  ['btd-stat-sessions','btd-stat-found','btd-stat-ok','btd-stat-errors'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent='0';
+  });
+  var el=document.getElementById('btd-stat-live'); if(el){el.textContent='Waiting';el.style.color='var(--g)';}
+  var el2=document.getElementById('btd-live-label'); if(el2) el2.textContent='No active session';
+  var diag=document.getElementById('btd-diagnosis'); if(diag) diag.style.display='none';
+  btDiagRender();
+}
+
+function btDiagExport() {
+  var rows = ['Time,App,Method,Event,Detail,Extra,Level'];
+  _btdLog.forEach(function(e){
+    rows.push([e.time,e.app,e.method,e.event,'"'+e.detail.replace(/"/g,'""')+'"','"'+(e.extra||'').replace(/"/g,'""')+'"',e.level].join(','));
+  });
+  var blob = new Blob([rows.join('\n')], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'zillion-bt-diag-'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function btDiagSimulate(event) {
+  var s = {
+    scan_start:       {app:'wallet',   method:'spp',  detail:'SPP discovery started — discoverSppDevices() called',      extra:'Android 12+ BLUETOOTH_SCAN permission required',  level:'INFO'},
+    device_found:     {app:'wallet',   method:'spp',  detail:'Device: Zil-4280  RSSI: -58 dBm (Strong signal)',           extra:'6B:4D:7E:50:A9:8B',                               level:'INFO'},
+    no_devices:       {app:'wallet',   method:'spp',  detail:'Scan timed out after 12s — 0 Zillion devices found',        extra:'Receiver may not have started BT server',         level:'WARN'},
+    connect_attempt:  {app:'wallet',   method:'spp',  detail:'RFCOMM connect → 6B:4D:7E:50:A9:8B via UUID 00001101-0000-1000-8000-00805F9B34FB', extra:'', level:'INFO'},
+    transfer_progress:{app:'wallet',   method:'spp',  detail:'Streaming chunk 4/8 — 16384 of 32768 bytes sent',           extra:'~23 KB/s average throughput',                     level:'INFO'},
+    transfer_ok:      {app:'wallet',   method:'spp',  detail:'ZILLION_ACK received — transfer complete and confirmed',    extra:'32768 bytes in 1.4 seconds',                      level:'OK'},
+    error:            {app:'wallet',   method:'ble',  detail:'onCharacteristicWrite failed on chunk 3 — retrying',        extra:'GATT status=133 (GATT_ERROR/stack busy)',          level:'ERROR'},
+    spp_unavailable:  {app:'merchant', method:'spp',  detail:'SPP server socket failed — RFCOMM bind error',              extra:'Falling back to BLE GATT server',                 level:'WARN'},
+    ble_fallback:     {app:'merchant', method:'ble',  detail:'BLE GATT server started — Nordic UART service advertised', extra:'6e400001-b5a3-f393-e0a9-e50e24dcca9e',             level:'INFO'},
+    mtu_negotiated:   {app:'wallet',   method:'ble',  detail:'MTU negotiated: 517 bytes — effective payload = 506 bytes', extra:'frozenTotal=65 chunks',                           level:'INFO'},
+  }[event] || {app:'wallet',method:'spp',detail:event,extra:'',level:'INFO'};
+  btDiagLog(s.app, s.method, event, s.detail, s.extra, s.level);
+}
+
+function btDiagAutodiagnose() {
+  var diagEl = document.getElementById('btd-diagnosis');
+  var diagContent = document.getElementById('btd-diagnosis-content');
+  if (!diagEl || !diagContent) return;
+  var issues = [];
+  var recent = _btdLog.slice(0, 40);
+  var hasScan    = recent.some(function(e){ return e.event==='scan_start'; });
+  var hasFound   = recent.some(function(e){ return e.event==='device_found'; });
+  var hasNoDev   = recent.some(function(e){ return e.event==='no_devices'; });
+  var hasGatt133 = recent.some(function(e){ return e.extra && e.extra.indexOf('133')>=0; });
+  var hasSppFail = recent.some(function(e){ return e.event==='spp_unavailable'; });
+  var hasBleFall = recent.some(function(e){ return e.event==='ble_fallback'; });
+  var hasOk      = recent.filter(function(e){ return e.event==='transfer_ok'; }).length;
+  if (hasScan && hasNoDev && !hasFound) {
+    issues.push({sev:'warn',icon:'&#x26A0;',title:'No devices discovered after scanning',
+      detail:'The sender scanned but found no Zillion devices nearby. Most likely causes:<br>'
+        +'<br>&#x2022; <strong>Receiver has not started the BT server</strong> — they must open Receive &#x2192; Bluetooth &#x2192; tap Start'
+        +'<br>&#x2022; <strong>BLE advertise packet too large</strong> — device name must go in scan response packet only; UUID in main packet (31-byte limit)'
+        +'<br>&#x2022; <strong>Android Bluetooth permissions not granted</strong> — BLUETOOTH_SCAN requires neverForLocation=true on Android 12+'
+        +'<br>&#x2022; <strong>SPP device name mismatch</strong> — receiver name must start with "Zil-" for SPP filter; check saveSession() in ZillionActivity.kt'
+        +'<br>&#x2022; <strong>BT off or pairing required</strong> — Classic SPP needs prior pairing; BLE scan does not'});
+  }
+  if (hasGatt133) {
+    issues.push({sev:'error',icon:'&#x274C;',title:'GATT Error 133 — Android BT stack busy',
+      detail:'Error 133 is a known Android GATT bug triggered when writing too fast without waiting for onCharacteristicWrite callback.'
+        +'<br><br>Fix: Use <code>WRITE_TYPE_NO_RESPONSE</code> for bulk data OR switch to SPP (RFCOMM) which is immune to this error and 5&#x00D7; faster.'});
+  }
+  if (hasSppFail && hasBleFall) {
+    issues.push({sev:'info',icon:'&#x2139;',title:'SPP unavailable — BLE fallback in use',
+      detail:'SPP (Bluetooth Classic) socket failed to open. BLE GATT fallback is active.'
+        +'<br>BLE is slower and more error-prone for large bundles. If transfers still fail, check MTU negotiation and ensure frozenTotal is calculated after onMtuChanged fires.'});
+  }
+  if (hasOk) {
+    issues.push({sev:'ok',icon:'&#x2705;',title:hasOk+' successful Bluetooth transfer'+(hasOk>1?'s':''),
+      detail:'Bluetooth transfer is working correctly. SPP/BLE connection established and coin bundle delivered to recipient.'});
+  }
+  if (!issues.length) return;
+  diagEl.style.display = 'block';
+  diagContent.innerHTML = issues.map(function(iss){
+    var bg=iss.sev==='error'?'#FEF2F2':iss.sev==='warn'?'#FFFBEB':iss.sev==='ok'?'#F0FDF4':'#EFF6FF';
+    var bc=iss.sev==='error'?'#FECACA':iss.sev==='warn'?'#FDE68A':iss.sev==='ok'?'#BBF7D0':'#BFDBFE';
+    var tc=iss.sev==='error'?'#7F1D1D':iss.sev==='warn'?'#78350F':iss.sev==='ok'?'#14532D':'#1E3A8A';
+    return '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:8px;padding:12px 14px;margin-bottom:10px">'
+      +'<div style="font-weight:700;color:'+tc+';margin-bottom:6px">'+iss.icon+' '+iss.title+'</div>'
+      +'<div style="font-size:12px;color:'+tc+';line-height:1.7">'+iss.detail+'</div></div>';
+  }).join('');
+}
+
+window.btDiagPost = function(app, method, event, detail, extra, level) {
+  try {
+    var ch = new BroadcastChannel('zillion_bt_diag');
+    ch.postMessage({app:app,method:method,event:event,detail:detail||'',extra:extra||'',level:level||'INFO'});
+    ch.close();
+  } catch(e) {}
+};
 
 </script>
 </body>
