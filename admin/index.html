@@ -696,7 +696,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="card-title">All PWA Customers<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportUsers()">⬇ CSV</button><button class="rbtn" onclick="loadUsers()">↻</button></div></div>
     <div class="card-sub">All PWA-registered customer devices</div>
     <div class="toolbar">
-      <input class="search-input" id="user-search" placeholder="Search device or phone hash..." oninput="filterUserTable()">
+      <input class="search-input" id="user-search" placeholder="Search phone number, device, or hash..." oninput="filterUserTable()">
       <select class="filter-select" id="user-status-filter" onchange="filterUserTable()">
         <option value="">All Status</option><option value="ACTIVE">Active</option><option value="FLAGGED">Flagged</option>
       </select>
@@ -2143,19 +2143,35 @@ async function loadUsers() {
   } catch(e) { hideLoader(); notify('Users: '+e.message, true); }
 }
 function filterUserTable() {
-  const q  = document.getElementById('user-search').value.toLowerCase();
-  const st = document.getElementById('user-status-filter').value;
-  renderUserTable(allUsers.filter(u =>
-    (!q  || u.device_hash?.toLowerCase().includes(q) || u.phone_hash?.toLowerCase().includes(q) || u.holder_hash?.toLowerCase().includes(q)) &&
-    (!st || u.status === st)
-  ));
+  const raw = document.getElementById('user-search').value;
+  const q   = raw.toLowerCase().trim();
+  const st  = document.getElementById('user-status-filter').value;
+  // Normalise a phone-like query the same way the backend does, so
+  // "+2348126426726", "2348126426726", and "08126426726" all match.
+  let qPhoneDigits = q.replace(/[^\d]/g, '');
+  if (qPhoneDigits.startsWith('0') && qPhoneDigits.length === 11) qPhoneDigits = '234' + qPhoneDigits.slice(1);
+  renderUserTable(allUsers.filter(u => {
+    if (st && u.status !== st) return false;
+    if (!q) return true;
+    if (u.device_hash?.toLowerCase().includes(q)) return true;
+    if (u.phone_hash?.toLowerCase().includes(q)) return true;
+    if (u.holder_hash?.toLowerCase().includes(q)) return true;
+    if (u.phone_number?.toLowerCase().includes(q)) return true;
+    if (qPhoneDigits && u.phone_number?.replace(/[^\d]/g, '').includes(qPhoneDigits)) return true;
+    return false;
+  }));
 }
 function renderUserTable(users) {
   _admAllData.user = users;
   document.getElementById('user-table-body').innerHTML = users.length
     ? users.map((u,i) => `<tr onclick="openAdmDetail('user',${i})" style="cursor:pointer" title="Click for full details">
         <td style="font-family:monospace;font-size:11px">${(u.device_hash||'').slice(0,14)}…</td>
-        <td style="font-family:monospace;font-size:11px">${(u.phone_hash||'').slice(0,10)}…</td>
+        <td style="font-family:monospace;font-size:11px">${
+          u.phone_number ? u.phone_number
+          : u.phone_hash ? (u.phone_hash.slice(0,10)+'…')
+          : u.unlinked   ? '<span class="badge b-err" title="Legacy coin hash — could not be tied to a phone number">Unlinked (legacy)</span>'
+          : '—'
+        }</td>
         <td><span class="badge ${u.status==='ACTIVE'?'b-ok':'b-err'}">${u.status}</span></td>
         <td style="font-size:11px">${fmtDate(u.registered_at)}</td>
         <td style="font-size:11px">${relTime(u.last_activity)}</td>
@@ -2169,8 +2185,8 @@ function renderUserTable(users) {
     : '<tr><td colspan="11" class="no-data">No customers found</td></tr>';
 }
 function exportUsers() {
-  const rows = [['Device ID','Phone Hash','Status','Registered','Balance (kobo)','Sent','Received','Tx Count']];
-  allUsers.forEach(u => rows.push([u.device_hash,u.phone_hash,u.status,u.registered_at,u.held_balance_kobo,u.total_sent_kobo,u.total_received_kobo,u.tx_count]));
+  const rows = [['Device ID','Phone Number','Phone Hash','Status','Registered','Balance (kobo)','Sent','Received','Tx Count','Linked']];
+  allUsers.forEach(u => rows.push([u.device_hash,u.phone_number||'',u.phone_hash,u.status,u.registered_at,u.held_balance_kobo,u.total_sent_kobo,u.total_received_kobo,u.tx_count,u.unlinked?'No':'Yes']));
   downloadCSV(rows, 'zillion-customers.csv');
 }
 
@@ -2828,8 +2844,10 @@ function openAdmDetail(type, idx) {
     const custId = item.holder_hash || item.device_hash || '';
     rows = [
       ['Device ID',    item.device_hash || '—'],
+      ['Phone Number', item.phone_number || (item.unlinked ? '<span class="badge b-err">Unlinked (legacy hash)</span>' : '—')],
       ['Coin Hash',    item.holder_hash ? item.holder_hash.slice(0,20)+'…' : '—'],
       ['Phone Hash',   item.phone_hash  || '—'],
+      ['Linked Hashes',(item.holder_hashes && item.holder_hashes.length > 1) ? item.holder_hashes.length + ' merged into this row' : '1'],
       ['Issued By',    item.issuer_id   || '—'],
       ['Status',       '<span class="badge ' + (item.status==='ACTIVE'?'b-ok':'b-err') + '">' + item.status + '</span>'],
       ['Registered',   fmtDate(item.registered_at)],
@@ -2842,8 +2860,10 @@ function openAdmDetail(type, idx) {
       ['Fraud Events', item.open_fraud || 0],
       ['KYC Tier',     item.kyc_tier || '—'],
     ];
-    // Prefer holder_hash (coin owner hash) over device_hash for ledger lookup
-    var ledgerId = item.holder_hash || item.device_hash || '';
+    // Prefer phone number for ledger lookup — it merges every hash this
+    // customer has ever used. Falls back to holder_hash/device_hash for
+    // legacy rows that couldn't be resolved to a phone.
+    var ledgerId = item.phone_number || item.holder_hash || item.device_hash || '';
     if (ledgerId) {
       extraHtml = '<button onclick="openLedgerForCustomer(' + JSON.stringify(ledgerId) + ')" ' +
         'style="margin-top:14px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;' +
