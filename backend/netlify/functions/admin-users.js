@@ -44,7 +44,7 @@ exports.handler = async (event) => {
     // ── 1. All registered devices (customers) ────────────────────
     const { data: devices } = await db
       .from('devices')
-      .select('device_hash, phone_hash, holder_hash, registered_at, last_sync, status, fraud_score, kyc_tier')
+      .select('device_hash, phone_hash, phone_number, holder_hash, registered_at, last_sync, status, fraud_score, kyc_tier')
       .order('registered_at', { ascending: false });
 
     // ── 2. ALL customer coins ─────────────────────────────────────
@@ -188,7 +188,7 @@ exports.handler = async (event) => {
         device_hash:         linkedDevice?.device_hash || null,
         holder_hash:         holderHashes[0],          // primary/most-used hash
         holder_hashes:       holderHashes,              // ALL hashes merged into this row
-        phone_hash:          linkedDevice?.phone_hash || (group.linked ? null : key),
+        phone_hash:          linkedDevice?.phone_hash || null,
         phone_number:        linkedDevice?.phone_number || null,
         status:              linkedDevice?.status || 'ACTIVE',
         fraud_score:         linkedDevice?.fraud_score || 0,
