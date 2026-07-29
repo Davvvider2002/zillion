@@ -1,8 +1,8 @@
-// Zillion Agent — Service Worker v1.0.9
+// Zillion Agent — Service Worker v1.0.11
 // Offline-first: app shell cached, API calls network-first with offline queue
 'use strict';
 
-const CACHE_NAME    = 'zillion-agent-v1.0.10';
+const CACHE_NAME    = 'zillion-agent-v1.0.11';
 const OFFLINE_QUEUE = 'zillion-agent-offline-queue';
 
 // App shell — cache these on install
