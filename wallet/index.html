@@ -5011,6 +5011,26 @@ function walletBtStartReceive() {
     ZillionNative.startBleServer();
   };
 }
+// FIX: a definitive BLE transfer failure must restore the locked coins
+// immediately — waiting for the 30-min stale-check is for the AMBIGUOUS
+// case (we don't know if it landed). A failure callback is unambiguous:
+// the transfer never completed, so the coin never left this wallet and
+// should go straight back to spendable balance, not stay stuck.
+function zilRestoreCoinsAfterBtFailure(bundle, reason) {
+  if (!bundle || !bundle.coins || !bundle.coins.length) return;
+  var restored = 0;
+  bundle.coins.forEach(function(c) {
+    var i = STATE.vault.findIndex(function(v) { return (v.coin_id || v.id) === (c.coin_id || c.id); });
+    if (i >= 0 && (STATE.vault[i]._status === 'PENDING_TRANSFER' || STATE.vault[i]._status === 'SPENT_LOCAL')) {
+      STATE.vault[i]._status = 'HELD';
+      restored++;
+    }
+  });
+  if (restored > 0) {
+    save(); refreshHome();
+    toast('Transfer failed — ' + restored + ' coin(s) restored to your balance', true, 5000);
+  }
+}
 function walletBtSend() {
   if (!STATE.sendBundle) { toast('Generate QR first to load coins', true); return; }
   var method = zilBtMethod();
@@ -5071,6 +5091,7 @@ function walletBtScan() {
   window.onBleError=function(msg){
     if(st) st.innerHTML='<span style="color:var(--r)">Error: '+msg+'</span>';
     if(bn){bn.textContent='Find Devices';bn.disabled=false;}
+    zilRestoreCoinsAfterBtFailure(window._zilBtPendingBundle || STATE.sendBundle, msg);
   };
   if(window._zilBtPendingMethod==='spp') ZillionNative.discoverSppDevices();
   else ZillionNative.startBleScan();
@@ -5170,6 +5191,7 @@ function walletBtShowPicker(uri,bundle,method){
     if(pst) pst.innerHTML='<span style="color:#ef4444">Error: '+msg+'</span>';
     var bn=document.getElementById('bt-picker-scan-btn');
     if(bn){bn.textContent='Try Again';bn.disabled=false;}
+    zilRestoreCoinsAfterBtFailure(STATE.sendBundle, msg);
   };
 }
 function walletBtPickerScan(){
