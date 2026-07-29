@@ -116,15 +116,34 @@ WHERE NOT EXISTS (SELECT 1 FROM coin_ledger cl WHERE cl.coin_id = c.coin_id);
 -- outside the trigger's view (should be impossible) or a bug elsewhere.
 
 CREATE OR REPLACE VIEW coin_ledger_holder_balance AS
+WITH arrivals AS (
+  -- Every time a coin arrives at a holder while ending up HELD
+  SELECT new_holder_hash AS holder_hash,
+         SUM(amount)      AS held_in,
+         COUNT(*)         AS arrival_count,
+         MAX(changed_at)  AS last_arrival
+  FROM coin_ledger
+  WHERE new_holder_hash IS NOT NULL AND new_status = 'HELD'
+  GROUP BY new_holder_hash
+),
+departures AS (
+  -- Every time a coin that WAS HELD under a holder transitions away
+  -- (to a new holder, or to a non-HELD status like SPENT/REDEEMED)
+  SELECT prev_holder_hash AS holder_hash,
+         SUM(amount)      AS held_out,
+         COUNT(*)         AS departure_count,
+         MAX(changed_at)  AS last_departure
+  FROM coin_ledger
+  WHERE prev_holder_hash IS NOT NULL AND prev_status = 'HELD'
+  GROUP BY prev_holder_hash
+)
 SELECT
-  new_holder_hash AS holder_hash,
-  SUM(CASE WHEN new_status = 'HELD' THEN amount ELSE 0 END)
-    - SUM(CASE WHEN prev_status = 'HELD' AND new_status <> 'HELD' THEN amount ELSE 0 END) AS implied_held_kobo,
-  COUNT(*) AS movement_count,
-  MAX(changed_at) AS last_movement
-FROM coin_ledger
-WHERE new_holder_hash IS NOT NULL
-GROUP BY new_holder_hash;
+  COALESCE(a.holder_hash, d.holder_hash)                              AS holder_hash,
+  COALESCE(a.held_in, 0) - COALESCE(d.held_out, 0)                    AS implied_held_kobo,
+  COALESCE(a.arrival_count, 0) + COALESCE(d.departure_count, 0)       AS movement_count,
+  GREATEST(COALESCE(a.last_arrival, 'epoch'::timestamptz), COALESCE(d.last_departure, 'epoch'::timestamptz)) AS last_movement
+FROM arrivals a
+FULL OUTER JOIN departures d ON a.holder_hash = d.holder_hash;
 
 -- ============================================================
 -- POST-MIGRATION CHECKLIST:
