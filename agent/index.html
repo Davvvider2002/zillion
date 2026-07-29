@@ -206,6 +206,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
       <span id="agent-conn-badge" style="font-size:11px;font-weight:600;margin-right:8px;color:#F59E0B">● Offline</span>
       <span style="font-size:13px;color:var(--gm)"><span class="hdot"></span><span id="haid">—</span></span>
       <span id="queue-badge" style="display:none;background:#EF4444;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-right:4px">0 queued</span>
+      <span id="queue-stuck-badge" onclick="var t=document.querySelector('[data-tab=history]'); if(t) switchTab(t);" style="display:none;cursor:pointer;background:#7C2D12;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-right:4px">⚠ needs review</span>
       <button class="lout" onclick="doLogout()">Logout</button>
     </div>
   </header>
@@ -1372,6 +1373,13 @@ async function agentDrainQueue() {
   let synced = 0, failed = 0;
 
   for (const op of q) {
+    // Past the auto-retry cap — keep it queued/voidable but stop hammering
+    // the server. It'll only leave this state via manual Void or a future
+    // code path that explicitly re-enables it.
+    if ((op.retryCount || 0) >= 5) {
+      _offlineQueue.push(op);
+      continue;
+    }
     try {
       let url, body;
       if (op.type === 'issue') {
@@ -1405,7 +1413,16 @@ async function agentDrainQueue() {
       } else {
         failed++;
         console.warn('[drain] Op failed:', op.id, rdata.error);
-        _offlineQueue.push(op); // re-queue for next attempt
+        // FIX: track retry attempts so a permanently-failing op (bad data,
+        // expired queue entry, server-side conflict — not just a transient
+        // network blip) stops silently retrying forever with no visibility.
+        // Float stays correctly debited either way (no double-spend risk),
+        // but the customer may never get usable coins if this keeps failing
+        // — the agent needs to see it and intervene (void, or contact support).
+        op.retryCount = (op.retryCount || 0) + 1;
+        op.lastError = rdata.error || 'Unknown error';
+        op.lastAttemptAt = new Date().toISOString();
+        _offlineQueue.push(op); // re-queue for next attempt (still visible/voidable either way)
       }
     } catch(e) {
       failed++;
@@ -1507,6 +1524,26 @@ function updateQueueBadge() {
   const count = _offlineQueue ? _offlineQueue.length : 0;
   badge.textContent = count + ' queued';
   badge.style.display = count > 0 ? 'inline-block' : 'none';
+
+  // FIX: surface offline ops that have failed repeatedly instead of letting
+  // them retry silently forever. Float stays correctly debited either way
+  // (safe from double-spend), but if the underlying rejection is permanent
+  // (bad data, expired queue entry, server-side conflict), the customer may
+  // never actually receive usable coins and nothing was telling the agent
+  // to intervene. Flag anything past MAX_AUTO_RETRIES or older than 2 hours.
+  const stuck = (_offlineQueue || []).filter(o =>
+    (o.retryCount || 0) >= 5 || (o.created_at && (Date.now() - new Date(o.created_at).getTime()) > 2 * 60 * 60 * 1000)
+  );
+  const stuckBadge = document.getElementById('queue-stuck-badge');
+  if (stuckBadge) {
+    if (stuck.length > 0) {
+      stuckBadge.textContent = '⚠ ' + stuck.length + ' need review';
+      stuckBadge.style.display = 'inline-block';
+      stuckBadge.title = 'These offline transactions have failed repeatedly and won\'t retry automatically anymore. Tap to review — you can void them to restore your float, or contact support.';
+    } else {
+      stuckBadge.style.display = 'none';
+    }
+  }
 }
 
 
