@@ -5011,24 +5011,76 @@ function walletBtStartReceive() {
     ZillionNative.startBleServer();
   };
 }
-// FIX: a definitive BLE transfer failure must restore the locked coins
-// immediately — waiting for the 30-min stale-check is for the AMBIGUOUS
-// case (we don't know if it landed). A failure callback is unambiguous:
-// the transfer never completed, so the coin never left this wallet and
-// should go straight back to spendable balance, not stay stuck.
-function zilRestoreCoinsAfterBtFailure(bundle, reason) {
+// FIX: a BLE error can fire AFTER the transfer already succeeded and the
+// recipient claimed the coin server-side — the failure was in reading the
+// acknowledgment back, not in the transfer itself. Blindly restoring to
+// HELD in that case shows a false balance (the coin is genuinely gone,
+// it landed with the recipient). Verify against the server before
+// assuming failure; only restore what the server still confirms is ours.
+async function zilRestoreCoinsAfterBtFailure(bundle, reason) {
   if (!bundle || !bundle.coins || !bundle.coins.length) return;
-  var restored = 0;
-  bundle.coins.forEach(function(c) {
-    var i = STATE.vault.findIndex(function(v) { return (v.coin_id || v.id) === (c.coin_id || c.id); });
-    if (i >= 0 && (STATE.vault[i]._status === 'PENDING_TRANSFER' || STATE.vault[i]._status === 'SPENT_LOCAL')) {
-      STATE.vault[i]._status = 'HELD';
-      restored++;
+  var token = STATE.token || STATE.user?.token;
+
+  if (!STATE.isOnline || !token) {
+    // Can't verify — best we can do offline is restore optimistically.
+    // Will self-correct via the 30-min server-verified sweep once online.
+    var restoredOffline = 0;
+    bundle.coins.forEach(function(c) {
+      var i = STATE.vault.findIndex(function(v) { return (v.coin_id || v.id) === (c.coin_id || c.id); });
+      if (i >= 0 && (STATE.vault[i]._status === 'PENDING_TRANSFER' || STATE.vault[i]._status === 'SPENT_LOCAL')) {
+        STATE.vault[i]._status = 'HELD';
+        restoredOffline++;
+      }
+    });
+    if (restoredOffline > 0) {
+      save(); refreshHome();
+      toast(restoredOffline + ' coin(s) tentatively restored — will confirm once back online', true, 6000);
     }
-  });
-  if (restored > 0) {
+    return;
+  }
+
+  try {
+    var res = await fetch(`${API}/recover-coins`, { headers: { 'Authorization': 'Bearer ' + token } });
+    var stillHeldIds = new Set();
+    if (res.ok) {
+      var data = await res.json();
+      (data.coins || []).forEach(function(c) { stillHeldIds.add(c.coin_id); });
+    }
+    var restored = 0, delivered = 0, deliveredAmt = 0;
+    bundle.coins.forEach(function(c) {
+      var cid = c.coin_id || c.id;
+      var i = STATE.vault.findIndex(function(v) { return (v.coin_id || v.id) === cid; });
+      if (i < 0) return;
+      if (stillHeldIds.has(cid)) {
+        // Server confirms it's still ours — the transfer genuinely failed.
+        STATE.vault[i]._status = 'HELD';
+        restored++;
+      } else {
+        // Server shows it moved on — it landed despite the error shown here.
+        STATE.vault[i]._status = 'SPENT_LOCAL';
+        delivered++; deliveredAmt += (c.amount || 0);
+      }
+    });
+    STATE.vault = STATE.vault.filter(function(c) { return c._status !== 'SPENT_LOCAL'; });
+    if (delivered > 0) {
+      STATE.history.unshift({
+        id: 'TX-BT-' + Date.now(), type: 'sent', amount: deliveredAmt, coin_count: delivered,
+        ts: new Date().toISOString(), status: 'SETTLED', method: 'bluetooth',
+        name: 'Sent via Bluetooth (delivered — app connection dropped after transfer)',
+        sent_coin_ids: bundle.coins.map(function(c) { return c.coin_id || c.id; }),
+      });
+    }
     save(); refreshHome();
-    toast('Transfer failed — ' + restored + ' coin(s) restored to your balance', true, 5000);
+    if (restored > 0 && delivered > 0) {
+      toast(restored + ' coin(s) restored, ' + delivered + ' actually went through despite the error', false, 7000);
+    } else if (restored > 0) {
+      toast('Transfer failed — ' + restored + ' coin(s) restored to your balance', true, 5000);
+    } else if (delivered > 0) {
+      toast('Transfer actually completed — the error was just a lost confirmation', false, 6000);
+    }
+  } catch (e) {
+    console.warn('[wallet] BT failure verification failed:', e.message);
+    // Network hiccup mid-check — leave as pending, will resolve on next sync/30-min sweep
   }
 }
 function walletBtSend() {
