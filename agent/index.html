@@ -502,7 +502,7 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
     document.title = document.title + ' v1.0.0';
     // Set any version display elements
     document.querySelectorAll('.zillion-version').forEach(function(el) {
-      el.textContent = 'v1.0.9 (build 20260717)';
+      el.textContent = 'v1.0.10 (build 20260729)';
     });
 
 // ── Handle ?claim= URL param (cashout link from merchant via WhatsApp) ────────
@@ -539,7 +539,7 @@ function processPendingClaim() {
     .catch(function(e) { notify('Error: ' + e.message, true); });
 }
 
-    console.log('[Zillion] Agent Portal v1.0.9 build 20260717');
+    console.log('[Zillion] Agent Portal v1.0.10 build 20260729');
   });
 
 const API = '/.netlify/functions';
