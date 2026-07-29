@@ -2164,8 +2164,11 @@ async function coConfirmRedeem() {
       '<div class="ra">' + naira + '</div>' +
       '<div class="rd2">' + d.redeemed_count + ' redeemed · ' + (d.rejected_count||0) + ' rejected</div>';
     ss.co += d.total_kobo; AP.float_balance_kobo += d.total_kobo;
-    // Store redeemed coin IDs to block replay attempts
-    const redeemedIds = (_coPendingBundle?.coins||[]).map(function(c){ return c.coin_id||c.id; });
+    // FIX: _coPendingBundle was already nulled above — reading it here always
+    // returned []. This silently disabled the local anti-replay guard that
+    // checks redeemed_coin_ids on future scans. Use the `coins` captured
+    // earlier in this function instead, which still has the real IDs.
+    const redeemedIds = coins.map(function(c){ return c.coin_id||c.id; }).filter(Boolean);
     hlog.unshift({ type:'CASH OUT', amtKobo:d.total_kobo, cnt:d.redeemed_count,
                    status:'SUCCESS', ts:new Date().toISOString(),
                    redeemed_coin_ids: redeemedIds });
