@@ -3048,18 +3048,51 @@ async function trySync() {
     updateConnBadge(false);
     updateSyncStatus('Offline - will retry when connected');
   }
-  // Auto-clear very old PENDING_TRANSFER coins (> 30 min) even if server didn't confirm
-  // This prevents coins getting permanently stuck when the registry doesn't have them
+  // Handle very old PENDING_TRANSFER/SPENT_LOCAL coins (> 30 min unconfirmed).
+  // FIX: previously this blindly deleted the coin from the vault after 30 min
+  // even if the handoff never actually reached the recipient — a real money-loss
+  // path (coin vanishes from sender, never lands with receiver). Now it verifies
+  // against server truth first via /recover-coins and only drops coins the server
+  // confirms have moved on; anything still HELD server-side is restored, not lost.
   const thirtyMinAgo = Date.now() - 30 * 60 * 1000;
-  STATE.vault.forEach(c => {
-    if (c._status === 'PENDING_TRANSFER' || c._status === 'SPENT_LOCAL') {
-      const sentAt = c._sentAt ? new Date(c._sentAt).getTime() : 0;
-      if (sentAt && sentAt < thirtyMinAgo) {
-        c._status = 'SPENT_LOCAL'; // treat as sent — remove from spendable
+  const staleCoins = STATE.vault.filter(c =>
+    (c._status === 'PENDING_TRANSFER' || c._status === 'SPENT_LOCAL') &&
+    c._sentAt && new Date(c._sentAt).getTime() < thirtyMinAgo
+  );
+  if (staleCoins.length && STATE.isOnline && token) {
+    try {
+      const stillHeldIds = new Set();
+      const checkRes = await fetch(`${API}/recover-coins`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        (checkData.coins || []).forEach(rc => stillHeldIds.add(rc.coin_id));
       }
+      let restoredStuck = 0;
+      staleCoins.forEach(c => {
+        const cid  = c.coin_id || c.id;
+        const vIdx = STATE.vault.findIndex(v => (v.coin_id || v.id) === cid);
+        if (vIdx < 0) return;
+        if (stillHeldIds.has(cid)) {
+          // Server still shows this coin as ours — the send never actually landed.
+          STATE.vault[vIdx]._status = 'HELD';
+          restoredStuck++;
+        } else {
+          // Server confirms it moved to the recipient — safe to clear locally.
+          STATE.vault[vIdx]._status = 'SPENT_LOCAL';
+        }
+      });
+      if (restoredStuck > 0) {
+        save();
+        toast(restoredStuck + ' coin(s) never reached the recipient — restored to your balance', true, 6000);
+      }
+    } catch (e) {
+      // Can't verify right now — leave coins pending rather than guessing.
+      console.warn('[wallet] stale-coin verification failed:', e.message);
     }
-  });
-  // Remove SPENT_LOCAL coins from vault (they've been delivered)
+  }
+  // Remove only coins confirmed delivered (or unconfirmable while offline stays pending)
   STATE.vault = STATE.vault.filter(c => c._status !== 'SPENT_LOCAL');
   save(); refreshHome(); refreshVault();
 }
@@ -5235,7 +5268,7 @@ function walletBtPrepareScan() {
     coin_count:selected.length, coins:selected,
   };
   window._sendBundle = STATE.sendBundle;
-  save();
+  save(); refreshHome(); // FIX: balance must drop the instant coins are locked, not after BLE completes
   walletBtScan();
 }
 </script>
