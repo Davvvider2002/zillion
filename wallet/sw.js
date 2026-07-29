@@ -1,8 +1,8 @@
-// Zillion Wallet — Service Worker v1.0.8
+// Zillion Wallet — Service Worker v1.0.9
 // Offline-first: app shell cached, API calls network-first
 'use strict';
 
-const CACHE_NAME    = 'zillion-wallet-v1.0.8';
+const CACHE_NAME    = 'zillion-wallet-v1.0.9';
 const OFFLINE_QUEUE = 'zillion-wallet-offline-queue';
 
 // App shell files — same origin only
