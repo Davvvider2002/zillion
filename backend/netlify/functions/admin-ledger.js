@@ -574,7 +574,53 @@ async function buildCustomerEntries(db, deviceHashes, entries) {
   const hashes = Array.isArray(deviceHashes) ? deviceHashes.filter(Boolean) : [deviceHashes].filter(Boolean);
   if (!hashes.length) return;
 
-  // All coins CURRENTLY held under any of this customer's hashes
+  // ── PRIMARY SOURCE: coin_ledger (immutable, permanent — see coin_ledger.sql) ──
+  // Every INSERT/UPDATE on `coins` is trigger-logged here, so this can never
+  // lose a customer's receipt history the way the mutable `coins` table did.
+  // If the migration has been run, this alone gives a complete, correct
+  // chronological statement.
+  const { data: ledgerRows, error: eL } = await db.from('coin_ledger')
+    .select('coin_id, amount, event_type, prev_holder_hash, new_holder_hash, prev_status, new_status, changed_at')
+    .or(hashes.map(h => `new_holder_hash.eq.${h}`).concat(hashes.map(h => `prev_holder_hash.eq.${h}`)).join(','))
+    .order('changed_at', { ascending: true });
+
+  if (!eL && ledgerRows && ledgerRows.length > 0) {
+    for (const row of ledgerRows) {
+      const isIncoming = hashes.includes(row.new_holder_hash) && !hashes.includes(row.prev_holder_hash);
+      const isOutgoing = hashes.includes(row.prev_holder_hash) && !hashes.includes(row.new_holder_hash);
+      const ref = 'ZIL-' + (row.coin_id || '').slice(4, 16);
+
+      if (row.event_type === 'MINT' || row.event_type === 'MINT_BACKFILL' || isIncoming) {
+        entries.push({
+          ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
+          type: 'Receipt', ref, coin_id: row.coin_id,
+          narration: row.event_type.startsWith('MINT') ? 'Coins Received from Agent' : narrateMerchantCredit(row.prev_holder_hash),
+          debit_kobo: 0, credit_kobo: row.amount || 0,
+          counterparty: shortId(row.prev_holder_hash || 'Agent'),
+          status: 'SETTLED', direction: 'CR',
+        });
+      }
+      if (isOutgoing || (hashes.includes(row.prev_holder_hash) && row.new_status && ['SPENT','REDEEMED'].includes(row.new_status))) {
+        entries.push({
+          ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
+          type: 'Payment', ref: 'PAY-' + (row.coin_id || '').slice(4, 14), coin_id: row.coin_id,
+          narration: row.new_status === 'REDEEMED' ? 'Cash-Out Redeemed' : 'Payment Sent',
+          debit_kobo: row.amount || 0, credit_kobo: 0,
+          counterparty: shortId(row.new_holder_hash || 'Merchant/Agent'),
+          status: 'SETTLED', direction: 'DR',
+        });
+      }
+    }
+    return; // coin_ledger is authoritative — no need for the fallback below
+  }
+
+  // ── FALLBACK: reconstruct from coins + transactions ──────────────────────
+  // Used only if coin_ledger hasn't been migrated yet, or returns nothing
+  // for these hashes (e.g. very old, pre-trigger, unresolved history).
+  await buildCustomerEntriesFallback(db, hashes, entries);
+}
+
+async function buildCustomerEntriesFallback(db, hashes, entries) {
   const { data: coins, error: e1 } = await db.from('coins')
     .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, updated_at, created_at, expires_at')
     .in('holder_hash', hashes)
