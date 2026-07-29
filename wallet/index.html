@@ -4973,28 +4973,40 @@ function walletBtStartReceive() {
     try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:'spp',event:'server_ready',detail:'SPP RFCOMM server started — listening for connections',extra:'',level:'INFO'});_dc.close();}catch(e){}
   };
   window.onBleBundle = function(uri) {
-    setS('<strong style="color:var(--g)">&#10003; Processing coins...</strong>');
-    var b = zilDecodeBundle(uri);
-    if (!b) { setS('<strong style="color:var(--r)">Invalid bundle</strong>'); toast('Invalid bundle',true); return; }
-    var newCoins=(b.coins||[]).filter(function(c){
-      var id=c.coin_id||c.id;
-      return !STATE.vault.find(function(v){return(v.coin_id||v.id)===id;});
-    });
-    if(!newCoins.length){ setS('<strong style="color:var(--am)">Already received</strong>'); return; }
-    newCoins.forEach(function(c){c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();});
-    newCoins.forEach(function(c){STATE.vault.push(c);});
-    var total=newCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
-    STATE.history.unshift({
-      id:'TX-'+Date.now(),type:'received',amount:total,
-      coin_count:newCoins.length,ts:new Date().toISOString(),
-      status:'PENDING_SYNC',method:'bluetooth',name:'Received via Bluetooth',
-      received_coin_ids:newCoins.map(function(c){return c.coin_id||c.id;}),
-    });
-    save(); refreshHome();
-    setS('<strong style="color:var(--g)">&#10003; Received '+fmtNaira(total)+'!</strong><br>'+
-         '<span style="font-size:12px;color:var(--gr)">Tap Start to receive again</span>');
-    toast('Received '+fmtNaira(total)+' via Bluetooth!');
-    setTimeout(function(){ goTo('screen-home'); trySync(); }, 2500);
+    // Returns true/false to the native layer — it now waits for this before
+    // sending ZILLION_ACK back to the sender. Previously the native side ACK'd
+    // the instant raw bytes arrived, before this function even ran, so a
+    // decode failure or exception here could tell the sender "confirmed"
+    // while the receiver silently had nothing — undetectable fund loss.
+    try {
+      setS('<strong style="color:var(--g)">&#10003; Processing coins...</strong>');
+      var b = zilDecodeBundle(uri);
+      if (!b) { setS('<strong style="color:var(--r)">Invalid bundle</strong>'); toast('Invalid bundle',true); return false; }
+      var newCoins=(b.coins||[]).filter(function(c){
+        var id=c.coin_id||c.id;
+        return !STATE.vault.find(function(v){return(v.coin_id||v.id)===id;});
+      });
+      if(!newCoins.length){ setS('<strong style="color:var(--am)">Already received</strong>'); return true; } // idempotent — data DID land
+      newCoins.forEach(function(c){c._status='PENDING_SYNC';c._receivedAt=new Date().toISOString();});
+      newCoins.forEach(function(c){STATE.vault.push(c);});
+      var total=newCoins.reduce(function(s,c){return s+(c.amount||c.value_kobo||0);},0);
+      STATE.history.unshift({
+        id:'TX-'+Date.now(),type:'received',amount:total,
+        coin_count:newCoins.length,ts:new Date().toISOString(),
+        status:'PENDING_SYNC',method:'bluetooth',name:'Received via Bluetooth',
+        received_coin_ids:newCoins.map(function(c){return c.coin_id||c.id;}),
+      });
+      save(); refreshHome();
+      setS('<strong style="color:var(--g)">&#10003; Received '+fmtNaira(total)+'!</strong><br>'+
+           '<span style="font-size:12px;color:var(--gr)">Tap Start to receive again</span>');
+      toast('Received '+fmtNaira(total)+' via Bluetooth!');
+      setTimeout(function(){ goTo('screen-home'); trySync(); }, 2500);
+      return true;
+    } catch (e) {
+      console.error('[onBleBundle] failed to process received bundle:', e);
+      setS('<strong style="color:var(--r)">Error processing coins — please ask sender to retry</strong>');
+      return false;
+    }
   };
   window.onBleTransferProgress = function(done, total) {
     var pct = total>0 ? Math.round((done/total)*100) : 0;
