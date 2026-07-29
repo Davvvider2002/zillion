@@ -903,6 +903,7 @@ function triggerPWAInstall() {
     ⚡ Offline — transfers still work · Syncing when connected
   </div>
   <div class="scroll-body">
+    <div id="home-stuck-banner" onclick="zilRestoreAllStuckCoins({})" style="display:none;cursor:pointer;background:#7C2D12;color:#fff;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:10px;text-align:center"></div>
     <!-- Balance card -->
     <div class="balance-card">
       <div class="bal-label">Available Balance</div>
@@ -2074,6 +2075,29 @@ function refreshHome() {
   const bookTotal      = availableTotal + pendingSyncC.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
   const sentTotal      = sentCoins.reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
 
+  // Auto-heal: if any coin has been sitting stuck for >20s, sweep it against
+  // server truth automatically (throttled to once/60s). This is what catches
+  // orphaned coins from a cancelled send, a "no devices found" scan, or any
+  // other interrupted transfer — the user shouldn't have to notice and ask.
+  if (sentCoins.length > 0) {
+    const now = Date.now();
+    const oldestStuckMs = Math.min(...sentCoins.map(c => c._sentAt ? now - new Date(c._sentAt).getTime() : 0));
+    const lastSweep = window._lastStuckSweepAt || 0;
+    if (oldestStuckMs > 20000 && (now - lastSweep) > 60000) {
+      window._lastStuckSweepAt = now;
+      if (typeof zilRestoreAllStuckCoins === 'function') zilRestoreAllStuckCoins({ silent: true });
+    }
+  }
+  const stuckBanner = document.getElementById('home-stuck-banner');
+  if (stuckBanner) {
+    if (sentCoins.length > 0) {
+      stuckBanner.style.display = '';
+      stuckBanner.textContent = '⚠ ' + sentCoins.length + ' coin(s) in transfer — tap to check';
+    } else {
+      stuckBanner.style.display = 'none';
+    }
+  }
+
   // Primary display: Available Balance
   document.getElementById('home-balance').textContent = fmtNaira(availableTotal);
 
@@ -2257,6 +2281,7 @@ async function sendViaWhatsApp(fileOnly=false) {
   selected.forEach(c => {
     const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
     if (i >= 0) STATE.vault[i]._status = 'PENDING_TRANSFER';
+    STATE.vault[i]._sentAt = new Date().toISOString();
   });
   STATE.history.unshift({
     id:'TX-'+Date.now(), type:'sent',
@@ -3557,6 +3582,7 @@ async function generateSendQR() {
   selected.forEach(c => {
     const i = STATE.vault.findIndex(v => (v.coin_id||v.id) === (c.coin_id||c.id));
     if (i >= 0) STATE.vault[i]._status = 'PENDING_TRANSFER';
+    STATE.vault[i]._sentAt = new Date().toISOString();
   });
   STATE.history.unshift({
     id:'TX-'+Date.now(), type:'sent', amount:bundle.total_kobo,
@@ -3967,6 +3993,7 @@ async function startNFCSend(coin) {
     // Mark coin as PENDING_TRANSFER
     const idx = STATE.vault.findIndex(v => (v.coin_id||v.id) === (coin.coin_id||coin.id));
     if (idx >= 0) STATE.vault[idx]._status = 'PENDING_TRANSFER';
+    STATE.vault[idx]._sentAt = new Date().toISOString();
     save(); refreshVault(); refreshHome();
     setTimeout(() => {
       overlay.style.display = 'none';
@@ -4470,6 +4497,7 @@ function generateOfflineQR(selectedCoins, existingBundle) {
   selectedCoins.forEach(function(c) {
     const vi = STATE.vault.findIndex(function(v){return (v.coin_id||v.id)===(c.coin_id||c.id);});
     if (vi >= 0) STATE.vault[vi]._status = 'PENDING_TRANSFER';
+    STATE.vault[vi]._sentAt = new Date().toISOString();
   });
   STATE.history.unshift({
     id: 'TX-' + Date.now(), type: 'sent',
@@ -5023,78 +5051,68 @@ function walletBtStartReceive() {
     ZillionNative.startBleServer();
   };
 }
-// FIX: a BLE error can fire AFTER the transfer already succeeded and the
-// recipient claimed the coin server-side — the failure was in reading the
-// acknowledgment back, not in the transfer itself. Blindly restoring to
-// HELD in that case shows a false balance (the coin is genuinely gone,
-// it landed with the recipient). Verify against the server before
-// assuming failure; only restore what the server still confirms is ours.
-async function zilRestoreCoinsAfterBtFailure(bundle, reason) {
-  if (!bundle || !bundle.coins || !bundle.coins.length) return;
-  var token = STATE.token || STATE.user?.token;
+// GENERAL SWEEP: find every coin in the vault currently stuck in an
+// outgoing-transfer state (PENDING_TRANSFER/SPENT_LOCAL) — regardless of
+// whether a live sendBundle still references it — and resolve each one
+// against server truth. This closes several related gaps at once:
+//  - Tapping "Cancel" on the device picker used to just close the popup,
+//    leaving the locked coin(s) with no reference and no way back.
+//  - A Bluetooth scan completing with zero devices found (not an error,
+//    so onBleError never fired) left coins locked indefinitely.
+//  - Starting a new send while a previous attempt's bundle was still
+//    stuck used to silently discard the only pointer to those coins.
+// Safe to call anytime — coins the server confirms are still ours are
+// restored to spendable; anything the server shows already moved on is
+// recorded as delivered instead of silently vanishing from history.
+async function zilRestoreAllStuckCoins(opts) {
+  opts = opts || {};
+  var stuck = STATE.vault.filter(function(c) {
+    return c._status === 'PENDING_TRANSFER' || c._status === 'SPENT_LOCAL';
+  });
+  if (!stuck.length) { if (opts.silent !== true) toast('No stuck transfers found'); return; }
 
+  var token = STATE.token || STATE.user?.token;
   if (!STATE.isOnline || !token) {
-    // Can't verify — best we can do offline is restore optimistically.
-    // Will self-correct via the 30-min server-verified sweep once online.
     var restoredOffline = 0;
-    bundle.coins.forEach(function(c) {
+    stuck.forEach(function(c) {
       var i = STATE.vault.findIndex(function(v) { return (v.coin_id || v.id) === (c.coin_id || c.id); });
-      if (i >= 0 && (STATE.vault[i]._status === 'PENDING_TRANSFER' || STATE.vault[i]._status === 'SPENT_LOCAL')) {
-        STATE.vault[i]._status = 'HELD';
-        restoredOffline++;
-      }
+      if (i >= 0) { STATE.vault[i]._status = 'HELD'; restoredOffline++; }
     });
-    if (restoredOffline > 0) {
-      save(); refreshHome();
-      toast(restoredOffline + ' coin(s) tentatively restored — will confirm once back online', true, 6000);
-    }
+    if (restoredOffline > 0) { save(); refreshHome(); toast(restoredOffline + ' coin(s) tentatively restored — will confirm once online', true, 6000); }
     return;
   }
 
   try {
     var res = await fetch(`${API}/recover-coins`, { headers: { 'Authorization': 'Bearer ' + token } });
     var stillHeldIds = new Set();
-    if (res.ok) {
-      var data = await res.json();
-      (data.coins || []).forEach(function(c) { stillHeldIds.add(c.coin_id); });
-    }
-    var restored = 0, delivered = 0, deliveredAmt = 0;
-    bundle.coins.forEach(function(c) {
+    if (res.ok) { var data = await res.json(); (data.coins || []).forEach(function(c) { stillHeldIds.add(c.coin_id); }); }
+    var restored = 0, delivered = 0, deliveredAmt = 0, deliveredIds = [];
+    stuck.forEach(function(c) {
       var cid = c.coin_id || c.id;
       var i = STATE.vault.findIndex(function(v) { return (v.coin_id || v.id) === cid; });
       if (i < 0) return;
-      if (stillHeldIds.has(cid)) {
-        // Server confirms it's still ours — the transfer genuinely failed.
-        STATE.vault[i]._status = 'HELD';
-        restored++;
-      } else {
-        // Server shows it moved on — it landed despite the error shown here.
-        STATE.vault[i]._status = 'SPENT_LOCAL';
-        delivered++; deliveredAmt += (c.amount || 0);
-      }
+      if (stillHeldIds.has(cid)) { STATE.vault[i]._status = 'HELD'; restored++; }
+      else { STATE.vault[i]._status = 'SPENT_LOCAL'; delivered++; deliveredAmt += (c.amount || c.value_kobo || 0); deliveredIds.push(cid); }
     });
     STATE.vault = STATE.vault.filter(function(c) { return c._status !== 'SPENT_LOCAL'; });
     if (delivered > 0) {
       STATE.history.unshift({
         id: 'TX-BT-' + Date.now(), type: 'sent', amount: deliveredAmt, coin_count: delivered,
         ts: new Date().toISOString(), status: 'SETTLED', method: 'bluetooth',
-        name: 'Sent via Bluetooth (delivered — app connection dropped after transfer)',
-        sent_coin_ids: bundle.coins.map(function(c) { return c.coin_id || c.id; }),
+        name: 'Sent via Bluetooth (delivered — confirmation was lost)',
+        sent_coin_ids: deliveredIds,
       });
     }
     save(); refreshHome();
-    if (restored > 0 && delivered > 0) {
-      toast(restored + ' coin(s) restored, ' + delivered + ' actually went through despite the error', false, 7000);
-    } else if (restored > 0) {
-      toast('Transfer failed — ' + restored + ' coin(s) restored to your balance', true, 5000);
-    } else if (delivered > 0) {
-      toast('Transfer actually completed — the error was just a lost confirmation', false, 6000);
-    }
+    if (restored > 0 && delivered > 0) toast(restored + ' coin(s) restored, ' + delivered + ' had already gone through', false, 7000);
+    else if (restored > 0) toast(restored + ' stuck coin(s) restored to your balance', true, 5000);
+    else if (delivered > 0 && opts.silent !== true) toast(delivered + ' transfer(s) confirmed delivered', false, 5000);
   } catch (e) {
-    console.warn('[wallet] BT failure verification failed:', e.message);
-    // Network hiccup mid-check — leave as pending, will resolve on next sync/30-min sweep
+    console.warn('[wallet] stuck-coin sweep failed:', e.message);
+    if (opts.silent !== true) toast('Could not verify right now — try again shortly', true);
   }
 }
+function zilRestoreCoinsAfterBtFailure(bundle, reason) { return zilRestoreAllStuckCoins({}); }
 function walletBtSend() {
   if (!STATE.sendBundle) { toast('Generate QR first to load coins', true); return; }
   var method = zilBtMethod();
@@ -5195,7 +5213,7 @@ function walletBtInlineScanComplete(){
   var li=document.getElementById('bt-device-list');
   var found = li?li.children.length:0;
   try{var _dc=new BroadcastChannel('zillion_bt_diag');_dc.postMessage({app:'wallet',method:window._zilBtPendingMethod||'spp',event:found?'scan_complete':'no_devices',detail:found?('Scan complete — '+found+' device(s) found'):'Scan timed out — 0 devices found',extra:'',level:found?'INFO':'WARN'});_dc.close();}catch(e){}
-  if(st&&(!li||!li.children.length)) st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.';
+  if(st&&(!li||!li.children.length)){ st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.'; zilRestoreAllStuckCoins({silent:true}); }
 }
 function walletBtShowPicker(uri,bundle,method){
   var ex=document.getElementById('zil-bt-picker'); if(ex) ex.remove();
@@ -5218,7 +5236,7 @@ function walletBtShowPicker(uri,bundle,method){
   var cancelBtn=document.createElement('button');
   cancelBtn.style.cssText='width:100%;padding:11px;background:transparent;color:#aaa;border:1px solid #555;border-radius:12px;font-size:13px;cursor:pointer;font-family:inherit';
   cancelBtn.textContent='Cancel';
-  cancelBtn.onclick=function(){var el=document.getElementById('zil-bt-picker');if(el)el.remove();};
+  cancelBtn.onclick=function(){var el=document.getElementById('zil-bt-picker');if(el)el.remove();zilRestoreAllStuckCoins({});};
   inner.appendChild(scanBtn); inner.appendChild(cancelBtn);
   o.appendChild(inner); document.body.appendChild(o);
   window.onBleDeviceFound=walletBtPickerDeviceFound;
@@ -5303,7 +5321,7 @@ function walletBtPickerScanComplete(){
   if(bn){bn.textContent='Find Devices';bn.disabled=false;}
   var pst=document.getElementById('bt-picker-status');
   var li=document.getElementById('bt-picker-list');
-  if(pst&&(!li||!li.children.length)) pst.textContent='No devices found nearby.';
+  if(pst&&(!li||!li.children.length)){ pst.textContent='No devices found nearby.'; zilRestoreAllStuckCoins({silent:true}); }
 }
 window.onNfcBundle = function(uri) {
   var b = zilDecodeBundle(uri);
@@ -5326,7 +5344,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 function walletBtPrepareScan() {
-  // Always start fresh — clear any leftover bundle from previous transfer
+  // FIX: previously this just discarded any leftover bundle from a prior
+  // incomplete attempt without restoring the coins it had locked — silently
+  // orphaning them with no reference left to recover them by. Sweep first.
+  if (STATE.sendBundle) { zilRestoreAllStuckCoins({silent:true}); }
   STATE.sendBundle = null;
   window._zilBtPendingUri = null; window._zilBtPendingBundle = null;
   // Build bundle from current send amount selection
@@ -5344,6 +5365,7 @@ function walletBtPrepareScan() {
   selected.forEach(function(c){
     var i=STATE.vault.findIndex(function(v){return(v.coin_id||v.id)===(c.coin_id||c.id);});
     if(i>=0) STATE.vault[i]._status='PENDING_TRANSFER';
+    STATE.vault[i]._sentAt = new Date().toISOString();
   });
   STATE.sendBundle = {
     zillion_version:'1.0', bundle_id:'BT-'+Date.now(),
