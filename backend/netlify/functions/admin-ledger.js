@@ -352,7 +352,21 @@ async function buildMerchantEntries(db, merchantId, entries) {
   // All holder_hash variants for this merchant
   const variants = [merchantId, 'MERCHANT-' + merchantId];
 
-  // All coins ever held by this merchant (any status)
+  // PRIMARY SOURCE: coin_ledger (immutable). FIX: redeem.js reassigns a
+  // redeemed coin's holder_hash straight to the agent, so the coins-table
+  // fallback below (which queries CURRENT holder_hash) was losing BOTH the
+  // original receipt AND the cashout debit for every coin the merchant
+  // successfully cashed out — the transaction vanished entirely. coin_ledger
+  // records the movement permanently regardless of where the coin ends up.
+  const usedLedger = await buildEntriesFromCoinLedger(db, variants, entries);
+
+  // Pending-claim debits (QR generated, agent hasn't redeemed yet) are always
+  // needed on top — coin_ledger has nothing to say about a claim that hasn't
+  // executed as a coins-table movement yet.
+  await buildMerchantPendingClaims(db, merchantId, entries);
+  if (usedLedger) return;
+
+  // ── FALLBACK: reconstruct from the coins table (pre-migration coins) ─────
   const { data: coins, error } = await db.from('coins')
     .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, expires_at, updated_at, created_at')
     .in('holder_hash', variants)
@@ -414,12 +428,18 @@ async function buildMerchantEntries(db, merchantId, entries) {
     }
   }
 
-  // ── PENDING CASHOUT DEBITS from claim_bundles ─────────────────────────────
-  // When a merchant generates a cashout QR, it writes to claim_bundles
-  // with bundle_data.type='cashout' and bundle_data.merchant_id.
-  // These coins are still HELD in Supabase (agent hasn't called /redeem yet)
-  // but the merchant has already committed to paying out — show as pending debit.
-  // We exclude any coin_ids already covered by REDEEMED coins above.
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MERCHANT PENDING CASHOUT CLAIMS
+// When a merchant generates a cashout QR, it writes to claim_bundles with
+// bundle_data.type='cashout'. These coins are still HELD in Supabase (agent
+// hasn't called /redeem yet) but the merchant has already committed to
+// paying out — show as a pending debit. Verifies live coin status directly
+// rather than trusting a precomputed set, so it's correct regardless of
+// whether the confirmed entries above came from coin_ledger or the fallback.
+// ─────────────────────────────────────────────────────────────────────────────
+async function buildMerchantPendingClaims(db, merchantId, entries) {
   try {
     const { data: claims } = await db
       .from('claim_bundles')
@@ -429,17 +449,23 @@ async function buildMerchantEntries(db, merchantId, entries) {
 
     for (const claim of (claims || [])) {
       const bd = claim.bundle_data || {};
-      // Only cashout bundles for this merchant
       if (bd.type !== 'cashout') continue;
       if (bd.merchant_id !== merchantId) continue;
 
-      // Skip coins already accounted for as REDEEMED
       const claimCoinIds = (bd.coins || []).map(c => c.coin_id).filter(Boolean);
-      const newCoinIds   = claimCoinIds.filter(id => !redeemedCoinIds.has(id));
-      if (!newCoinIds.length && claimCoinIds.length > 0) continue;
 
-      const claimTs  = claim.created_at || new Date().toISOString();
-      const claimAmt = claim.amount_kobo || bd.total_kobo || 0;
+      // Skip if any of these coins are already confirmed redeemed —
+      // that movement is already covered by a Cashout entry above.
+      let alreadyRedeemed = false;
+      if (claimCoinIds.length) {
+        const { data: liveCoins } = await db.from('coins')
+          .select('coin_id, status').in('coin_id', claimCoinIds);
+        alreadyRedeemed = (liveCoins || []).some(c => c.status === 'REDEEMED' || c.status === 'SPENT');
+      }
+      if (alreadyRedeemed) continue;
+
+      const claimTs   = claim.created_at || new Date().toISOString();
+      const claimAmt  = claim.amount_kobo || bd.total_kobo || 0;
       const isExpired = claim.expires_at && new Date(claim.expires_at) < new Date();
 
       entries.push({
@@ -460,7 +486,7 @@ async function buildMerchantEntries(db, merchantId, entries) {
     }
   } catch (claimErr) {
     // Non-fatal — claim_bundles table may not exist in all environments
-    console.warn('[buildMerchantEntries] claim_bundles query failed:', claimErr.message);
+    console.warn('[buildMerchantPendingClaims] query failed:', claimErr.message);
   }
 }
 
@@ -568,51 +594,61 @@ async function buildAgentEntries(db, agentId, entries) {
 // Debit  = coins spent/sent: holder_hash = device_hash AND status IN (SPENT,REDEEMED)
 //          + transactions from_hash = device_hash (sync.js records)
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED: build entries from the immutable coin_ledger table (see coin_ledger.sql)
+// Used by both customer and merchant statements — both suffer the same root
+// problem: coins.holder_hash is mutated in place on every transfer/redemption,
+// so a query keyed on "current holder_hash" silently loses any coin that has
+// since moved on. coin_ledger never mutates, so this is authoritative for any
+// entity once the trigger has been running. Returns true if it had data to use.
+// ─────────────────────────────────────────────────────────────────────────────
+async function buildEntriesFromCoinLedger(db, hashes, entries) {
+  const { data: ledgerRows, error: eL } = await db.from('coin_ledger')
+    .select('coin_id, amount, event_type, prev_holder_hash, new_holder_hash, prev_status, new_status, changed_at')
+    .or(hashes.map(h => `new_holder_hash.eq.${h}`).concat(hashes.map(h => `prev_holder_hash.eq.${h}`)).join(','))
+    .order('changed_at', { ascending: true });
+
+  if (eL || !ledgerRows || ledgerRows.length === 0) return false;
+
+  for (const row of ledgerRows) {
+    const isIncoming = hashes.includes(row.new_holder_hash) && !hashes.includes(row.prev_holder_hash);
+    const isOutgoing = hashes.includes(row.prev_holder_hash) && !hashes.includes(row.new_holder_hash);
+    const ref = 'ZIL-' + (row.coin_id || '').slice(4, 16);
+
+    if (row.event_type === 'MINT' || row.event_type === 'MINT_BACKFILL' || isIncoming) {
+      entries.push({
+        ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
+        type: 'Receipt', ref, coin_id: row.coin_id,
+        narration: row.event_type.startsWith('MINT') ? 'Coins Received from Agent' : narrateMerchantCredit(row.prev_holder_hash),
+        debit_kobo: 0, credit_kobo: row.amount || 0,
+        counterparty: shortId(row.prev_holder_hash || 'Agent'),
+        status: 'SETTLED', direction: 'CR',
+      });
+    }
+    if (isOutgoing || (hashes.includes(row.prev_holder_hash) && row.new_status && ['SPENT','REDEEMED'].includes(row.new_status))) {
+      entries.push({
+        ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
+        type: row.new_status === 'REDEEMED' ? 'Cashout' : 'Payment',
+        ref: (row.new_status === 'REDEEMED' ? 'CASH-' : 'PAY-') + (row.coin_id || '').slice(4, 14),
+        coin_id: row.coin_id,
+        narration: row.new_status === 'REDEEMED' ? 'Cash Out to Agent (Confirmed)' : 'Payment Sent',
+        debit_kobo: row.amount || 0, credit_kobo: 0,
+        counterparty: shortId(row.new_holder_hash || 'Merchant/Agent'),
+        status: 'SETTLED', direction: 'DR',
+      });
+    }
+  }
+  return true;
+}
+
 async function buildCustomerEntries(db, deviceHashes, entries) {
   // Accept either a single hash (legacy callers) or an array of every
   // holder_hash this customer has ever used.
   const hashes = Array.isArray(deviceHashes) ? deviceHashes.filter(Boolean) : [deviceHashes].filter(Boolean);
   if (!hashes.length) return;
 
-  // ── PRIMARY SOURCE: coin_ledger (immutable, permanent — see coin_ledger.sql) ──
-  // Every INSERT/UPDATE on `coins` is trigger-logged here, so this can never
-  // lose a customer's receipt history the way the mutable `coins` table did.
-  // If the migration has been run, this alone gives a complete, correct
-  // chronological statement.
-  const { data: ledgerRows, error: eL } = await db.from('coin_ledger')
-    .select('coin_id, amount, event_type, prev_holder_hash, new_holder_hash, prev_status, new_status, changed_at')
-    .or(hashes.map(h => `new_holder_hash.eq.${h}`).concat(hashes.map(h => `prev_holder_hash.eq.${h}`)).join(','))
-    .order('changed_at', { ascending: true });
-
-  if (!eL && ledgerRows && ledgerRows.length > 0) {
-    for (const row of ledgerRows) {
-      const isIncoming = hashes.includes(row.new_holder_hash) && !hashes.includes(row.prev_holder_hash);
-      const isOutgoing = hashes.includes(row.prev_holder_hash) && !hashes.includes(row.new_holder_hash);
-      const ref = 'ZIL-' + (row.coin_id || '').slice(4, 16);
-
-      if (row.event_type === 'MINT' || row.event_type === 'MINT_BACKFILL' || isIncoming) {
-        entries.push({
-          ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
-          type: 'Receipt', ref, coin_id: row.coin_id,
-          narration: row.event_type.startsWith('MINT') ? 'Coins Received from Agent' : narrateMerchantCredit(row.prev_holder_hash),
-          debit_kobo: 0, credit_kobo: row.amount || 0,
-          counterparty: shortId(row.prev_holder_hash || 'Agent'),
-          status: 'SETTLED', direction: 'CR',
-        });
-      }
-      if (isOutgoing || (hashes.includes(row.prev_holder_hash) && row.new_status && ['SPENT','REDEEMED'].includes(row.new_status))) {
-        entries.push({
-          ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
-          type: 'Payment', ref: 'PAY-' + (row.coin_id || '').slice(4, 14), coin_id: row.coin_id,
-          narration: row.new_status === 'REDEEMED' ? 'Cash-Out Redeemed' : 'Payment Sent',
-          debit_kobo: row.amount || 0, credit_kobo: 0,
-          counterparty: shortId(row.new_holder_hash || 'Merchant/Agent'),
-          status: 'SETTLED', direction: 'DR',
-        });
-      }
-    }
-    return; // coin_ledger is authoritative — no need for the fallback below
-  }
+  // PRIMARY SOURCE: coin_ledger (immutable, permanent — see coin_ledger.sql)
+  if (await buildEntriesFromCoinLedger(db, hashes, entries)) return;
 
   // ── FALLBACK: reconstruct from coins + transactions ──────────────────────
   // Used only if coin_ledger hasn't been migrated yet, or returns nothing
