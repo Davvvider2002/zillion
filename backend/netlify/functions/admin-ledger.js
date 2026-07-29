@@ -496,6 +496,16 @@ async function buildMerchantPendingClaims(db, merchantId, entries) {
 // Debit    = coins issued:    issuer_id=agent AND holder_hash≠agent (sent to customer)
 // Credit B = redemptions:     coins where holder_hash=agent AND status=REDEEMED
 //            (merchant/customer cashed out, coin came back to agent)
+//
+// IMPORTANT — DO NOT "simplify" the debit query below to use holder_hash:
+// issuer_id is set once at coin creation and never mutates, unlike
+// holder_hash which is reassigned on every transfer/redemption. That's WHY
+// this function doesn't suffer the bug found in buildMerchantEntries (a
+// coin's full history vanishing once holder_hash moves past a given holder).
+// Querying by issuer_id here means every coin an agent ever issued stays
+// visible in their statement no matter how many hands it's since passed
+// through. If this ever gets rewritten to filter on current holder_hash
+// instead, that permanent-visibility guarantee breaks silently.
 // ─────────────────────────────────────────────────────────────────────────────
 async function buildAgentEntries(db, agentId, entries) {
   // ── CORRECT LOGIC FOR AGENT LEDGER ─────────────────────────────────────────
@@ -589,12 +599,6 @@ async function buildAgentEntries(db, agentId, entries) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CUSTOMER ENTRIES
-// Credit = coins received:   holder_hash = device_hash (ever held, any status)
-// Debit  = coins spent/sent: holder_hash = device_hash AND status IN (SPENT,REDEEMED)
-//          + transactions from_hash = device_hash (sync.js records)
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
 // SHARED: build entries from the immutable coin_ledger table (see coin_ledger.sql)
 // Used by both customer and merchant statements — both suffer the same root
 // problem: coins.holder_hash is mutated in place on every transfer/redemption,
@@ -625,7 +629,13 @@ async function buildEntriesFromCoinLedger(db, hashes, entries) {
         status: 'SETTLED', direction: 'CR',
       });
     }
+    // SPLIT_OPERATION is a synthetic marker from coins-split.js — the coin
+    // is being re-denominated (e.g. ₦1000 -> 2x₦500), not actually leaving
+    // the customer economically. Showing it as "Cash Out to Agent" would be
+    // actively misleading, so this leg is intentionally suppressed here.
+    // The customer still sees the newly-minted split coins as Receipts.
     if (isOutgoing || (hashes.includes(row.prev_holder_hash) && row.new_status && ['SPENT','REDEEMED'].includes(row.new_status))) {
+      if (row.new_holder_hash === 'SPLIT_OPERATION') continue;
       entries.push({
         ts: row.changed_at, date: (row.changed_at || '').slice(0, 10),
         type: row.new_status === 'REDEEMED' ? 'Cashout' : 'Payment',
