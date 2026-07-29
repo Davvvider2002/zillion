@@ -139,6 +139,58 @@ exports.handler = async (event) => {
       .select('*', { count:'exact', head:true });
     report.summary.transactions = txCount;
 
+    // ── 6. coin_ledger drift check ──────────────────────────────────────────
+    // Compares the immutable coin_ledger's implied HELD balance per holder
+    // against the live coins table (SUM(amount) WHERE status='HELD'). These
+    // should always match exactly — coin_ledger is a permanent record of
+    // every movement, so any drift means either a bug wrote to coins outside
+    // what the trigger captured (should be structurally impossible) or a
+    // logic error somewhere else entirely. This does NOT auto-fix anything;
+    // drift here needs a human to look at it, not a silent correction.
+    // Skips gracefully if the migration (backend/db/coin_ledger.sql) hasn't
+    // been run yet — coin_ledger won't exist.
+    try {
+      const { data: ledgerBalances, error: ledgerErr } = await db
+        .from('coin_ledger_holder_balance')
+        .select('holder_hash, implied_held_kobo');
+
+      if (ledgerErr) {
+        report.summary.coin_ledger_check = 'not_available (migration not run yet — see backend/db/coin_ledger.sql)';
+      } else {
+        const { data: liveHeld } = await db.from('coins')
+          .select('holder_hash, amount').eq('status', 'HELD');
+
+        const liveByHolder = {};
+        (liveHeld || []).forEach(c => {
+          if (!c.holder_hash) return;
+          liveByHolder[c.holder_hash] = (liveByHolder[c.holder_hash] || 0) + (c.amount || 0);
+        });
+
+        let driftCount = 0;
+        const TOLERANCE_KOBO = 100; // ignore < ₦1 rounding
+        for (const row of (ledgerBalances || [])) {
+          const live = liveByHolder[row.holder_hash] || 0;
+          const diff = live - (row.implied_held_kobo || 0);
+          if (Math.abs(diff) > TOLERANCE_KOBO) {
+            driftCount++;
+            report.warnings.push({
+              type: 'COIN_LEDGER_DRIFT',
+              holder_hash: row.holder_hash,
+              live_held_kobo: live,
+              ledger_implied_kobo: row.implied_held_kobo,
+              difference_kobo: diff,
+            });
+          }
+        }
+        report.summary.coin_ledger_check = {
+          holders_checked: (ledgerBalances || []).length,
+          drift_found: driftCount,
+        };
+      }
+    } catch (ledgerCheckErr) {
+      report.summary.coin_ledger_check = 'error: ' + ledgerCheckErr.message;
+    }
+
     report.status = 'COMPLETE';
     report.message = reassigned > 0
       ? reassigned + ' coins re-assigned to correct SHA256(phone) holder_hash'
