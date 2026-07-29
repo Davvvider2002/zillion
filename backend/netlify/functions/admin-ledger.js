@@ -192,6 +192,27 @@ exports.handler = async (event) => {
           ? `Customer ${devData.phone_number}`
           : `Wallet-${resolvedHolderHash.slice(0,16)}…`;
 
+      // ── Gather EVERY holder_hash this human has ever used ─────────
+      // A phone can accumulate several holder_hash values over time: the
+      // legacy per-device/per-session HMAC scheme used before ownerHash()
+      // switched to SHA256(phone), plus any devices re-registered under a
+      // different device_hash. Looking at resolvedHolderHash alone silently
+      // drops history tied to those other hashes — which is exactly why the
+      // ledger and the Customers list have shown different totals for the
+      // same person. Merge them all here.
+      const allHolderHashes = new Set([resolvedHolderHash]);
+      if (devData?.holder_hash) allHolderHashes.add(devData.holder_hash);
+      const effectivePhone = searchPhone || devData?.phone_number || null;
+      if (effectivePhone) {
+        const { data: samePhoneDevices } = await db.from('devices')
+          .select('device_hash, holder_hash, phone_number, phone_hash')
+          .eq('phone_number', effectivePhone);
+        (samePhoneDevices || []).forEach(d => {
+          if (d.holder_hash) allHolderHashes.add(d.holder_hash);
+          if (d.device_hash) allHolderHashes.add(d.device_hash);
+        });
+      }
+
       entity = {
         id:     devData?.device_hash || entityId,
         name:   displayName,
@@ -199,12 +220,14 @@ exports.handler = async (event) => {
         status: devData?.status || 'ACTIVE',
         joined: devData?.registered_at || null,
         extra:  {
-          phone:       searchPhone || devData?.phone_number || '—',
-          holder_hash: resolvedHolderHash.slice(0,16) + '…',
-          device_hash: devData?.device_hash || entityId,
-          coin_count:  probeCoins.length + '+ coins found',
+          phone:         searchPhone || devData?.phone_number || '—',
+          holder_hash:   resolvedHolderHash.slice(0,16) + '…',
+          device_hash:   devData?.device_hash || entityId,
+          coin_count:    probeCoins.length + '+ coins found',
+          linked_hashes: allHolderHashes.size > 1 ? allHolderHashes.size : undefined,
         },
-        _holderHash: resolvedHolderHash,
+        _holderHash:  resolvedHolderHash,
+        _holderHashes:[...allHolderHashes],
       };
     }
 
@@ -216,9 +239,12 @@ exports.handler = async (event) => {
     } else if (entityType === 'agent') {
       await buildAgentEntries(db, entityId, allEntries);
     } else {
-      // Use resolved HMAC holder_hash for coin queries, not raw device_hash
-      const customerHash = entity._holderHash || entityId;
-      await buildCustomerEntries(db, customerHash, allEntries);
+      // Use ALL resolved holder_hash values for this customer, not just one,
+      // so history spread across old device/session hashes isn't dropped.
+      const customerHashes = entity._holderHashes && entity._holderHashes.length
+        ? entity._holderHashes
+        : [entity._holderHash || entityId];
+      await buildCustomerEntries(db, customerHashes, allEntries);
     }
 
     // ── 3. Sort ALL entries chronologically ───────────────────────
@@ -542,31 +568,53 @@ async function buildAgentEntries(db, agentId, entries) {
 // Debit  = coins spent/sent: holder_hash = device_hash AND status IN (SPENT,REDEEMED)
 //          + transactions from_hash = device_hash (sync.js records)
 // ─────────────────────────────────────────────────────────────────────────────
-async function buildCustomerEntries(db, deviceHash, entries) {
-  // All coins that ever passed through this customer
+async function buildCustomerEntries(db, deviceHashes, entries) {
+  // Accept either a single hash (legacy callers) or an array of every
+  // holder_hash this customer has ever used.
+  const hashes = Array.isArray(deviceHashes) ? deviceHashes.filter(Boolean) : [deviceHashes].filter(Boolean);
+  if (!hashes.length) return;
+
+  // All coins CURRENTLY held under any of this customer's hashes
   const { data: coins, error: e1 } = await db.from('coins')
     .select('coin_id, amount, status, holder_hash, issuer_id, issued_at, updated_at, created_at, expires_at')
-    .eq('holder_hash', deviceHash)
+    .in('holder_hash', hashes)
     .order('issued_at', { ascending: true });
   if (e1) throw new Error('Customer coins: ' + e1.message);
 
-  // Transactions where customer was the sender (from_hash = device_hash)
+  // Transactions where customer was the sender (from_hash) — debits
   const { data: txnsFrom } = await db.from('transactions')
     .select('coin_id, from_hash, to_hash, amount, tx_ts, status')
-    .eq('from_hash', deviceHash)
+    .in('from_hash', hashes)
     .order('tx_ts', { ascending: true });
 
-  // Build set of coin_ids we'll track as debits from coins table
+  // Transactions where customer was the RECEIVER (to_hash) — credits.
+  // FIX: this was never queried before, so any coin the customer received
+  // and later forwarded/spent (holder_hash now points to the new owner)
+  // had its Receipt event silently disappear from this ledger — the coin
+  // no longer matches `holder_hash IN hashes` above, so it's invisible to
+  // the loop below. The debit for spending it would still show up via
+  // txnsFrom, producing statements that were debit-heavy with no matching
+  // credit — exactly the mismatch seen between this ledger and the
+  // Customers list. Backfilling from transactions.to_hash restores it.
+  const { data: txnsTo } = await db.from('transactions')
+    .select('coin_id, from_hash, to_hash, amount, tx_ts, status')
+    .in('to_hash', hashes)
+    .order('tx_ts', { ascending: true });
+
+  // Coins currently held by this customer: track which are already
+  // accounted for as receipts/debits so we don't double-count below.
+  const coinIdsSeen = new Set();
   const spentCoinIds = new Set(
     (coins || []).filter(c => c.status === 'SPENT' || c.status === 'REDEEMED')
       .map(c => c.coin_id)
   );
 
   for (const coin of (coins || [])) {
+    coinIdsSeen.add(coin.coin_id);
     const receivedTs = coin.issued_at || coin.created_at;
     const ref        = 'ZIL-' + (coin.coin_id || '').slice(4, 16);
 
-    // CREDIT — customer received this coin
+    // CREDIT — customer received this coin (still holds it, or held it then spent it)
     entries.push({
       ts:           receivedTs,
       date:         receivedTs.slice(0, 10),
@@ -600,7 +648,27 @@ async function buildCustomerEntries(db, deviceHash, entries) {
     }
   }
 
-  // Also add any debit records from transactions table not already covered
+  // Backfill CREDITS for coins received-then-moved-on, not covered above
+  // because their holder_hash no longer matches this customer.
+  for (const tx of (txnsTo || [])) {
+    if (coinIdsSeen.has(tx.coin_id)) continue; // already have the Receipt entry above
+    coinIdsSeen.add(tx.coin_id);
+    entries.push({
+      ts:           tx.tx_ts,
+      date:         (tx.tx_ts || '').slice(0, 10),
+      type:         'Receipt',
+      ref:          'TX-' + (tx.coin_id || '').slice(4, 14),
+      coin_id:      tx.coin_id,
+      narration:    narrateMerchantCredit(tx.from_hash) || 'Payment Received',
+      debit_kobo:   0,
+      credit_kobo:  tx.amount || 0,
+      counterparty: shortId(tx.from_hash || 'Sender'),
+      status:       tx.status || 'SETTLED',
+      direction:    'CR',
+    });
+  }
+
+  // Backfill DEBITS from transactions not already covered by the coins loop
   for (const tx of (txnsFrom || [])) {
     if (spentCoinIds.has(tx.coin_id)) continue; // already added as debit above
     entries.push({
