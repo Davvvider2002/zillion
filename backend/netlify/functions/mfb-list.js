@@ -7,10 +7,12 @@
  */
 'use strict';
 
+const { corsOrigin } = require('../../lib/cors');
+
 const { createClient } = require('@supabase/supabase-js');
 
 exports.handler = async (event) => {
-  const hdr = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+  const hdr = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin(event) };
   const ok  = b     => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
   const err = (c,m) => ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
 
