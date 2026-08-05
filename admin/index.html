@@ -586,7 +586,7 @@ tbody tr:last-child td{border-bottom:none;}
         <span class="si">👤</span> Users &amp; Access
       </button>
       <button class="snav-item" id="nav-mfbs"
-              onclick="showSec('mfbs',this);setTimeout(loadMfbs,100);">
+              onclick="showSec('mfbs',this);setTimeout(loadMfbs,100);setTimeout(loadMfbRequests,100);">
         <span class="si">🏦</span> MFB Partners
       </button>
       <button class="snav-item" id="nav-commission"
@@ -1476,6 +1476,22 @@ tbody tr:last-child td{border-bottom:none;}
 
   <!-- ── MFB cards grid ────────────────────────────────────── -->
   <div id="mfb-cards-grid" class="grid3" style="margin-bottom:24px"></div>
+
+  <!-- ── Agent MFB change requests ─────────────────────────── -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title">Agent MFB Change Requests
+      <button class="rbtn" onclick="loadMfbRequests()">&#8635;</button>
+    </div>
+    <div class="card-sub">Agents requesting to switch their assigned MFB — review before approving.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Agent</th><th>Current MFB</th><th>Requested MFB</th><th>Reason</th><th>Requested</th><th>Action</th>
+        </tr></thead>
+        <tbody id="mfb-requests-body"><tr><td colspan="6" class="no-data">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
   <!-- ── MFB table ─────────────────────────────────────────── -->
   <div class="card">
@@ -4099,6 +4115,48 @@ async function loadMfbDashboard() {
 
 var _mfbData = [];
 
+async function loadMfbRequests() {
+  var body = document.getElementById('mfb-requests-body');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="6" class="no-data">Loading…</td></tr>';
+  try {
+    var resp = await fetch('/api/v1/admin/mfb-requests?status=PENDING', { headers: {'Authorization':'Bearer '+adminToken} });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Load error');
+    var reqs = data.requests || [];
+    body.innerHTML = reqs.length ? reqs.map(function(r) {
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:12px">' + (r.agent_id||'—') + '</td>' +
+        '<td>' + (r.current_mfb_name || '<span class="badge b-err">None</span>') + '</td>' +
+        '<td style="font-weight:700">' + (r.requested_mfb_name||'—') + '</td>' +
+        '<td style="font-size:12px;color:var(--gr)">' + (r.reason || '—') + '</td>' +
+        '<td style="font-size:12px">' + new Date(r.requested_at).toLocaleDateString() + '</td>' +
+        '<td>' +
+          '<button class="rbtn" style="color:var(--g);margin-right:6px" onclick="reviewMfbRequest(\'' + r.request_id + '\',\'APPROVE\')">&#10003; Approve</button>' +
+          '<button class="rbtn" style="color:var(--r)" onclick="reviewMfbRequest(\'' + r.request_id + '\',\'REJECT\')">&#10005; Reject</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="6" class="no-data">No pending requests</td></tr>';
+  } catch (e) {
+    body.innerHTML = '<tr><td colspan="6" class="no-data">Error: ' + e.message + '</td></tr>';
+  }
+}
+async function reviewMfbRequest(requestId, action) {
+  if (!confirm((action === 'APPROVE' ? 'Approve' : 'Reject') + ' this MFB change request?')) return;
+  try {
+    var resp = await fetch('/api/v1/admin/mfb-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body: JSON.stringify({ request_id: requestId, action: action }),
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Action failed');
+    loadMfbRequests();
+    if (typeof loadMfbs === 'function') loadMfbs();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
 async function loadMfbs() {
   var ld = document.getElementById('mfb-table-loading');
   if (ld) { ld.style.display='block'; ld.textContent='Loading...'; }
