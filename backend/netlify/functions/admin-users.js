@@ -44,7 +44,7 @@ exports.handler = async (event) => {
     // ── 1. All registered devices (customers) ────────────────────
     const { data: devices } = await db
       .from('devices')
-      .select('device_hash, phone_hash, phone_number, holder_hash, registered_at, last_sync, status, fraud_score, kyc_tier')
+      .select('device_hash, phone_hash, holder_hash, registered_at, last_sync, status, fraud_score, kyc_tier')
       .order('registered_at', { ascending: false });
 
     // ── 2. ALL customer coins ─────────────────────────────────────
@@ -105,30 +105,23 @@ exports.handler = async (event) => {
       }
     });
 
-    // ── 8. Resolve every holder_hash to a stable customer identity (phone) ──
+    // ── 8. Resolve every holder_hash to a stable customer identity ──────────
     // ownerHash() on the agent portal now computes SHA256(normalised_phone) for
-    // all NEW coin issuance — that IS a stable, device-independent key. But
-    // coins issued before that fix used HMAC-SHA256(agentJWT, phone+':'+device),
-    // which is different per device *and* per agent session, so the same human
-    // still fragments into several holder_hash rows below. We resolve each
-    // holder_hash to a phone identity via three strategies, in order of trust:
-    //   1. A devices row whose holder_hash matches exactly (sync.js writes this)
-    //   2. A devices row whose phone_number, once SHA256'd, equals this holder_hash
-    //      (proves this IS the canonical phone-based hash)
-    //   3. Unresolvable — kept as its own "Unlinked (legacy)" row rather than
-    //      silently merged into a guess, so no balance is ever mis-attributed.
-    const crypto = require('crypto');
-    const phoneToSha = {};
-    (devices || []).forEach(d => {
-      if (!d.phone_number) return;
-      phoneToSha[crypto.createHash('sha256').update(d.phone_number).digest('hex')] = d;
-    });
-
+    // all NEW coin issuance — that IS a stable, device-independent key, and
+    // coins sharing that holder_hash already group correctly below with no
+    // devices-table involvement needed at all. What this CANNOT do: unify
+    // legacy pre-migration coins (issued under the old per-device/per-session
+    // HMAC scheme) back to the same phone. An earlier attempt at this assumed
+    // devices had a plaintext phone_number column to hash and compare — it
+    // doesn't exist, and even if it did, devices.phone_hash is an HMAC keyed
+    // with the server's secret (see verify-otp.js), while coins.holder_hash is
+    // a plain unkeyed SHA256 — genuinely different schemes for the same phone,
+    // never directly comparable. Only real, working strategy: an exact
+    // devices.holder_hash match (written by sync.js). Anything else stays
+    // honestly labeled "Unlinked (legacy)" rather than silently mismatched.
     function resolveCustomerKey(holderHash) {
       const byHolder = deviceByHolderHash[holderHash];
-      if (byHolder) return { key: byHolder.phone_hash || byHolder.phone_number || holderHash, device: byHolder, linked: true };
-      const byPhoneSha = phoneToSha[holderHash];
-      if (byPhoneSha) return { key: byPhoneSha.phone_hash || byPhoneSha.phone_number || holderHash, device: byPhoneSha, linked: true };
+      if (byHolder) return { key: byHolder.phone_hash || holderHash, device: byHolder, linked: true };
       return { key: 'UNLINKED-' + holderHash, device: null, linked: false };
     }
 
@@ -189,7 +182,6 @@ exports.handler = async (event) => {
         holder_hash:         holderHashes[0],          // primary/most-used hash
         holder_hashes:       holderHashes,              // ALL hashes merged into this row
         phone_hash:          linkedDevice?.phone_hash || null,
-        phone_number:        linkedDevice?.phone_number || null,
         status:              linkedDevice?.status || 'ACTIVE',
         fraud_score:         linkedDevice?.fraud_score || 0,
         registered_at:       linkedDevice?.registered_at || coins[0]?.issued_at || null,
@@ -230,7 +222,6 @@ exports.handler = async (event) => {
         holder_hash:         hh || null,
         holder_hashes:       hh ? [hh] : [],
         phone_hash:          dev.phone_hash,
-        phone_number:        dev.phone_number || null,
         status:              dev.status || 'ACTIVE',
         fraud_score:         dev.fraud_score || 0,
         registered_at:       dev.registered_at,
