@@ -696,10 +696,13 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="card-title">All PWA Customers<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportUsers()">⬇ CSV</button><button class="rbtn" onclick="loadUsers()">↻</button></div></div>
     <div class="card-sub">All PWA-registered customer devices</div>
     <div class="toolbar">
-      <input class="search-input" id="user-search" placeholder="Search phone number, device, or hash..." oninput="filterUserTable()">
+      <input class="search-input" id="user-search" placeholder="Search device or hash..." oninput="filterUserTable()">
       <select class="filter-select" id="user-status-filter" onchange="filterUserTable()">
         <option value="">All Status</option><option value="ACTIVE">Active</option><option value="FLAGGED">Flagged</option>
       </select>
+    </div>
+    <div id="user-phone-search-hint" style="display:none;margin-top:8px;padding:10px 12px;background:var(--al,#FFF3E0);border-radius:8px;font-size:13px;color:var(--am,#E67E22)">
+      No matches by hash here. Phone numbers aren't stored in plaintext — use the <a href="#" onclick="showSec('ledger',null);return false" style="color:inherit;font-weight:700;text-decoration:underline">Ledger</a> search instead, which resolves phone numbers server-side.
     </div>
     <div class="table-wrap">
       <table>
@@ -2146,20 +2149,25 @@ function filterUserTable() {
   const raw = document.getElementById('user-search').value;
   const q   = raw.toLowerCase().trim();
   const st  = document.getElementById('user-status-filter').value;
-  // Normalise a phone-like query the same way the backend does, so
-  // "+2348126426726", "2348126426726", and "08126426726" all match.
   let qPhoneDigits = q.replace(/[^\d]/g, '');
   if (qPhoneDigits.startsWith('0') && qPhoneDigits.length === 11) qPhoneDigits = '234' + qPhoneDigits.slice(1);
-  renderUserTable(allUsers.filter(u => {
+  const looksLikePhone = qPhoneDigits.length >= 10;
+  const filtered = allUsers.filter(u => {
     if (st && u.status !== st) return false;
     if (!q) return true;
     if (u.device_hash?.toLowerCase().includes(q)) return true;
     if (u.phone_hash?.toLowerCase().includes(q)) return true;
     if (u.holder_hash?.toLowerCase().includes(q)) return true;
-    if (u.phone_number?.toLowerCase().includes(q)) return true;
-    if (qPhoneDigits && u.phone_number?.replace(/[^\d]/g, '').includes(qPhoneDigits)) return true;
     return false;
-  }));
+  });
+  renderUserTable(filtered);
+  // Customer identity here is a one-way hash (no plaintext phone stored) —
+  // this list can't search by raw digits client-side. The Ledger view CAN
+  // (it resolves phone -> hash server-side, where the secret key needed for
+  // that computation actually lives). Nudge toward it instead of pretending
+  // this search box supports something it structurally can't.
+  const hint = document.getElementById('user-phone-search-hint');
+  if (hint) hint.style.display = (looksLikePhone && filtered.length === 0) ? '' : 'none';
 }
 function renderUserTable(users) {
   _admAllData.user = users;
@@ -2167,9 +2175,8 @@ function renderUserTable(users) {
     ? users.map((u,i) => `<tr onclick="openAdmDetail('user',${i})" style="cursor:pointer" title="Click for full details">
         <td style="font-family:monospace;font-size:11px">${(u.device_hash||'').slice(0,14)}…</td>
         <td style="font-family:monospace;font-size:11px">${
-          u.phone_number ? u.phone_number
-          : u.phone_hash ? (u.phone_hash.slice(0,10)+'…')
-          : u.unlinked   ? '<span class="badge b-err" title="Legacy coin hash — could not be tied to a phone number">Unlinked (legacy)</span>'
+          u.phone_hash ? (u.phone_hash.slice(0,10)+'…')
+          : u.unlinked  ? '<span class="badge b-err" title="Legacy coin hash — could not be tied to a phone number">Unlinked (legacy)</span>'
           : '—'
         }</td>
         <td><span class="badge ${u.status==='ACTIVE'?'b-ok':'b-err'}">${u.status}</span></td>
@@ -2185,8 +2192,8 @@ function renderUserTable(users) {
     : '<tr><td colspan="11" class="no-data">No customers found</td></tr>';
 }
 function exportUsers() {
-  const rows = [['Device ID','Phone Number','Phone Hash','Status','Registered','Balance (kobo)','Sent','Received','Tx Count','Linked']];
-  allUsers.forEach(u => rows.push([u.device_hash,u.phone_number||'',u.phone_hash,u.status,u.registered_at,u.held_balance_kobo,u.total_sent_kobo,u.total_received_kobo,u.tx_count,u.unlinked?'No':'Yes']));
+  const rows = [['Device ID','Phone Hash','Status','Registered','Balance (kobo)','Sent','Received','Tx Count','Linked']];
+  allUsers.forEach(u => rows.push([u.device_hash,u.phone_hash,u.status,u.registered_at,u.held_balance_kobo,u.total_sent_kobo,u.total_received_kobo,u.tx_count,u.unlinked?'No':'Yes']));
   downloadCSV(rows, 'zillion-customers.csv');
 }
 
@@ -2844,7 +2851,7 @@ function openAdmDetail(type, idx) {
     const custId = item.holder_hash || item.device_hash || '';
     rows = [
       ['Device ID',    item.device_hash || '—'],
-      ['Phone Number', item.phone_number || (item.unlinked ? '<span class="badge b-err">Unlinked (legacy hash)</span>' : '—')],
+      ['Linked',       item.unlinked ? '<span class="badge b-err">No — legacy hash, unresolved</span>' : '<span class="badge b-ok">Yes</span>'],
       ['Coin Hash',    item.holder_hash ? item.holder_hash.slice(0,20)+'…' : '—'],
       ['Phone Hash',   item.phone_hash  || '—'],
       ['Linked Hashes',(item.holder_hashes && item.holder_hashes.length > 1) ? item.holder_hashes.length + ' merged into this row' : '1'],
@@ -2860,10 +2867,9 @@ function openAdmDetail(type, idx) {
       ['Fraud Events', item.open_fraud || 0],
       ['KYC Tier',     item.kyc_tier || '—'],
     ];
-    // Prefer phone number for ledger lookup — it merges every hash this
-    // customer has ever used. Falls back to holder_hash/device_hash for
-    // legacy rows that couldn't be resolved to a phone.
-    var ledgerId = item.phone_number || item.holder_hash || item.device_hash || '';
+    // Prefer holder_hash for ledger lookup (coins.holder_hash) — falls back
+    // to device_hash for legacy rows that couldn't be resolved.
+    var ledgerId = item.holder_hash || item.device_hash || '';
     if (ledgerId) {
       extraHtml = '<button onclick="openLedgerForCustomer(' + JSON.stringify(ledgerId) + ')" ' +
         'style="margin-top:14px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;' +
