@@ -114,6 +114,7 @@ exports.handler = async (event) => {
   if (!verifyResult?.verified && process.env.PAYSTACK_SECRET_KEY)
     return err(422, 'NIN could not be verified. Check the details and try again.');
 
+  try {
   // Store hashed NIN and upgrade tier
   const ninHash = hashNIN(nin, mustEnv('SUPABASE_SERVICE_KEY'));
   const { error: updateErr } = await db.from('devices').upsert({
@@ -137,4 +138,8 @@ exports.handler = async (event) => {
     daily_limit_naira: TIER2_LIMIT_KOBO / 100,
     message:       'NIN verified. Daily limit upgraded to ₦200,000.',
   });
+  } catch (e) {
+    console.error('[kyc-verify-nin] unhandled error:', e.message);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
