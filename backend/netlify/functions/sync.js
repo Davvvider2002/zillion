@@ -52,7 +52,6 @@ exports.handler = async (event) => {
     // can join devices ↔ coins correctly. body.holder_hash is sent by wallet
     // on every sync call as the first coin's owner_hash.
     const holderHash    = body.holder_hash || null;
-    const phoneNumber   = body.phone_number || auth.payload.phone || null;
     const receivedIds   = body.received_coin_ids || [];  // coins wallet received and wants to claim
 
     const { error: devErr } = await db.from('devices').upsert({
@@ -63,7 +62,6 @@ exports.handler = async (event) => {
       registered_at:   now,
       status:          'ACTIVE',
       ...(holderHash    ? { holder_hash:   holderHash   } : {}),
-      ...(phoneNumber   ? { phone_number:  phoneNumber  } : {}),
     }, { onConflict: 'device_hash', ignoreDuplicates: false });
     if (devErr) console.warn('Device upsert warn:', devErr.message);
 
