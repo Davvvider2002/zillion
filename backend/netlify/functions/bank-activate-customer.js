@@ -50,6 +50,7 @@ exports.handler = async (event) => {
   const TIER_LIMITS = { 1: 5000000, 2: 20000000, 3: 9007199254740991 };
   const dailyLimit  = TIER_LIMITS[tier] || TIER_LIMITS[1];
 
+  try {
   const db = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY,
@@ -107,4 +108,8 @@ exports.handler = async (event) => {
     activated_at:      now,
     message:           `Wallet activated at Tier ${tier}. Customer can now send/receive Zil.`,
   });
+  } catch (e) {
+    console.error('[bank-activate-customer] unhandled error:', e.message);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
