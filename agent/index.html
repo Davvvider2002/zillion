@@ -482,6 +482,22 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
         <div class="pbox" style="grid-column:1/-1"><div class="pboxl">Onboarded</div><div class="pboxv" id="pronb">—</div></div>
       </div>
       <button class="btn bo" style="width:auto;padding:9px 20px;font-size:13px" onclick="refreshProfile()">↻ Refresh Profile</button>
+      <div id="zil-mfb-group" style="margin-top:14px">
+        <div style="font-size:12px;color:var(--gr);margin-bottom:8px;font-weight:600">ASSIGNED MFB</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
+          <span style="font-size:13px">Current</span>
+          <span id="zil-agent-mfb-current" style="font-size:13px;font-weight:700">—</span>
+        </div>
+        <div id="zil-agent-mfb-pending" style="display:none;padding:10px 12px;background:var(--al,#FFF3E0);border-radius:8px;font-size:12px;color:var(--am,#E67E22);margin-bottom:10px"></div>
+        <div id="zil-agent-mfb-request-form" style="display:none">
+          <select id="zil-agent-mfb-select" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--b,#DDD);font-family:inherit;font-size:13px;margin-bottom:8px">
+            <option value="">Loading banks…</option>
+          </select>
+          <button onclick="zilSubmitMfbRequest()" style="width:100%;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Submit Change Request</button>
+          <div style="font-size:11px;color:var(--gr);margin-top:6px">Your MFB is a contractual assignment — changes go through admin review, not instant.</div>
+        </div>
+        <button id="zil-agent-mfb-toggle-btn" onclick="document.getElementById('zil-agent-mfb-request-form').style.display='';this.style.display='none'" style="width:auto;padding:9px 16px;font-size:12px;background:transparent;color:var(--g);border:1px solid var(--g);border-radius:8px;cursor:pointer;font-family:inherit">Request MFB Change</button>
+      </div>
       <div id="zil-role-switch-group" style="display:none;margin-top:14px">
         <div style="font-size:12px;color:var(--gr);margin-bottom:8px;font-weight:600">SWITCH ROLE</div>
         <div style="display:flex;gap:8px">
@@ -575,6 +591,62 @@ function zilSwitchRole(role) {
     ZillionNative.navigateTo(role);
   } else {
     zilToast('Switch Role is only available in the installed app', true);
+  }
+}
+
+let _zilAgentMfbList = [];
+async function zilLoadAgentMfb() {
+  const curEl     = document.getElementById('zil-agent-mfb-current');
+  const pendEl    = document.getElementById('zil-agent-mfb-pending');
+  const toggleBtn = document.getElementById('zil-agent-mfb-toggle-btn');
+  if (!curEl || !TK) return;
+  try {
+    const res  = await fetch(`${API}/agent-mfb-request`, { headers: { 'Authorization': 'Bearer ' + TK } });
+    const data = await res.json();
+    curEl.textContent = data.current_mfb_name || 'Not assigned';
+
+    if (data.pending_request) {
+      pendEl.style.display = '';
+      pendEl.textContent = `Pending: change to ${data.pending_request.requested_mfb_name} — awaiting admin approval (requested ${new Date(data.pending_request.requested_at).toLocaleDateString()})`;
+      if (toggleBtn) toggleBtn.style.display = 'none';
+      document.getElementById('zil-agent-mfb-request-form').style.display = 'none';
+    } else {
+      pendEl.style.display = 'none';
+      if (toggleBtn) toggleBtn.style.display = '';
+    }
+
+    if (!_zilAgentMfbList.length) {
+      const lRes  = await fetch(`${API}/mfb-list`);
+      const lData = await lRes.json();
+      _zilAgentMfbList = lData.mfbs || [];
+    }
+    const sel = document.getElementById('zil-agent-mfb-select');
+    if (sel) {
+      sel.innerHTML = '<option value="">— Select a bank —</option>' +
+        _zilAgentMfbList
+          .filter(m => m.mfb_id !== data.current_mfb_id)
+          .map(m => `<option value="${m.mfb_id}">${m.mfb_name}${m.state?' ('+m.state+')':''}</option>`).join('');
+    }
+  } catch (e) {
+    console.warn('[zilLoadAgentMfb] failed:', e.message);
+  }
+}
+async function zilSubmitMfbRequest() {
+  const sel = document.getElementById('zil-agent-mfb-select');
+  if (!sel || !sel.value) { zilToast('Select a bank first', true); return; }
+  if (!TK) { zilToast('Please log in first', true); return; }
+  try {
+    const res = await fetch(`${API}/agent-mfb-request`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TK, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requested_mfb_id: sel.value }),
+    });
+    const data = await res.json();
+    if (!res.ok) { zilToast(data.error || 'Could not submit request', true); return; }
+    zilToast('Change request submitted — awaiting admin approval');
+    zilLoadAgentMfb();
+  } catch (e) {
+    zilToast('Network error — try again', true);
   }
 }
 
@@ -785,6 +857,7 @@ function fillProfile() {
   setText('prstatus', p.status || '—');
   setText('pronb',    p.onboarded_at ? new Date(p.onboarded_at).toLocaleDateString() : '—');
   updateStats();
+  zilLoadAgentMfb();
 }
 
 async function refreshProfile() {
