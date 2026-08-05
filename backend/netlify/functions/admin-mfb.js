@@ -20,7 +20,7 @@
  */
 
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
@@ -30,7 +30,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: hdr, body: '' };
 
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
-  if (!auth.valid || auth.payload.role !== 'admin') return err(401, 'Admin access required');
+  if (!auth.valid) return err(401, 'Admin access required');
+  if (!requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','OPERATIONS','SUPPORT','AUDITOR','VIEWER'])) return err(403, 'Admin access required');
 
   const db = getServiceClient();
 
