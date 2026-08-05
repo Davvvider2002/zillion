@@ -19,6 +19,15 @@
 const { createHmac } = require('crypto');
 const crypto          = require('crypto');
 
+// FIX: previously fell back to an empty-string secret when the real env
+// var was unset — predictable/weak. Now fails loudly instead.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 // ════════════════════════════════════════════════════════════════════════════
 // SHARED UTILITIES — pure crypto, no external deps
 // ════════════════════════════════════════════════════════════════════════════
@@ -139,7 +148,7 @@ function getDb() {
 async function createRbacSession(userId, username, role, ip, ua) {
   const db     = getDb();
   const rawId  = crypto.randomBytes(32).toString('hex');
-  const hash   = createHmac('sha256', process.env.JWT_SECRET||'').update(rawId).digest('hex');
+  const hash   = createHmac('sha256', mustEnv('JWT_SECRET')).update(rawId).digest('hex');
   const expAt  = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const { error } = await db.from('admin_sessions').insert({
     session_id: rawId, token_hash: hash, user_id: userId,
@@ -152,7 +161,7 @@ async function createRbacSession(userId, username, role, ip, ua) {
 
 async function consumeRbacSession(rawId) {
   const db   = getDb();
-  const hash = createHmac('sha256', process.env.JWT_SECRET||'').update(rawId).digest('hex');
+  const hash = createHmac('sha256', mustEnv('JWT_SECRET')).update(rawId).digest('hex');
   const { data, error } = await db.from('admin_sessions')
     .select('id, user_id, username, role, used, revoked, expires_at')
     .eq('token_hash', hash).eq('used', false).eq('revoked', false)
