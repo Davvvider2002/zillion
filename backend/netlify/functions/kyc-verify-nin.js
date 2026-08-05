@@ -18,6 +18,16 @@ const { createClient } = require('@supabase/supabase-js');
 const { createHmac }   = require('crypto');
 const { verifyJWT }    = require('../../lib/validators');
 
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 const TIER2_LIMIT_KOBO = parseInt(process.env.TIER2_DAILY_LIMIT_KOBO || '20000000');
 
 function hashNIN(nin, salt) {
@@ -105,7 +115,7 @@ exports.handler = async (event) => {
     return err(422, 'NIN could not be verified. Check the details and try again.');
 
   // Store hashed NIN and upgrade tier
-  const ninHash = hashNIN(nin, process.env.SUPABASE_SERVICE_KEY || 'zillion-salt');
+  const ninHash = hashNIN(nin, mustEnv('SUPABASE_SERVICE_KEY'));
   const { error: updateErr } = await db.from('devices').upsert({
     device_hash:     deviceId,
     nin_hash:        ninHash,
