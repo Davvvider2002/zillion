@@ -9,8 +9,18 @@
 const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 function signJWT(payload) {
-  const secret = process.env.JWT_SECRET || 'zillion-jwt-secret';
+  const secret = mustEnv('JWT_SECRET');
   const header = Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
   const body   = Buffer.from(JSON.stringify({
     ...payload,
@@ -38,7 +48,7 @@ exports.handler = async (event) => {
 
   // Hash password with HMAC-SHA256 — never store plaintext
   const password_hash = require('crypto')
-    .createHmac('sha256', process.env.JWT_SECRET || 'zillion-jwt')
+    .createHmac('sha256', mustEnv('JWT_SECRET'))
     .update(password).digest('hex');
 
   const normalised = phone.startsWith('+') ? phone
