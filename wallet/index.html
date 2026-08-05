@@ -1583,6 +1583,16 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <div class="settings-group" id="zil-role-switch-group" style="display:none">
+        <div class="settings-group-label">Switch Role</div>
+        <div class="settings-row" style="padding:14px 0">
+          <div style="display:flex;gap:8px;width:100%">
+            <button onclick="zilSwitchRole('agent')" style="flex:1;padding:12px;background:transparent;color:#00C896;border:1px solid #00C896;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Agent Portal</button>
+            <button onclick="zilSwitchRole('merchant')" style="flex:1;padding:12px;background:transparent;color:#00C896;border:1px solid #00C896;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Merchant Portal</button>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-label">App</div>
         <div class="settings-row">
@@ -5338,9 +5348,20 @@ document.addEventListener('DOMContentLoaded', function() {
         window._sppAvailable = caps.spp || false;
         window._nfcAvailable = caps.nfc || false;
       } catch(e) { window._sppAvailable = true; }
+      // Switch Role only makes sense inside the installed app — the browser
+      // PWA version has no native bridge to switch portals with.
+      var roleGroup = document.getElementById('zil-role-switch-group');
+      if (roleGroup) roleGroup.style.display = '';
     }
   }, 600);
 });
+function zilSwitchRole(role) {
+  if (window.ZillionNative && ZillionNative.navigateTo) {
+    ZillionNative.navigateTo(role);
+  } else {
+    toast('Switch Role is only available in the installed app', true);
+  }
+}
 
 
 function walletBtPrepareScan() {
