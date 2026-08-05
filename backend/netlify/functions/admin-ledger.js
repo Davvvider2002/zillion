@@ -44,7 +44,7 @@ function mustEnv(name) {
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -56,8 +56,10 @@ exports.handler = async (event) => {
   const auth = verifyJWT(
     event.headers.authorization || event.headers.Authorization || ''
   );
-  if (!auth.valid || auth.payload.role !== 'admin')
+  if (!auth.valid)
     return fail(401, 'Admin access required');
+  if (!requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','OPERATIONS','SUPPORT','AUDITOR','VIEWER']))
+    return fail(403, 'Admin access required');
 
   const p          = event.queryStringParameters || {};
   const entityType = (p.entity_type || '').toLowerCase();
