@@ -33,6 +33,7 @@ exports.handler = async (event) => {
                 event.queryStringParameters?.phone;
   if (!phone) return err(400, 'Missing phone in path or query');
 
+  try {
   const db = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY,
@@ -76,4 +77,8 @@ exports.handler = async (event) => {
     member_since:      d.registered_at,
     queried_at:        new Date().toISOString(),
   });
+  } catch (e) {
+    console.error('[bank-customer] unhandled error:', e.message);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
