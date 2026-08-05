@@ -5,7 +5,7 @@
  */
 'use strict';
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -14,7 +14,8 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== 'GET') return err(405, 'Method Not Allowed');
   const auth = verifyJWT(event.headers.authorization||event.headers.Authorization||'');
-  if (!auth.valid || auth.payload.role !== 'admin') return err(401, 'Admin access required');
+  if (!auth.valid) return err(401, 'Admin access required');
+  if (!requireRole(auth, ['SUPER_ADMIN', 'COMPLIANCE', 'OPERATIONS'])) return err(403, 'Insufficient role for fraud actions');
 
   try {
     const db = getServiceClient();
