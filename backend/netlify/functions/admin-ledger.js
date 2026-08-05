@@ -114,14 +114,22 @@ exports.handler = async (event) => {
             ? '+' + entityId
             : entityId;
 
-        // Compute SHA256(phone) — this is what agent now stores as holder_hash
+        // Compute SHA256(phone) — this is what agent now stores as coins.holder_hash
         const crypto   = require('crypto');
         const phoneHash = crypto.createHash('sha256').update(searchPhone).digest('hex');
         resolvedHolderHash = phoneHash; // Set immediately — coins should be here
 
-        // Also try device table lookup
+        // Also try device table lookup — FIX: devices.phone_hash is an HMAC
+        // keyed with the server's secret (see verify-otp.js), a genuinely
+        // different scheme than the plain SHA256 used for coins.holder_hash.
+        // A previous version queried a nonexistent phone_number column here
+        // (silently failed — the error wasn't checked) and even where it
+        // matched by coincidence elsewhere, this specific lookup never
+        // actually worked. Compute the correct HMAC to match it for real.
+        const devicesPhoneHash = crypto.createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+          .update(searchPhone).digest('hex');
         const { data: byPhone } = await db.from('devices').select('*')
-          .eq('phone_number', searchPhone).maybeSingle();
+          .eq('phone_hash', devicesPhoneHash).maybeSingle();
         devData = byPhone;
         // If device has a different holder_hash, keep SHA256(phone) as primary
         // (devices.holder_hash may be stale from old HMAC-based system)
@@ -188,9 +196,7 @@ exports.handler = async (event) => {
 
       const displayName = searchPhone
         ? `Customer ${searchPhone}`
-        : devData?.phone_number
-          ? `Customer ${devData.phone_number}`
-          : `Wallet-${resolvedHolderHash.slice(0,16)}…`;
+        : `Wallet-${resolvedHolderHash.slice(0,16)}…`;
 
       // ── Gather EVERY holder_hash this human has ever used ─────────
       // A phone can accumulate several holder_hash values over time: the
@@ -199,14 +205,18 @@ exports.handler = async (event) => {
       // different device_hash. Looking at resolvedHolderHash alone silently
       // drops history tied to those other hashes — which is exactly why the
       // ledger and the Customers list have shown different totals for the
-      // same person. Merge them all here.
+      // same person. Merge them all here. FIX: this used to query a
+      // nonexistent phone_number column — now uses the correct phone_hash
+      // HMAC scheme (see the Strategy 1 fix above).
       const allHolderHashes = new Set([resolvedHolderHash]);
       if (devData?.holder_hash) allHolderHashes.add(devData.holder_hash);
-      const effectivePhone = searchPhone || devData?.phone_number || null;
-      if (effectivePhone) {
+      if (searchPhone) {
+        const crypto = require('crypto');
+        const devicesPhoneHash = crypto.createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+          .update(searchPhone).digest('hex');
         const { data: samePhoneDevices } = await db.from('devices')
-          .select('device_hash, holder_hash, phone_number, phone_hash')
-          .eq('phone_number', effectivePhone);
+          .select('device_hash, holder_hash, phone_hash')
+          .eq('phone_hash', devicesPhoneHash);
         (samePhoneDevices || []).forEach(d => {
           if (d.holder_hash) allHolderHashes.add(d.holder_hash);
           if (d.device_hash) allHolderHashes.add(d.device_hash);
@@ -220,7 +230,7 @@ exports.handler = async (event) => {
         status: devData?.status || 'ACTIVE',
         joined: devData?.registered_at || null,
         extra:  {
-          phone:         searchPhone || devData?.phone_number || '—',
+          phone:         searchPhone || '—',
           holder_hash:   resolvedHolderHash.slice(0,16) + '…',
           device_hash:   devData?.device_hash || entityId,
           coin_count:    probeCoins.length + '+ coins found',
