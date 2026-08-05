@@ -13,8 +13,18 @@ const { createClient } = require('@supabase/supabase-js');
 const { createHmac }   = require('crypto');
 const { verifyBankAuth } = require('../../lib/bank-auth');
 
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 function generateCustomerId(phone, bankRef) {
-  return 'CUST-' + createHmac('sha256', process.env.JWT_SECRET || 'zillion')
+  return 'CUST-' + createHmac('sha256', mustEnv('JWT_SECRET'))
     .update(phone + bankRef).digest('hex').slice(0, 12).toUpperCase();
 }
 
@@ -47,7 +57,7 @@ exports.handler = async (event) => {
   );
 
   // Generate deterministic device_hash from phone (same as OTP flow uses)
-  const phoneHash    = createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+  const phoneHash    = createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
     .update(phone).digest('hex');
   const customerId   = generateCustomerId(phone, bank_ref);
   const now          = new Date().toISOString();
