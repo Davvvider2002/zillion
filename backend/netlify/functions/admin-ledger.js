@@ -1,3 +1,13 @@
+
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
 /**
  * GET /api/v1/admin-ledger  (v2 — coins-table-first)
  *
@@ -126,7 +136,7 @@ exports.handler = async (event) => {
         // (silently failed — the error wasn't checked) and even where it
         // matched by coincidence elsewhere, this specific lookup never
         // actually worked. Compute the correct HMAC to match it for real.
-        const devicesPhoneHash = crypto.createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+        const devicesPhoneHash = crypto.createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
           .update(searchPhone).digest('hex');
         const { data: byPhone } = await db.from('devices').select('*')
           .eq('phone_hash', devicesPhoneHash).maybeSingle();
@@ -212,7 +222,7 @@ exports.handler = async (event) => {
       if (devData?.holder_hash) allHolderHashes.add(devData.holder_hash);
       if (searchPhone) {
         const crypto = require('crypto');
-        const devicesPhoneHash = crypto.createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+        const devicesPhoneHash = crypto.createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
           .update(searchPhone).digest('hex');
         const { data: samePhoneDevices } = await db.from('devices')
           .select('device_hash, holder_hash, phone_hash')
