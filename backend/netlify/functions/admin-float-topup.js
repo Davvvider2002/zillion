@@ -162,7 +162,7 @@ exports.handler = async (event) => {
         .single();
       if (!claimErr && claimData) {
         claim_id  = claimData.claim_id;
-        const base = process.env.BASE_URL || 'https://zillion-mvp.netlify.app';
+        const base = process.env.BASE_URL || 'https://zillion.ng';
         claim_url = `${base}/agent/?claim=${claim_id}&type=float_topup`;
       }
     } catch(claimErr) {
