@@ -2858,6 +2858,26 @@ async function trySync() {
   if (!STATE.isOnline || !STATE.user) return;
   const token    = STATE.user.token || STATE.user.agentToken || '';
   const deviceId  = STATE.user?.deviceId || STATE.user?.device_id || '';
+
+  // FIX: full multi-device reconciliation. Previously trySync() only ever
+  // checked PENDING_SYNC/PENDING_TRANSFER coins, never re-verified coins
+  // already marked HELD in the local vault — so if this same wallet
+  // identity was used on another device/browser and a coin was spent
+  // there, THIS session had no way to ever find out and kept showing a
+  // stale balance indefinitely. Throttled to avoid hammering the server
+  // on every sync tick; also triggered on app-foreground (see the
+  // visibilitychange listener below).
+  if (token) {
+    const now = Date.now();
+    const lastReconcile = window._lastFullReconcileAt || 0;
+    if (now - lastReconcile > 5 * 60 * 1000) {
+      window._lastFullReconcileAt = now;
+      zilFullReconcileVault(token).catch(function(e) {
+        console.warn('[trySync] full reconcile failed, will retry next cycle:', e.message);
+      });
+    }
+  }
+
   if (!token) {
     // No JWT — settle locally so UI shows correct state
     STATE.history.forEach(h => { if (h.status === 'PENDING_SYNC') h.status = 'SETTLED'; });
@@ -3155,6 +3175,15 @@ window.addEventListener('online', function() {
   refreshHome();
   toast('Back online - syncing...');
   setTimeout(trySync, 1000);
+});
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  // App just came back to the foreground — this is exactly when a stale
+  // multi-device balance would be most visible to the user, so don't
+  // make them wait for the next background sync tick. Still throttled
+  // (via window._lastFullReconcileAt inside trySync) so rapid tab
+  // switching doesn't spam the server.
+  if (STATE.isOnline && STATE.user) setTimeout(trySync, 300);
 });
 window.addEventListener('offline', function() {
   STATE.isOnline = false;
@@ -5058,6 +5087,44 @@ function walletBtStartReceive() {
 // Safe to call anytime — coins the server confirms are still ours are
 // restored to spendable; anything the server shows already moved on is
 // recorded as delivered instead of silently vanishing from history.
+async function zilFullReconcileVault(token) {
+  if (!token || !STATE.isOnline) return;
+  const res = await fetch(`${API}/recover-coins`, { headers: { 'Authorization': 'Bearer ' + token } });
+  if (!res.ok) return; // network hiccup — leave local state as-is, retry next cycle
+  const data = await res.json();
+  const serverCoins = data.coins || [];
+  const serverIds   = new Set(serverCoins.map(function(c) { return c.coin_id || c.id; }));
+
+  let removed = 0, added = 0;
+
+  // Drop locally-HELD coins the server no longer confirms — spent on
+  // another device/session. Only touch plain HELD coins; anything mid-
+  // transfer (PENDING_*) is handled by the dedicated stuck-coin sweep,
+  // not here, to avoid the two reconciliation paths fighting each other.
+  STATE.vault = STATE.vault.filter(function(c) {
+    if (c._status !== 'HELD') return true;
+    const cid = c.coin_id || c.id;
+    if (serverIds.has(cid)) return true;
+    removed++;
+    return false;
+  });
+
+  // Add server coins missing locally — received/issued on another device.
+  const localIds = new Set(STATE.vault.map(function(c) { return c.coin_id || c.id; }));
+  serverCoins.forEach(function(c) {
+    const cid = c.coin_id || c.id;
+    if (!localIds.has(cid)) {
+      STATE.vault.push(Object.assign({}, c, { _status: 'HELD' }));
+      added++;
+    }
+  });
+
+  if (removed > 0 || added > 0) {
+    save(); refreshHome(); refreshVault(); refreshHistory();
+    console.log('[zilFullReconcileVault] removed=' + removed + ' added=' + added);
+  }
+}
+
 async function zilRestoreAllStuckCoins(opts) {
   opts = opts || {};
   var stuck = STATE.vault.filter(function(c) {
