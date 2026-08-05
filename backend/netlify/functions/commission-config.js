@@ -1,4 +1,6 @@
 'use strict';
+
+const { corsOrigin } = require('../../lib/cors');
 /**
  * POST /api/v1/admin/commission-config  — create or update a config
  * GET  /api/v1/admin/commission-config  — list all active configs
@@ -22,7 +24,7 @@ const { verifyJWT , requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*' };
+                'Access-Control-Allow-Origin': corsOrigin(event) };
   const ok  = b     => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
   const err = (c,m) => ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
 
