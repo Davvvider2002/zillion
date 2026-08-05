@@ -15,9 +15,19 @@
 
 const { createHmac } = require('crypto');
 
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 // ── JWT verification ──────────────────────────────────────────────────────────
 function verifyAdminJWT(authHeader) {
-  const secret = process.env.JWT_SECRET || '';
+  const secret = mustEnv('JWT_SECRET');
   if (!authHeader || !authHeader.startsWith('Bearer '))
     return { valid:false, reason:'Missing Bearer token' };
 
