@@ -726,7 +726,7 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="rbtn" onclick="loadMerchants()">↻ Refresh</button>
       </div>
     </div>
-    <div class="card-sub">Register at: zillion-mvp.netlify.app/merchant/ — Run merchants.sql in Supabase if first time</div>
+    <div class="card-sub">Register at: zillion.ng/merchant/ — Run merchants.sql in Supabase if first time</div>
     <div class="toolbar">
       <input class="search-input" id="merch-search" placeholder="Search name, location, type..." oninput="filterMerchantTable()">
       <select class="filter-select" id="merch-status-filter" onchange="filterMerchantTable()">
@@ -2218,7 +2218,7 @@ function showMerchantEmpty() {
       <div style="font-size:16px;font-weight:bold;margin-bottom:8px">No merchants registered yet</div>
       <div style="font-size:13px;color:#666;margin-bottom:16px">Share the merchant portal to onboard traders.</div>
       <div style="background:var(--pul);border-radius:10px;padding:12px 16px;display:inline-block;font-size:13px;color:var(--pu);font-weight:bold">
-        🔗 zillion-mvp.netlify.app/merchant/
+        🔗 zillion.ng/merchant/
       </div>
       <div style="margin-top:10px;font-size:11px;color:#999">Run merchants.sql in Supabase SQL Editor if first time setup.</div>
     </div>`;
@@ -2467,8 +2467,8 @@ function renderTokHistory() {
 }
 async function copyToken() { try { await navigator.clipboard.writeText(document.getElementById('tok-val').textContent); notify('Token copied!'); } catch { selectAllText(document.getElementById('tok-val')); } }
 async function copyHistTok(i) { try { await navigator.clipboard.writeText(tokHistory[i].token); notify('Copied!'); } catch { alert(tokHistory[i].token); } }
-function shareTokenWA() { if(!window._lastTok)return; const msg='Your Zillion Agent Token:\n\nAgent ID: '+window._lastTokAgent+'\nToken: '+window._lastTok+'\n\nLogin at https://zillion-mvp.netlify.app/agent'; window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }
-function shareHistWA(i) { const t=tokHistory[i]; const msg='Zillion Agent Token:\n\nAgent: '+t.agentId+'\nToken: '+t.token+'\n\nLogin: https://zillion-mvp.netlify.app/agent'; window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }
+function shareTokenWA() { if(!window._lastTok)return; const msg='Your Zillion Agent Token:\n\nAgent ID: '+window._lastTokAgent+'\nToken: '+window._lastTok+'\n\nLogin at https://zillion.ng/agent'; window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }
+function shareHistWA(i) { const t=tokHistory[i]; const msg='Zillion Agent Token:\n\nAgent: '+t.agentId+'\nToken: '+t.token+'\n\nLogin: https://zillion.ng/agent'; window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }
 function selectAllText(el) { const r=document.createRange(); r.selectNodeContents(el); window.getSelection().removeAllRanges(); window.getSelection().addRange(r); }
 
 // ── FRAUD ──────────────────────────────────────────────────────
@@ -2706,7 +2706,7 @@ async function confirmTopUp() {
 
       // ── Generate cash-in QR for agent to scan ──────────────────
       // Use claim_url from response, or build from claim_id
-      const claimUrl = data.claim_url || ('https://zillion-mvp.netlify.app/wallet/?claim=' + data.claim_id + '&type=cashin');
+      const claimUrl = data.claim_url || ('https://zillion.ng/wallet/?claim=' + data.claim_id + '&type=cashin');
       const qrArea   = document.getElementById('topup-qr-area');
       const qrCanvas = document.getElementById('topup-qr-canvas');
 
