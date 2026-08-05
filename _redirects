@@ -11,6 +11,10 @@
 /api/v1/bank/report-suspicious   /.netlify/functions/bank-report-suspicious   200
 /api/v1/bank/agent-float         /.netlify/functions/bank-agent-float         200
 /api/v1/customer/limits          /.netlify/functions/customer-limits          200
+/api/v1/mfb-list                 /.netlify/functions/mfb-list                 200
+/api/v1/wallet-set-mfb           /.netlify/functions/wallet-set-mfb           200
+/api/v1/merchant-set-mfb         /.netlify/functions/merchant-set-mfb         200
+/api/v1/agent-mfb-request        /.netlify/functions/agent-mfb-request        200
 /mfb/             /mfb/index.html          200
 /api/v1/issue-secure             /.netlify/functions/issue-secure             200
 /api/v1/create-claim-pin         /.netlify/functions/create-claim-pin         200
@@ -96,5 +100,6 @@
 
   /api/v1/admin/mfb-dashboard  /.netlify/functions/admin-mfb-dashboard  200
   /api/v1/admin/mfb           /.netlify/functions/admin-mfb            200
+  /api/v1/admin/mfb-requests  /.netlify/functions/admin-mfb-requests   200
   /api/v1/mfb-login          /.netlify/functions/mfb-login            200
   /api/v1/mfb-portal         /.netlify/functions/mfb-portal           200
