@@ -9,7 +9,7 @@
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT , requireRole } = require('../../lib/validators');
 
 const CTR_THRESHOLD_KOBO = 100_000_000; // ₦1,000,000
 
@@ -22,7 +22,8 @@ exports.handler = async (event) => {
 
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
   if (!auth.valid)                   return err(401, auth.reason);
-  if (auth.payload.role !== 'admin') return err(403, 'Admin access required');
+  if (!auth.valid) return err(403, 'Admin access required');
+  if (!requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','AUDITOR'])) return err(403, 'Insufficient role for compliance reports');
 
   const { from, to } = event.queryStringParameters || {};
   if (!from || !to) return err(400, 'Missing from and to query parameters (YYYY-MM-DD)');
