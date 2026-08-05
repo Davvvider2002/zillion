@@ -9,6 +9,16 @@ const { createClient } = require('@supabase/supabase-js');
 const { createHmac }   = require('crypto');
 const { verifyBankAuth } = require('../../lib/bank-auth');
 
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
   const ok  = b    => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
@@ -30,7 +40,7 @@ exports.handler = async (event) => {
   );
 
   // Hash phone the same way OTP and activation do
-  const phoneHash = createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || 'salt')
+  const phoneHash = createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
     .update(phone).digest('hex');
 
   const { data: device, error } = await db.from('devices')
