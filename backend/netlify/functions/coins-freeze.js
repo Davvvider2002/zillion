@@ -9,7 +9,7 @@
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
-const { verifyJWT }    = require('../../lib/validators');
+const { verifyJWT , requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -22,7 +22,8 @@ exports.handler = async (event) => {
     event.headers.authorization || event.headers.Authorization || ''
   );
   if (!auth.valid)                   return err(401, auth.reason);
-  if (auth.payload.role !== 'admin') return err(403, 'Admin access required');
+  if (!auth.valid) return err(403, 'Admin access required');
+  if (!requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','OPERATIONS'])) return err(403, 'Insufficient role for coin freeze');
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
