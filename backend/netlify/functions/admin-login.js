@@ -230,6 +230,16 @@ exports.handler = async (event) => {
   // ════════════════════════════════════════════════════════════════════════
   if (body.admin_secret && !body.username) {
 
+    // Reversible kill switch — set DISABLE_LEGACY_ADMIN_LOGIN=true in
+    // Netlify once Path B (username/password/TOTP) is confirmed reliable.
+    // Defaults to still-enabled so this change is a no-op until you
+    // explicitly flip it. This check is a plain env var read — no
+    // Supabase call — so it doesn't compromise Path A's documented
+    // "never touches Supabase" resilience property while it's still on.
+    if (process.env.DISABLE_LEGACY_ADMIN_LOGIN === 'true') {
+      return err(403, 'Legacy admin login has been disabled. Use username + password + authenticator code.');
+    }
+
     // A-STEP-1: Secret check (only step — no TOTP for legacy path)
     if (body.admin_secret !== ADMIN_SECRET) {
       // Debug: log lengths to Netlify function log (never log actual secret values)
