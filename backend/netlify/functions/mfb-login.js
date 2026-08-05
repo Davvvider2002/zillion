@@ -1,4 +1,6 @@
 'use strict';
+
+const { corsOrigin } = require('../../lib/cors');
 /**
  * POST /api/v1/mfb-login
  *
@@ -49,7 +51,7 @@ function signJWT(payload) {
 exports.handler = async (event) => {
   const hdr = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': corsOrigin(event),
     'Access-Control-Allow-Methods': 'POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
