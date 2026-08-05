@@ -49,7 +49,7 @@ exports.handler = async (event) => {
 
     if (error) throw error;
 
-    const baseUrl  = process.env.BASE_URL || 'https://zillion-mvp.netlify.app';
+    const baseUrl  = process.env.BASE_URL || 'https://zillion.ng';
     // Route claim URL to correct app based on who needs to scan it:
     // cashout = agent scans (merchant wants cash) → /agent/
     // payment = customer wallet scans → /wallet/
