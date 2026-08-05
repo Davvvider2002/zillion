@@ -7,6 +7,7 @@
 
 'use strict';
 
+const crypto                 = require('crypto');
 const { verifyCoinSignature } = require('./mint');
 
 const MINT_PUBLIC_KEY = process.env.MINT_PUBLIC_KEY_HEX;
@@ -125,7 +126,26 @@ function verifyJWT(authHeader) {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return { valid: false, reason: 'MALFORMED_TOKEN' };
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    const [headerB64, payloadB64, sigB64] = parts;
+
+    // CRITICAL: verify the signature before trusting anything else in the
+    // token. Previously this function never did this at all — any token
+    // with the right shape was accepted regardless of who signed it, or
+    // whether anyone signed it. This is what actually makes a JWT trustworthy.
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return { valid: false, reason: 'SERVER_MISCONFIGURED' };
+
+    const expectedSig = crypto.createHmac('sha256', secret)
+      .update(`${headerB64}.${payloadB64}`)
+      .digest('base64url');
+
+    const provided = Buffer.from(sigB64);
+    const expected = Buffer.from(expectedSig);
+    if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+      return { valid: false, reason: 'INVALID_SIGNATURE' };
+    }
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
     if (payload.exp && payload.exp < Date.now() / 1000) {
       return { valid: false, reason: 'TOKEN_EXPIRED' };
     }
@@ -135,4 +155,25 @@ function verifyJWT(authHeader) {
   }
 }
 
-module.exports = { validateCoin, validateSyncBatch, validateIssueRequest, verifyJWT };
+/**
+ * Enforce granular RBAC on top of a verified JWT. Path B (username/password
+ * + TOTP) tokens carry a real role from admin_users.role — SUPER_ADMIN,
+ * COMPLIANCE, OPERATIONS, SUPPORT, AUDITOR, or VIEWER. Path A (legacy shared
+ * ADMIN_SECRET) tokens carry the flat role:'admin' with no per-user identity;
+ * until real Path B accounts are in active use, 'admin' is treated as
+ * SUPER_ADMIN-equivalent here so existing access isn't broken by adding this
+ * check. Once a Path B account with a lesser role authenticates, this
+ * enforces real segregation of duties for that user.
+ *
+ * @param {{valid:boolean, payload?:object}} auth  result of verifyJWT()
+ * @param {string[]} allowedRoles  e.g. ['SUPER_ADMIN','OPERATIONS']
+ * @returns {boolean}
+ */
+function requireRole(auth, allowedRoles) {
+  if (!auth || !auth.valid || !auth.payload) return false;
+  const role = auth.payload.role;
+  if (role === 'admin') return true; // legacy Path A — see note above
+  return allowedRoles.includes(role);
+}
+
+module.exports = { validateCoin, validateSyncBatch, validateIssueRequest, verifyJWT, requireRole };
