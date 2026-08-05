@@ -60,6 +60,7 @@ exports.handler = async (event) => {
     return err(400, 'bundle with coins and total_kobo required');
   }
 
+  try {
   // ── Validate optional PIN ─────────────────────────────────────────────────
   // PIN must be 4-6 digits if provided
   let pinHash    = null;
@@ -74,7 +75,6 @@ exports.handler = async (event) => {
     pinRequired = true;
   }
 
-  try {
     const db = getServiceClient();
 
     // Expire stale claims
