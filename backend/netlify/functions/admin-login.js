@@ -18,7 +18,7 @@
 
 const { createHmac } = require('crypto');
 const crypto          = require('crypto');
-const { checkRateLimit } = require('../../lib/rateLimit');
+const { checkRateLimit, resetRateLimit } = require('../../lib/rateLimit');
 
 // FIX: previously fell back to an empty-string secret when the real env
 // var was unset — predictable/weak. Now fails loudly instead.
@@ -308,6 +308,7 @@ exports.handler = async (event) => {
     const { token, expires_at } = buildRbacJWT(
       { sub:user.user_id, username:user.username, role:user.role }, JWT_SECRET);
     await auditLog('LOGIN_SUCCESS', user.username, user.role, ip, { result:'SUCCESS' });
+    resetRateLimit(getDb(), `admin-login:${ip}`).catch(() => {});
     return ok({ success:true, token, expires_at, user:{ username:user.username, full_name:user.full_name, role:user.role } });
   }
 
@@ -386,6 +387,7 @@ exports.handler = async (event) => {
     const { token, expires_at } = buildRbacJWT(
       { sub:user.user_id, username:user.username, role:user.role }, JWT_SECRET);
     await auditLog('LOGIN_SUCCESS', username, user.role, ip, { result:'SUCCESS' });
+    resetRateLimit(getDb(), `admin-login:${ip}`).catch(() => {});
     return ok({ success:true, token, expires_at, user:{ username:user.username, full_name:user.full_name, role:user.role } });
   }
 
