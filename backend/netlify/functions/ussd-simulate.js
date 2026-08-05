@@ -12,6 +12,16 @@ const { issueCoinBatch }   = require('../../lib/mint');
 const { insertCoins, markCoinsHeld } = require('../../lib/supabase');
 const { applyCommission }  = require('../../lib/commission');
 
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
 const SIM_PIN = process.env.USSD_SIM_PIN || '1234';
 
 const SIM_ACCOUNTS = {
@@ -99,7 +109,7 @@ exports.handler = async (event) => {
     await insertCoins(coins, 'USSD-SELF-LOAD');
     // Derive holder hash from phone (same as wallet registration)
     const crypto    = require('crypto');
-    const salt      = process.env.SUPABASE_SERVICE_KEY || 'zillion-salt';
+    const salt      = mustEnv('SUPABASE_SERVICE_KEY');
     const holderHash = crypto.createHmac('sha256', salt).update(phone).digest('hex');
     await markCoinsHeld(coins.map(c => c.coin_id), holderHash);
   } catch (dbErr) {
