@@ -6,14 +6,15 @@
  */
 
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
   const err = (c,m) => ({ statusCode:c, headers:hdr, body:JSON.stringify({error:m}) });
 
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
-  if (!auth.valid || auth.payload.role !== 'admin') return err(401,'Admin auth required');
+  if (!auth.valid) return err(401,'Admin auth required');
+  if (!requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','OPERATIONS','SUPPORT','AUDITOR','VIEWER'])) return err(403,'Admin auth required');
 
   const q    = event.queryStringParameters || {};
   const db   = getServiceClient();
