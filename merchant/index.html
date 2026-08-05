@@ -760,6 +760,15 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <div class="card">
         <div id="prof-rows" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
+      <div id="zil-role-switch-group" style="display:none;margin-bottom:14px">
+        <div class="card">
+          <div style="font-size:12px;color:var(--gr,#888);margin-bottom:8px;font-weight:600">SWITCH ROLE</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="zilSwitchRole('wallet')" class="btn btn-outline" style="flex:1;padding:11px;font-size:13px">Wallet</button>
+            <button onclick="zilSwitchRole('agent')" class="btn btn-outline" style="flex:1;padding:11px;font-size:13px">Agent Portal</button>
+          </div>
+        </div>
+      </div>
       <button class="btn btn-outline" style="margin-bottom:10px;color:var(--r);border-color:var(--r)" onclick="doLogout()">Log Out</button>
     </div>
     <div class="bnav">
@@ -787,7 +796,21 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       el.textContent = 'v1.0.0 (build 20260630)';
     });
     console.log('[Zillion] Merchant Portal v1.0.0 build 20260630');
+    // Switch Role only makes sense inside the installed app.
+    setTimeout(function() {
+      if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) {
+        var roleGroup = document.getElementById('zil-role-switch-group');
+        if (roleGroup) roleGroup.style.display = '';
+      }
+    }, 600);
   });
+  function zilSwitchRole(role) {
+    if (window.ZillionNative && ZillionNative.navigateTo) {
+      ZillionNative.navigateTo(role);
+    } else if (typeof toast === 'function') {
+      toast('Switch Role is only available in the installed app', true);
+    }
+  }
 
 'use strict';
 const API    = '/.netlify/functions';
