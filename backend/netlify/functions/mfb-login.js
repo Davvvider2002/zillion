@@ -25,7 +25,10 @@ function mustEnv(name) {
 }
 
 
-const JWT_SECRET = mustEnv('JWT_SECRET');
+// JWT_SECRET is resolved lazily inside the handler, not at module load —
+// throwing here would fail the whole function's initialization, so every
+// invocation 502s with no catchable error message. See mustEnv() usage below.
+function getJwtSecret() { return mustEnv('JWT_SECRET'); }
 
 function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
@@ -38,7 +41,7 @@ function signJWT(payload) {
     iat: Math.floor(Date.now()/1000),
     exp: Math.floor(Date.now()/1000) + 86400 * 7, // 7 days
   })).toString('base64url');
-  const sig = crypto.createHmac('sha256', JWT_SECRET)
+  const sig = crypto.createHmac('sha256', getJwtSecret())
     .update(header + '.' + body).digest('base64url');
   return header + '.' + body + '.' + sig;
 }
@@ -62,6 +65,7 @@ exports.handler = async (event) => {
   const { mfb_id, password } = body;
   if (!mfb_id || !password) return err(400, 'mfb_id and password required');
 
+  try {
   const db = getServiceClient();
 
   // Look up MFB partner
@@ -100,4 +104,8 @@ exports.handler = async (event) => {
 
   return ok({ token, mfb_id: partner.mfb_id, mfb_name: partner.mfb_name,
                state: partner.state, tier: partner.tier });
+  } catch (e) {
+    console.error('[mfb-login] unhandled error:', e.message);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
