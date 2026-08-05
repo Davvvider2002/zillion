@@ -18,6 +18,7 @@
 
 const { createHmac } = require('crypto');
 const crypto          = require('crypto');
+const { checkRateLimit } = require('../../lib/rateLimit');
 
 // FIX: previously fell back to an empty-string secret when the real env
 // var was unset — predictable/weak. Now fails loudly instead.
@@ -312,6 +313,27 @@ exports.handler = async (event) => {
 
   // B-STEP-1: Username + password
   if (body.username) {
+    // FIX: per-account lockout (below, via admin_users.failed_attempts)
+    // only protects a specific known username once it's been targeted
+    // repeatedly. It does nothing against an attacker sweeping through
+    // many different usernames from the same source, since no single
+    // account ever accumulates enough failures to lock. This IP-keyed
+    // check catches that pattern instead. Generous threshold (unlike the
+    // stricter defaults) since a shared/office IP can have multiple
+    // legitimate admins behind it.
+    try {
+      const rl = await checkRateLimit(getDb(), `admin-login:${ip}`, {
+        windowMinutes: 15, maxAttempts: 10, lockoutMinutes: 15,
+      });
+      if (!rl.allowed) {
+        return err(429, `Too many login attempts from this network. Try again in ${Math.ceil((rl.retryAfterSeconds||900)/60)} minute(s).`);
+      }
+    } catch (e) {
+      // Rate-limit check itself failing shouldn't block a legitimate
+      // login attempt — fail open, same reasoning as elsewhere this pass.
+      console.warn('[admin-login] rate-limit check failed, proceeding:', e.message);
+    }
+
     const username = String(body.username).toLowerCase().trim();
     if (!body.password) return err(400, 'Password required.');
 
