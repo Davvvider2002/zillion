@@ -18,10 +18,20 @@
 
 const crypto  = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { verifyJWT }    = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 // ── Native password hashing (Node crypto.scrypt — no external deps) ───────────
 const crypto_m = require('crypto');
+
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
 const SCRYPT_N = 65536, SCRYPT_R = 8, SCRYPT_P = 1, SCRYPT_LEN = 64;
 
 function scryptHash(password) {
@@ -62,7 +72,7 @@ function getDb() {
   );
 }
 
-function getJwtSecret() { return process.env.JWT_SECRET || ''; }
+function getJwtSecret() { return mustEnv('JWT_SECRET'); }
 
 function validatePasswordStrength(p) {
   const e = [];
@@ -122,6 +132,7 @@ exports.handler = async (event) => {
   // ── Auth ───────────────────────────────────────────────────────────────────
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
   if (!auth.valid) return err(401, 'Authentication required: ' + auth.reason);
+  if (!requireRole(auth, ['SUPER_ADMIN'])) return err(403, 'Only SUPER_ADMIN can manage admin accounts');
 
   const { sub: callerId, username: callerUsername, role: callerRole } = auth.payload;
   const ip = event.headers['x-forwarded-for'] || 'unknown';
