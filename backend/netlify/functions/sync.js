@@ -13,6 +13,7 @@
 
 const { processSyncBatch } = require('../../lib/supabase');
 const { validateSyncBatch, verifyJWT } = require('../../lib/validators');
+const { checkRateLimit } = require('../../lib/rateLimit');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -22,6 +23,23 @@ exports.handler = async (event) => {
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
   if (!auth.valid) {
     return { statusCode: 401, body: JSON.stringify({ error: auth.reason }) };
+  }
+
+  // Abuse guard — sync is polled routinely in normal use (every ~30s), so
+  // this is deliberately generous: it's not protecting against a login
+  // attempt, just against a leaked/compromised token being hammered.
+  try {
+    const { getServiceClient: _svc } = require('../../lib/supabase');
+    const rl = await checkRateLimit(_svc(), `sync:${auth.payload.sub || 'unknown'}`, {
+      windowMinutes: 5, maxAttempts: 30, lockoutMinutes: 5,
+    });
+    if (!rl.allowed) {
+      return { statusCode: 429, body: JSON.stringify({ error: 'Too many sync requests — please slow down', retryAfterSeconds: rl.retryAfterSeconds }) };
+    }
+  } catch (e) {
+    // Rate-limit check itself failing shouldn't block a legitimate sync —
+    // fail open here, same reasoning as everywhere else in this pass.
+    console.warn('[sync] rate-limit check failed, proceeding:', e.message);
   }
 
   let body;
