@@ -5,14 +5,17 @@
  */
 'use strict';
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
     return { statusCode:405, body:JSON.stringify({error:'Method Not Allowed'}) };
   }
   const auth = verifyJWT(event.headers.authorization||event.headers.Authorization||'');
-  if (!auth.valid || auth.payload.role !== 'admin') {
+  if (!auth.valid) {
+    return err(401, 'Authentication required');
+  }
+  if (!requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','OPERATIONS','SUPPORT','AUDITOR','VIEWER'])) {
     return { statusCode:401, body:JSON.stringify({error:'Admin access required'}) };
   }
 
