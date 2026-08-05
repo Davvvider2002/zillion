@@ -5,7 +5,7 @@
  * Uses the exact same coin issuance path as issue.js.
  *
  * Body: { phone, amount_naira, denomination_naira, pin }
- * PIN must match USSD_SIM_PIN env var (default: "1234")
+ * PIN must match USSD_SIM_PIN env var (must be set in Netlify — no default)
  */
 
 const { issueCoinBatch }   = require('../../lib/mint');
@@ -22,7 +22,13 @@ function mustEnv(name) {
 }
 
 
-const SIM_PIN = process.env.USSD_SIM_PIN || '1234';
+// USSD_SIM_PIN was never set in Netlify — since this endpoint mints REAL
+// production coins (same path as issue.js), that meant anyone who read
+// this file or guessed the default could mint real coins to one of the
+// 5 hardcoded test phone numbers below. Now fails loudly instead — but
+// resolved lazily inside the handler, not here at module load time,
+// since throwing here would fail the whole function's initialization.
+function getSimPin() { return mustEnv('USSD_SIM_PIN'); }
 
 const SIM_ACCOUNTS = {
   '+27621685478':   { name: 'David (SA Demo)',    balance_naira: 100000 },
@@ -55,8 +61,11 @@ exports.handler = async (event) => {
   if (!phone || !amount_naira || !pin)
     return err(400, 'phone, amount_naira and pin are required');
 
-  if (String(pin) !== String(SIM_PIN))
-    return err(401, 'Incorrect PIN (demo PIN is 1234)');
+  let simPin;
+  try { simPin = getSimPin(); }
+  catch (e) { return err(500, e.message); }
+  if (String(pin) !== String(simPin))
+    return err(401, 'Incorrect PIN');
 
   const amountNaira = parseInt(amount_naira, 10);
   if (isNaN(amountNaira) || amountNaira < 100 || amountNaira > 50000)
