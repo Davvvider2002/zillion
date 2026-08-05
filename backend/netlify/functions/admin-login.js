@@ -114,8 +114,11 @@ function scryptVerify(password, stored) {
     if (parts.length < 6) { resolve(false); return; }
     const [, N, r, p, salt, hashHex] = parts;
     const storedBuf = Buffer.from(hashHex, 'hex');
+    // FIX: N=65536, r=8 needs ~64MB, but Node's default scrypt maxmem is
+    // 32MB — every verify attempt failed with "memory limit exceeded"
+    // until this was set explicitly.
     crypto.scrypt(password, salt, storedBuf.length,
-      { N:parseInt(N), r:parseInt(r), p:parseInt(p) },
+      { N:parseInt(N), r:parseInt(r), p:parseInt(p), maxmem: 128 * 1024 * 1024 },
       (err, hash) => resolve(!err && crypto.timingSafeEqual(hash, storedBuf))
     );
   });
@@ -123,7 +126,7 @@ function scryptVerify(password, stored) {
 function scryptHash(password) {
   return new Promise((resolve, reject) => {
     const salt = crypto.randomBytes(32).toString('hex');
-    crypto.scrypt(password, salt, SCRYPT_LEN, { N:SCRYPT_N, r:SCRYPT_R, p:SCRYPT_P },
+    crypto.scrypt(password, salt, SCRYPT_LEN, { N:SCRYPT_N, r:SCRYPT_R, p:SCRYPT_P, maxmem: 128 * 1024 * 1024 },
       (err, hash) => err ? reject(err)
         : resolve(`scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt}$${hash.toString('hex')}`)
     );
