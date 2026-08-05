@@ -57,7 +57,7 @@ exports.handler = async (event) => {
 
   const phone    = normalise(rawPhone);
   const otpStr   = String(otp).trim();
-  const otpSalt  = process.env.OTP_SECRET || 'zillion-otp-salt';
+  const otpSalt  = mustEnv('OTP_SECRET');
 
   // ── Demo bypass — set DEMO_OTP env var in Netlify to enable ──────────────
   // Remove this block before going live. Any phone + DEMO_OTP code = instant login.
