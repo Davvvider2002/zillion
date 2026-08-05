@@ -11,7 +11,7 @@
 
 const { issueCoinBatch }   = require('../../lib/mint');
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 const ok  = (body) => ({ statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const err = (code, msg) => ({ statusCode: code, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: false, error: msg }) });
@@ -24,7 +24,7 @@ exports.handler = async (event) => {
     // ── Auth ──────────────────────────────────────────────────
     const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
     if (!auth.valid)                        return err(401, 'Invalid or missing token: ' + auth.reason);
-    if (auth.payload.role !== 'admin')      return err(401, 'Admin access required');
+    if (!requireRole(auth, ['SUPER_ADMIN', 'OPERATIONS'])) return err(403, 'Insufficient role for float top-up');
 
     // ── Parse body ────────────────────────────────────────────
     let body;
