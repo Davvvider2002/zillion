@@ -28,7 +28,10 @@ function mustEnv(name) {
 }
 
 
-const JWT_SECRET = mustEnv('JWT_SECRET');
+// Resolved lazily inside handlers, not at module load — throwing here
+// would fail the whole function's initialization (every invocation 502s
+// with no catchable error).
+function getJwtSecret() { return mustEnv('JWT_SECRET'); }
 
 function sha256(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
 function signJWT(payload) {
@@ -37,7 +40,7 @@ function signJWT(payload) {
     iat: Math.floor(Date.now()/1000),
     exp: Math.floor(Date.now()/1000)+86400*7,
   })).toString('base64url');
-  const s = crypto.createHmac('sha256',JWT_SECRET).update(h+'.'+b).digest('base64url');
+  const s = crypto.createHmac('sha256',getJwtSecret()).update(h+'.'+b).digest('base64url');
   return h+'.'+b+'.'+s;
 }
 
@@ -71,6 +74,7 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body||'{}'); } catch { return err(400,'Invalid JSON'); }
     const action = body.action || p.action;
 
+    try {
     if (action === 'change_password') {
       const { new_password } = body;
       if (!new_password || new_password.length < 8)
@@ -85,6 +89,10 @@ exports.handler = async (event) => {
       return ok({ success: true, token: newToken });
     }
     return err(400, 'Unknown action');
+    } catch (e) {
+      console.error('[mfb-portal] POST unhandled error:', e.message);
+      return err(500, 'Server error: ' + e.message);
+    }
   }
 
   if (event.httpMethod !== 'GET') return err(405, 'GET or POST only');
