@@ -1583,6 +1583,21 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <div class="settings-group" id="zil-mfb-group">
+        <div class="settings-group-label">Preferred Bank (MFB)</div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="settings-label">Current</span>
+            <span class="settings-value" id="zil-mfb-current">Not set</span>
+          </div>
+          <select id="zil-mfb-select" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--b,#ddd);font-family:inherit;font-size:13px">
+            <option value="">Loading banks…</option>
+          </select>
+          <button onclick="zilSaveMfb()" style="width:100%;padding:12px;background:#00C896;color:#0A1F14;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">Save Preferred Bank</button>
+          <div style="font-size:11px;color:var(--gr,#888)">Changing this only affects future top-ups and cash-outs — coins you already hold aren't affected.</div>
+        </div>
+      </div>
+
       <div class="settings-group" id="zil-role-switch-group" style="display:none">
         <div class="settings-group-label">Switch Role</div>
         <div class="settings-row" style="padding:14px 0">
@@ -2669,8 +2684,56 @@ function refreshProfile() {
   } else {
     document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
   }
+  zilLoadMfb();
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
+// ── Preferred Bank (MFB) ────────────────────────────────────────────────
+let _zilMfbList = [];
+async function zilLoadMfb() {
+  const sel = document.getElementById('zil-mfb-select');
+  const cur = document.getElementById('zil-mfb-current');
+  if (!sel) return;
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  if (!token || !STATE.isOnline) {
+    sel.innerHTML = '<option value="">Available when online</option>';
+    return;
+  }
+  try {
+    if (!_zilMfbList.length) {
+      const res = await fetch(`${API}/mfb-list`);
+      const data = await res.json();
+      _zilMfbList = data.mfbs || [];
+    }
+    const curRes = await fetch(`${API}/wallet-set-mfb`, { headers: { 'Authorization': 'Bearer ' + token } });
+    const curData = await curRes.json();
+    const currentId = curData.preferred_mfb_id;
+
+    if (cur) cur.textContent = curData.preferred_mfb_name || 'Not set';
+    sel.innerHTML = '<option value="">— Select a bank —</option>' +
+      _zilMfbList.map(m => `<option value="${m.mfb_id}" ${m.mfb_id===currentId?'selected':''}>${m.mfb_name}${m.state?' ('+m.state+')':''}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">Could not load banks — try again</option>';
+  }
+}
+async function zilSaveMfb() {
+  const sel = document.getElementById('zil-mfb-select');
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  if (!sel || !sel.value) { toast('Select a bank first', true); return; }
+  if (!token) { toast('Please log in to change your bank', true); return; }
+  try {
+    const res = await fetch(`${API}/wallet-set-mfb`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfb_id: sel.value }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || 'Could not update bank', true); return; }
+    document.getElementById('zil-mfb-current').textContent = data.preferred_mfb_name;
+    toast('Preferred bank updated');
+  } catch (e) {
+    toast('Network error — try again', true);
+  }
+}
 function showChangePinFlow() { toast('Change PIN flow coming in next update'); }
 function exportVaultBackup() {
   const data = JSON.stringify({vault:STATE.vault,history:STATE.history,user:STATE.user});
