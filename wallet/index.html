@@ -3192,6 +3192,23 @@ window.addEventListener('offline', function() {
   refreshHome();
   toast('Offline - transfers still work locally', false, 3000);
 });
+window.addEventListener('storage', function(e) {
+  // Fires in every OTHER open tab whenever THIS tab writes to
+  // localStorage — never in the tab that made the change itself.
+  // Without this, two open wallet tabs would each keep their own
+  // independent copy of STATE.vault; the moment the stale tab did
+  // anything that triggered its own save(), it would silently clobber
+  // whatever the other tab had just correctly written (e.g. a coin
+  // marked spent), making a successful send look like it "reverted."
+  if (e.key !== DB_KEY && e.key !== HISTORY_KEY) return;
+  if (!e.newValue) return; // key was cleared (e.g. logout) — handled elsewhere
+  const hadUser = !!STATE.user;
+  load();
+  if (hadUser && STATE.user) {
+    refreshHome(); refreshVault(); refreshHistory(); refreshProfile();
+    console.log('[wallet] Reloaded state from another open tab');
+  }
+});
 
 // -- Drag & drop for .zil files ---------------------------------
 document.addEventListener('dragover', e => e.preventDefault());
