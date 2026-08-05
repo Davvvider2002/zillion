@@ -208,6 +208,13 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
+  // FIX: the whole handler used to run with no top-level try/catch — any
+  // unexpected failure (a missing env var, a Supabase issue, anything)
+  // crashed as an unhandled exception, which Netlify turns into an opaque
+  // 502 with zero useful information. Wrapping everything below so a
+  // failure always comes back as a readable JSON error instead.
+  try {
+
   const ip          = event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown';
   const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET;
   const JWT_SECRET   = process.env.JWT_SECRET;
@@ -348,4 +355,9 @@ exports.handler = async (event) => {
   }
 
   return err(400, 'Provide either admin_secret (legacy) or username+password (RBAC).');
+
+  } catch (e) {
+    console.error('[admin-login] unhandled error:', e.message, e.stack);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
