@@ -3928,6 +3928,16 @@ window.addEventListener('DOMContentLoaded', () => {
       STATE._pendingClaimId = params.get('claim');
       try{window.history.replaceState({},'','/wallet/');}catch(e){}
     }
+    // If we're in the native app with no local session, the most likely
+    // explanation is the zillion.ng domain migration — the old origin's
+    // local storage isn't visible from this one. Money is safe (it's all
+    // server-side); just needs a fresh login. Say so plainly instead of
+    // silently showing a bare login screen with no context.
+    if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) {
+      setTimeout(function() {
+        toast("We've updated our app — please log in again. Your balance is safe and will sync automatically.", false, 7000);
+      }, 900);
+    }
   }
 });
 
