@@ -268,6 +268,31 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/mfb-list"
+  to   = "/.netlify/functions/mfb-list"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/wallet-set-mfb"
+  to   = "/.netlify/functions/wallet-set-mfb"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/merchant-set-mfb"
+  to   = "/.netlify/functions/merchant-set-mfb"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/agent-mfb-request"
+  to   = "/.netlify/functions/agent-mfb-request"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin/mfb-requests"
+  to   = "/.netlify/functions/admin-mfb-requests"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coins/freeze"
   to   = "/.netlify/functions/coins-freeze"
   status = 200
