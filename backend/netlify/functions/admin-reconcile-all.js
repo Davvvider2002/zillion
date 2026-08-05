@@ -5,7 +5,7 @@
  * Admin JWT required.
  */
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT , requireRole } = require('../../lib/validators');
 const crypto               = require('crypto');
 
 function sha256(str) {
@@ -19,7 +19,8 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== 'POST') return err(405,'Method Not Allowed');
   const auth = verifyJWT(event.headers.authorization||event.headers.Authorization||'');
-  if (!auth.valid || auth.payload.role !== 'admin') return err(401,'Admin required');
+  if (!auth.valid) return err(401,'Admin required');
+  if (!requireRole(auth, ['SUPER_ADMIN','OPERATIONS','COMPLIANCE'])) return err(403, 'Insufficient role for reconciliation');
 
   const db  = getServiceClient();
   const now = new Date().toISOString();
