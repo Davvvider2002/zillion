@@ -760,6 +760,18 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <div class="card">
         <div id="prof-rows" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--gr,#888);margin-bottom:8px;font-weight:600">PREFERRED BANK (MFB)</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:13px;color:var(--gr,#888)">Current</span>
+          <span id="zil-mfb-current" style="font-size:13px;font-weight:700">Not set</span>
+        </div>
+        <select id="zil-mfb-select" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--b,#ddd);font-family:inherit;font-size:13px;margin-bottom:10px">
+          <option value="">Loading banks…</option>
+        </select>
+        <button onclick="zilSaveMfb()" class="btn" style="width:100%;padding:11px;font-size:13px">Save Preferred Bank</button>
+        <div style="font-size:11px;color:var(--gr,#888);margin-top:8px">Changing this only affects future cash-outs — existing balance is unaffected.</div>
+      </div>
       <div id="zil-role-switch-group" style="display:none;margin-bottom:14px">
         <div class="card">
           <div style="font-size:12px;color:var(--gr,#888);margin-bottom:8px;font-weight:600">SWITCH ROLE</div>
@@ -809,6 +821,46 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       ZillionNative.navigateTo(role);
     } else if (typeof toast === 'function') {
       toast('Switch Role is only available in the installed app', true);
+    }
+  }
+  let _zilMfbList = [];
+  async function zilLoadMfb() {
+    const sel = document.getElementById('zil-mfb-select');
+    const cur = document.getElementById('zil-mfb-current');
+    if (!sel) return;
+    if (!M.token) { sel.innerHTML = '<option value="">Log in to set a bank</option>'; return; }
+    try {
+      if (!_zilMfbList.length) {
+        const res = await fetch(`${API}/mfb-list`);
+        const data = await res.json();
+        _zilMfbList = data.mfbs || [];
+      }
+      const curRes = await fetch(`${API}/merchant-set-mfb`, { headers: { 'Authorization': 'Bearer ' + M.token } });
+      const curData = await curRes.json();
+      const currentId = curData.preferred_mfb_id;
+      if (cur) cur.textContent = curData.preferred_mfb_name || 'Not set';
+      sel.innerHTML = '<option value="">— Select a bank —</option>' +
+        _zilMfbList.map(m => `<option value="${m.mfb_id}" ${m.mfb_id===currentId?'selected':''}>${m.mfb_name}${m.state?' ('+m.state+')':''}</option>`).join('');
+    } catch (e) {
+      sel.innerHTML = '<option value="">Could not load banks — try again</option>';
+    }
+  }
+  async function zilSaveMfb() {
+    const sel = document.getElementById('zil-mfb-select');
+    if (!sel || !sel.value) { if (typeof toast==='function') toast('Select a bank first', true); return; }
+    if (!M.token) { if (typeof toast==='function') toast('Please log in first', true); return; }
+    try {
+      const res = await fetch(`${API}/merchant-set-mfb`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + M.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mfb_id: sel.value }),
+      });
+      const data = await res.json();
+      if (!res.ok) { if (typeof toast==='function') toast(data.error || 'Could not update bank', true); return; }
+      document.getElementById('zil-mfb-current').textContent = data.preferred_mfb_name;
+      if (typeof toast==='function') toast('Preferred bank updated');
+    } catch (e) {
+      if (typeof toast==='function') toast('Network error — try again', true);
     }
   }
 
@@ -1658,6 +1710,7 @@ function refreshProfile() {
 
   var recoverBtn = '<div style="margin-top:16px">' + '<button onclick="merchantRecover()" style="width:100%;padding:14px;background:#00C896;color:#0A1F14;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">Recover Balance from Server</button>' + '<div id="recover-status" style="font-size:12px;color:#6B7280;text-align:center;margin-top:6px"></div>' + '</div>';
   document.getElementById('prof-rows').innerHTML = profHtml + recoverBtn;
+  zilLoadMfb();
 }
 
 // ── QR render helper ───────────────────────────────────────────
