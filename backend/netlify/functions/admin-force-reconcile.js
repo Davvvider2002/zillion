@@ -27,7 +27,7 @@
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { verifyJWT , requireRole } = require('../../lib/validators');
 
 const ok  = b     => ({ statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
 const fail = (c,m) => ({ statusCode: c,   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: m }) });
@@ -36,8 +36,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return fail(405, 'Method Not Allowed');
 
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
-  if (!auth.valid || auth.payload.role !== 'admin')
+  if (!auth.valid)
     return fail(401, 'Admin access required');
+  if (!requireRole(auth, ['SUPER_ADMIN','OPERATIONS']))
+    return fail(403, 'Insufficient role for force-reconcile');
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
