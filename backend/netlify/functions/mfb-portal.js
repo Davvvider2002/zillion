@@ -18,7 +18,17 @@ const crypto           = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }    = require('../../lib/validators');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'zillion-dev-secret';
+// FIX: previously fell back to a hardcoded, guessable secret when the
+// real env var was unset — a full auth-bypass / privacy risk. Now fails
+// loudly instead of silently using a weak, predictable key.
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error('Server misconfigured: ' + name + ' is not set');
+  return v;
+}
+
+
+const JWT_SECRET = mustEnv('JWT_SECRET');
 
 function sha256(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
 function signJWT(payload) {
