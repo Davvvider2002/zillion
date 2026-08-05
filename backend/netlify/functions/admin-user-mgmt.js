@@ -142,6 +142,8 @@ exports.handler = async (event) => {
   try { db = getDb(); }
   catch { return err(500, 'Database unavailable'); }
 
+  try {
+
   // ═══════════════════════════════════════════════════════════════════════════
   // GET handlers
   // ═══════════════════════════════════════════════════════════════════════════
@@ -404,4 +406,9 @@ exports.handler = async (event) => {
   }
 
   return err(400, 'Unknown action.');
+
+  } catch (e) {
+    console.error('[admin-user-mgmt] unhandled error:', e.message, e.stack);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
