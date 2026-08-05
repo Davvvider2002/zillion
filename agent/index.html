@@ -578,6 +578,14 @@ window.addEventListener('DOMContentLoaded', () => {
   ['lai','lt2'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); }));
   const s = getSaved();
   if (s) silentLogin(s.id, s.tk);
+  else if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) {
+    // No local session in the native app — most likely the zillion.ng
+    // domain migration (old origin's storage isn't visible from here).
+    // Float balance and any offline queue were already given a chance to
+    // flush before the switch (see ZillionActivity.kt onCreate). Just
+    // needs a fresh login.
+    setTimeout(function() { zilToast("We've updated our app — please log in again. Your float balance is safe.", false, 7000); }, 900);
+  }
   // Switch Role only makes sense inside the installed app.
   setTimeout(function() {
     if (window.ZillionNative && ZillionNative.isNativeApp()) {
