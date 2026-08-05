@@ -55,6 +55,7 @@ exports.handler = async (event) => {
 
   const merchantId = 'MERCH-' + normalised.replace(/\D/g,'').slice(-8);
 
+  try {
   const db = getServiceClient();
 
   // Look up merchant record
@@ -119,4 +120,8 @@ exports.handler = async (event) => {
     business_name: merchant.business_name,
     owner_name:    merchant.owner_name,
   });
+  } catch (e) {
+    console.error('[merchant-login] unhandled error:', e.message);
+    return err(500, 'Server error: ' + e.message);
+  }
 };
