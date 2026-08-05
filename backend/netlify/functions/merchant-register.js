@@ -46,6 +46,7 @@ exports.handler = async (event) => {
   if (!password || password.length < 6)
     return { statusCode:400, body:JSON.stringify({error:'Password must be at least 6 characters'}) };
 
+  try {
   // Hash password with HMAC-SHA256 — never store plaintext
   const password_hash = require('crypto')
     .createHmac('sha256', mustEnv('JWT_SECRET'))
@@ -57,7 +58,6 @@ exports.handler = async (event) => {
 
   const merchantId = 'MERCH-' + normalised.replace(/\D/g,'').slice(-8);
 
-  try {
     const db = getServiceClient();
 
     // Upsert merchant (allow re-registration with updated info)
@@ -111,7 +111,7 @@ exports.handler = async (event) => {
     console.error('merchant-register DB error:', err.message);
     if (err.message.includes('relation') || err.message.includes('does not exist')) {
       const token = signJWT({
-        sub:merchant_id, merchant_id:merchantId, phone:normalised,
+        sub:merchantId, merchant_id:merchantId, phone:normalised,
         owner_name, business_name, business_type:business_type||'General',
         location:location||'', role:'merchant',
       });
