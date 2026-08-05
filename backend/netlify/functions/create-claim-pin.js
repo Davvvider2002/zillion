@@ -91,7 +91,7 @@ exports.handler = async (event) => {
 
     if (error) throw error;
 
-    const baseUrl  = process.env.BASE_URL || 'https://zillion-mvp.netlify.app';
+    const baseUrl  = process.env.BASE_URL || 'https://zillion.ng';
     const claimUrl = `${baseUrl}/wallet/?claim=${data.claim_id}`;
 
     return ok({
