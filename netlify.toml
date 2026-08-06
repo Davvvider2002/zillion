@@ -13,6 +13,12 @@
   node_bundler          = "esbuild"
   external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms"]
 
+# Runs automatically every 4 hours — writes findings to system_alerts,
+# surfaced in the admin dashboard's System Health panel. Read-only
+# against financial data, only ever writes alert records.
+[functions."scheduled-reconcile"]
+  schedule = "0 */4 * * *"
+
 # ── Security Headers (Priority 2) ───────────────────────────────
 
 [[headers]]
@@ -290,6 +296,11 @@
 [[redirects]]
   from = "/api/v1/admin/mfb-requests"
   to   = "/.netlify/functions/admin-mfb-requests"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin/alerts"
+  to   = "/.netlify/functions/admin-alerts"
   status = 200
 
 [[redirects]]
