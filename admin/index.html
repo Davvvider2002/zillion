@@ -633,12 +633,15 @@ tbody tr:last-child td{border-bottom:none;}
 <div id="sec-overview" class="sec active">
 
   <!-- ── System Health / Alerts ───────────────────────────────── -->
-  <div id="system-health-card" style="margin-bottom:20px;padding:16px;background:#fff;border-radius:12px;border:1px solid #eee;display:none">
+  <div id="system-health-card" style="margin-bottom:20px;padding:16px;background:#fff;border-radius:12px;border:1px solid #eee">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-weight:700;font-size:15px">⚠ System Health</div>
-      <button class="rbtn" onclick="loadSystemHealth()">&#8635;</button>
+      <div style="display:flex;gap:8px">
+        <button class="rbtn" onclick="sendTestAlert()" title="Verify the alert pipeline (including Discord, if configured)">Send Test Alert</button>
+        <button class="rbtn" onclick="loadSystemHealth()">&#8635;</button>
+      </div>
     </div>
-    <div id="system-health-body"></div>
+    <div id="system-health-body">Loading…</div>
   </div>
 
   <!-- ── Full Reconciliation Tool ─────────────────────────────── -->
@@ -2090,8 +2093,10 @@ async function loadSystemHealth() {
     var data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Load error');
     var alerts = data.alerts || [];
-    if (!alerts.length) { card.style.display = 'none'; return; }
-    card.style.display = '';
+    if (!alerts.length) {
+      body.innerHTML = '<div style="color:#1A7A4A;font-size:13px;padding:8px 0">✓ All clear — no open alerts.</div>';
+      return;
+    }
     var sevColor = { CRITICAL: '#C0392B', WARNING: '#E67E22', INFO: '#1A7A4A' };
     var sevOrder = { CRITICAL: 0, WARNING: 1, INFO: 2 };
     alerts.sort(function(a, b) { return (sevOrder[a.severity]||3) - (sevOrder[b.severity]||3); });
@@ -2107,7 +2112,22 @@ async function loadSystemHealth() {
       '</div>';
     }).join('');
   } catch (e) {
-    card.style.display = 'none';
+    body.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">Could not load system health right now.</div>';
+  }
+}
+async function sendTestAlert() {
+  try {
+    var resp = await fetch('/api/v1/admin/alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body: JSON.stringify({ action: 'test' }),
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Test failed');
+    alert('Test alert sent. Check this System Health panel (refresh if needed) and your Discord channel if configured.');
+    loadSystemHealth();
+  } catch (e) {
+    alert('Error: ' + e.message);
   }
 }
 async function resolveAlert(alertId) {
