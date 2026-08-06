@@ -173,15 +173,28 @@ async function processSyncBatch(txBatch) {
     }
 
     // ── Update coin status based on direction ─────────────────
-    // is_sent=true: sender syncing → coin changes hands, still HELD by recipient
-    // is_sent=false or absent: receiver syncing → confirm receipt, still HELD
-    // Either way: coin remains HELD until explicitly redeemed (SPENT via /redeem)
-    const newHolder = rawTx.is_sent ? tx.to_hash : tx.to_hash;
-    await db.from('coins').update({
-      status:      'HELD',
-      holder_hash: newHolder || tx.to_hash,
-      updated_at:  new Date().toISOString(),
-    }).eq('coin_id', tx.coin_id);
+    // FIX: previously BOTH sender and receiver syncs could reassign
+    // holder_hash via to_hash. For an offline P2P send, the sender
+    // genuinely doesn't (and by design of a bearer-token system,
+    // shouldn't have to) know who will end up claiming the coin — so
+    // to_hash on the SENDER's side was never reliable, and the client
+    // never actually populated it (tx_history was always empty),
+    // meaning every sender sync fell back to a literal placeholder
+    // string and overwrote the real owner with garbage. Confirmed live:
+    // a single coin flipped ownership 6 times in 48h as sender-resync
+    // and receiver-claim repeatedly overwrote each other.
+    // Only the RECEIVER's own claim (is_sent=false — the device that
+    // actually has the coin and is confirming they hold it) is now
+    // allowed to set holder_hash. The sender's sync still logs the
+    // transaction below for their own history; it just can no longer
+    // reassign ownership.
+    if (!rawTx.is_sent) {
+      await db.from('coins').update({
+        status:      'HELD',
+        holder_hash: tx.to_hash,
+        updated_at:  new Date().toISOString(),
+      }).eq('coin_id', tx.coin_id);
+    }
 
     settled.push(tx.coin_id);
 
