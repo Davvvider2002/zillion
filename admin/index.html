@@ -2124,7 +2124,11 @@ async function sendTestAlert() {
     });
     var data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Test failed');
-    alert('Test alert sent. Check this System Health panel (refresh if needed) and your Discord channel if configured.');
+    if (data.discord && data.discord.sent) {
+      alert('✓ Test alert sent to Discord successfully.');
+    } else {
+      alert('Alert saved, but Discord did not receive it.\n\nReason: ' + (data.discord ? data.discord.reason : 'unknown'));
+    }
     loadSystemHealth();
   } catch (e) {
     alert('Error: ' + e.message);
