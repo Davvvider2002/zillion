@@ -6,6 +6,7 @@
  */
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT , requireRole } = require('../../lib/validators');
+const { logAlert } = require('../../lib/alerts');
 const crypto               = require('crypto');
 
 function sha256(str) {
@@ -181,6 +182,12 @@ exports.handler = async (event) => {
               ledger_implied_kobo: row.implied_held_kobo,
               difference_kobo: diff,
             });
+            logAlert(db, {
+              severity: Math.abs(diff) > 500000 ? 'CRITICAL' : 'WARNING',
+              source:   'admin-reconcile-all (manual)',
+              message:  `Coin ledger drift detected for holder ${row.holder_hash.slice(0, 16)}…`,
+              context:  { holder_hash: row.holder_hash, live_held_kobo: live, ledger_implied_kobo: row.implied_held_kobo, difference_kobo: diff },
+            }).catch(() => {});
           }
         }
         report.summary.coin_ledger_check = {
