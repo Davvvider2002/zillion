@@ -39,33 +39,42 @@ async function logAlert(db, opts) {
   }
 
   if (severity === 'WARNING' || severity === 'CRITICAL') {
-    postToDiscord(severity, opts.source, opts.message, opts.context).catch(e => {
-      console.error('[logAlert] Discord post failed (non-fatal):', e.message);
+    postToDiscord(severity, opts.source, opts.message, opts.context).then(result => {
+      if (!result.sent) console.warn('[logAlert] Discord post did not send:', result.reason);
     });
   }
 }
 
 async function postToDiscord(severity, source, message, context) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) return; // not configured — silently skip, system_alerts already has it
+  if (!webhookUrl) return { sent: false, reason: 'DISCORD_WEBHOOK_URL is not set in Netlify environment variables' };
 
   const emoji = SEVERITY_EMOJI[severity] || '⚪';
   const contextStr = context && Object.keys(context).length
     ? '```' + JSON.stringify(context, null, 2).slice(0, 800) + '```'
     : '';
 
-  await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      embeds: [{
-        title: `${emoji} ${severity} — ${source}`,
-        description: message + (contextStr ? '\n' + contextStr : ''),
-        color: severity === 'CRITICAL' ? 0xC0392B : 0xE67E22,
-        timestamp: new Date().toISOString(),
-      }],
-    }),
-  });
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [{
+          title: `${emoji} ${severity} — ${source}`,
+          description: message + (contextStr ? '\n' + contextStr : ''),
+          color: severity === 'CRITICAL' ? 0xC0392B : 0xE67E22,
+          timestamp: new Date().toISOString(),
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      return { sent: false, reason: `Discord returned ${res.status}: ${body.slice(0, 300)}` };
+    }
+    return { sent: true };
+  } catch (e) {
+    return { sent: false, reason: `Network error calling Discord: ${e.message}` };
+  }
 }
 
-module.exports = { logAlert };
+module.exports = { logAlert, postToDiscord };
