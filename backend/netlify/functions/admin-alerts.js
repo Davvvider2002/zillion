@@ -41,6 +41,18 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'POST') {
     let body;
     try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
+
+    if (body.action === 'test') {
+      const { logAlert } = require('../../lib/alerts');
+      await logAlert(db, {
+        severity: 'WARNING',
+        source:   'admin-alerts (manual test)',
+        message:  `Test alert triggered by ${auth.payload.username || auth.payload.sub || 'admin'} — if this reaches Discord, the pipeline is working.`,
+        context:  { triggered_at: new Date().toISOString() },
+      });
+      return ok({ success: true, message: 'Test alert sent — check the System Health panel and Discord (if configured).' });
+    }
+
     const { alert_id } = body;
     if (!alert_id) return err(400, 'alert_id is required');
 
