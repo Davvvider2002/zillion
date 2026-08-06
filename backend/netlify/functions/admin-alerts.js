@@ -43,14 +43,26 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
 
     if (body.action === 'test') {
-      const { logAlert } = require('../../lib/alerts');
-      await logAlert(db, {
+      const { postToDiscord } = require('../../lib/alerts');
+      const testMessage = `Test alert triggered by ${auth.payload.username || auth.payload.sub || 'admin'} — if this reaches Discord, the pipeline is working.`;
+      // Write directly (not via logAlert()) — logAlert() would ALSO fire its
+      // own automatic Discord post, causing a duplicate message alongside
+      // the direct, result-reporting call below.
+      await db.from('system_alerts').insert({
         severity: 'WARNING',
         source:   'admin-alerts (manual test)',
-        message:  `Test alert triggered by ${auth.payload.username || auth.payload.sub || 'admin'} — if this reaches Discord, the pipeline is working.`,
+        message:  testMessage,
         context:  { triggered_at: new Date().toISOString() },
+      }).catch(() => {});
+      const discordResult = await postToDiscord('WARNING', 'admin-alerts (manual test)', testMessage, {});
+      return ok({
+        success: true,
+        alert_saved: true,
+        discord: discordResult,
+        message: discordResult.sent
+          ? 'Test alert saved and sent to Discord successfully.'
+          : `Test alert saved, but Discord did not receive it: ${discordResult.reason}`,
       });
-      return ok({ success: true, message: 'Test alert sent — check the System Health panel and Discord (if configured).' });
     }
 
     const { alert_id } = body;
