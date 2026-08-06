@@ -632,6 +632,15 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="page-body">
 <div id="sec-overview" class="sec active">
 
+  <!-- ── System Health / Alerts ───────────────────────────────── -->
+  <div id="system-health-card" style="margin-bottom:20px;padding:16px;background:#fff;border-radius:12px;border:1px solid #eee;display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-weight:700;font-size:15px">⚠ System Health</div>
+      <button class="rbtn" onclick="loadSystemHealth()">&#8635;</button>
+    </div>
+    <div id="system-health-body"></div>
+  </div>
+
   <!-- ── Full Reconciliation Tool ─────────────────────────────── -->
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#E8F5E9;border-radius:12px;flex-wrap:wrap">
     <button id="reconcile-btn" onclick="runFullReconcile()" style="
@@ -2072,7 +2081,50 @@ async function runFullReconcile() {
   }
 }
 
+async function loadSystemHealth() {
+  var card = document.getElementById('system-health-card');
+  var body = document.getElementById('system-health-body');
+  if (!card || !body) return;
+  try {
+    var resp = await fetch('/api/v1/admin/alerts', { headers: { 'Authorization': 'Bearer ' + adminToken } });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Load error');
+    var alerts = data.alerts || [];
+    if (!alerts.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    var sevColor = { CRITICAL: '#C0392B', WARNING: '#E67E22', INFO: '#1A7A4A' };
+    var sevOrder = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+    alerts.sort(function(a, b) { return (sevOrder[a.severity]||3) - (sevOrder[b.severity]||3); });
+    body.innerHTML = alerts.map(function(a) {
+      var color = sevColor[a.severity] || '#888';
+      return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0">' +
+        '<div>' +
+          '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:' + color + '22;color:' + color + ';font-size:11px;font-weight:700;margin-right:8px">' + a.severity + '</span>' +
+          '<span style="font-size:13px">' + a.message + '</span>' +
+          '<div style="font-size:11px;color:#999;margin-top:2px">' + a.source + ' · ' + new Date(a.created_at).toLocaleString() + '</div>' +
+        '</div>' +
+        '<button class="rbtn" style="white-space:nowrap" onclick="resolveAlert(' + a.alert_id + ')">Resolve</button>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    card.style.display = 'none';
+  }
+}
+async function resolveAlert(alertId) {
+  try {
+    var resp = await fetch('/api/v1/admin/alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body: JSON.stringify({ alert_id: alertId }),
+    });
+    if (!resp.ok) throw new Error('Resolve failed');
+    loadSystemHealth();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
 async function loadOverview() {
+  loadSystemHealth();
   try {
     const [agRes, usrRes, txRes, coinRes, merchRes] = await Promise.all([
       fetch(`${API}/admin-agents`,       {headers:{'Authorization':'Bearer '+adminToken}}),
