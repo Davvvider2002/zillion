@@ -164,7 +164,7 @@ exports.handler = async (event) => {
 
         const liveByHolder = {};
         (liveHeld || []).forEach(c => {
-          if (!c.holder_hash) return;
+          if (c.holder_hash == null) return; // fix: '!x' also skips '' (valid, if degenerate, holder key) — only skip genuinely missing values
           liveByHolder[c.holder_hash] = (liveByHolder[c.holder_hash] || 0) + (c.amount || 0);
         });
 
