@@ -319,6 +319,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/bank/fund-customer-wallet"
+  to   = "/.netlify/functions/bank-fund-customer-wallet"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/bank/agent-float/:id"
   to   = "/.netlify/functions/bank-agent-float"
   status = 200
