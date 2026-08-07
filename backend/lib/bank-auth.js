@@ -14,9 +14,16 @@ function verifyBankAuth(event) {
   // Strip ALL whitespace from stored key — Netlify UI can add trailing newlines
   const BANK_API_KEY = (process.env.BANK_API_KEY || '').trim();
 
+  // FIX: previously returned { valid: true, dev_mode: true } here — meaning
+  // ANY caller with ZERO credentials was auto-approved as an authenticated
+  // bank partner if this env var was simply unset. This endpoint mints real
+  // coins (bank-fund-agent-float) and freezes real customer funds
+  // (bank-report-suspicious) — failing open here is far worse than the
+  // guessable-fallback-secret pattern fixed elsewhere this session. Now
+  // fails closed: every request is rejected until the key is actually set.
   if (!BANK_API_KEY) {
-    console.warn('[bank-auth] BANK_API_KEY not set — DEV mode');
-    return { valid: true, bank_id: 'DEV_BANK', dev_mode: true };
+    console.error('[bank-auth] BANK_API_KEY is not set — rejecting all bank-partner requests until configured');
+    return { valid: false, reason: 'Bank integration is not configured on this server.' };
   }
 
   const h = event.headers || {};
