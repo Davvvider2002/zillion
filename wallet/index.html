@@ -5081,6 +5081,12 @@ function walletBtStartReceive() {
     var bars = ''; for(var i=0;i<10;i++) bars += i<Math.round(pct/10)?'|':'.';
     setS('<strong>Receiving ' + pct + '%</strong> [' + bars + ']');
   };
+  window.onBleConfirmCode = function(code) {
+    setS('<div style="text-align:center;padding:8px 0">' +
+      '<div style="font-size:12px;color:#888;margin-bottom:4px">Confirm this code matches the sender\'s screen</div>' +
+      '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em;color:#00C896">' + code + '</div>' +
+      '</div>');
+  };
   window.onBleError = function(msg) {
     setS('<strong style="color:var(--r)">Error: '+msg+'</strong><br>' +
          '<span style="font-size:12px">Tap Start to retry</span>');
@@ -5248,6 +5254,11 @@ function walletBtScan() {
     var bars=''; for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
     if(st) st.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
   };
+  window.onBleConfirmCode=function(code){
+    if(st) st.innerHTML='<div style="text-align:center;padding:8px 0">' +
+      '<div style="font-size:12px;color:#888;margin-bottom:4px">Confirm this code matches the recipient\'s screen</div>' +
+      '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em;color:#00C896">'+code+'</div></div>';
+  };
   window.onBleError=function(msg){
     if(st) st.innerHTML='<span style="color:var(--r)">Error: '+msg+'</span>';
     if(bn){bn.textContent='Find Devices';bn.disabled=false;}
@@ -5324,6 +5335,12 @@ function walletBtShowPicker(uri,bundle,method){
     var bars=''; for(var i=0;i<10;i++) bars+=i<Math.round(pct/10)?'|':'.';
     var pst=document.getElementById('bt-picker-status');
     if(pst) pst.innerHTML='<strong>Sending '+pct+'%</strong> ['+bars+']';
+  };
+  window.onBleConfirmCode=function(code){
+    var pst=document.getElementById('bt-picker-status');
+    if(pst) pst.innerHTML='<div style="text-align:center;padding:8px 0">' +
+      '<div style="font-size:12px;color:#aaa;margin-bottom:4px">Confirm this code matches the recipient\'s screen</div>' +
+      '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em;color:#00C896">'+code+'</div></div>';
   };
     window.onBleSent=function(){
     var el=document.getElementById('zil-bt-picker'); if(el) el.remove();
