@@ -8,6 +8,7 @@
 /api/v1/bank/activate-customer   /.netlify/functions/bank-activate-customer   200
 /api/v1/bank/customer            /.netlify/functions/bank-customer            200
 /api/v1/bank/fund-agent-float    /.netlify/functions/bank-fund-agent-float    200
+/api/v1/bank/fund-customer-wallet /.netlify/functions/bank-fund-customer-wallet 200
 /api/v1/bank/report-suspicious   /.netlify/functions/bank-report-suspicious   200
 /api/v1/bank/agent-float         /.netlify/functions/bank-agent-float         200
 /api/v1/customer/limits          /.netlify/functions/customer-limits          200
