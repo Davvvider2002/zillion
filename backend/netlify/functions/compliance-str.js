@@ -9,6 +9,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT , requireRole } = require('../../lib/validators');
+const { auditLog } = require('../../lib/auditLog');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -56,6 +57,16 @@ exports.handler = async (event) => {
   }));
 
   const requiresStr = suspicious.filter(e => e.requires_str);
+
+  await auditLog(db, {
+    action:       'STR_REPORT_GENERATED',
+    username:     auth.payload.username || auth.payload.sub,
+    role:         auth.payload.role,
+    ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+    resourceType: 'compliance_report',
+    requestBody:  { period_from: from, period_to: to, total_events: suspicious.length, requires_str_count: requiresStr.length },
+    result:       'SUCCESS',
+  });
 
   return ok({
     report_type:      'SUSPICIOUS_TRANSACTION_REPORT',
