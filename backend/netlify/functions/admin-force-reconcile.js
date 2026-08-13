@@ -28,6 +28,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT , requireRole } = require('../../lib/validators');
+const { auditLog } = require('../../lib/auditLog');
 
 const ok  = b     => ({ statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
 const fail = (c,m) => ({ statusCode: c,   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: m }) });
@@ -158,6 +159,17 @@ exports.handler = async (event) => {
     } catch(auditErr) {
       console.warn('[force-reconcile] Audit write failed:', auditErr.message);
     }
+
+    await auditLog(db, {
+      action:       'FORCE_RECONCILE',
+      username:     auth.payload.username || auth.payload.sub,
+      role:         auth.payload.role,
+      ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'coin',
+      resourceId:   coin_id,
+      requestBody:  { action, prev_status: prevStatus, new_status: newStatus, agent_id: agent_id || null, reason: reason || null },
+      result:       'SUCCESS',
+    });
 
     // ── 6. Return result ──────────────────────────────────────
     return ok({
