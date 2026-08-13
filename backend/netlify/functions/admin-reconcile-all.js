@@ -7,6 +7,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT , requireRole } = require('../../lib/validators');
 const { logAlert } = require('../../lib/alerts');
+const { auditLog } = require('../../lib/auditLog');
 const crypto               = require('crypto');
 
 function sha256(str) {
@@ -203,6 +204,16 @@ exports.handler = async (event) => {
     report.message = reassigned > 0
       ? reassigned + ' coins re-assigned to correct SHA256(phone) holder_hash'
       : 'No hash corrections needed — all coins already under correct holder_hash';
+
+    await auditLog(db, {
+      action:       'MANUAL_RECONCILE_RUN',
+      username:     auth.payload.username || auth.payload.sub,
+      role:         auth.payload.role,
+      ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'reconciliation',
+      requestBody:  { coins_reassigned: reassigned, drift_found: report.summary.coin_ledger_check?.drift_found ?? null },
+      result:       'SUCCESS',
+    });
 
     return ok(report);
   } catch(e) {
