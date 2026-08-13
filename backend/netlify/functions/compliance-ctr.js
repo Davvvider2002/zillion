@@ -10,6 +10,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT , requireRole } = require('../../lib/validators');
+const { auditLog } = require('../../lib/auditLog');
 
 const CTR_THRESHOLD_KOBO = 100_000_000; // ₦1,000,000
 
@@ -58,6 +59,16 @@ exports.handler = async (event) => {
   }));
 
   const totalKobo = transactions.reduce((s, t) => s + t.amount_kobo, 0);
+
+  await auditLog(db, {
+    action:       'CTR_REPORT_GENERATED',
+    username:     auth.payload.username || auth.payload.sub,
+    role:         auth.payload.role,
+    ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+    resourceType: 'compliance_report',
+    requestBody:  { period_from: from, period_to: to, transaction_count: transactions.length, total_kobo: totalKobo },
+    result:       'SUCCESS',
+  });
 
   return ok({
     report_type:     'CURRENCY_TRANSACTION_REPORT',
