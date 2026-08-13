@@ -21,6 +21,7 @@ const { corsOrigin } = require('../../lib/cors');
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT , requireRole } = require('../../lib/validators');
+const { auditLog } = require('../../lib/auditLog');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json',
@@ -59,6 +60,11 @@ exports.handler = async (event) => {
                 deactivated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) return err(500, error.message);
+    await auditLog(db, {
+      action: 'COMMISSION_CONFIG_DEACTIVATED', username: auth.payload.username || auth.payload.sub,
+      role: auth.payload.role, ip: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'commission_config', resourceId: id, result: 'SUCCESS',
+    });
     return ok({ success: true, deactivated_id: id });
   }
 
@@ -99,6 +105,13 @@ exports.handler = async (event) => {
     .single();
 
   if (insertErr) return err(500, insertErr.message);
+  await auditLog(db, {
+    action: 'COMMISSION_CONFIG_CREATED', username: auth.payload.username || auth.payload.sub,
+    role: auth.payload.role, ip: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+    resourceType: 'commission_config', resourceId: inserted.id,
+    requestBody: { txn_type, scope, scope_id, fee_pct, mfb_share_pct, zillion_share_pct, note },
+    result: 'SUCCESS',
+  });
   return ok({ success: true, config: inserted,
                agent_share_pct: 1 - mfb_share_pct - zillion_share_pct });
 };
