@@ -1419,6 +1419,14 @@ function triggerPWAInstall() {
      SCREEN 10 — PROFILE & SETTINGS
 ══════════════════════════════════════════════════════════════ -->
 
+<div id="nfc-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;flex-direction:column;padding:24px">
+  <div style="background:#111;border-radius:16px;padding:28px 24px;max-width:340px;width:100%;text-align:center">
+    <div style="font-size:36px;margin-bottom:12px">📡</div>
+    <div id="nfc-status" style="color:#fff;font-size:15px;line-height:1.6">Preparing NFC…</div>
+    <button onclick="zilCancelNfc()" style="margin-top:20px;width:100%;padding:11px;background:transparent;color:#888;border:1px solid #333;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+  </div>
+</div>
+
 <div id="screen-topup" class="screen hidden">
   <div class="sb"></div>
   <div class="hdr">
@@ -4085,31 +4093,40 @@ async function startNFCSend(coin) {
 }
 
 async function startNFCReceive() {
+  const overlay = document.getElementById('nfc-overlay');
+  const st = document.getElementById('nfc-status');
+  if (overlay) overlay.style.display = 'flex';
+
+  if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) {
+    if (st) st.textContent = 'Starting NFC…';
+    ZillionNative.receiveViaNfc(); // onNfcReady/onNfcBundle/onNfcError handle the rest
+    return;
+  }
+
   if (!('NDEFReader' in window)) {
+    if (overlay) overlay.style.display = 'none';
     toast('NFC not supported on this device', true, 4000);
     return;
   }
-  const overlay = document.getElementById('nfc-overlay');
-  overlay.style.display = 'flex';
-  document.getElementById('nfc-status').textContent = 'Waiting for sender to tap...';
+  if (st) st.textContent = 'Waiting for sender to tap...';
   try {
     const ndef = new NDEFReader();
     _nfcController = new AbortController();
     await ndef.scan({ signal: _nfcController.signal });
     ndef.addEventListener('reading', ({ message }) => {
       for (const record of message.records) {
-        if (record.recordType === 'text') {
-          try {
-            const coin = JSON.parse(new TextDecoder().decode(record.data));
-            overlay.style.display = 'none';
-            _pendingQRBundle = { coins: [coin] };
-            confirmNFCImport(coin);
-          } catch { toast('Invalid coin data received', true); }
-        }
+        try {
+          const text = new TextDecoder().decode(record.data);
+          const bndl = text.startsWith('zilbundle://') ? zilBundleDecode(text)
+                     : (function(){ var o = JSON.parse(text); return o.coins ? o : { coins:[o] }; })();
+          if (overlay) overlay.style.display = 'none';
+          zilAcceptBundle(bndl, 'nfc');
+          return;
+        } catch (e) { toast('Invalid NFC data received: ' + e.message, true); }
       }
     });
   } catch (e) {
-    overlay.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
     if (e.name !== 'AbortError') toast('NFC error: ' + e.message, true, 4000);
   }
 }
@@ -4825,6 +4842,16 @@ var ZILLION_BLE_TX    = '0000ffe1-0000-1000-8000-00805f9b34fb';
 var ZILLION_CHUNK     = 500;
 
 function zilBleSupported() { return !!(navigator.bluetooth); }
+
+function zilCancelNfc() {
+  var overlay = document.getElementById('nfc-overlay');
+  if (overlay) overlay.style.display = 'none';
+  window._zilNfcPendingBundle = null; // nothing was ever marked spent, safe to just drop
+  if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) {
+    if (ZillionNative.stopReceiveNfc) ZillionNative.stopReceiveNfc();
+  }
+  if (_nfcController) { try { _nfcController.abort(); } catch(e){} _nfcController = null; }
+}
 function zilNfcSupported() { return !!(window.NDEFReader); }
 
 function bestZilTransfer() {
@@ -4941,6 +4968,19 @@ function walletShowWireless() {
 }
 async function walletNFCSend() {
   if (!STATE.sendBundle) { toast('Generate QR first', true); return; }
+
+  if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) {
+    var overlay = document.getElementById('nfc-overlay');
+    var st = document.getElementById('nfc-status');
+    if (overlay) overlay.style.display = 'flex';
+    if (st) st.textContent = 'Hold phones together now...';
+    window._zilNfcPendingBundle = STATE.sendBundle;
+    ZillionNative.sendViaNfc(zilBundleEncode(STATE.sendBundle));
+    return; // completion handled by onNfcSent/onNfcError below
+  }
+
+  // Web NFC fallback — only reached in a real Chrome browser tab, where
+  // the native bridge above doesn't exist.
   var ok = await zilNfcSend(STATE.sendBundle, function(m,t){ toast(m, t==='err'); });
   if (ok) {
     STATE.sendBundle.coins.forEach(function(c){
@@ -5000,12 +5040,13 @@ function zilDecodeBundle(raw) {
   return null;
 }
 function zilAcceptBundle(bundle, method) {
-  if (!bundle || !bundle.coins || !bundle.coins.length) { toast('Empty bundle', true); return; }
+  var methodLabel = method === 'nfc' ? 'NFC' : method === 'ble' ? 'Bluetooth' : 'Bluetooth';
+  if (!bundle || !bundle.coins || !bundle.coins.length) { toast('Empty bundle', true); return false; }
   var newCoins = bundle.coins.filter(function(c) {
     var id = c.coin_id||c.id;
     return !STATE.vault.find(function(v){ return (v.coin_id||v.id)===id; });
   });
-  if (!newCoins.length) { toast('Coins already received', true); return; }
+  if (!newCoins.length) { toast('Coins already received', true); return true; } // idempotent — data DID land
   newCoins.forEach(function(c){ c._status='PENDING_SYNC'; c._receivedAt=new Date().toISOString(); });
   newCoins.forEach(function(c){ STATE.vault.push(c); });
   var total = newCoins.reduce(function(s,c){ return s+(c.amount||c.value_kobo||0); },0);
@@ -5013,13 +5054,14 @@ function zilAcceptBundle(bundle, method) {
     id:'TX-'+Date.now(), type:'received', amount:total,
     coin_count:newCoins.length, ts:new Date().toISOString(),
     status:'PENDING_SYNC', method:method||'bluetooth',
-    name:'Received via Bluetooth',
+    name:'Received via ' + methodLabel,
     received_coin_ids: newCoins.map(function(c){ return c.coin_id||c.id; }),
   });
   save(); refreshHome();
-  toast('Received ' + fmtNaira(total) + ' via Bluetooth!');
+  toast('Received ' + fmtNaira(total) + ' via ' + methodLabel + '!');
   goTo('screen-home');
   setTimeout(trySync, 1500);
+  return true;
 }
 function walletBtStartReceive() {
   var el = document.getElementById('recv-bt-status');
@@ -5419,12 +5461,58 @@ function walletBtPickerScanComplete(){
   if(pst&&(!li||!li.children.length)){ pst.textContent='No devices found nearby.'; zilRestoreAllStuckCoins({silent:true}); }
 }
 window.onNfcBundle = function(uri) {
-  var b = zilDecodeBundle(uri);
-  if (b) zilAcceptBundle(b,'nfc');
-  else toast('Invalid NFC bundle',true);
+  // Returns true/false to the native layer — same async-confirmation
+  // pattern as onBleBundle: the native side holds its response to the
+  // sender until this actually completes, so a decode failure here
+  // correctly tells the sender "not confirmed" instead of silently
+  // succeeding while the receiver has nothing.
+  var overlay = document.getElementById('nfc-overlay');
+  if (overlay) overlay.style.display = 'none';
+  try {
+    var b = zilDecodeBundle(uri);
+    if (!b) { toast('Invalid NFC bundle', true); return false; }
+    return zilAcceptBundle(b, 'nfc');
+  } catch (e) {
+    console.error('[onNfcBundle] failed:', e);
+    toast('Error processing NFC transfer', true);
+    return false;
+  }
 };
-window.onNfcSent  = function() { toast('Coins sent via NFC!'); };
-window.onNfcError = function(m) { toast('NFC error: '+m,true); };
+window.onNfcSent  = function() {
+  var overlay = document.getElementById('nfc-overlay');
+  if (overlay) overlay.style.display = 'none';
+  var bundle = window._zilNfcPendingBundle;
+  if (bundle && bundle.coins) {
+    bundle.coins.forEach(function(c){
+      var i = STATE.vault.findIndex(function(v){ return (v.coin_id||v.id)===(c.coin_id||c.id); });
+      if (i>=0) STATE.vault[i]._status = 'SPENT_LOCAL';
+    });
+    save();
+  }
+  window._zilNfcPendingBundle = null;
+  toast('Coins sent via NFC!');
+  goTo('screen-home');
+  setTimeout(trySync, 1500);
+};
+window.onNfcError = function(m) {
+  var st = document.getElementById('nfc-status');
+  if (st) st.innerHTML = '<span style="color:#e74c3c">' + m + '</span><br>' +
+    '<span style="font-size:12px;color:#888;margin-top:6px;display:inline-block">Tap Cancel and try again</span>';
+  // Coins are only ever marked spent inside onNfcSent above, on confirmed
+  // success — nothing was touched yet if we're here, so there's nothing
+  // to restore, just clear the pending reference.
+  window._zilNfcPendingBundle = null;
+};
+window.onNfcReady = function() {
+  var st = document.getElementById('nfc-status');
+  if (st) st.textContent = 'Ready — tap phones together to receive';
+};
+window.onNfcConfirmCode = function(code) {
+  var el = document.getElementById('nfc-status');
+  if (el) el.innerHTML = '<div style="text-align:center;padding:8px 0">' +
+    '<div style="font-size:12px;color:#888;margin-bottom:4px">Confirm this code matches the other phone\'s screen</div>' +
+    '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em;color:#00C896">' + code + '</div></div>';
+};
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(function() {
     if (window.ZillionNative && ZillionNative.isNativeApp()) {
