@@ -432,8 +432,8 @@ tbody tr:last-child td{border-bottom:none;}
     <div id="login-step1">
       <div class="login-divider">Enter your credentials</div>
 
-      <!-- RBAC mode (username + password) -->
-      <div id="login-mode-rbac" style="display:none">
+      <!-- RBAC mode (username + password) — the only login path now -->
+      <div id="login-mode-rbac">
         <div class="lfield">
           <label>Username</label>
           <input type="text" id="l-username" placeholder="e.g. david.ayomidotun"
@@ -448,23 +448,8 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
       </div>
 
-      <!-- Legacy mode (admin secret) — default -->
-      <div id="login-mode-legacy">
-        <div class="lfield">
-          <label>Admin Secret</label>
-          <input type="password" id="l-secret" placeholder="Enter your admin secret"
-                 autocomplete="current-password"
-                 onkeydown="if(event.key==='Enter')doLogin()">
-        </div>
-      </div>
-
       <button class="lbtn-main" id="lbtn" onclick="doLogin()">Sign In →</button>
       <div class="lerr" id="lerr"></div>
-      <div class="login-mode-toggle">
-        <button onclick="toggleLoginMode()" id="login-mode-btn">
-          Switch to username &amp; password
-        </button>
-      </div>
     </div>
 
     <!-- Step 2: TOTP -->
@@ -1814,7 +1799,7 @@ let allAgentsData  = [];
 let allMerchantsData = [];
 
 // ── Login mode toggle ─────────────────────────────────────────────────────────
-let _loginMode = 'legacy';
+
 let _sessionToken = null;
 
 // ── Auto-login & init on DOMContentLoaded ─────────────────────────────────────
@@ -1843,25 +1828,6 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-function toggleLoginMode() {
-  const rbac   = document.getElementById('login-mode-rbac');
-  const legacy = document.getElementById('login-mode-legacy');
-  const btn    = document.getElementById('login-mode-btn');
-  if (_loginMode === 'legacy') {
-    _loginMode = 'rbac';
-    if (rbac)   rbac.style.display   = '';
-    if (legacy) legacy.style.display = 'none';
-    if (btn)    btn.textContent      = 'Switch to admin secret';
-    document.getElementById('l-username')?.focus();
-  } else {
-    _loginMode = 'legacy';
-    if (rbac)   rbac.style.display   = 'none';
-    if (legacy) legacy.style.display = '';
-    if (btn)    btn.textContent      = 'Switch to username & password';
-    document.getElementById('l-secret')?.focus();
-  }
-}
-
 
 
 
@@ -1875,26 +1841,14 @@ async function doLogin() {
   if (!errEl || !btn) return;
   errEl.className = 'lerr';
 
-  // Build payload based on active login mode
-  let payload;
-  if (_loginMode === 'rbac') {
-    // Username + Password mode
-    const username = (document.getElementById('l-username')?.value||'').trim();
-    const password = (document.getElementById('l-password')?.value||'').trim();
-    if (!username || !password) {
-      errEl.textContent = 'Enter both username and password.';
-      errEl.className = 'lerr show'; return;
-    }
-    payload = { username, password };
-  } else {
-    // Legacy Admin Secret mode
-    const secret = (document.getElementById('l-secret')?.value||'').trim();
-    if (!secret) {
-      errEl.textContent = 'Enter your admin secret.';
-      errEl.className = 'lerr show'; return;
-    }
-    payload = { admin_secret: secret };
+  // Username + password — the only login path now
+  const username = (document.getElementById('l-username')?.value||'').trim();
+  const password = (document.getElementById('l-password')?.value||'').trim();
+  if (!username || !password) {
+    errEl.textContent = 'Enter both username and password.';
+    errEl.className = 'lerr show'; return;
   }
+  const payload = { username, password };
 
   btn.disabled = true; btn.textContent = 'Checking...';
   showLoader('Verifying credentials...');
@@ -1999,7 +1953,7 @@ function backToStep1() {
   document.getElementById('login-step1').style.display = 'block';
   document.getElementById('l-totp').value = '';
   document.getElementById('totp-err').className = 'lerr';
-  document.getElementById('l-secret').focus();
+  document.getElementById('l-username').focus();
 }
 
 function doLogout() {
@@ -2008,7 +1962,8 @@ function doLogout() {
   adminToken = null;
   document.getElementById('app-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('l-secret').value = '';
+  document.getElementById('l-username').value = '';
+  document.getElementById('l-password').value = '';
 }
 
 
