@@ -12,6 +12,7 @@
 const { issueCoinBatch }   = require('../../lib/mint');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
+const { auditLog }         = require('../../lib/auditLog');
 
 const ok  = (body) => ({ statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const err = (code, msg) => ({ statusCode: code, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: false, error: msg }) });
@@ -171,6 +172,16 @@ exports.handler = async (event) => {
     }
 
     // ── 8. Return success ─────────────────────────────────────
+    await auditLog(db, {
+      action:       'FLOAT_TOPUP',
+      username:     auth.payload.username || auth.payload.sub,
+      role:         auth.payload.role,
+      ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'agent',
+      resourceId:   agent_id,
+      requestBody:  { amount_kobo, denomination_kobo, deposit_ref },
+      result:       'SUCCESS',
+    });
     return ok({
       success:        true,
       agent_id,
