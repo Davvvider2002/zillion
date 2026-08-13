@@ -10,6 +10,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { verifyJWT , requireRole } = require('../../lib/validators');
+const { auditLog } = require('../../lib/auditLog');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -74,6 +75,17 @@ exports.handler = async (event) => {
   }
 
   console.log(`[coins-freeze] Admin ${auth.payload.sub} froze ${frozenCount} coins. Reason: ${reason}`);
+
+  await auditLog(db, {
+    action:       'COIN_FREEZE',
+    username:     auth.payload.username || auth.payload.sub,
+    role:         auth.payload.role,
+    ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+    resourceType: 'coin',
+    resourceId:   coin_ids.join(','),
+    requestBody:  { coin_ids, reason, frozen_count: frozenCount, total_kobo: totalKobo },
+    result:       'SUCCESS',
+  });
 
   return ok({
     success:       true,
