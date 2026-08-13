@@ -15,6 +15,7 @@ const { corsOrigin } = require('../../lib/cors');
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
+const { auditLog } = require('../../lib/auditLog');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin(event) };
@@ -66,6 +67,17 @@ exports.handler = async (event) => {
       review_notes:  notes || null,
     }).eq('request_id', request_id);
     if (reqUpdErr) return err(500, reqUpdErr.message);
+
+    await auditLog(db, {
+      action:       `MFB_REQUEST_${action === 'APPROVE' ? 'APPROVED' : 'REJECTED'}`,
+      username:     auth.payload.username || auth.payload.sub,
+      role:         auth.payload.role,
+      ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'agent_mfb_change_request',
+      resourceId:   request_id,
+      requestBody:  { agent_id: reqRow.agent_id, requested_mfb_id: reqRow.requested_mfb_id, notes },
+      result:       'SUCCESS',
+    });
 
     return ok({ success: true, action, request_id });
   }
