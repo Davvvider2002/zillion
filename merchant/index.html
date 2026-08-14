@@ -538,8 +538,17 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
     <!-- Receive method tabs -->
     <div style="display:flex;background:var(--d);padding:0 16px 12px;gap:6px;flex-shrink:0">
       <button id="m-recv-tab-qr"   onclick="mSwitchRecv('qr')"   style="flex:1;padding:8px 0;border:none;border-radius:8px;background:#2D1052;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+      <button id="m-recv-tab-ble"  onclick="mSwitchRecv('ble')"  style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔷 Bluetooth</button>
       <button id="m-recv-tab-nfc"  onclick="mSwitchRecv('nfc')"  style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
       <button id="m-recv-tab-file" onclick="mSwitchRecv('file')" style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 File</button>
+    </div>
+
+    <!-- Bluetooth panel -->
+    <div id="m-recv-panel-ble" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;background:var(--d)">
+      <div style="font-size:64px;margin-bottom:16px">🔷</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Bluetooth Receive</div>
+      <div style="font-size:13px;color:var(--tx2);margin-bottom:24px;line-height:1.6">Customer: Zillion Wallet → Send Zil → Bluetooth → picks this device.</div>
+      <div id="m-ble-status" style="font-size:13px;color:#fff;font-weight:600;min-height:20px"></div>
     </div>
 
     <!-- QR Scan panel -->
@@ -1995,12 +2004,15 @@ document.addEventListener('DOMContentLoaded', function() {
 function mSwitchRecv(tab) {
   // BLE receive tab — auto-start server if selected
   if (tab === 'ble') { setTimeout(function(){ zilStartBLEReceive('m-ble-status'); }, 100); }
+  else if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp() && ZillionNative.stopBleServer) {
+    try { ZillionNative.stopBleServer(); } catch(e){}
+  }
   if (tab === 'nfc') { setTimeout(function(){ zilStartNFCReceive('m-nfc-status'); }, 100); }
   // Hide pay-result when switching tabs
   const pr = document.getElementById('pay-result');
   if (pr) pr.classList.remove('show');
 
-  ['qr','nfc','file'].forEach(function(t) {
+  ['qr','ble','nfc','file'].forEach(function(t) {
     const panel = document.getElementById('m-recv-panel-' + t);
     const btn   = document.getElementById('m-recv-tab-' + t);
     if (panel) {
@@ -2857,13 +2869,31 @@ function zilStartNFCReceive(statusId) {
 }
 function zilStartBLEReceive(statusId) {
   var st = statusId ? document.getElementById(statusId) : null;
-  if (window.ZillionNative && ZillionNative.isNativeApp()) {
-    ZillionNative.startBleServer();
-    if(st) st.textContent='Bluetooth active - waiting for sender...';
+  function setS(m) { if (st) st.innerHTML = m; }
+  if (!window.ZillionNative || !ZillionNative.isNativeApp || !ZillionNative.isNativeApp()) {
+    setS('Install the Zillion Android app for Bluetooth transfers');
+    zilToast('Bluetooth transfers require the Zillion Android app', false, 5000);
     return;
   }
-  if(st) st.textContent='Install the Zillion Android app for Bluetooth transfers';
-  zilToast('Bluetooth transfers require the Zillion Android app', false, 5000);
+  setS('Starting Bluetooth...');
+  ZillionNative.startBleServer();
+  if (window._sppAvailable !== false) ZillionNative.startSppServer();
+
+  window.onBleServerReady = function() { setS('<strong>&#10003; Ready</strong><br><span style="font-size:12px;opacity:.7">Waiting for customer to send...</span>'); };
+  window.onSppServerReady = function() { setS('<strong>&#10003; Ready</strong><br><span style="font-size:12px;opacity:.7">Waiting for customer to send...</span>'); };
+  window.onBleConfirmCode = function(code) {
+    setS('<div style="font-size:12px;opacity:.7;margin-bottom:4px">Confirm this code matches the customer\'s screen</div>' +
+         '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em">' + code + '</div>');
+  };
+  window.onBleTransferProgress = function(done, total) {
+    var pct = total>0 ? Math.round((done/total)*100) : 0;
+    setS('<strong>Receiving ' + pct + '%</strong>');
+  };
+  var _origOnBleBundle = window.onBleBundle;
+  window.onBleBundle = function(uri) {
+    setS('<strong>&#10003; Received!</strong>');
+    return _origOnBleBundle ? _origOnBleBundle(uri) : true;
+  };
 }
 function zilShowBlePicker(bundleUri, bundle, onSent) {
   var ex = document.getElementById('zil-ble-picker'); if(ex) ex.remove();
