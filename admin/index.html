@@ -816,9 +816,38 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
   <!-- ── AGENT MANAGEMENT ──────────────────────────────────────── -->
   <div class="card">
-    <div class="card-title">Agent Management<div style="display:flex;gap:8px"><button class="export-btn" onclick="exportAgents()">&#x2B07; CSV</button><button class="rbtn" onclick="loadAgents()">&#x21BB;</button></div></div>
+    <div class="card-title">Agent Management<div style="display:flex;gap:8px"><button class="rbtn" onclick="openAddAgentModal()" style="background:var(--gl);color:var(--g);font-weight:700">&#x2795; Add Agent</button><button class="export-btn" onclick="exportAgents()">&#x2B07; CSV</button><button class="rbtn" onclick="loadAgents()">&#x21BB;</button></div></div>
     <div class="card-sub">All registered pilot agents. Use Tokens tab to generate JWT.</div>
     <div id="agent-cards-grid" class="user-grid"><div class="no-data">Loading...</div></div>
+  </div>
+
+  <!-- Add Agent modal -->
+  <div id="add-agent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto">
+      <div style="font-size:17px;font-weight:700;margin-bottom:4px">Add New Agent</div>
+      <div style="font-size:12px;color:var(--gr);margin-bottom:18px">Every agent must be linked to a participating bank.</div>
+
+      <label class="field-label">Full Name</label>
+      <input class="field-input" type="text" id="aa-name" placeholder="e.g. Ibrahim Suleiman" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+
+      <label class="field-label">Phone Number</label>
+      <input class="field-input" type="text" id="aa-phone" placeholder="e.g. 08012345678" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+
+      <label class="field-label">Participating Bank (MFB) — required</label>
+      <select class="field-input" id="aa-mfb" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+        <option value="">Loading banks...</option>
+      </select>
+
+      <label class="field-label">Location (optional)</label>
+      <input class="field-input" type="text" id="aa-location" placeholder="e.g. Kano Municipal" style="margin-bottom:18px;width:100%;box-sizing:border-box">
+
+      <div id="aa-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+
+      <div style="display:flex;gap:10px">
+        <button onclick="closeAddAgentModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+        <button onclick="submitAddAgent()" id="aa-submit-btn" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Create Agent</button>
+      </div>
+    </div>
   </div>
   <div class="card">
     <div class="card-title">Agent Activity</div>
@@ -959,11 +988,6 @@ tbody tr:last-child td{border-bottom:none;}
           <label>Agent</label>
           <select id="t-agent" onchange="onAgentSelect()">
             <option value="">Select agent...</option>
-            <option value="AGENT-00001">AGENT-00001 — Kola Adekunle</option>
-            <option value="AGENT-00002">AGENT-00002 — Bisi Okonkwo</option>
-            <option value="AGENT-00003">AGENT-00003 — Emeka Nwosu</option>
-            <option value="AGENT-00004">AGENT-00004 — Fatima Bello</option>
-            <option value="AGENT-00005">AGENT-00005 — Yusuf Musa</option>
           </select>
           <label>Agent Name</label>
           <input type="text" id="t-name" placeholder="Auto-filled">
@@ -2366,6 +2390,7 @@ async function loadAgents() {
     allAgentsData = data.agents || [];
     _admAllData.agent = allAgentsData;
     populateTopUpAgentSelect(allAgentsData);
+    populateAgentTokenDropdown();
     const el = document.getElementById('agent-cards-grid');
     el.innerHTML = allAgentsData.map(a => {
       const ini = a.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
@@ -2465,9 +2490,83 @@ function exportTransactions() { admExportTableCSV('tx'); }
 
 // ── TOKENS ─────────────────────────────────────────────────────
 function onAgentSelect() {
-  const names = {'AGENT-00001':'Kola Adekunle','AGENT-00002':'Bisi Okonkwo','AGENT-00003':'Emeka Nwosu','AGENT-00004':'Fatima Bello','AGENT-00005':'Yusuf Musa'};
-  const sel = document.getElementById('t-agent').value;
-  if (names[sel]) document.getElementById('t-name').value = names[sel];
+  const sel   = document.getElementById('t-agent').value;
+  const agent = (allAgentsData || []).find(a => a.agent_id === sel);
+  if (agent) document.getElementById('t-name').value = agent.name;
+}
+function populateAgentTokenDropdown() {
+  const sel = document.getElementById('t-agent');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select agent...</option>' +
+    (allAgentsData || []).map(a => `<option value="${a.agent_id}">${a.agent_id} — ${a.name}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+async function openAddAgentModal() {
+  document.getElementById('add-agent-modal').style.display = 'flex';
+  document.getElementById('aa-name').value = '';
+  document.getElementById('aa-phone').value = '';
+  document.getElementById('aa-location').value = '';
+  document.getElementById('aa-error').style.display = 'none';
+  const mfbSel = document.getElementById('aa-mfb');
+  mfbSel.innerHTML = '<option value="">Loading banks...</option>';
+  try {
+    const res  = await fetch(`${API}/mfb-list`);
+    const data = await res.json();
+    const mfbs = data.mfbs || [];
+    if (!mfbs.length) {
+      mfbSel.innerHTML = '<option value="">No active banks found — add one first</option>';
+    } else {
+      mfbSel.innerHTML = '<option value="">Select a bank...</option>' +
+        mfbs.map(m => `<option value="${m.mfb_id}">${m.mfb_name}${m.state ? ' — ' + m.state : ''}</option>`).join('');
+    }
+  } catch (e) {
+    mfbSel.innerHTML = '<option value="">Failed to load banks</option>';
+  }
+}
+
+function closeAddAgentModal() {
+  document.getElementById('add-agent-modal').style.display = 'none';
+}
+
+async function submitAddAgent() {
+  const errEl = document.getElementById('aa-error');
+  errEl.style.display = 'none';
+
+  const name     = document.getElementById('aa-name').value.trim();
+  const phone    = document.getElementById('aa-phone').value.trim();
+  const mfbId    = document.getElementById('aa-mfb').value;
+  const location = document.getElementById('aa-location').value.trim();
+
+  if (!name)  { errEl.textContent = 'Name is required.'; errEl.style.display = 'block'; return; }
+  if (!phone) { errEl.textContent = 'Phone number is required.'; errEl.style.display = 'block'; return; }
+  if (!mfbId) { errEl.textContent = 'Every agent must be linked to a participating bank.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('aa-submit-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+
+  try {
+    const res = await fetch(`${API}/admin-create-agent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body: JSON.stringify({ name, phone, mfb_id: mfbId, location_name: location }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Failed to create agent.';
+      errEl.style.display = 'block';
+      return;
+    }
+    closeAddAgentModal();
+    notify(`Agent ${data.agent.agent_id} (${data.agent.name}) created — linked to ${data.agent.mfb_name}`);
+    loadAgents();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create Agent';
+  }
 }
 function quickToken(agentId, agentName) {
   showSec('tokens', document.querySelector('.ntab:nth-child(7)'));
