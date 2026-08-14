@@ -2,7 +2,7 @@
 // Offline-first: app shell cached, API calls network-first with offline queue
 'use strict';
 
-const CACHE_NAME    = 'zillion-merchant-v1.0.8';
+const CACHE_NAME    = 'zillion-merchant-v1.0.9';
 const OFFLINE_QUEUE = 'zillion-merchant-offline-queue';
 
 // App shell — cache these on install
