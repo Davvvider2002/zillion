@@ -1089,6 +1089,56 @@ function triggerPWAInstall() {
           </div>
         </div>
       </div>
+      <!-- Produce Calculator — optional helper for buying produce by
+           weight/quantity (e.g. a buyer paying a farmer for maize) rather
+           than typing a naira amount directly. Computes the total and
+           feeds it into the same setSendAmt() flow everything else uses. -->
+      <div style="padding:0 14px 14px">
+        <button type="button" id="produce-calc-toggle" onclick="toggleProduceCalc()"
+          style="width:100%;padding:11px;background:var(--d2);border:1px dashed var(--grb);border-radius:10px;
+                 color:var(--gm);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;text-align:left">
+          🌾 Calculate by weight &amp; price instead
+        </button>
+        <div id="produce-calc-panel" style="display:none;margin-top:10px;padding:14px;background:var(--d2);border-radius:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label class="field-label">Commodity</label>
+              <select id="pc-commodity" class="field-input" style="font-size:13px">
+                <option value="Maize">Maize</option>
+                <option value="Rice">Rice</option>
+                <option value="Beans">Beans</option>
+                <option value="Cassava">Cassava</option>
+                <option value="Yam">Yam</option>
+                <option value="Groundnut">Groundnut</option>
+                <option value="Cocoa">Cocoa</option>
+                <option value="Sorghum">Sorghum</option>
+                <option value="Millet">Millet</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Weight (kg)</label>
+              <input class="field-input" type="number" id="pc-weight" placeholder="e.g. 500"
+                min="0" step="0.1" inputmode="decimal" oninput="updateProduceCalc()">
+            </div>
+          </div>
+          <label class="field-label">Price per kg (₦)</label>
+          <input class="field-input" type="number" id="pc-price" placeholder="e.g. 300"
+            min="0" step="1" inputmode="numeric" oninput="updateProduceCalc()">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--grb)">
+            <div>
+              <div style="font-size:11px;color:var(--gr)">Total</div>
+              <div style="font-size:20px;font-weight:800;color:var(--gm)" id="pc-total-display">₦0</div>
+            </div>
+            <button type="button" onclick="applyProduceCalc()" id="pc-apply-btn" disabled
+              style="padding:11px 18px;background:var(--g);color:#fff;border:none;border-radius:10px;
+                     font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.5">
+              Use this amount →
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="denom-pills">
         <button class="denom-pill" onclick="setSendAmt(50000)">₦500</button>
         <button class="denom-pill" onclick="setSendAmt(100000)">₦1,000</button>
@@ -2188,6 +2238,41 @@ function setSendAmt(kobo) {
   STATE.sendAmount = kobo;
   document.getElementById('send-amount-input').value = kobo/100;
   updateSendDisplay();
+}
+function toggleProduceCalc() {
+  var panel = document.getElementById('produce-calc-panel');
+  var toggle = document.getElementById('produce-calc-toggle');
+  if (!panel) return;
+  var showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  if (toggle) toggle.textContent = showing
+    ? '🌾 Calculate by weight & price instead'
+    : '🌾 Hide calculator';
+  if (!showing) { var w = document.getElementById('pc-weight'); if (w) w.focus(); }
+}
+function updateProduceCalc() {
+  var weight = parseFloat(document.getElementById('pc-weight')?.value || 0);
+  var price  = parseFloat(document.getElementById('pc-price')?.value || 0);
+  var total  = Math.round(weight * price * 100); // kobo
+  var disp   = document.getElementById('pc-total-display');
+  var btn    = document.getElementById('pc-apply-btn');
+  if (disp) disp.textContent = fmtNaira(total);
+  if (btn) {
+    var valid = total > 0;
+    btn.disabled = !valid;
+    btn.style.opacity = valid ? '1' : '0.5';
+  }
+}
+function applyProduceCalc() {
+  var weight = parseFloat(document.getElementById('pc-weight')?.value || 0);
+  var price  = parseFloat(document.getElementById('pc-price')?.value || 0);
+  var commodity = document.getElementById('pc-commodity')?.value || 'Produce';
+  var total  = Math.round(weight * price * 100);
+  if (total <= 0) { toast('Enter weight and price first', true); return; }
+  setSendAmt(total);
+  STATE.sendNote = commodity + ' — ' + weight + 'kg @ ₦' + price + '/kg';
+  toggleProduceCalc();
+  toast(commodity + ': ' + fmtNaira(total) + ' set as amount');
 }
 function onSendAmountInput(el) {
   STATE.sendAmount = Math.round(parseFloat(el.value||0)*100);
