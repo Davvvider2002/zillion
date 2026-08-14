@@ -58,6 +58,7 @@
 # ── Admin functions ──────────────────────────────────────────
 /api/v1/admin-login            /.netlify/functions/admin-login            200
 /api/v1/admin-agents           /.netlify/functions/admin-agents           200
+/api/v1/admin-create-agent     /.netlify/functions/admin-create-agent     200
 /api/v1/admin-users            /.netlify/functions/admin-users            200
 /api/v1/admin-coins            /.netlify/functions/admin-coins            200
 /api/v1/admin-transactions     /.netlify/functions/admin-transactions     200
