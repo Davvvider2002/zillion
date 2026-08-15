@@ -14,6 +14,7 @@
 const { processSyncBatch } = require('../../lib/supabase');
 const { validateSyncBatch, verifyJWT } = require('../../lib/validators');
 const { checkRateLimit } = require('../../lib/rateLimit');
+const { applyCommission } = require('../../lib/commission');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -134,6 +135,34 @@ exports.handler = async (event) => {
     const result = body.tx_batch && body.tx_batch.length
       ? await processSyncBatch(body.tx_batch)
       : { settled: [], conflicts: [] };
+
+    // ── P2P commission — market-rate flat fee (₦20, matching Moniepoint)
+    // Only charged once per sync BATCH, not once per underlying coin —
+    // a single transfer can bundle several coins (e.g. ₦5,500 sent as
+    // five ₦1,000 + one ₦500), and those all arrive/settle together in
+    // one sync call, so this correctly reflects "one transfer, one fee."
+    // Only applied on the receive side (is_sent === false) — the SAME
+    // coins also appear in the SENDER's own sync call with is_sent:true,
+    // and charging there too would double-charge a single real transfer.
+    // No agentId is passed (P2P has no agent in the loop by design) —
+    // applyCommission already correctly rolls the would-be agent share
+    // into Zillion's share when agentId is absent.
+    if (result.settled && result.settled.length > 0) {
+      const receivedTotalKobo = (body.tx_batch || [])
+        .filter(tx => result.settled.includes(tx.coin_id) && !tx.is_sent)
+        .reduce((s, tx) => s + (tx.value_kobo || tx.amount || 0), 0);
+      if (receivedTotalKobo > 0) {
+        try {
+          await applyCommission({
+            txnType:    'p2p',
+            amountKobo: receivedTotalKobo,
+            agentId:    null,
+            mfbId:      null,
+            coinId:     result.settled[0] || null,
+          });
+        } catch (ce) { console.warn('[sync] commission (p2p):', ce.message); }
+      }
+    }
 
     // ── Update merchant balance in DB if recipient is a merchant ──
     if (result.settled && result.settled.length > 0 && body.device_id) {
