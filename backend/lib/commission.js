@@ -83,9 +83,9 @@ async function getConfig(txnType, agentId, mfbId) {
  * Returns gross fee in kobo (clamped to floor and cap).
  */
 function computeFee(amountKobo, config) {
-  const raw   = Math.round(amountKobo * (config.fee_pct || config.fee_pct));
-  const floor = config.floor_kobo || config.fee_floor_kobo || 0;
-  const cap   = config.cap_kobo   || config.fee_cap_kobo   || 999999;
+  const raw   = Math.round(amountKobo * (config.fee_pct ?? 0));
+  const floor = config.floor_kobo ?? config.fee_floor_kobo ?? 0;
+  const cap   = config.cap_kobo   ?? config.fee_cap_kobo   ?? 999999;
   if (raw === 0) return 0;             // zero-fee config
   return Math.max(floor, Math.min(cap, raw));
 }
@@ -96,8 +96,8 @@ function computeFee(amountKobo, config) {
  * Agent always gets the remainder to avoid rounding gaps.
  */
 function splitFee(feeKobo, config) {
-  const mfbShare     = config.mfb_share_pct     || config.mfb_share     || 0.20;
-  const zillionShare = config.zillion_share_pct  || config.zillion_share || 0.30;
+  const mfbShare     = config.mfb_share_pct     ?? config.mfb_share     ?? 0.20;
+  const zillionShare = config.zillion_share_pct ?? config.zillion_share ?? 0.30;
   const mfbKobo      = Math.round(feeKobo * mfbShare);
   const zillionKobo  = Math.round(feeKobo * zillionShare);
   const agentKobo    = feeKobo - mfbKobo - zillionKobo;  // remainder
