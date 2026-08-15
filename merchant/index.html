@@ -1228,6 +1228,7 @@ function doLogout() {
   M.token=''; M.merchant_id='';
   save();
   stopScan();
+  if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   document.getElementById('app-shell').style.display = 'none';
   document.getElementById('ob-wrap').style.display   = 'flex';
   document.getElementById('ob-wrap').style.flexDirection = 'column';
