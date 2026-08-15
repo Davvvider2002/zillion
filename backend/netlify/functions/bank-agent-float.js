@@ -61,6 +61,14 @@ exports.handler = async (event) => {
     .eq('agent_id', agentId)
     .order('created_at', { ascending: false }).limit(1);
 
+  // Strip the internal "AGENT:" idempotency namespace prefix (see
+  // bank-fund-agent-float.js) before returning — callers should always
+  // see the clean bank_ref they originally sent, never Zillion's
+  // internal storage format for it.
+  const lastTopupClean = lastTopup?.[0]
+    ? { ...lastTopup[0], deposit_ref: (lastTopup[0].deposit_ref || '').replace(/^AGENT:/, '') }
+    : null;
+
   return ok({
     agent_id:    agent.agent_id,
     agent_name:  agent.name,
@@ -69,7 +77,7 @@ exports.handler = async (event) => {
     float_kobo:  agent.float_balance_kobo || 0,
     float_naira: (agent.float_balance_kobo || 0) / 100,
     coin_count:  coinCount || 0,
-    last_topup:  lastTopup?.[0] || null,
+    last_topup:  lastTopupClean,
     queried_at:  new Date().toISOString(),
   });
 };
