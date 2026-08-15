@@ -74,8 +74,14 @@ exports.handler = async (event) => {
   const holderHash = crypto.createHash('sha256').update(normalisedPhone).digest('hex');
 
   // Idempotency — same approach as bank-fund-agent-float.js
+  // FIX: namespaced with an endpoint-specific prefix internally, so the
+  // same bank_ref value can never collide with bank-fund-agent-float.js,
+  // which shares this same underlying table for its own idempotency
+  // check. Purely internal — bank_ref is still returned to the caller
+  // exactly as they sent it.
+  const idempotencyKey = `CUSTOMER:${bank_ref}`;
   const { data: existing } = await db.from('float_topups')
-    .select('id').eq('deposit_ref', bank_ref).limit(1);
+    .select('id').eq('deposit_ref', idempotencyKey).limit(1);
   if (existing && existing.length > 0)
     return ok({ success: true, idempotent: true, bank_ref,
       message: 'Wallet already funded for this bank_ref' });
@@ -134,7 +140,7 @@ exports.handler = async (event) => {
       coin_count:    coins.length,
       first_coin_id: coins[0]?.coin_id,
       last_coin_id:  coins[coins.length - 1]?.coin_id,
-      deposit_ref:   bank_ref,
+      deposit_ref:   idempotencyKey,
       approved_by:   `BANK:${auth.bank_id}`,
       created_at:    now,
     });

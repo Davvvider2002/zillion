@@ -3,39 +3,35 @@
  *
  * POST /api/v1/agent-token
  * Admin generates a JWT token for an agent.
- * Protected by ADMIN_SECRET env var.
  *
- * Body: { agent_id, agent_name, admin_secret }
+ * Body: { agent_id, agent_name }
  * Returns: { token, agent_id, expires_at }
  */
 
 'use strict';
+
+const { verifyJWT, requireRole } = require('../../lib/validators');
+const { getServiceClient }       = require('../../lib/supabase');
+const { auditLog }               = require('../../lib/auditLog');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
+  const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
+  if (!auth.valid) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Authentication required' }) };
+  }
+  if (!requireRole(auth, ['SUPER_ADMIN', 'OPERATIONS'])) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'SUPER_ADMIN or OPERATIONS role required to generate agent tokens' }) };
+  }
+
   let body;
   try { body = JSON.parse(event.body); }
   catch { return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { agent_id, agent_name, admin_secret } = body;
-
-  // Accept EITHER admin JWT (from Authorization header) OR admin_secret in body
-  const { verifyJWT } = require('../../lib/validators');
-  const authHeader = event.headers.authorization || event.headers.Authorization || '';
-  const jwtAuth = authHeader ? verifyJWT(authHeader) : { valid: false };
-
-  if (jwtAuth.valid && jwtAuth.payload.role === 'admin') {
-    // Admin is authenticated via JWT — no secret needed
-  } else {
-    // Fallback: check raw admin_secret
-    const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET;
-    if (!admin_secret || admin_secret !== ADMIN_SECRET) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid admin secret. Log in to Admin panel and generate token from there.' }) };
-    }
-  }
+  const { agent_id, agent_name } = body;
 
   if (!agent_id) {
     return { statusCode: 400, body: JSON.stringify({ error: 'agent_id required' }) };
@@ -72,6 +68,20 @@ exports.handler = async (event) => {
 
   const token      = `${sigData}.${signature}`;
   const expires_at = new Date(exp * 1000).toISOString();
+
+  try {
+    const db = getServiceClient();
+    await auditLog(db, {
+      action:       'AGENT_TOKEN_GENERATED',
+      username:     auth.payload.username || auth.payload.sub,
+      role:         auth.payload.role,
+      ip:           event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'agent',
+      resourceId:   agent_id,
+      requestBody:  { agent_id, agent_name, expires_at },
+      result:       'SUCCESS',
+    });
+  } catch (e) { console.warn('[agent-token] audit log non-fatal:', e.message); }
 
   return {
     statusCode: 200,

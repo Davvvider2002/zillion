@@ -508,6 +508,10 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
           <span class="qa-icon">🏧</span>
           <span class="qa-label" style="color:var(--bl)">Cash Out</span>
         </button>
+        <button class="qa-btn" style="background:#FFF0E0;border:1px solid #F5B87A" onclick="goScreen('screen-send');refreshSendScreen()">
+          <span class="qa-icon">💸</span>
+          <span class="qa-label" style="color:#B8630A">Send Zil</span>
+        </button>
       </div>
 
       <div class="section-pad">
@@ -522,6 +526,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
       <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
       <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-send')"><span class="bnav-icon">💸</span><span class="bnav-label">Send</span></button>
       <button class="bnav-item" onclick="goScreen('screen-history');refreshFullHistory()"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
       <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
@@ -538,8 +543,17 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
     <!-- Receive method tabs -->
     <div style="display:flex;background:var(--d);padding:0 16px 12px;gap:6px;flex-shrink:0">
       <button id="m-recv-tab-qr"   onclick="mSwitchRecv('qr')"   style="flex:1;padding:8px 0;border:none;border-radius:8px;background:#2D1052;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+      <button id="m-recv-tab-ble"  onclick="mSwitchRecv('ble')"  style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔷 Bluetooth</button>
       <button id="m-recv-tab-nfc"  onclick="mSwitchRecv('nfc')"  style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
       <button id="m-recv-tab-file" onclick="mSwitchRecv('file')" style="flex:1;padding:8px 0;border:none;border-radius:8px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 File</button>
+    </div>
+
+    <!-- Bluetooth panel -->
+    <div id="m-recv-panel-ble" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;background:var(--d)">
+      <div style="font-size:64px;margin-bottom:16px">🔷</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Bluetooth Receive</div>
+      <div style="font-size:13px;color:var(--tx2);margin-bottom:24px;line-height:1.6">Customer: Zillion Wallet → Send Zil → Bluetooth → picks this device.</div>
+      <div id="m-ble-status" style="font-size:13px;color:#fff;font-weight:600;min-height:20px"></div>
     </div>
 
     <!-- QR Scan panel -->
@@ -616,6 +630,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <button class="bnav-item active" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
       <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
       <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-send')"><span class="bnav-icon">💸</span><span class="bnav-label">Send</span></button>
       <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
@@ -653,6 +668,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
       <button class="bnav-item active" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
       <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-send')"><span class="bnav-icon">💸</span><span class="bnav-label">Send</span></button>
       <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
@@ -721,6 +737,103 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
       <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
       <button class="bnav-item active" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-send')"><span class="bnav-icon">💸</span><span class="bnav-label">Send</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+    </div>
+  </div>
+
+  <!-- SEND ZIL (general P2P send — e.g. paying a farmer for produce) -->
+  <div id="screen-send" class="screen">
+    <div style="background:var(--d);padding:13px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="goScreen('screen-home')" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer">‹</button>
+      <div style="font-size:15px;font-weight:700;color:#fff">Send Zil</div>
+    </div>
+    <div class="scroll" style="padding:16px;background:var(--bg)">
+      <div style="background:var(--d);border-radius:14px;padding:18px;margin-bottom:16px;text-align:center">
+        <div style="font-size:11px;color:var(--pm);margin-bottom:6px;font-weight:600">AVAILABLE TO SEND</div>
+        <div style="font-size:32px;font-weight:800;color:#fff" id="send-balance">₦0.00</div>
+      </div>
+
+      <div class="card" id="send-amount-card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Amount</div>
+        <div class="field">
+          <label>Amount to send (₦)</label>
+          <input type="number" id="send-amount" placeholder="e.g. 5000" min="0" step="1" inputmode="numeric" oninput="updateSendPreview()">
+        </div>
+
+        <!-- Produce Calculator — for paying a farmer by weight/quantity
+             rather than typing a naira amount directly. -->
+        <button type="button" id="send-produce-calc-toggle" onclick="toggleSendProduceCalc()"
+          style="width:100%;padding:11px;background:var(--bg);border:1px dashed #F5B87A;border-radius:10px;
+                 color:#B8630A;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;text-align:left;margin-bottom:12px">
+          🌾 Calculate by weight &amp; price instead
+        </button>
+        <div id="send-produce-calc-panel" style="display:none;margin-bottom:14px;padding:14px;background:var(--bg);border-radius:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label class="field-label">Commodity</label>
+              <select id="spc-commodity" class="field-input" style="width:100%;box-sizing:border-box;font-size:13px">
+                <option value="Maize">Maize</option>
+                <option value="Rice">Rice</option>
+                <option value="Beans">Beans</option>
+                <option value="Cassava">Cassava</option>
+                <option value="Yam">Yam</option>
+                <option value="Groundnut">Groundnut</option>
+                <option value="Cocoa">Cocoa</option>
+                <option value="Sorghum">Sorghum</option>
+                <option value="Millet">Millet</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Weight (kg)</label>
+              <input class="field-input" type="number" id="spc-weight" placeholder="e.g. 500"
+                min="0" step="0.1" inputmode="decimal" style="width:100%;box-sizing:border-box" oninput="updateSendProduceCalc()">
+            </div>
+          </div>
+          <label class="field-label">Price per kg (₦)</label>
+          <input class="field-input" type="number" id="spc-price" placeholder="e.g. 300"
+            min="0" step="1" inputmode="numeric" style="width:100%;box-sizing:border-box" oninput="updateSendProduceCalc()">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--grb)">
+            <div>
+              <div style="font-size:11px;color:var(--gr)">Total</div>
+              <div style="font-size:20px;font-weight:800;color:#B8630A" id="spc-total-display">₦0</div>
+            </div>
+            <button type="button" onclick="applySendProduceCalc()" id="spc-apply-btn" disabled
+              style="padding:11px 18px;background:#B8630A;color:#fff;border:none;border-radius:10px;
+                     font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.5">
+              Use this amount →
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn-p" onclick="prepareSendZil()" id="send-prepare-btn">Continue →</button>
+      </div>
+
+      <div id="send-method-box" style="display:none">
+        <div class="card">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px">Choose how to send</div>
+          <div style="font-size:12px;color:var(--gr);margin-bottom:14px" id="send-method-amount"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button id="send-nfc-btn" onclick="merchantSendZilViaNFC()"
+              style="padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              📡 NFC
+            </button>
+            <button id="send-bt-btn" onclick="mBtSend()"
+              style="padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              📶 Bluetooth
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="alert alert-am">Recipient opens Zillion → Receive → matching method, then taps Start.</div>
+    </div>
+    <div class="bnav">
+      <button class="bnav-item" onclick="goScreen('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item active" onclick="goScreen('screen-send')"><span class="bnav-icon">💸</span><span class="bnav-label">Send</span></button>
       <button class="bnav-item" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
@@ -788,6 +901,7 @@ html,body{height:100%;font-family:Arial,sans-serif;background:#1A0A2E}
       <button class="bnav-item" onclick="goScreen('screen-scan')"><span class="bnav-icon">📷</span><span class="bnav-label">Scan</span></button>
       <button class="bnav-item" onclick="goScreen('screen-myqr')"><span class="bnav-icon">⬡</span><span class="bnav-label">My QR</span></button>
       <button class="bnav-item" onclick="goScreen('screen-cashout')"><span class="bnav-icon">🏧</span><span class="bnav-label">Cash Out</span></button>
+      <button class="bnav-item" onclick="goScreen('screen-send')"><span class="bnav-icon">💸</span><span class="bnav-label">Send</span></button>
       <button class="bnav-item active" onclick="goScreen('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
     </div>
   </div>
@@ -1219,6 +1333,7 @@ function doLogout() {
   M.token=''; M.merchant_id='';
   save();
   stopScan();
+  if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   document.getElementById('app-shell').style.display = 'none';
   document.getElementById('ob-wrap').style.display   = 'flex';
   document.getElementById('ob-wrap').style.flexDirection = 'column';
@@ -1561,6 +1676,94 @@ function refreshCashout() {
   setText('co-coins',   M.vault.length+' coin'+(M.vault.length!==1?'s':'')+' available');
 }
 
+// ── Send Zil (general P2P send, e.g. paying a farmer for produce) ──────────
+function refreshSendScreen() {
+  const bal = (M.vault||[]).filter(function(c){
+    return c._status !== 'PENDING_CASHOUT' && c._status !== 'PENDING_TRANSFER';
+  }).reduce((s,c)=>s+(c.amount||c.value_kobo||0),0);
+  setText('send-balance', fmt(bal));
+  document.getElementById('send-amount-card').style.display = 'block';
+  document.getElementById('send-method-box').style.display  = 'none';
+}
+
+function toggleSendProduceCalc() {
+  var panel  = document.getElementById('send-produce-calc-panel');
+  var toggle = document.getElementById('send-produce-calc-toggle');
+  if (!panel) return;
+  var showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  if (toggle) toggle.textContent = showing
+    ? '🌾 Calculate by weight & price instead'
+    : '🌾 Hide calculator';
+}
+function updateSendProduceCalc() {
+  var weight = parseFloat(document.getElementById('spc-weight')?.value || 0);
+  var price  = parseFloat(document.getElementById('spc-price')?.value || 0);
+  var total  = Math.round(weight * price * 100); // kobo
+  var disp = document.getElementById('spc-total-display');
+  var btn  = document.getElementById('spc-apply-btn');
+  if (disp) disp.textContent = fmt(total);
+  if (btn) { var valid = total > 0; btn.disabled = !valid; btn.style.opacity = valid ? '1' : '0.5'; }
+}
+function applySendProduceCalc() {
+  var weight = parseFloat(document.getElementById('spc-weight')?.value || 0);
+  var price  = parseFloat(document.getElementById('spc-price')?.value || 0);
+  var total  = Math.round(weight * price * 100);
+  if (total <= 0) { toast('Enter weight and price first', true); return; }
+  document.getElementById('send-amount').value = (total/100);
+  toggleSendProduceCalc();
+  toast(fmt(total) + ' set as amount');
+}
+
+function prepareSendZil() {
+  const amtNaira = parseFloat(document.getElementById('send-amount').value || 0);
+  if (!amtNaira || amtNaira <= 0) { toast('Enter an amount', true); return; }
+  const amtKobo = Math.round(amtNaira * 100);
+
+  const available = M.vault.filter(function(c){
+    return c._status !== 'PENDING_CASHOUT' && c._status !== 'PENDING_TRANSFER';
+  });
+  const bal = available.reduce((s,c)=>s+(c.amount||0),0);
+  if (amtKobo > bal) { toast('Insufficient balance: '+fmt(bal), true); return; }
+
+  const sorted = [...available].sort((a,b)=>a.amount-b.amount);
+  let remain = amtKobo; const selected = [];
+  for (const c of sorted) { if (remain<=0) break; selected.push(c); remain -= c.amount; }
+
+  const bundle = {
+    zillion_version: '1.0', bundle_id: 'BUNDLE-'+Date.now(),
+    created_at: new Date().toISOString(), type: 'p2p',
+    sender_id: M.merchant_id, sender_phone: M.phone,
+    total_kobo: selected.reduce((s,c)=>s+c.amount,0),
+    coin_count: selected.length, coins: selected,
+  };
+
+  // Lock the coins immediately so the balance reflects the outflow right
+  // away, and so refreshSendScreen()/refreshCashout() can't also select
+  // the same coins for a different send in the meantime.
+  selected.forEach(c => {
+    const i = M.vault.findIndex(v => v.coin_id === c.coin_id);
+    if (i >= 0) M.vault[i]._status = 'PENDING_TRANSFER';
+  });
+  save();
+  refreshSendScreen();
+
+  const uri = zilBundleEncode(bundle);
+  window._merchantBundleUri = uri;
+  window._merchantBundle    = bundle;
+  window._merchantSendBundle = bundle; // kept for the failure-restore path below
+
+  document.getElementById('send-amount-card').style.display = 'none';
+  document.getElementById('send-method-box').style.display  = 'block';
+  document.getElementById('send-method-amount').textContent = 'Sending ' + fmt(bundle.total_kobo);
+}
+
+async function merchantSendZilViaNFC() {
+  const bndl = window._merchantBundle;
+  if (!bndl) { toast('Prepare a send first', true); return; }
+  await zilNfcSend(bndl, function(m,t){ toast(m, t==='err'); });
+}
+
 
 // ── Cryptographic binding helpers ────────────────────────────────────────────
 async function sha256Hex(str) {
@@ -1570,6 +1773,7 @@ async function sha256Hex(str) {
 }
 
 async function generateCashoutQR() {
+  window._merchantSendBundle = null; // clear any stale Send Zil tracking so a completed cash-out can't trigger that flow's history logic by mistake
   const amtNaira = parseInt(document.getElementById('co-amount').value||0);
   if (!amtNaira||amtNaira<500) { toast('Enter amount (min ₦500)', true); return; }
   const amtKobo  = amtNaira*100;
@@ -1647,6 +1851,15 @@ async function generateCashoutQR() {
     setText('co-qr-amount', fmt(bundle.total_kobo));
     setText('co-qr-detail', selected.length+' coin'+(selected.length!==1?'s':'')+' · Show to agent');
     if (cashoutClaimUrl && cashoutClaimUrl.startsWith('http')) startCoQRTimer(new Date(Date.now()+57600000));
+
+    // Bluetooth/NFC need the real offline-capable bundle, not the server
+    // claim URL above (that needs internet to resolve — the opposite of
+    // what an offline BT/NFC transfer is for).
+    window._merchantBundleUri     = zilBundleEncode(bundle);
+    window._merchantBundle        = bundle;
+    window._merchantCashoutBundle = bundle;
+    if (typeof merchantShowWireless === 'function') merchantShowWireless();
+
     toast('Cash-out QR ready');
   } catch(e) { hideL(); toast('QR error: '+e.message, true); }
 }
@@ -1995,12 +2208,15 @@ document.addEventListener('DOMContentLoaded', function() {
 function mSwitchRecv(tab) {
   // BLE receive tab — auto-start server if selected
   if (tab === 'ble') { setTimeout(function(){ zilStartBLEReceive('m-ble-status'); }, 100); }
+  else if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp() && ZillionNative.stopBleServer) {
+    try { ZillionNative.stopBleServer(); } catch(e){}
+  }
   if (tab === 'nfc') { setTimeout(function(){ zilStartNFCReceive('m-nfc-status'); }, 100); }
   // Hide pay-result when switching tabs
   const pr = document.getElementById('pay-result');
   if (pr) pr.classList.remove('show');
 
-  ['qr','nfc','file'].forEach(function(t) {
+  ['qr','ble','nfc','file'].forEach(function(t) {
     const panel = document.getElementById('m-recv-panel-' + t);
     const btn   = document.getElementById('m-recv-tab-' + t);
     if (panel) {
@@ -2857,13 +3073,31 @@ function zilStartNFCReceive(statusId) {
 }
 function zilStartBLEReceive(statusId) {
   var st = statusId ? document.getElementById(statusId) : null;
-  if (window.ZillionNative && ZillionNative.isNativeApp()) {
-    ZillionNative.startBleServer();
-    if(st) st.textContent='Bluetooth active - waiting for sender...';
+  function setS(m) { if (st) st.innerHTML = m; }
+  if (!window.ZillionNative || !ZillionNative.isNativeApp || !ZillionNative.isNativeApp()) {
+    setS('Install the Zillion Android app for Bluetooth transfers');
+    zilToast('Bluetooth transfers require the Zillion Android app', false, 5000);
     return;
   }
-  if(st) st.textContent='Install the Zillion Android app for Bluetooth transfers';
-  zilToast('Bluetooth transfers require the Zillion Android app', false, 5000);
+  setS('Starting Bluetooth...');
+  ZillionNative.startBleServer();
+  if (window._sppAvailable !== false) ZillionNative.startSppServer();
+
+  window.onBleServerReady = function() { setS('<strong>&#10003; Ready</strong><br><span style="font-size:12px;opacity:.7">Waiting for customer to send...</span>'); };
+  window.onSppServerReady = function() { setS('<strong>&#10003; Ready</strong><br><span style="font-size:12px;opacity:.7">Waiting for customer to send...</span>'); };
+  window.onBleConfirmCode = function(code) {
+    setS('<div style="font-size:12px;opacity:.7;margin-bottom:4px">Confirm this code matches the customer\'s screen</div>' +
+         '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em">' + code + '</div>');
+  };
+  window.onBleTransferProgress = function(done, total) {
+    var pct = total>0 ? Math.round((done/total)*100) : 0;
+    setS('<strong>Receiving ' + pct + '%</strong>');
+  };
+  var _origOnBleBundle = window.onBleBundle;
+  window.onBleBundle = function(uri) {
+    setS('<strong>&#10003; Received!</strong>');
+    return _origOnBleBundle ? _origOnBleBundle(uri) : true;
+  };
 }
 function zilShowBlePicker(bundleUri, bundle, onSent) {
   var ex = document.getElementById('zil-ble-picker'); if(ex) ex.remove();
@@ -2909,8 +3143,8 @@ function mBtMethod() {
 function mBtSend() {
   var uri    = window._merchantBundleUri;
   var bundle = window._merchantBundle;
-  if (!uri || !bundle) { mToast('Generate cashout QR first', true); return; }
-  if (mBtMethod() === 'web') { mToast('Requires Zillion Android app', false, 5000); return; }
+  if (!uri || !bundle) { toast('Generate cashout QR first', true); return; }
+  if (mBtMethod() === 'web') { toast('Requires Zillion Android app', false, 5000); return; }
   mBtShowPicker(uri, bundle, mBtMethod());
 }
 function mBtShowPicker(uri, bundle, method) {
@@ -2968,10 +3202,30 @@ function mBtShowPicker(uri, bundle, method) {
     var li=document.getElementById('m-bt-list');
     if(st&&(!li||!li.children.length)) st.textContent='No devices found. Ensure recipient opened Receive > Bluetooth.';
   };
+  window.onBleServerReady=function(){}; // no-op here; used by the receive-side flow
+  window.onBleConfirmCode=function(code){
+    var st=document.getElementById('m-bt-status');
+    if(st) st.innerHTML='<div style="font-size:12px;opacity:.7;margin-bottom:4px">Confirm this code matches the recipient\'s screen</div>'+
+      '<div style="font-size:28px;font-weight:800;letter-spacing:0.1em">'+code+'</div>';
+  };
   window.onBleSent=function(){
     var el=document.getElementById('m-bt-picker'); if(el) el.remove();
-    mToast('Coins sent via Bluetooth!');
+    toast('Coins sent via Bluetooth!');
+    var bndl = window._merchantSendBundle;
+    if (bndl) {
+      M.history.unshift({
+        id: 'TX-'+Date.now(), type: 'sent', amount: bndl.total_kobo,
+        coin_count: bndl.coin_count, ts: new Date().toISOString(),
+        status: 'PENDING_SYNC', method: 'bluetooth', name: 'Sent via Bluetooth',
+      });
+      save();
+      window._merchantSendBundle = null;
+      if (typeof refreshSendScreen === 'function') refreshSendScreen();
+      goScreen('screen-home');
+    }
     if(typeof mRefreshHome==='function') mRefreshHome();
+    if(typeof refreshHome==='function') refreshHome();
+    setTimeout(function(){ if(typeof merchantSync==='function') merchantSync(); }, 800);
   };
   window.onBleTransferProgress=function(done,total){
     var pct=total>0?Math.round((done/total)*100):0;

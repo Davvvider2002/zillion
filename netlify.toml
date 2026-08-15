@@ -119,6 +119,26 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-cooperatives"
+  to   = "/.netlify/functions/admin-cooperatives"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-cooperative-members"
+  to   = "/.netlify/functions/admin-cooperative-members"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-cooperative-stats"
+  to   = "/.netlify/functions/admin-cooperative-stats"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-create-agent"
+  to   = "/.netlify/functions/admin-create-agent"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-users"
   to   = "/.netlify/functions/admin-users"
   status = 200

@@ -375,8 +375,17 @@ textarea{resize:vertical;font-family:monospace;font-size:12px;}
       <!-- Method tabs -->
       <div style="display:flex;gap:6px;margin-bottom:20px">
         <button id="ag-recv-tab-qr"   onclick="agSwitchRecv('qr')"   style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--p);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+        <button id="ag-recv-tab-bt"   onclick="agSwitchRecv('bt')"   style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔷 Bluetooth</button>
         <button id="ag-recv-tab-nfc"  onclick="agSwitchRecv('nfc')"  style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📡 NFC</button>
         <button id="ag-recv-tab-file" onclick="agSwitchRecv('file')" style="flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--b2);color:var(--gt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📄 File</button>
+      </div>
+
+      <!-- Bluetooth panel -->
+      <div id="ag-recv-panel-bt" style="display:none;text-align:center;padding:20px 0">
+        <div style="font-size:56px;margin-bottom:16px">🔷</div>
+        <div style="font-size:17px;font-weight:700;color:var(--tx);margin-bottom:8px">Bluetooth Receive</div>
+        <div style="font-size:13px;color:var(--gt);margin-bottom:24px;line-height:1.6">Customer: Zillion Wallet → Send Zil → Bluetooth → picks this device.</div>
+        <div id="ag-bt-status" style="font-size:13px;color:var(--p);font-weight:600;min-height:20px"></div>
       </div>
 
       <!-- QR Scan panel -->
@@ -877,6 +886,7 @@ async function refreshProfile() {
 function doLogout() {
   localStorage.removeItem('zs');
   AP=null; TK=null; ss={ci:0,co:0,cn:0};
+  if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   document.getElementById('as').style.display='none';
   document.getElementById('ls').style.display='flex';
   document.getElementById('lt2').value='';
@@ -1658,7 +1668,7 @@ let _agScanInterval  = null;
 let _agNFCController = null;
 
 function agSwitchRecv(tab) {
-  ['qr','nfc','file'].forEach(function(t) {
+  ['qr','bt','nfc','file'].forEach(function(t) {
     const panel = document.getElementById('ag-recv-panel-' + t);
     const btn   = document.getElementById('ag-recv-tab-' + t);
     if (panel) panel.style.display = (t === tab) ? 'block' : 'none';
@@ -1671,6 +1681,10 @@ function agSwitchRecv(tab) {
   });
   if (tab !== 'qr') agStopScan();
   if (tab === 'nfc') agStartNFCReceive();
+  if (tab === 'bt')  agStartBTReceive();
+  else if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp() && ZillionNative.stopBleServer) {
+    try { ZillionNative.stopBleServer(); } catch(e){}
+  }
 }
 
 // ── QR Scanner ──────────────────────────────────────────────────
@@ -2876,6 +2890,40 @@ window.onBleDeviceFound = function(addr, name) {
   list.appendChild(btn);
   var st = document.getElementById('ble-scan-status'); if(st) st.textContent='Found '+list.children.length+' device(s)';
 };
+function agStartBTReceive() {
+  var el = document.getElementById('ag-bt-status');
+  function setS(msg) { if (el) el.innerHTML = msg; }
+  if (!window.ZillionNative || !ZillionNative.isNativeApp || !ZillionNative.isNativeApp()) {
+    setS('Install the Zillion Android app for Bluetooth transfers'); return;
+  }
+  setS('Starting Bluetooth...');
+  ZillionNative.startBleServer();
+  if (window._sppAvailable !== false) ZillionNative.startSppServer();
+
+  window.onBleServerReady = function() {
+    setS('<strong style="color:var(--p)">&#10003; Ready</strong><br>' +
+         '<span style="font-size:12px;color:var(--gt)">Waiting for customer to send...</span>');
+  };
+  window.onSppServerReady = function() {
+    setS('<strong style="color:var(--p)">&#10003; Ready</strong><br>' +
+         '<span style="font-size:12px;color:var(--gt)">Waiting for customer to send...</span>');
+  };
+  window.onBleConfirmCode = function(code) {
+    setS('<div style="text-align:center"><div style="font-size:12px;color:var(--gt);margin-bottom:4px">Confirm this code matches the customer\'s screen</div>' +
+         '<div style="font-size:32px;font-weight:800;letter-spacing:0.1em;color:var(--p)">' + code + '</div></div>');
+  };
+  window.onBleTransferProgress = function(done, total) {
+    var pct = total>0 ? Math.round((done/total)*100) : 0;
+    setS('<strong>Receiving ' + pct + '%</strong>');
+  };
+  // onBleBundle already handles processing the incoming transfer correctly
+  // (defined earlier in this file) — just refresh the status text here too.
+  var _origOnBleBundle = window.onBleBundle;
+  window.onBleBundle = function(uri) {
+    setS('<strong style="color:var(--p)">&#10003; Received!</strong>');
+    return _origOnBleBundle ? _origOnBleBundle(uri) : true;
+  };
+}
 function zilStartNFCReceive(statusId) {
   var st = statusId ? document.getElementById(statusId) : null;
   function setS(m){ if(st) st.textContent=m; }
