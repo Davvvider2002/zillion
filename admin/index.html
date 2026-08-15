@@ -2559,8 +2559,9 @@ async function submitAddAgent() {
       return;
     }
     closeAddAgentModal();
-    notify(`Agent ${data.agent.agent_id} (${data.agent.name}) created — linked to ${data.agent.mfb_name}`);
+    notify(`Agent ${data.agent.agent_id} (${data.agent.name}) created — linked to ${data.agent.mfb_name}. Generating token...`);
     loadAgents();
+    quickToken(data.agent.agent_id, data.agent.name);
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message;
     errEl.style.display = 'block';
