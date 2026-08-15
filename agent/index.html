@@ -886,6 +886,7 @@ async function refreshProfile() {
 function doLogout() {
   localStorage.removeItem('zs');
   AP=null; TK=null; ss={ci:0,co:0,cn:0};
+  if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   document.getElementById('as').style.display='none';
   document.getElementById('ls').style.display='flex';
   document.getElementById('lt2').value='';
