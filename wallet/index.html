@@ -2793,6 +2793,7 @@ function forceSync() {
 function logout() {
   if (!confirm('Log out? Your vault data stays on this device.')) return;
   STATE.user=null; STATE.pin=null;
+  if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   goTo('screen-splash');
 }
 function resetWallet() {
