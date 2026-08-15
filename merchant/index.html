@@ -1773,6 +1773,7 @@ async function sha256Hex(str) {
 }
 
 async function generateCashoutQR() {
+  window._merchantSendBundle = null; // clear any stale Send Zil tracking so a completed cash-out can't trigger that flow's history logic by mistake
   const amtNaira = parseInt(document.getElementById('co-amount').value||0);
   if (!amtNaira||amtNaira<500) { toast('Enter amount (min ₦500)', true); return; }
   const amtKobo  = amtNaira*100;
@@ -1850,6 +1851,15 @@ async function generateCashoutQR() {
     setText('co-qr-amount', fmt(bundle.total_kobo));
     setText('co-qr-detail', selected.length+' coin'+(selected.length!==1?'s':'')+' · Show to agent');
     if (cashoutClaimUrl && cashoutClaimUrl.startsWith('http')) startCoQRTimer(new Date(Date.now()+57600000));
+
+    // Bluetooth/NFC need the real offline-capable bundle, not the server
+    // claim URL above (that needs internet to resolve — the opposite of
+    // what an offline BT/NFC transfer is for).
+    window._merchantBundleUri     = zilBundleEncode(bundle);
+    window._merchantBundle        = bundle;
+    window._merchantCashoutBundle = bundle;
+    if (typeof merchantShowWireless === 'function') merchantShowWireless();
+
     toast('Cash-out QR ready');
   } catch(e) { hideL(); toast('QR error: '+e.message, true); }
 }
