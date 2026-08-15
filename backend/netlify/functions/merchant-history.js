@@ -10,8 +10,8 @@
  */
 'use strict';
 
-const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { getServiceClient }       = require('../../lib/supabase');
+const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -32,7 +32,7 @@ exports.handler = async (event) => {
 
   // Security: only allow merchant to query their own history
   // unless admin role
-  const isAdmin     = auth.payload.role === 'admin';
+  const isAdmin     = requireRole(auth, ['SUPER_ADMIN','COMPLIANCE','OPERATIONS','SUPPORT','AUDITOR','VIEWER']);
   const isMerchant  = auth.payload.merchant_id === merchantId ||
                       auth.payload.sub          === merchantId;
   if (!isAdmin && !isMerchant) return err(403, 'Access denied');
