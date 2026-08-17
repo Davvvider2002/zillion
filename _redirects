@@ -60,6 +60,11 @@
 /api/v1/admin-agents           /.netlify/functions/admin-agents           200
 /api/v1/admin-cooperatives           /.netlify/functions/admin-cooperatives           200
 /api/v1/coop-activate-member         /.netlify/functions/coop-activate-member         200
+/api/v1/coop-savings-plan            /.netlify/functions/coop-savings-plan            200
+/api/v1/coop-loan-apply              /.netlify/functions/coop-loan-apply              200
+/api/v1/coop-loan-guarantor-respond  /.netlify/functions/coop-loan-guarantor-respond  200
+/api/v1/coop-loans-admin             /.netlify/functions/coop-loans-admin             200
+/api/v1/coop-member-status           /.netlify/functions/coop-member-status           200
 /api/v1/admin-zillion-identity       /.netlify/functions/admin-zillion-identity       200
 /api/v1/admin-cooperative-members    /.netlify/functions/admin-cooperative-members    200
 /api/v1/admin-cooperative-stats      /.netlify/functions/admin-cooperative-stats      200
