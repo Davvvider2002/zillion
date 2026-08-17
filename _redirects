@@ -59,6 +59,7 @@
 /api/v1/admin-login            /.netlify/functions/admin-login            200
 /api/v1/admin-agents           /.netlify/functions/admin-agents           200
 /api/v1/admin-cooperatives           /.netlify/functions/admin-cooperatives           200
+/api/v1/coop-activate-member         /.netlify/functions/coop-activate-member         200
 /api/v1/admin-zillion-identity       /.netlify/functions/admin-zillion-identity       200
 /api/v1/admin-cooperative-members    /.netlify/functions/admin-cooperative-members    200
 /api/v1/admin-cooperative-stats      /.netlify/functions/admin-cooperative-stats      200
