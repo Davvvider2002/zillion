@@ -129,6 +129,31 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-savings-plan"
+  to   = "/.netlify/functions/coop-savings-plan"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-loan-apply"
+  to   = "/.netlify/functions/coop-loan-apply"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-loan-guarantor-respond"
+  to   = "/.netlify/functions/coop-loan-guarantor-respond"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-loans-admin"
+  to   = "/.netlify/functions/coop-loans-admin"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-status"
+  to   = "/.netlify/functions/coop-member-status"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-zillion-identity"
   to   = "/.netlify/functions/admin-zillion-identity"
   status = 200
