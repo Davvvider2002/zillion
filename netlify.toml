@@ -124,6 +124,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-activate-member"
+  to   = "/.netlify/functions/coop-activate-member"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-zillion-identity"
   to   = "/.netlify/functions/admin-zillion-identity"
   status = 200
