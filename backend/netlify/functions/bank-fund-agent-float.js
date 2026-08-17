@@ -51,8 +51,21 @@ exports.handler = async (event) => {
 
   // Verify agent exists
   const { data: agent, error: agentErr } = await db.from('agents')
-    .select('agent_id, float_balance_kobo, phone').eq('agent_id', agent_id).single();
+    .select('agent_id, float_balance_kobo, phone, mfb_id, mfb_name').eq('agent_id', agent_id).single();
   if (agentErr || !agent) return err(404, `Agent not found: ${agent_id}`);
+
+  // FIX: previously any authenticated bank caller could fund ANY agent's
+  // float with no check that they actually own that relationship — and
+  // the minted coins never recorded which bank funded them at all. An
+  // agent is already contractually assigned to one specific bank at
+  // onboarding (agents.mfb_id, mandatory — see admin-create-agent.js),
+  // and per the documented CBN single-principal exclusivity rule, an
+  // agent should only ever be funded by their own assigned bank. Now
+  // enforced explicitly rather than left implicit.
+  if (!agent.mfb_id)
+    return err(409, `Agent ${agent_id} has no assigned bank on file — cannot attribute this funding. Contact Zillion admin.`);
+  if (agent.mfb_id !== auth.bank_id)
+    return err(403, `Agent ${agent_id} is assigned to ${agent.mfb_name || agent.mfb_id}, not ${auth.bank_id}. Only an agent's own assigned bank may fund their float.`);
 
   // Check for duplicate bank_ref (idempotency)
   // FIX: namespaced with an endpoint-specific prefix internally, so the
@@ -95,6 +108,7 @@ exports.handler = async (event) => {
         issuer_id:        agent_id,
         holder_hash:      agent_id,
         owner_hash:       agent_id,
+        mfb_id:           agent.mfb_id,
         issued_at:        c.issued_at,
         expires_at:       c.expires_at,
         signature:        c.signature,
