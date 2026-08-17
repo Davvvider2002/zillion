@@ -539,6 +539,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('cooperatives',this);loadCooperatives()">
         <span class="si">🌾</span> Cooperatives
       </button>
+      <button class="snav-item" id="nav-identity"
+              onclick="showSec('identity',this)">
+        <span class="si">🆔</span> Identity Lookup
+      </button>
       <button class="snav-item" id="nav-customers"
               onclick="showSec('customers',this)">
         <span class="si">👥</span> Customers
@@ -838,6 +842,42 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:10px">
       <button onclick="closeAddMemberModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitAddMember()" id="am-submit-btn" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- IDENTITY LOOKUP -->
+<div id="sec-identity" class="sec">
+  <div class="card">
+    <div class="card-title">Zillion Identity Lookup</div>
+    <div class="card-sub">Search by phone number to see the unified identity and every role (wallet, merchant, agent) linked to it — one person, one Zillion ID, regardless of how many roles they hold.</div>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <input class="field-input" type="text" id="zid-search-phone" placeholder="e.g. 08012345678" style="flex:1" onkeydown="if(event.key==='Enter')searchZillionIdentity()">
+      <button class="rbtn" style="background:var(--g);color:#fff;font-weight:700" onclick="searchZillionIdentity()">Search</button>
+    </div>
+    <div id="zid-error" style="color:#e74c3c;font-size:13px;margin-top:8px;display:none"></div>
+  </div>
+
+  <div id="zid-result" style="display:none">
+    <div class="card">
+      <div class="card-title" id="zid-result-id">—</div>
+      <div class="card-sub" id="zid-result-phone"></div>
+      <div id="zid-multi-badge" style="display:none;margin-top:8px;padding:8px 12px;background:var(--gl);color:var(--g);border-radius:8px;font-size:13px;font-weight:700;display:inline-block">
+        ✓ Multi-role identity — same person, linked across roles
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💳 Wallet</div>
+      <div id="zid-wallet-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🛒 Merchant</div>
+      <div id="zid-merchant-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏪 Agent</div>
+      <div id="zid-agent-list"></div>
     </div>
   </div>
 </div>
@@ -2565,6 +2605,56 @@ async function removeCoopMember(memberId) {
     refreshCoopDetail();
     loadCooperatives();
   } catch(e) { notify('Remove member: '+e.message, true); }
+}
+
+// ── Identity Lookup ──────────────────────────────────────────────────────
+async function searchZillionIdentity() {
+  const errEl = document.getElementById('zid-error');
+  const resultEl = document.getElementById('zid-result');
+  errEl.style.display = 'none';
+  resultEl.style.display = 'none';
+
+  const phone = document.getElementById('zid-search-phone').value.trim();
+  if (!phone) { errEl.textContent = 'Enter a phone number.'; errEl.style.display = 'block'; return; }
+
+  try {
+    const res = await fetch(`${API}/admin-zillion-identity?phone=${encodeURIComponent(phone)}`, {
+      headers: { 'Authorization': 'Bearer ' + adminToken },
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Not found.'; errEl.style.display = 'block'; return; }
+
+    setText('zid-result-id', '🆔 ' + data.identity.zillion_id);
+    setText('zid-result-phone', data.identity.phone_normalized + ' · first seen as ' + (data.identity.first_seen_as || 'unknown') + ' · ' + new Date(data.identity.created_at).toLocaleDateString());
+    document.getElementById('zid-multi-badge').style.display = data.is_multi_role ? 'inline-block' : 'none';
+
+    const walletEl   = document.getElementById('zid-wallet-list');
+    const merchantEl = document.getElementById('zid-merchant-list');
+    const agentEl    = document.getElementById('zid-agent-list');
+
+    walletEl.innerHTML = data.roles.wallet.length
+      ? data.roles.wallet.map(d => `<div style="padding:10px 0;border-bottom:1px solid var(--b,#eee)">
+          <div style="font-weight:700">${d.device_hash.slice(0,16)}...</div>
+          <div style="font-size:12px;color:var(--gr)">Status: ${d.status} · Tier ${d.kyc_tier ?? '—'} · Registered ${new Date(d.registered_at).toLocaleDateString()}</div>
+        </div>`).join('')
+      : '<div class="no-data">No wallet linked to this identity</div>';
+
+    merchantEl.innerHTML = data.roles.merchant.length
+      ? data.roles.merchant.map(m => `<div style="padding:10px 0;border-bottom:1px solid var(--b,#eee)">
+          <div style="font-weight:700">${m.business_name} (${m.merchant_id})</div>
+          <div style="font-size:12px;color:var(--gr)">Owner: ${m.owner_name} · Status: ${m.status} · Registered ${new Date(m.registered_at).toLocaleDateString()}</div>
+        </div>`).join('')
+      : '<div class="no-data">No merchant linked to this identity</div>';
+
+    agentEl.innerHTML = data.roles.agent.length
+      ? data.roles.agent.map(a => `<div style="padding:10px 0;border-bottom:1px solid var(--b,#eee)">
+          <div style="font-weight:700">${a.name} (${a.agent_id})</div>
+          <div style="font-size:12px;color:var(--gr)">Bank: ${a.mfb_name || a.mfb_id || '—'} · Status: ${a.status} · Onboarded ${new Date(a.onboarded_at).toLocaleDateString()}</div>
+        </div>`).join('')
+      : '<div class="no-data">No agent linked to this identity</div>';
+
+    resultEl.style.display = 'block';
+  } catch(e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
 function renderMerchantCards(merchants) {
   const el = document.getElementById('merchant-cards-grid');
