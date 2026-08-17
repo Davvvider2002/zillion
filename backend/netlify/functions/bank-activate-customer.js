@@ -13,6 +13,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { createHmac }   = require('crypto');
 const { verifyBankAuth } = require('../../lib/bank-auth');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
+const { computeWalletDeviceHash } = require('../../lib/crypto');
 
 // Only used to resolve the unified identity correctly — the existing
 // phoneHash/customerId derivation below is untouched, uses the raw
@@ -72,6 +73,14 @@ exports.handler = async (event) => {
   // Generate deterministic device_hash from phone (same as OTP flow uses)
   const phoneHash    = createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
     .update(phone).digest('hex');
+  // FIX: device_hash must use the SAME formula verify-otp.js computes on a
+  // real login, not phoneHash's HMAC scheme — these are genuinely
+  // different values, so reusing phoneHash here meant a bank-activated
+  // customer's pre-set KYC tier/daily limit were silently orphaned in a
+  // dead row the moment they actually opened the app and logged in for
+  // real. phone_hash (a separate column, used for lookups) correctly
+  // stays as phoneHash below — only device_hash needed to change.
+  const deviceHash   = computeWalletDeviceHash(phone, mustEnv('SUPABASE_SERVICE_KEY'));
   const customerId   = generateCustomerId(phone, bank_ref);
   const now          = new Date().toISOString();
 
@@ -103,7 +112,7 @@ exports.handler = async (event) => {
 
   // Create device record — wallet is ready to use
   const { error: devErr } = await db.from('devices').insert({
-    device_hash:      phoneHash,
+    device_hash:      deviceHash,
     phone_hash:       phoneHash,
     public_key_hex:   'BANK_ACTIVATED',  // set when customer first opens wallet
     kyc_tier:         tier,
