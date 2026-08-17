@@ -18,6 +18,7 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
+const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -86,6 +87,10 @@ exports.handler = async (event) => {
   }
   const agentId = 'AGENT-' + String(nextNum).padStart(5, '0');
 
+  let zillionId = null;
+  try { zillionId = await resolveOrCreateZillionId(db, phone, 'agent'); }
+  catch (e) { console.warn('[admin-create-agent] zillion identity link failed (non-fatal):', e.message); }
+
   const { data: created, error: insertErr } = await db.from('agents').insert({
     agent_id:           agentId,
     name,
@@ -96,6 +101,7 @@ exports.handler = async (event) => {
     mfb_id:              mfb.mfb_id,
     mfb_name:            mfb.mfb_name,
     onboarded_at:        new Date().toISOString(),
+    zillion_id:          zillionId,
   }).select().single();
 
   if (insertErr) return err(500, `Failed to create agent: ${insertErr.message}`);

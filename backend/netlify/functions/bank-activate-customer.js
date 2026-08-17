@@ -12,6 +12,18 @@
 const { createClient } = require('@supabase/supabase-js');
 const { createHmac }   = require('crypto');
 const { verifyBankAuth } = require('../../lib/bank-auth');
+const { resolveOrCreateZillionId } = require('../../lib/zillionId');
+
+// Only used to resolve the unified identity correctly — the existing
+// phoneHash/customerId derivation below is untouched, uses the raw
+// phone exactly as it always has, and still works the same way for
+// callers already integrated against it.
+function normalisePhoneForIdentity(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.startsWith('234')) return '+' + digits;
+  if (digits.startsWith('0'))   return '+234' + digits.slice(1);
+  return '+' + digits;
+}
 
 // FIX: previously fell back to a hardcoded, guessable secret when the
 // real env var was unset — a full auth-bypass / privacy risk. Now fails
@@ -63,11 +75,22 @@ exports.handler = async (event) => {
   const customerId   = generateCustomerId(phone, bank_ref);
   const now          = new Date().toISOString();
 
+  let zillionId = null;
+  try { zillionId = await resolveOrCreateZillionId(db, normalisePhoneForIdentity(phone), 'bank_customer'); }
+  catch (e) { console.warn('[bank-activate-customer] zillion identity link failed (non-fatal):', e.message); }
+
   // Check if already activated
   const { data: existing } = await db.from('devices')
     .select('device_hash, kyc_tier').eq('phone_hash', phoneHash).limit(1);
 
   if (existing && existing.length > 0) {
+    // Existing record predates zillion_id — link it now if it's missing,
+    // same lazy-backfill approach used everywhere else for wallet identities.
+    if (zillionId) {
+      try {
+        await db.from('devices').update({ zillion_id: zillionId }).eq('device_hash', existing[0].device_hash).is('zillion_id', null);
+      } catch (e) { console.warn('[bank-activate-customer] backfill link failed (non-fatal):', e.message); }
+    }
     return ok({
       success:           true,
       already_activated: true,
@@ -90,6 +113,7 @@ exports.handler = async (event) => {
     last_sync:        now,
     registered_at:    now,
     status:           'ACTIVE',
+    zillion_id:       zillionId,
   });
 
   if (devErr) return err(500, `Activation failed: ${devErr.message}`);
