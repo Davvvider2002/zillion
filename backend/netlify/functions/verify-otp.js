@@ -10,6 +10,7 @@
 
 const { createHmac, createHash, timingSafeEqual } = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 
 // FIX: previously fell back to a hardcoded, guessable secret when the
 // real env var was unset — a full auth-bypass / privacy risk. Now fails
@@ -59,6 +60,38 @@ exports.handler = async (event) => {
   const otpStr   = String(otp).trim();
   const otpSalt  = mustEnv('OTP_SECRET');
 
+  // Created early so both the demo-bypass path and the real path can use
+  // it to resolve/link the caller's unified Zillion identity.
+  const db = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY,
+    { auth: { persistSession: false } }
+  );
+
+  // Runs on EVERY successful login, not just first registration — this is
+  // deliberately what makes the identity-unification backfill work for
+  // EXISTING wallet users: their real phone number is only ever available
+  // in cleartext here (devices table stores one-way hashes only), so
+  // their zillion_id link gets established the next time they log in,
+  // gradually, rather than needing a one-time bulk migration.
+  async function linkZillionIdentity(deviceId, phoneHash) {
+    try {
+      const zid = await resolveOrCreateZillionId(db, phone, 'wallet');
+      await db.from('devices').upsert({
+        device_hash: deviceId,
+        phone_hash:  phoneHash,
+        zillion_id:  zid,
+      }, { onConflict: 'device_hash', ignoreDuplicates: false });
+      return zid;
+    } catch (e) {
+      // Non-fatal — a person should never be blocked from logging in
+      // because identity-linking had a hiccup. register-device.js's own
+      // upsert will still run normally afterward regardless.
+      console.warn('[verify-otp] zillion identity link failed (non-fatal):', e.message);
+      return null;
+    }
+  }
+
   // ── Demo bypass — set DEMO_OTP env var in Netlify to enable ──────────────
   // Remove this block before going live. Any phone + DEMO_OTP code = instant login.
   const DEMO_OTP = (process.env.DEMO_OTP || '').trim();
@@ -66,16 +99,18 @@ exports.handler = async (event) => {
     const deviceId = createHash('sha256')
       .update(phone + (mustEnv('SUPABASE_SERVICE_KEY')))
       .digest('hex').slice(0, 16);
+    const phoneHashDemo = createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY')).update(phone).digest('hex');
+    const zillionId = await linkZillionIdentity(deviceId, phoneHashDemo);
     const token = signJWT({
       sub:        deviceId,
       phone,
       deviceId,
       role:       'customer',
-      phone_hash: createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
-        .update(phone).digest('hex'),
+      phone_hash: phoneHashDemo,
+      zillion_id: zillionId,
     });
     console.log(`[verify-otp] ✅ DEMO bypass — ${phone}`);
-    return ok({ success: true, verified: true, phone, token, deviceId,
+    return ok({ success: true, verified: true, phone, token, deviceId, zillion_id: zillionId,
       message: 'Demo verification successful.' });
   }
   // ── End demo bypass ───────────────────────────────────────────────────────
@@ -83,13 +118,6 @@ exports.handler = async (event) => {
   // hashOtp: consistent OTP hashing used by both send-otp and verify-otp
   const hashOtp = (code) => createHmac('sha256', otpSalt).update(String(code).trim()).digest('hex');
   const hashedInput = hashOtp(otpStr);
-
-  // ── Supabase lookup ───────────────────────────────────────
-  const db = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    { auth: { persistSession: false } }
-  );
 
   const { data: rows, error } = await db
     .from('otp_requests')
@@ -148,13 +176,15 @@ exports.handler = async (event) => {
   // This token is used by trySync, register-device, kyc, and all
   // authenticated wallet endpoints. Without it, sync runs in
   // "offline-local" mode and balances never update on the server.
+  const phoneHash = createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY')).update(phone).digest('hex');
+  const zillionId = await linkZillionIdentity(deviceId, phoneHash);
   const token = signJWT({
     sub:      deviceId,
     phone,
     deviceId,
     role:     'customer',
-    phone_hash: createHmac('sha256', mustEnv('SUPABASE_SERVICE_KEY'))
-      .update(phone).digest('hex'),
+    phone_hash: phoneHash,
+    zillion_id: zillionId,
   });
 
   console.log(`[verify-otp] ✅ ${phone} verified — JWT issued`);
@@ -165,6 +195,7 @@ exports.handler = async (event) => {
     phone,
     token,          // ← JWT for sync auth — was missing before this fix
     deviceId,
+    zillion_id: zillionId,
     message:  'Phone verified. Your wallet is ready.',
   });
 };
