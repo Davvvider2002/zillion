@@ -8,6 +8,7 @@
 'use strict';
 const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
+const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 
 // FIX: previously fell back to a hardcoded, guessable secret when the
 // real env var was unset — a full auth-bypass / privacy risk. Now fails
@@ -60,6 +61,14 @@ exports.handler = async (event) => {
 
     const db = getServiceClient();
 
+    // Resolve/create the unified Zillion identity for this phone number —
+    // links this merchant record to the same identity as any existing
+    // wallet (or future agent) record sharing this phone, non-fatal if
+    // it hiccups since that shouldn't block a merchant from registering.
+    let zillionId = null;
+    try { zillionId = await resolveOrCreateZillionId(db, normalised, 'merchant'); }
+    catch (e) { console.warn('[merchant-register] zillion identity link failed (non-fatal):', e.message); }
+
     // Upsert merchant (allow re-registration with updated info)
     const { data, error } = await db
       .from('merchants')
@@ -76,6 +85,7 @@ exports.handler = async (event) => {
         registered_at: new Date().toISOString(),
         last_login:    new Date().toISOString(),
         zil_balance_kobo: 0,
+        zillion_id:    zillionId,
       }, { onConflict: 'merchant_id' })
       .select('merchant_id, status')
       .single();
