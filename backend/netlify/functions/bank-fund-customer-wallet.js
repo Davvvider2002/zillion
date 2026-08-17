@@ -65,6 +65,24 @@ exports.handler = async (event) => {
     return err(500, 'No signing method configured');
 
   const db  = getServiceClient();
+
+  // FIX: x-bank-id was previously a completely unvalidated, self-reported
+  // string — anyone with the (single, shared) BANK_API_KEY could claim to
+  // be any bank, and coins minted here never recorded which bank actually
+  // funded them at all. Now validated against real, active mfb_partners
+  // before it's trusted for anything, and used to correctly tag every
+  // coin minted here — this is what makes a genuine "balance broken down
+  // by bank" view possible at all for bank-funded top-ups.
+  const { data: mfb, error: mfbErr } = await db
+    .from('mfb_partners')
+    .select('mfb_id, mfb_name, status')
+    .eq('mfb_id', auth.bank_id)
+    .single();
+  if (mfbErr || !mfb)
+    return err(400, `x-bank-id "${auth.bank_id}" does not match a registered participating bank. Contact Zillion to confirm your correct bank identifier.`);
+  if (mfb.status !== 'ACTIVE')
+    return err(403, `${mfb.mfb_name} is not currently an active partner (status: ${mfb.status})`);
+
   const now = new Date().toISOString();
   const normalisedPhone = normalisePhone(customer_phone);
   // Same scheme as agent's ownerHash() — plain SHA256(phone), matching
@@ -112,6 +130,7 @@ exports.handler = async (event) => {
         issuer_id:        `BANK:${auth.bank_id}`,
         holder_hash:      holderHash,
         owner_hash:       holderHash,
+        mfb_id:           mfb.mfb_id,
         issued_at:        c.issued_at,
         expires_at:       c.expires_at,
         signature:        c.signature,
