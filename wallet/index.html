@@ -1607,6 +1607,12 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <div class="settings-group" id="zil-balance-by-bank-group">
+        <div class="settings-group-label">Balance by Bank</div>
+        <div style="padding:8px 0 4px;font-size:11px;color:var(--gr,#888)">Your held balance, broken down by which participating bank each coin traces back to. One Zillion balance — carried across every bank you've dealt with.</div>
+        <div id="zil-balance-by-bank-list" style="padding:6px 0"></div>
+      </div>
+
       <div class="settings-group" id="zil-role-switch-group" style="display:none">
         <div class="settings-group-label">Switch Role</div>
         <div class="settings-row" style="padding:14px 0">
@@ -2728,6 +2734,7 @@ function refreshProfile() {
     document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
   }
   zilLoadMfb();
+  zilRenderBalanceByBank();
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 // ── Preferred Bank (MFB) ────────────────────────────────────────────────
@@ -2757,6 +2764,50 @@ async function zilLoadMfb() {
   } catch (e) {
     sel.innerHTML = '<option value="">Could not load banks — try again</option>';
   }
+}
+// ── Balance by Bank ──────────────────────────────────────────────────────
+// One Zillion balance, broken down by which participating bank each held
+// coin traces back to (coins.mfb_id — set at mint time, permanent, never
+// rewritten on transfer, so this always reflects genuine provenance).
+async function zilRenderBalanceByBank() {
+  const box = document.getElementById('zil-balance-by-bank-list');
+  if (!box) return;
+
+  const held = (STATE.vault || []).filter(c => c._status === 'HELD');
+  if (!held.length) {
+    box.innerHTML = '<div style="font-size:13px;color:var(--gr,#888);padding:8px 0">No held coins yet.</div>';
+    return;
+  }
+
+  // Reuse the same cached bank list zilLoadMfb() already fetches — avoid
+  // a duplicate network call for the same data.
+  if (!_zilMfbList.length && STATE.isOnline) {
+    try {
+      const res = await fetch(`${API}/mfb-list`);
+      const data = await res.json();
+      _zilMfbList = data.mfbs || [];
+    } catch (e) { /* fall through — names just won't resolve this time */ }
+  }
+  const nameById = {};
+  _zilMfbList.forEach(m => { nameById[m.mfb_id] = m.mfb_name; });
+
+  const byBank = {};
+  held.forEach(c => {
+    const key = c.mfb_id || '_unassigned';
+    byBank[key] = (byBank[key] || 0) + (c.amount || c.value_kobo || 0);
+  });
+
+  const rows = Object.keys(byBank)
+    .sort((a, b) => byBank[b] - byBank[a])
+    .map(key => {
+      const label = key === '_unassigned' ? 'Unassigned (legacy coins)' : (nameById[key] || key);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b,#eee)">
+        <span style="font-size:13px">${label}</span>
+        <span style="font-size:13px;font-weight:700">${fmtNaira(byBank[key])}</span>
+      </div>`;
+    }).join('');
+
+  box.innerHTML = rows;
 }
 async function zilSaveMfb() {
   const sel = document.getElementById('zil-mfb-select');
