@@ -65,6 +65,7 @@
 /api/v1/coop-loan-guarantor-respond  /.netlify/functions/coop-loan-guarantor-respond  200
 /api/v1/coop-loans-admin             /.netlify/functions/coop-loans-admin             200
 /api/v1/coop-member-status           /.netlify/functions/coop-member-status           200
+/api/v1/coop-record-savings-payment  /.netlify/functions/coop-record-savings-payment  200
 /api/v1/admin-zillion-identity       /.netlify/functions/admin-zillion-identity       200
 /api/v1/admin-cooperative-members    /.netlify/functions/admin-cooperative-members    200
 /api/v1/admin-cooperative-stats      /.netlify/functions/admin-cooperative-stats      200
