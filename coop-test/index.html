@@ -77,7 +77,7 @@
 <!-- STEP: Fund borrower's real wallet -->
 <div class="step">
   <div class="step-title">4. Fund the Borrower's Real Wallet (test money)</div>
-  <div class="step-desc">Reuses the existing bank-funding endpoint via the SIM_MFB test bank — this is what makes the actual savings test possible. You'll need your staging BANK_API_KEY (not your admin login — a separate value).</div>
+  <div class="step-desc">Reuses the existing bank-funding endpoint via KOKO_MFB_LAGOS, staging's active test bank — this is what makes the actual savings test possible. You'll need your staging BANK_API_KEY (not your admin login — a separate value).</div>
   <label>Staging BANK_API_KEY</label><input id="bank-api-key" type="password" placeholder="paste it here">
   <label>Amount to fund (₦)</label><input id="fund-amount" value="50000">
   <button onclick="fundBorrowerWallet()">Fund Wallet</button>
@@ -232,7 +232,7 @@ async function fundBorrowerWallet() {
   const bankRef = 'TESTFUND-' + Date.now();
   const { ok, data } = await call('/bank/fund-customer-wallet', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-bank-api-key': bankKey, 'x-bank-id': 'SIM_MFB' },
+    headers: { 'Content-Type': 'application/json', 'x-bank-api-key': bankKey, 'x-bank-id': 'KOKO_MFB_LAGOS' },
     body: JSON.stringify({ customer_phone: bPhone, amount_kobo: amountKobo, bank_ref: bankRef }),
   });
   showOut('fund-out', data, !ok);
