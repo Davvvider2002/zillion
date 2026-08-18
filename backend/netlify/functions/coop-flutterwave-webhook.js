@@ -64,7 +64,11 @@ exports.handler = async (event) => {
   if (payload.event !== 'charge.completed' || !payload.data) return ok({ ignored: true });
 
   const { id: flwTransactionId, tx_ref, status, amount, currency } = payload.data;
-  if (status !== 'successful') return ok({ ignored: true, reason: 'not successful' });
+  // Two Flutterwave API generations use different status strings for the
+  // same outcome ('successful' on v3, 'succeeded' confirmed by Flutterwave
+  // support on their newer sandbox) — accept both rather than assume one.
+  const SUCCESS_STATUSES = ['successful', 'succeeded'];
+  if (!SUCCESS_STATUSES.includes(status)) return ok({ ignored: true, reason: 'not successful' });
 
   const db = getServiceClient();
 
@@ -95,7 +99,7 @@ exports.handler = async (event) => {
       });
       const verifyData = await verifyRes.json();
       const v = verifyData.data || {};
-      if (v.status !== 'successful' || v.tx_ref !== tx_ref || Number(v.amount) !== Number(amount) || v.currency !== currency) {
+      if (!SUCCESS_STATUSES.includes(v.status) || v.tx_ref !== tx_ref || Number(v.amount) !== Number(amount) || v.currency !== currency) {
         await logAlert(db, {
           severity: 'CRITICAL',
           source:   'coop-flutterwave-webhook',
