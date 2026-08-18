@@ -508,3 +508,13 @@
   from   = "/api/v1/fetch-claim-offline-pin"
   to     = "/.netlify/functions/fetch-claim-offline-pin"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-flutterwave-webhook"
+  to   = "/.netlify/functions/coop-flutterwave-webhook"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-provision-flutterwave-account"
+  to   = "/.netlify/functions/coop-provision-flutterwave-account"
+  status = 200
