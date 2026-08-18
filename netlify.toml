@@ -518,3 +518,8 @@
   from = "/api/v1/coop-provision-flutterwave-account"
   to   = "/.netlify/functions/coop-provision-flutterwave-account"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-simulate-flutterwave-payment"
+  to   = "/.netlify/functions/coop-simulate-flutterwave-payment"
+  status = 200
