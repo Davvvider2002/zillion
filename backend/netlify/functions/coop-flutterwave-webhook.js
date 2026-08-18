@@ -20,6 +20,10 @@
  * on coop_savings_transactions.reference), not just application logic
  * — Flutterwave's own docs state webhooks can be sent more than once.
  *
+ * Re-verification uses OAuth 2.0 (backend/lib/flutterwave.js) — confirmed
+ * directly by Flutterwave support that both sandbox AND production
+ * require this, not a directly-passed secret key as originally built.
+ *
  * Must respond quickly (60s timeout) — the one outbound call this
  * makes (transaction verification) is fast and necessary; nothing
  * else long-running happens here.
@@ -28,6 +32,7 @@
 
 const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
+const { getFlutterwaveAccessToken, flutterwaveApiBase } = require('../../lib/flutterwave');
 const { logAlert }         = require('../../lib/alerts');
 
 exports.handler = async (event) => {
@@ -88,35 +93,38 @@ exports.handler = async (event) => {
     return ok({ ignored: true, reason: 'no matching plan' });
   }
 
-  // Best practice per Flutterwave's own docs: re-verify via their
-  // transaction verification API before trusting the webhook payload,
-  // rather than crediting purely off what this request claims.
-  const secretKey = process.env.FLW_SECRET_KEY;
-  if (secretKey) {
-    try {
-      const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwTransactionId}/verify`, {
-        headers: { Authorization: `Bearer ${secretKey}` },
+  // Best practice per Flutterwave's own docs: re-verify via their API
+  // before trusting the webhook payload, rather than crediting purely
+  // off what this request claims.
+  let verified = false;
+  try {
+    const accessToken = await getFlutterwaveAccessToken();
+    const base = flutterwaveApiBase();
+    const verifyRes = await fetch(`${base}/charges/${flwTransactionId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const verifyData = await verifyRes.json();
+    const v = verifyData.data || verifyData;
+    // NOTE: assuming the /charges/{id} response echoes the field back as
+    // "reference" (matching the v4 naming used when creating the virtual
+    // account) rather than "tx_ref" (the older API's naming) — inferred,
+    // not yet confirmed against a real response.
+    if (!SUCCESS_STATUSES.includes(v.status) || v.reference !== tx_ref || Number(v.amount) !== Number(amount) || v.currency !== currency) {
+      await logAlert(db, {
+        severity: 'CRITICAL',
+        source:   'coop-flutterwave-webhook',
+        message:  `Webhook payload didn't match Flutterwave's own verification for tx_ref ${tx_ref} — not crediting`,
+        context:  { tx_ref, webhook_data: payload.data, verify_data: v },
       });
-      const verifyData = await verifyRes.json();
-      const v = verifyData.data || {};
-      if (!SUCCESS_STATUSES.includes(v.status) || v.tx_ref !== tx_ref || Number(v.amount) !== Number(amount) || v.currency !== currency) {
-        await logAlert(db, {
-          severity: 'CRITICAL',
-          source:   'coop-flutterwave-webhook',
-          message:  `Webhook payload didn't match Flutterwave's own verification for tx_ref ${tx_ref} — not crediting`,
-          context:  { tx_ref, webhook_data: payload.data, verify_data: v },
-        });
-        return ok({ ignored: true, reason: 'verification mismatch' });
-      }
-    } catch (e) {
-      // Verification call itself failed (network, etc.) — don't credit
-      // on unverified data; Flutterwave will retry the webhook, and
-      // we'll get another chance to verify then.
-      console.error('[coop-flutterwave-webhook] Verification call failed:', e.message);
-      return reject(500, 'Verification failed, will retry');
+      return ok({ ignored: true, reason: 'verification mismatch' });
     }
-  } else {
-    console.warn('[coop-flutterwave-webhook] FLW_SECRET_KEY not set — crediting from webhook payload without re-verification. Set this before going live.');
+    verified = true;
+  } catch (e) {
+    // Verification call itself failed (missing credentials, network,
+    // etc.) — don't credit on unverified data; Flutterwave will retry
+    // the webhook, and we'll get another chance to verify then.
+    console.error('[coop-flutterwave-webhook] Verification call failed:', e.message);
+    return reject(500, 'Verification failed, will retry');
   }
 
   const { data: created, error: insertErr } = await db.from('coop_savings_transactions').insert({
