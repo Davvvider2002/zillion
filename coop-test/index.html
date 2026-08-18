@@ -87,9 +87,19 @@
   <div id="plan-out" class="out" style="display:none"></div>
 </div>
 
+<!-- STEP: Provision Flutterwave account -->
+<div class="step">
+  <div class="step-title">5. Provision a Real Flutterwave Account (optional, needs real keys)</div>
+  <div class="step-desc">Tests authentication + the provisioning endpoint against Flutterwave's real sandbox. Uses a test BVN — Flutterwave docs suggest any 11-digit value works in test mode, but this hasn't been confirmed against your specific account yet.</div>
+  <label>BVN or NIN (test value)</label><input id="flw-bvn" value="12345678901">
+  <button onclick="provisionFlutterwaveAccount()">Provision Account</button>
+  <div id="flw-status" class="status-ok"></div>
+  <div id="flw-out" class="out" style="display:none"></div>
+</div>
+
 <!-- STEP: Record savings payment -->
 <div class="step">
-  <div class="step-title">5. Admin Records a Savings Payment</div>
+  <div class="step-title">6. Admin Records a Savings Payment (manual path — always works)</div>
   <div class="step-desc">The real, correct flow: this stands in for a member paying into their own bank virtual account, with admin confirming the transfer landed — same interim step as the original manual process, no Zil/wallet involved at all.</div>
   <label>Amount (₦)</label><input id="savings-amount" value="5000">
   <label>Reference (optional)</label><input id="savings-ref" value="BANKTXN-TEST-001">
@@ -100,7 +110,7 @@
 
 <!-- STEP: Loan apply -->
 <div class="step">
-  <div class="step-title">6. Borrower Applies for a Loan</div>
+  <div class="step-title">7. Borrower Applies for a Loan</div>
   <div class="row">
     <div><label>Principal (₦)</label><input id="loan-principal" value="30000"></div>
     <div><label>Repayment (months)</label><input id="loan-months" value="6"></div>
@@ -112,7 +122,7 @@
 
 <!-- STEP: Guarantor responds -->
 <div class="step">
-  <div class="step-title">7. Guarantor Confirms</div>
+  <div class="step-title">8. Guarantor Confirms</div>
   <button onclick="guarantorRespond()">Approve as Guarantor</button>
   <div id="guarantor-status" class="status-ok"></div>
   <div id="guarantor-out" class="out" style="display:none"></div>
@@ -120,7 +130,7 @@
 
 <!-- STEP: Admin approve + disburse -->
 <div class="step">
-  <div class="step-title">8. Admin Reviews, Approves, Disburses</div>
+  <div class="step-title">9. Admin Reviews, Approves, Disburses</div>
   <button onclick="adminApproveLoan()">Approve</button>
   <button onclick="adminDisburseLoan()">Mark Disbursed</button>
   <div id="admin-loan-status" class="status-ok"></div>
@@ -129,7 +139,7 @@
 
 <!-- STEP: Member status -->
 <div class="step">
-  <div class="step-title">9. Check Borrower's Own Status View</div>
+  <div class="step-title">10. Check Borrower's Own Status View</div>
   <div class="step-desc">This is exactly what the wallet's Thrift &amp; Loan section will show once built.</div>
   <button onclick="checkMemberStatus()">Check Status</button>
   <div id="status-out" class="out" style="display:none"></div>
@@ -227,6 +237,17 @@ async function createSavingsPlan() {
   showOut('plan-out', data, !ok);
   if (ok) { currentSavingsPlanId = data.plan.id; setStatus('plan-status', '✓ Plan created — plan_id captured'); }
   else setStatus('plan-status', '❌ Failed');
+}
+
+async function provisionFlutterwaveAccount() {
+  if (!adminToken || !currentSavingsPlanId) { setStatus('flw-status', '❌ Complete step 4 first'); return; }
+  const bvn = document.getElementById('flw-bvn').value.trim();
+  const { ok, data } = await call('/coop-provision-flutterwave-account', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ savings_plan_id: currentSavingsPlanId, bvn_or_nin: bvn }),
+  });
+  showOut('flw-out', data, !ok);
+  setStatus('flw-status', ok ? `✓ Real account: ${data.plan.flutterwave_account_number} (${data.plan.flutterwave_bank_name})` : '❌ Failed — see response below');
 }
 
 async function recordSavingsPayment() {
