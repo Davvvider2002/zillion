@@ -119,3 +119,4 @@
   /api/v1/mfb-portal         /.netlify/functions/mfb-portal           200
 /api/v1/coop-flutterwave-webhook             /.netlify/functions/coop-flutterwave-webhook             200
 /api/v1/coop-provision-flutterwave-account   /.netlify/functions/coop-provision-flutterwave-account   200
+/api/v1/coop-simulate-flutterwave-payment    /.netlify/functions/coop-simulate-flutterwave-payment    200
