@@ -136,6 +136,10 @@ exports.handler = async (event) => {
   const accountData   = flwResponse.data || flwResponse;
   const accountNumber = accountData.account_number;
   const bankName        = accountData.bank_name;
+  // TEMPORARY: expose the raw response so we can see the real v4 field
+  // names rather than guessing again — bank_name came back null on the
+  // first real test, meaning this guess was wrong. Remove once confirmed.
+  const _debugRawFlutterwaveResponse = flwResponse;
   if (!accountNumber) return err(502, 'Flutterwave response missing account_number — unexpected shape, check integration');
 
   const { data: updated, error: updateErr } = await db.from('coop_savings_plans')
@@ -164,5 +168,6 @@ exports.handler = async (event) => {
     success: true,
     plan:    updated,
     message: `Account provisioned: ${accountNumber} (${bankName}). Member should transfer their monthly saving here.`,
+    _debug_raw_flutterwave_response: _debugRawFlutterwaveResponse,
   });
 };
