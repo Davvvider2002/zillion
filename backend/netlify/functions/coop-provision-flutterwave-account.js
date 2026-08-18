@@ -65,7 +65,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: plan } = await db.from('coop_savings_plans')
-    .select('id, coop_id, member_id, flutterwave_tx_ref, coop_members(name, phone_normalized)')
+    .select('id, coop_id, member_id, flutterwave_tx_ref, coop_members(id, name, phone_normalized, flutterwave_customer_id)')
     .eq('id', savingsPlanId).maybeSingle();
   if (!plan) return err(404, 'Savings plan not found');
   if (plan.flutterwave_tx_ref) return err(409, 'This plan already has a provisioned Flutterwave account');
@@ -86,37 +86,44 @@ exports.handler = async (event) => {
 
   const base = flutterwaveApiBase();
 
-  // Step 1: create the customer — required before a virtual account can
-  // reference one. Field names here are an informed guess, not yet
-  // confirmed against the real API (see file header).
-  let customerId;
-  try {
-    const custRes = await fetch(`${base}/customers`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email:       syntheticEmail,
-        phone_number: member.phone_normalized,
-        name:          { first: firstname, last: lastname },
-      }),
-    });
-    const custData = await custRes.json();
-    customerId = custData.data?.id || custData.id;
-    if (!custRes.ok || !customerId) {
-      // FIX: custData.message/.error can themselves be objects (validation
-      // error details, etc.) — interpolating an object directly into a
-      // template string just produces the useless "[object Object]".
-      // Safely stringify whatever actually came back instead.
-      const errDetail = typeof custData.message === 'string' ? custData.message
-        : typeof custData.error === 'string' ? custData.error
-        : JSON.stringify(custData);
-      return { statusCode: 502, headers: hdr, body: JSON.stringify({
-        error: `Flutterwave customer creation failed: ${errDetail}`,
-        _debug_raw_flutterwave_response: custData,
-      }) };
+  // Step 1: reuse the member's existing Flutterwave customer if they
+  // already have one from a previous plan — a customer represents a
+  // PERSON, not a savings goal, and creating a second one with the same
+  // (phone-derived) email correctly gets rejected by Flutterwave as a
+  // duplicate. Only create a new customer on someone's genuinely first
+  // provisioning.
+  let customerId = member.flutterwave_customer_id || null;
+
+  if (!customerId) {
+    try {
+      const custRes = await fetch(`${base}/customers`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:       syntheticEmail,
+          phone_number: member.phone_normalized,
+          name:          { first: firstname, last: lastname },
+        }),
+      });
+      const custData = await custRes.json();
+      customerId = custData.data?.id || custData.id;
+      if (!custRes.ok || !customerId) {
+        const errDetail = typeof custData.message === 'string' ? custData.message
+          : typeof custData.error === 'string' ? custData.error
+          : JSON.stringify(custData);
+        return { statusCode: 502, headers: hdr, body: JSON.stringify({
+          error: `Flutterwave customer creation failed: ${errDetail}`,
+          _debug_raw_flutterwave_response: custData,
+        }) };
+      }
+    } catch (e) {
+      return err(502, `Failed to reach Flutterwave (customer creation): ${e.message}`);
     }
-  } catch (e) {
-    return err(502, `Failed to reach Flutterwave (customer creation): ${e.message}`);
+
+    // Save it on the member's own record — this is what makes their
+    // NEXT savings plan (if any) reuse this same customer instead of
+    // hitting the same conflict again.
+    await db.from('coop_members').update({ flutterwave_customer_id: customerId }).eq('id', member.id);
   }
 
   // Step 2: create the static virtual account, referencing the real customer_id above.
