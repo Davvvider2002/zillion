@@ -230,7 +230,7 @@ async function fundBorrowerWallet() {
   const bPhone = document.getElementById('borrower-phone').value.trim();
   const amountKobo = Math.round(parseFloat(document.getElementById('fund-amount').value) * 100);
   const bankRef = 'TESTFUND-' + Date.now();
-  const { ok, data } = await call('/bank-fund-customer-wallet', {
+  const { ok, data } = await call('/bank/fund-customer-wallet', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-bank-api-key': bankKey, 'x-bank-id': 'SIM_MFB' },
     body: JSON.stringify({ customer_phone: bPhone, amount_kobo: amountKobo, bank_ref: bankRef }),
