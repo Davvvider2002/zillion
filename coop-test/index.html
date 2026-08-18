@@ -74,20 +74,9 @@
   <div id="activate-out" class="out" style="display:none"></div>
 </div>
 
-<!-- STEP: Fund borrower's real wallet -->
-<div class="step">
-  <div class="step-title">4. Fund the Borrower's Real Wallet (test money)</div>
-  <div class="step-desc">Reuses the existing bank-funding endpoint via KOKO_MFB_LAGOS, staging's active test bank — this is what makes the actual savings test possible. You'll need your staging BANK_API_KEY (not your admin login — a separate value).</div>
-  <label>Staging BANK_API_KEY</label><input id="bank-api-key" type="password" placeholder="paste it here">
-  <label>Amount to fund (₦)</label><input id="fund-amount" value="50000">
-  <button onclick="fundBorrowerWallet()">Fund Wallet</button>
-  <div id="fund-status" class="status-ok"></div>
-  <div id="fund-out" class="out" style="display:none"></div>
-</div>
-
 <!-- STEP: Savings plan -->
 <div class="step">
-  <div class="step-title">5. Create a Savings Plan for the Borrower</div>
+  <div class="step-title">4. Create a Savings Plan for the Borrower</div>
   <div class="row">
     <div><label>Target (₦)</label><input id="plan-target" value="60000"></div>
     <div><label>Monthly (₦)</label><input id="plan-monthly" value="5000"></div>
@@ -96,6 +85,17 @@
   <button onclick="createSavingsPlan()">Create Plan</button>
   <div id="plan-status" class="status-ok"></div>
   <div id="plan-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Record savings payment -->
+<div class="step">
+  <div class="step-title">5. Admin Records a Savings Payment</div>
+  <div class="step-desc">The real, correct flow: this stands in for a member paying into their own bank virtual account, with admin confirming the transfer landed — same interim step as the original manual process, no Zil/wallet involved at all.</div>
+  <label>Amount (₦)</label><input id="savings-amount" value="5000">
+  <label>Reference (optional)</label><input id="savings-ref" value="BANKTXN-TEST-001">
+  <button onclick="recordSavingsPayment()">Record Payment</button>
+  <div id="savings-status" class="status-ok"></div>
+  <div id="savings-out" class="out" style="display:none"></div>
 </div>
 
 <!-- STEP: Loan apply -->
@@ -127,20 +127,9 @@
   <div id="admin-loan-out" class="out" style="display:none"></div>
 </div>
 
-<!-- STEP: manual send instruction -->
-<div class="step" style="border-color:#F5B87A;background:#1A1408">
-  <div class="step-title" style="color:#F5B87A">⚠ Manual Step — Can't Be a Button</div>
-  <div class="step-desc" style="color:#E8D8B8">
-    A real payment needs genuine cryptographic signing, which only the actual wallet app can do — this test page can't fake that part.
-    Open <a href="/wallet/" style="color:#00E0AC" target="_blank">the real staging wallet</a> in a new tab, log in as the borrower phone number above (same DEMO_OTP code), confirm the funded balance is there,
-    then use <strong>Send Zil → QR</strong> to send some amount to the cooperative's merchant account.
-    Easiest way to receive it on the other end: open the <a href="/merchant/" style="color:#00E0AC" target="_blank">merchant app</a> in another tab/device and scan it, or use the merchant's own QR receive flow.
-  </div>
-</div>
-
 <!-- STEP: Member status -->
 <div class="step">
-  <div class="step-title">9. Check Borrower's Own Status View — Do This AFTER Sending a Real Payment</div>
+  <div class="step-title">9. Check Borrower's Own Status View</div>
   <div class="step-desc">This is exactly what the wallet's Thrift &amp; Loan section will show once built.</div>
   <button onclick="checkMemberStatus()">Check Status</button>
   <div id="status-out" class="out" style="display:none"></div>
@@ -152,6 +141,7 @@ let adminToken = null, sessionToken = null;
 let borrowerToken = null, guarantorToken = null;
 let borrowerMemberId = null, guarantorMemberId = null;
 let currentLoanId = null;
+let currentSavingsPlanId = null;
 
 function showOut(elId, data, isErr) {
   const el = document.getElementById(elId);
@@ -224,21 +214,6 @@ async function activateBothMembers() {
     : '❌ Could not get a member ID for one or both — check response below');
 }
 
-async function fundBorrowerWallet() {
-  const bankKey = document.getElementById('bank-api-key').value.trim();
-  if (!bankKey) { setStatus('fund-status', '❌ Paste your staging BANK_API_KEY first'); return; }
-  const bPhone = document.getElementById('borrower-phone').value.trim();
-  const amountKobo = Math.round(parseFloat(document.getElementById('fund-amount').value) * 100);
-  const bankRef = 'TESTFUND-' + Date.now();
-  const { ok, data } = await call('/bank/fund-customer-wallet', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-bank-api-key': bankKey, 'x-bank-id': 'KOKO_MFB_LAGOS' },
-    body: JSON.stringify({ customer_phone: bPhone, amount_kobo: amountKobo, bank_ref: bankRef }),
-  });
-  showOut('fund-out', data, !ok);
-  setStatus('fund-status', ok ? '✓ Wallet funded — now go send it for real (see below)' : '❌ Funding failed');
-}
-
 async function createSavingsPlan() {
   if (!adminToken || !borrowerMemberId) { setStatus('plan-status', '❌ Complete steps 1 and 3 first'); return; }
   const coopId = document.getElementById('coop-id').value.trim();
@@ -250,7 +225,20 @@ async function createSavingsPlan() {
     body: JSON.stringify({ coop_id: coopId, member_id: borrowerMemberId, target_amount_kobo: target, monthly_contribution_kobo: monthly, duration_months: duration }),
   });
   showOut('plan-out', data, !ok);
-  setStatus('plan-status', ok ? '✓ Plan created' : '❌ Failed');
+  if (ok) { currentSavingsPlanId = data.plan.id; setStatus('plan-status', '✓ Plan created — plan_id captured'); }
+  else setStatus('plan-status', '❌ Failed');
+}
+
+async function recordSavingsPayment() {
+  if (!adminToken || !currentSavingsPlanId) { setStatus('savings-status', '❌ Complete step 4 first'); return; }
+  const amountKobo = Math.round(parseFloat(document.getElementById('savings-amount').value) * 100);
+  const reference = document.getElementById('savings-ref').value.trim();
+  const { ok, data } = await call('/coop-record-savings-payment', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ savings_plan_id: currentSavingsPlanId, amount_kobo: amountKobo, reference }),
+  });
+  showOut('savings-out', data, !ok);
+  setStatus('savings-status', ok ? '✓ Payment recorded' : '❌ Failed');
 }
 
 async function applyForLoan() {
