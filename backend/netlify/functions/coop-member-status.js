@@ -52,7 +52,7 @@ exports.handler = async (event) => {
   const plansWithProgress = await Promise.all((plans || []).map(async (plan) => {
     const { data: ledgerRows } = await db.from('coin_ledger')
       .select('amount')
-      .eq('new_holder_hash', society.merchant_id)
+      .eq('new_holder_hash', `MERCHANT-${society.merchant_id}`)
       .eq('prev_holder_hash', memberHolderHash)
       .gte('changed_at', plan.created_at);
     const savedKobo = (ledgerRows || []).reduce((s, r) => s + (r.amount || 0), 0) + (member.opening_balance_kobo || 0);
