@@ -16,15 +16,19 @@
  * model. Needs FLW_CLIENT_ID/FLW_CLIENT_SECRET (v4 dashboard
  * credentials), not the old FLW_SECRET_KEY.
  *
- * Also newly required: a customer must be created first via
- * POST /customers, then referenced by the returned customer_id when
- * creating the virtual account — confirmed by support as mandatory,
- * a bare string won't work. NOTE: the exact required fields for
- * customer creation weren't given by support — the fields below are
- * an informed best guess based on the equivalent fields Flutterwave's
- * older API documented (email/firstname/lastname/phonenumber) and
- * have NOT been confirmed against the real API yet. If this call
- * fails, the actual required field names are the first thing to check.
+ * A customer must be created first via POST /customers, then
+ * referenced by the returned customer_id when creating the virtual
+ * account. Confirmed working end-to-end via real testing — a member's
+ * FIRST plan creates a customer and stores its ID on coop_members;
+ * any LATER plan for the same member reuses it (Flutterwave correctly
+ * rejects a second customer with the same email as a genuine
+ * duplicate — a customer represents a person, not a savings goal).
+ * If that reuse lookup is ever missing (e.g. an earlier attempt
+ * created a customer on Flutterwave's side but failed before our own
+ * save step ran), the RESOURCE_CONFLICT/10409 recovery path below
+ * searches GET /customers?email=... to recover the existing ID —
+ * this exact pattern was confirmed as the recommended approach by
+ * Flutterwave's own support.
  *
  * KYC requirement (BVN/NIN) and the synthetic-email approach are
  * unchanged from the original design rationale — see below.
@@ -178,11 +182,9 @@ exports.handler = async (event) => {
 
   const accountData   = flwResponse.data || flwResponse;
   const accountNumber = accountData.account_number;
-  const bankName        = accountData.bank_name;
-  // TEMPORARY: expose the raw response so we can see the real v4 field
-  // names rather than guessing again — bank_name came back null on the
-  // first real test, meaning this guess was wrong. Remove once confirmed.
-  const _debugRawFlutterwaveResponse = flwResponse;
+  // FIX: confirmed via a real response — the field is account_bank_name,
+  // not bank_name. Was returning null before this was confirmed.
+  const bankName        = accountData.account_bank_name;
   if (!accountNumber) return err(502, 'Flutterwave response missing account_number — unexpected shape, check integration');
 
   const { data: updated, error: updateErr } = await db.from('coop_savings_plans')
@@ -211,6 +213,5 @@ exports.handler = async (event) => {
     success: true,
     plan:    updated,
     message: `Account provisioned: ${accountNumber} (${bankName}). Member should transfer their monthly saving here.`,
-    _debug_raw_flutterwave_response: _debugRawFlutterwaveResponse,
   });
 };
