@@ -924,7 +924,7 @@ function triggerPWAInstall() {
 <div id="screen-home" class="screen hidden">
   <div class="sb"></div>
   <div class="hdr">
-    <div class="hdr-logo">ZILLION</div>
+    <div class="hdr-logo" id="home-hdr-logo">ZILLION</div>
     <div class="hdr-right">
       <span id="sync-status-hdr" class="hdr-sub">
         <span class="hdr-dot" id="sync-dot"></span>
@@ -937,70 +937,120 @@ function triggerPWAInstall() {
   </div>
   <div class="scroll-body">
     <div id="home-stuck-banner" onclick="zilRestoreAllStuckCoins({})" style="display:none;cursor:pointer;background:#7C2D12;color:#fff;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:10px;text-align:center"></div>
-    <!-- Balance card -->
-    <div class="balance-card">
-      <div class="bal-label">Available Balance</div>
-      <div class="bal-amount" id="home-balance">₦0.00</div>
-      <div id="home-book-balance" style="display:none;font-size:12px;color:var(--gm);margin-top:2px;font-weight:500"></div>
-      <div class="bal-sub">
-        <span id="home-coin-count">0 coins</span>
-        <span id="home-sent-label" style="display:none;font-size:11px;color:var(--am);margin-left:4px"></span>
-        <span>·</span>
-        <span class="bal-sync" id="home-sync-label">Up to date</span>
+
+    <!-- Everything Zil-specific lives in here — hidden entirely for the
+         coop-flavor app, where Zil concepts (Send/Request/Receive/Vault/
+         Top Up) are irrelevant. A coop member's savings come via bank
+         transfer, not Zil transfer, so leading with a Zil balance and
+         Zil actions is actively confusing for that audience. -->
+    <div id="home-zil-section">
+      <!-- Balance card -->
+      <div class="balance-card">
+        <div class="bal-label">Available Balance</div>
+        <div class="bal-amount" id="home-balance">₦0.00</div>
+        <div id="home-book-balance" style="display:none;font-size:12px;color:var(--gm);margin-top:2px;font-weight:500"></div>
+        <div class="bal-sub">
+          <span id="home-coin-count">0 coins</span>
+          <span id="home-sent-label" style="display:none;font-size:11px;color:var(--am);margin-left:4px"></span>
+          <span>·</span>
+          <span class="bal-sync" id="home-sync-label">Up to date</span>
+        </div>
+      </div>
+
+      <!-- Thrift & Loan summary — for the REGULAR Zillion app, where
+           someone might be both a wallet holder AND a coop member.
+           The coop-flavor app shows a bigger, primary version of this
+           instead (below), not this smaller secondary card. -->
+      <div class="balance-card" id="home-coop-card" style="display:none;margin-top:14px;cursor:pointer;border-color:#00C896" onclick="goTo('screen-coop')">
+        <div class="bal-label" id="home-coop-society-name">Thrift &amp; Loan</div>
+        <div class="bal-amount" style="font-size:22px" id="home-coop-saved">₦0.00</div>
+        <div class="bal-sub">
+          <span id="home-coop-loan-label">No active loan</span>
+          <span>·</span>
+          <span style="color:#00C896">View details →</span>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="actions-grid">
+        <button class="action-btn primary-action" onclick="goTo('screen-send')">
+          <span class="action-icon">↑</span>
+          <div class="action-label">Send Zil</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-request')">
+          <span class="action-icon">💰</span>
+          <div class="action-label">Request</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
+          <span class="action-icon">↓</span>
+          <div class="action-label">Receive</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-vault')">
+          <span class="action-icon">⬡</span>
+          <div class="action-label">My Vault</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-topup')" style="border-color:#14532D;background:#052e16">
+          <span class="action-icon" style="color:#4ADE80">⬆</span>
+          <div class="action-label" style="color:#4ADE80">Top Up</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-history')">
+          <span class="action-icon">≡</span>
+          <div class="action-label">History</div>
+        </button>
+      </div>
+
+      <!-- Recent -->
+      <div class="section-header">
+        <div class="section-title">Recent Transactions</div>
+        <div class="section-link" onclick="goTo('screen-history')">See all</div>
+      </div>
+      <div class="tx-card" id="home-tx-list">
+        <div class="empty-state">
+          <span class="empty-icon">🪙</span>
+          <div class="empty-title">No transactions yet</div>
+          <div class="empty-sub">Visit a Zillion agent to cash in your first Zil coins, or ask a friend to send you Zil via WhatsApp.</div>
+        </div>
       </div>
     </div>
 
-    <!-- Thrift & Loan summary (coop members only — hidden until confirmed) -->
-    <div class="balance-card" id="home-coop-card" style="display:none;margin-top:14px;cursor:pointer;border-color:#00C896" onclick="goTo('screen-coop')">
-      <div class="bal-label" id="home-coop-society-name">Thrift &amp; Loan</div>
-      <div class="bal-amount" style="font-size:22px" id="home-coop-saved">₦0.00</div>
-      <div class="bal-sub">
-        <span id="home-coop-loan-label">No active loan</span>
-        <span>·</span>
-        <span style="color:#00C896">View details →</span>
+    <!-- Coop-flavor home content — the primary view for the "Zillion
+         Coop" app. Genuinely coop-first: no Zil balance, no Send/
+         Receive/Vault/Top Up. Just savings progress, loan status, and
+         the two actions a member actually needs. -->
+    <div id="home-coop-hero-section" style="display:none">
+      <div class="balance-card" style="border-color:#00C896;background:linear-gradient(135deg,#052e16,#0F2B1D)">
+        <div class="bal-label" id="home-coop-hero-society">Thrift &amp; Loan</div>
+        <div class="bal-amount" id="home-coop-hero-saved">₦0.00</div>
+        <div class="bal-sub">
+          <span id="home-coop-hero-target">Target ₦0</span>
+        </div>
+        <div style="background:#081A11;border-radius:6px;height:8px;overflow:hidden;margin-top:10px">
+          <div id="home-coop-hero-bar" style="background:#00C896;height:100%;width:0%"></div>
+        </div>
+      </div>
+
+      <div class="balance-card" id="home-coop-hero-loan" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
+        <div class="bal-label">Loan</div>
+        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-loan-status">No active loan</div>
+        <div class="bal-sub"><span style="color:#00C896">View details →</span></div>
+      </div>
+
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr">
+        <button class="action-btn primary-action" onclick="goTo('screen-coop');setTimeout(()=>coopShowApplyForm(),100)">
+          <span class="action-icon">🤝</span>
+          <div class="action-label">Apply for Loan</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-coop')">
+          <span class="action-icon">💰</span>
+          <div class="action-label">My Savings</div>
+        </button>
+      </div>
+
+      <div id="home-coop-hero-guarantor-banner" onclick="goTo('screen-coop')" style="display:none;cursor:pointer;background:#1A1408;border:1px solid #F5B87A;color:#F5B87A;font-size:13px;font-weight:600;padding:12px 14px;border-radius:12px;margin-top:14px;text-align:center">
+        ⚠ You have a guarantor request waiting — tap to respond
       </div>
     </div>
 
-    <!-- Quick actions -->
-    <div class="actions-grid">
-      <button class="action-btn primary-action" onclick="goTo('screen-send')">
-        <span class="action-icon">↑</span>
-        <div class="action-label">Send Zil</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-request')">
-        <span class="action-icon">💰</span>
-        <div class="action-label">Request</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
-        <span class="action-icon">↓</span>
-        <div class="action-label">Receive</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-vault')">
-        <span class="action-icon">⬡</span>
-        <div class="action-label">My Vault</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-topup')" style="border-color:#14532D;background:#052e16">
-        <span class="action-icon" style="color:#4ADE80">⬆</span>
-        <div class="action-label" style="color:#4ADE80">Top Up</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-history')">
-        <span class="action-icon">≡</span>
-        <div class="action-label">History</div>
-      </button>
-    </div>
-
-    <!-- Recent -->
-    <div class="section-header">
-      <div class="section-title">Recent Transactions</div>
-      <div class="section-link" onclick="goTo('screen-history')">See all</div>
-    </div>
-    <div class="tx-card" id="home-tx-list">
-      <div class="empty-state">
-        <span class="empty-icon">🪙</span>
-        <div class="empty-title">No transactions yet</div>
-        <div class="empty-sub">Visit a Zillion agent to cash in your first Zil coins, or ask a friend to send you Zil via WhatsApp.</div>
-      </div>
-    </div>
     <div style="height:24px"></div>
   </div>
   <div class="bnav">
@@ -2333,9 +2383,43 @@ async function zilCoopFetchStatus(force) {
 }
 
 async function zilRenderCoopSummary() {
+  const data = await zilCoopFetchStatus(false);
+
+  if (typeof IS_COOP !== 'undefined' && IS_COOP) {
+    // Coop-flavor app: Zil section is always hidden, hero section is
+    // the whole home screen. Toggled here (not just at load) so it
+    // stays correct even if this fires before the DOM fully settles.
+    const zilSection = document.getElementById('home-zil-section');
+    const heroSection = document.getElementById('home-coop-hero-section');
+    const hdrLogo = document.getElementById('home-hdr-logo');
+    if (zilSection) zilSection.style.display = 'none';
+    if (heroSection) heroSection.style.display = '';
+    if (hdrLogo) hdrLogo.textContent = 'ZILLION COOP';
+    if (!data || !data.is_coop_member) return; // shouldn't happen for this flavor, but don't crash if it does
+
+    const plans = data.savings_plans || [];
+    const totalSaved  = plans.reduce((s, p) => s + (p.saved_kobo || 0), 0);
+    const totalTarget = plans.reduce((s, p) => s + (p.target_amount_kobo || 0), 0);
+    const pct = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
+
+    document.getElementById('home-coop-hero-society').textContent = data.society.name;
+    document.getElementById('home-coop-hero-saved').textContent = fmtNaira(totalSaved);
+    document.getElementById('home-coop-hero-target').textContent = `Target ${fmtNaira(totalTarget)} · ${pct}%`;
+    document.getElementById('home-coop-hero-bar').style.width = pct + '%';
+
+    const loanEl = document.getElementById('home-coop-hero-loan-status');
+    loanEl.textContent = data.total_outstanding_loan_kobo > 0
+      ? `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`
+      : 'No active loan';
+
+    const guarantorBanner = document.getElementById('home-coop-hero-guarantor-banner');
+    if (guarantorBanner) guarantorBanner.style.display = (data.guarantor_requests_pending || []).length ? '' : 'none';
+    return;
+  }
+
+  // Regular Zillion app: small secondary card, unchanged from before.
   const card = document.getElementById('home-coop-card');
   if (!card) return;
-  const data = await zilCoopFetchStatus(false);
   if (!data || !data.is_coop_member) { card.style.display = 'none'; return; }
 
   const totalSaved = (data.savings_plans || []).reduce((s, p) => s + (p.saved_kobo || 0), 0);
