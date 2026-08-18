@@ -103,7 +103,17 @@ exports.handler = async (event) => {
     const custData = await custRes.json();
     customerId = custData.data?.id || custData.id;
     if (!custRes.ok || !customerId) {
-      return err(502, `Flutterwave customer creation failed: ${custData.message || custData.error || 'unexpected response shape — check field names against their actual /customers requirements'}`);
+      // FIX: custData.message/.error can themselves be objects (validation
+      // error details, etc.) — interpolating an object directly into a
+      // template string just produces the useless "[object Object]".
+      // Safely stringify whatever actually came back instead.
+      const errDetail = typeof custData.message === 'string' ? custData.message
+        : typeof custData.error === 'string' ? custData.error
+        : JSON.stringify(custData);
+      return { statusCode: 502, headers: hdr, body: JSON.stringify({
+        error: `Flutterwave customer creation failed: ${errDetail}`,
+        _debug_raw_flutterwave_response: custData,
+      }) };
     }
   } catch (e) {
     return err(502, `Failed to reach Flutterwave (customer creation): ${e.message}`);
