@@ -8,17 +8,17 @@
  * waiting on their response. This is what the wallet's Thrift & Loan
  * balance section calls.
  *
- * Savings progress is computed live from coin_ledger — summing actual
- * confirmed transfers from this member's own holder_hash to the
- * society's (merchant-held coins use holder_hash = merchant_id
- * directly, same as agents) — never a separately-stored figure that
- * could drift out of sync with what actually happened.
+ * Savings progress is computed live from coop_savings_transactions —
+ * a genuinely separate ledger from coins/coin_ledger. Savings payments
+ * are bank transfers into a member's own dedicated account, not Zil
+ * transfers — Zil balance and Thrift & Loan balance are two entirely
+ * independent funding paths. Never a separately-stored progress figure
+ * that could drift out of sync with what was actually confirmed.
  *
  * Auth: wallet JWT (the member's own token).
  */
 'use strict';
 
-const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 
@@ -44,18 +44,13 @@ exports.handler = async (event) => {
 
   const { data: society } = await db.from('coop_societies').select('merchant_id, name').eq('coop_id', member.coop_id).single();
 
-  const memberHolderHash = crypto.createHash('sha256').update(member.phone_normalized).digest('hex');
-
   const { data: plans } = await db.from('coop_savings_plans')
     .select('*').eq('member_id', member.id).order('created_at', { ascending: false });
 
   const plansWithProgress = await Promise.all((plans || []).map(async (plan) => {
-    const { data: ledgerRows } = await db.from('coin_ledger')
-      .select('amount')
-      .eq('new_holder_hash', `MERCHANT-${society.merchant_id}`)
-      .eq('prev_holder_hash', memberHolderHash)
-      .gte('changed_at', plan.created_at);
-    const savedKobo = (ledgerRows || []).reduce((s, r) => s + (r.amount || 0), 0) + (member.opening_balance_kobo || 0);
+    const { data: txnRows } = await db.from('coop_savings_transactions')
+      .select('amount_kobo').eq('savings_plan_id', plan.id);
+    const savedKobo = (txnRows || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + (member.opening_balance_kobo || 0);
     return { ...plan, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / plan.target_amount_kobo) * 100)) };
   }));
 
