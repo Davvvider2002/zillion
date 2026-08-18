@@ -1057,12 +1057,8 @@ function triggerPWAInstall() {
     <button class="bnav-item active" onclick="goTo('screen-home')">
       <span class="bnav-icon">⌂</span><span class="bnav-label">Home</span>
     </button>
-    <button class="bnav-item" onclick="goTo('screen-vault')">
-      <span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span>
-    </button>
-    <button class="bnav-item" onclick="goTo('screen-send')">
-      <span class="bnav-icon">⇅</span><span class="bnav-label">Send</span>
-    </button>
+    <button class="bnav-item" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item" onclick="goTo('screen-history')">
       <span class="bnav-icon">≡</span><span class="bnav-label">History</span>
     </button>
@@ -1098,8 +1094,8 @@ function triggerPWAInstall() {
   </div>
   <div class="bnav">
     <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item active" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item active" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
     <button class="bnav-item" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
   </div>
@@ -1599,8 +1595,8 @@ function triggerPWAInstall() {
   </div>
   <div class="bnav">
     <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item active" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
     <button class="bnav-item" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
   </div>
@@ -1801,8 +1797,8 @@ function triggerPWAInstall() {
   </div>
   <div class="bnav">
     <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
     <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
   </div>
@@ -1861,6 +1857,25 @@ const IS_COOP = (() => {
   try { return fromUrl || localStorage.getItem('zillion_is_coop_flavor') === '1'; }
   catch { return fromUrl; }
 })();
+
+// Bottom nav: repurpose Vault→Thrift and hide Send, across all 4 copies
+// of the nav bar (one per screen — not a shared component in this app).
+// Non-destructive for the regular Zillion app: data-bnav-role tags were
+// added to the original Vault/Send buttons without changing their
+// default behavior at all, so this only ever runs for the coop flavor.
+// Safe to run synchronously here (not deferred to DOMContentLoaded) —
+// this script tag is the last one in the document, so every bnav block
+// already exists in the DOM by the time this line executes.
+if (IS_COOP) {
+  document.querySelectorAll('[data-bnav-role="vault"]').forEach(btn => {
+    btn.querySelector('.bnav-icon').textContent = '🤝';
+    btn.querySelector('.bnav-label').textContent = 'Thrift';
+    btn.setAttribute('onclick', "goTo('screen-coop')");
+  });
+  document.querySelectorAll('[data-bnav-role="send"]').forEach(btn => {
+    btn.style.display = 'none';
+  });
+}
 
 // -- State -----------------------------------------------------
 let STATE = {
