@@ -121,30 +121,33 @@ exports.handler = async (event) => {
   }
 
   if (coins.length > 0) {
-    try {
-      await db.from('coins').insert(coins.map(c => ({
-        coin_id:          c.coin_id,
-        amount:           c.amount,
-        currency:         c.currency || 'NGN',
-        status:           'HELD', // straight to HELD — customer already owns it, no claim step
-        issuer_id:        `BANK:${auth.bank_id}`,
-        holder_hash:      holderHash,
-        owner_hash:       holderHash,
-        mfb_id:           mfb.mfb_id,
-        issued_at:        c.issued_at,
-        expires_at:       c.expires_at,
-        signature:        c.signature,
-        payload_hash:     c.payload_hash,
-      })));
-    } catch (e) {
-      console.error('[bank-fund-customer-wallet] Coin insert failed:', e.message);
+    const { error: insertErr } = await db.from('coins').insert(coins.map(c => ({
+      coin_id:          c.coin_id,
+      amount:           c.amount,
+      currency:         c.currency || 'NGN',
+      status:           'HELD', // straight to HELD — customer already owns it, no claim step
+      issuer_id:        `BANK:${auth.bank_id}`,
+      holder_hash:      holderHash,
+      mfb_id:           mfb.mfb_id,
+      issued_at:        c.issued_at,
+      expires_at:       c.expires_at,
+      mint_sig:         c.signature,
+    })));
+    // FIX: Supabase's JS client does NOT throw on database-level errors
+    // (constraint violations, missing columns, RLS denials) — it returns
+    // them as {data, error} on the resolved value. A try/catch around
+    // this call alone never caught that class of failure, meaning coins
+    // could silently fail to insert while this function still reported
+    // success:true to the caller. Now explicitly checked.
+    if (insertErr) {
+      console.error('[bank-fund-customer-wallet] Coin insert failed:', insertErr.message);
       await logAlert(db, {
         severity: 'CRITICAL',
         source:   'bank-fund-customer-wallet',
         message:  `Coins minted but failed to insert for bank_ref ${bank_ref} — customer may not see funds`,
-        context:  { bank_ref, bank_id: auth.bank_id, amount_kobo, coin_ids: coins.map(c => c.coin_id) },
+        context:  { bank_ref, bank_id: auth.bank_id, amount_kobo, coin_ids: coins.map(c => c.coin_id), db_error: insertErr.message },
       });
-      return err(500, `Mint succeeded but storage failed: ${e.message}. Contact Zillion support with bank_ref ${bank_ref} before retrying.`);
+      return err(500, `Mint succeeded but storage failed: ${insertErr.message}. Contact Zillion support with bank_ref ${bank_ref} before retrying.`);
     }
   }
 
