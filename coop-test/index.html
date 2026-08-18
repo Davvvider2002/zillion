@@ -213,10 +213,15 @@ async function activateBothMembers() {
   const hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken };
   const b = await call('/coop-activate-member', { method: 'POST', headers: hdr, body: JSON.stringify({ coop_id: coopId, phone: bPhone, name: bName }) });
   const g = await call('/coop-activate-member', { method: 'POST', headers: hdr, body: JSON.stringify({ coop_id: coopId, phone: gPhone, name: gName }) });
-  showOut('activate-out', { borrower: b.data, guarantor: g.data }, !b.ok || !g.ok);
-  if (b.ok) borrowerMemberId = b.data.member.id;
-  if (g.ok) guarantorMemberId = g.data.member.id;
-  setStatus('activate-status', (borrowerMemberId && guarantorMemberId) ? '✓ Both activated' : '❌ One or both failed (already activated? re-run is safe to check)');
+  showOut('activate-out', { borrower: b.data, guarantor: g.data }, false);
+  // Either a fresh activation (b.data.member) or "already exists" (b.data.member from the 409) — both give us the ID we need.
+  borrowerMemberId  = (b.data.member && b.data.member.id) || null;
+  guarantorMemberId = (g.data.member && g.data.member.id) || null;
+  const bNote = b.ok ? 'activated' : (b.data.member ? 'already existed' : 'FAILED');
+  const gNote = g.ok ? 'activated' : (g.data.member ? 'already existed' : 'FAILED');
+  setStatus('activate-status', (borrowerMemberId && guarantorMemberId)
+    ? `✓ Borrower ${bNote}, guarantor ${gNote} — ready for next step`
+    : '❌ Could not get a member ID for one or both — check response below');
 }
 
 async function fundBorrowerWallet() {
