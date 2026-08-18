@@ -78,8 +78,13 @@ exports.handler = async (event) => {
 
   // Already a member of this specific society?
   const { data: existingMember } = await db.from('coop_members')
-    .select('id').eq('coop_id', coopId).eq('phone_normalized', phone).maybeSingle();
-  if (existingMember) return err(409, 'This phone number is already an active member of this cooperative society');
+    .select('*').eq('coop_id', coopId).eq('phone_normalized', phone).maybeSingle();
+  if (existingMember) {
+    return { statusCode: 409, headers: hdr, body: JSON.stringify({
+      error: 'This phone number is already an active member of this cooperative society',
+      member: existingMember,
+    }) };
+  }
 
   // Resolve/create the unified Zillion identity for this phone — links
   // this membership to the same identity as any existing wallet,
