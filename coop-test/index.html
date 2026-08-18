@@ -74,9 +74,20 @@
   <div id="activate-out" class="out" style="display:none"></div>
 </div>
 
+<!-- STEP: Fund borrower's real wallet -->
+<div class="step">
+  <div class="step-title">4. Fund the Borrower's Real Wallet (test money)</div>
+  <div class="step-desc">Reuses the existing bank-funding endpoint via the SIM_MFB test bank — this is what makes the actual savings test possible. You'll need your staging BANK_API_KEY (not your admin login — a separate value).</div>
+  <label>Staging BANK_API_KEY</label><input id="bank-api-key" type="password" placeholder="paste it here">
+  <label>Amount to fund (₦)</label><input id="fund-amount" value="50000">
+  <button onclick="fundBorrowerWallet()">Fund Wallet</button>
+  <div id="fund-status" class="status-ok"></div>
+  <div id="fund-out" class="out" style="display:none"></div>
+</div>
+
 <!-- STEP: Savings plan -->
 <div class="step">
-  <div class="step-title">4. Create a Savings Plan for the Borrower</div>
+  <div class="step-title">5. Create a Savings Plan for the Borrower</div>
   <div class="row">
     <div><label>Target (₦)</label><input id="plan-target" value="60000"></div>
     <div><label>Monthly (₦)</label><input id="plan-monthly" value="5000"></div>
@@ -89,7 +100,7 @@
 
 <!-- STEP: Loan apply -->
 <div class="step">
-  <div class="step-title">5. Borrower Applies for a Loan</div>
+  <div class="step-title">6. Borrower Applies for a Loan</div>
   <div class="row">
     <div><label>Principal (₦)</label><input id="loan-principal" value="30000"></div>
     <div><label>Repayment (months)</label><input id="loan-months" value="6"></div>
@@ -101,7 +112,7 @@
 
 <!-- STEP: Guarantor responds -->
 <div class="step">
-  <div class="step-title">6. Guarantor Confirms</div>
+  <div class="step-title">7. Guarantor Confirms</div>
   <button onclick="guarantorRespond()">Approve as Guarantor</button>
   <div id="guarantor-status" class="status-ok"></div>
   <div id="guarantor-out" class="out" style="display:none"></div>
@@ -109,16 +120,27 @@
 
 <!-- STEP: Admin approve + disburse -->
 <div class="step">
-  <div class="step-title">7. Admin Reviews, Approves, Disburses</div>
+  <div class="step-title">8. Admin Reviews, Approves, Disburses</div>
   <button onclick="adminApproveLoan()">Approve</button>
   <button onclick="adminDisburseLoan()">Mark Disbursed</button>
   <div id="admin-loan-status" class="status-ok"></div>
   <div id="admin-loan-out" class="out" style="display:none"></div>
 </div>
 
+<!-- STEP: manual send instruction -->
+<div class="step" style="border-color:#F5B87A;background:#1A1408">
+  <div class="step-title" style="color:#F5B87A">⚠ Manual Step — Can't Be a Button</div>
+  <div class="step-desc" style="color:#E8D8B8">
+    A real payment needs genuine cryptographic signing, which only the actual wallet app can do — this test page can't fake that part.
+    Open <a href="/wallet/" style="color:#00E0AC" target="_blank">the real staging wallet</a> in a new tab, log in as the borrower phone number above (same DEMO_OTP code), confirm the funded balance is there,
+    then use <strong>Send Zil → QR</strong> to send some amount to the cooperative's merchant account.
+    Easiest way to receive it on the other end: open the <a href="/merchant/" style="color:#00E0AC" target="_blank">merchant app</a> in another tab/device and scan it, or use the merchant's own QR receive flow.
+  </div>
+</div>
+
 <!-- STEP: Member status -->
 <div class="step">
-  <div class="step-title">8. Check Borrower's Own Status View</div>
+  <div class="step-title">9. Check Borrower's Own Status View — Do This AFTER Sending a Real Payment</div>
   <div class="step-desc">This is exactly what the wallet's Thrift &amp; Loan section will show once built.</div>
   <button onclick="checkMemberStatus()">Check Status</button>
   <div id="status-out" class="out" style="display:none"></div>
@@ -195,6 +217,21 @@ async function activateBothMembers() {
   if (b.ok) borrowerMemberId = b.data.member.id;
   if (g.ok) guarantorMemberId = g.data.member.id;
   setStatus('activate-status', (borrowerMemberId && guarantorMemberId) ? '✓ Both activated' : '❌ One or both failed (already activated? re-run is safe to check)');
+}
+
+async function fundBorrowerWallet() {
+  const bankKey = document.getElementById('bank-api-key').value.trim();
+  if (!bankKey) { setStatus('fund-status', '❌ Paste your staging BANK_API_KEY first'); return; }
+  const bPhone = document.getElementById('borrower-phone').value.trim();
+  const amountKobo = Math.round(parseFloat(document.getElementById('fund-amount').value) * 100);
+  const bankRef = 'TESTFUND-' + Date.now();
+  const { ok, data } = await call('/bank-fund-customer-wallet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-bank-api-key': bankKey, 'x-bank-id': 'SIM_MFB' },
+    body: JSON.stringify({ customer_phone: bPhone, amount_kobo: amountKobo, bank_ref: bankRef }),
+  });
+  showOut('fund-out', data, !ok);
+  setStatus('fund-status', ok ? '✓ Wallet funded — now go send it for real (see below)' : '❌ Funding failed');
 }
 
 async function createSavingsPlan() {
