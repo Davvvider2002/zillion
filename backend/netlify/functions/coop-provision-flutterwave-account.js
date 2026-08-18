@@ -107,7 +107,33 @@ exports.handler = async (event) => {
       });
       const custData = await custRes.json();
       customerId = custData.data?.id || custData.id;
-      if (!custRes.ok || !customerId) {
+
+      // Specific recovery path for exactly this conflict: an earlier
+      // attempt already created a customer with this email on
+      // Flutterwave's side, but we never captured its ID (that attempt
+      // failed before reaching our save step). Try to look it up rather
+      // than fail outright. NOTE: the lookup shape here (GET
+      // /customers?email=...) is an informed guess, not yet confirmed —
+      // if this also fails, the error below will say so honestly rather
+      // than silently treating a failed recovery as success.
+      if (!custRes.ok && custData.error?.code === '10409') {
+        try {
+          const lookupRes = await fetch(`${base}/customers?email=${encodeURIComponent(syntheticEmail)}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const lookupData = await lookupRes.json();
+          const found = (lookupData.data && lookupData.data[0]) || lookupData.data || null;
+          customerId = found?.id || null;
+          if (!customerId) {
+            return { statusCode: 502, headers: hdr, body: JSON.stringify({
+              error: 'Customer already exists on Flutterwave, but looking it up by email to recover its ID also failed. This specific recovery path needs Flutterwave support to confirm the correct lookup method.',
+              _debug_raw_flutterwave_response: { create_attempt: custData, lookup_attempt: lookupData },
+            }) };
+          }
+        } catch (e) {
+          return err(502, `Customer conflict recovery failed: ${e.message}`);
+        }
+      } else if (!custRes.ok || !customerId) {
         const errDetail = typeof custData.message === 'string' ? custData.message
           : typeof custData.error === 'string' ? custData.error
           : JSON.stringify(custData);
