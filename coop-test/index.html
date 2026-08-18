@@ -97,6 +97,19 @@
   <div id="flw-out" class="out" style="display:none"></div>
 </div>
 
+<!-- STEP: Simulate webhook -->
+<div class="step" style="border-color:#7AB8F5;background:#081420">
+  <div class="step-title" style="color:#7AB8F5">5b. Simulate a Payment (tests the webhook end-to-end)</div>
+  <div class="step-desc">⚠ Needs a FRESH plan — if you already used step 5 on the current plan, click "Create Plan" (step 4) again first. Simulation always creates a new account, and can't reuse one that's already real. Requires your Flutterwave webhook URL to be saved in their dashboard (Settings → Webhooks) — no simulation reaches us without that.</div>
+  <label>BVN or NIN (test value)</label><input id="sim-bvn" value="12345678901">
+  <label>Amount (₦)</label><input id="sim-amount" value="5000">
+  <label>Scenario</label>
+  <select id="sim-scenario"><option value="approved">approved (success)</option><option value="failed">failed</option></select>
+  <button onclick="simulateFlutterwavePayment()">Simulate Payment</button>
+  <div id="sim-status" class="status-ok"></div>
+  <div id="sim-out" class="out" style="display:none"></div>
+</div>
+
 <!-- STEP: Record savings payment -->
 <div class="step">
   <div class="step-title">6. Admin Records a Savings Payment (manual path — always works)</div>
@@ -248,6 +261,20 @@ async function provisionFlutterwaveAccount() {
   });
   showOut('flw-out', data, !ok);
   setStatus('flw-status', ok ? `✓ Real account: ${data.plan.flutterwave_account_number} (${data.plan.flutterwave_bank_name})` : '❌ Failed — see response below');
+}
+
+async function simulateFlutterwavePayment() {
+  if (!adminToken || !currentSavingsPlanId) { setStatus('sim-status', '❌ Complete step 4 first'); return; }
+  const bvn = document.getElementById('sim-bvn').value.trim();
+  const amountKobo = Math.round(parseFloat(document.getElementById('sim-amount').value) * 100);
+  const scenario = document.getElementById('sim-scenario').value;
+  setStatus('sim-status', '⏳ Sending simulation request...');
+  const { ok, data } = await call('/coop-simulate-flutterwave-payment', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ savings_plan_id: currentSavingsPlanId, bvn_or_nin: bvn, amount_kobo: amountKobo, scenario }),
+  });
+  showOut('sim-out', data, !ok);
+  setStatus('sim-status', ok ? '✓ Simulation sent — now check step 10 to see if the webhook credited it' : '❌ Failed — see response below');
 }
 
 async function recordSavingsPayment() {
