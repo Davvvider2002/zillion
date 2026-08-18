@@ -661,18 +661,18 @@ body{height:100%;height:100dvh;overflow:hidden;}
 <div id="screen-splash" class="screen">
   <div class="splash-body">
     <div class="splash-brand">
-      <div class="splash-logo">ZILLION</div>
-      <div class="splash-tagline">Offline-First Digital Cash</div>
+      <div class="splash-logo" id="splash-logo-text">ZILLION</div>
+      <div class="splash-tagline" id="splash-tagline">Offline-First Digital Cash</div>
     </div>
 
     <div class="splash-icon-wrap">
       <div class="splash-icon-ring" style="width:130px;height:130px;opacity:.08"></div>
       <div class="splash-icon-ring" style="width:100px;height:100px;opacity:.14"></div>
       <div class="splash-icon-ring" style="width:70px;height:70px;opacity:.22"></div>
-      <div class="splash-naira">₦</div>
+      <div class="splash-naira" id="splash-icon">₦</div>
     </div>
 
-    <div class="splash-props">
+    <div class="splash-props" id="splash-props-default">
       <div class="splash-prop">
         <div class="splash-prop-dot">⚡</div>
         <div class="splash-prop-text">No internet needed to transfer</div>
@@ -684,6 +684,26 @@ body{height:100%;height:100dvh;overflow:hidden;}
       <div class="splash-prop">
         <div class="splash-prop-dot">🔒</div>
         <div class="splash-prop-text">Secured with Ed25519 cryptography</div>
+      </div>
+    </div>
+
+    <!-- Coop-flavor equivalent — shown instead of the props above when
+         IS_COOP is true. "No bank account required" would actively
+         confuse a coop member, whose savings specifically depend on
+         having one, so this isn't a copy of the default props with
+         different wording — it's a genuinely different pitch. -->
+    <div class="splash-props" id="splash-props-coop" style="display:none">
+      <div class="splash-prop">
+        <div class="splash-prop-dot">💰</div>
+        <div class="splash-prop-text">Track your savings in real time</div>
+      </div>
+      <div class="splash-prop">
+        <div class="splash-prop-dot">🤝</div>
+        <div class="splash-prop-text">Apply for loans with a guarantor</div>
+      </div>
+      <div class="splash-prop">
+        <div class="splash-prop-dot">🔒</div>
+        <div class="splash-prop-text">Every payment cryptographically confirmed</div>
       </div>
     </div>
 
@@ -706,6 +726,19 @@ body{height:100%;height:100dvh;overflow:hidden;}
     var b2=document.getElementById('btn-restore');
     if(b1)b1.onclick=function(){if(typeof goTo==='function')goTo('screen-phone');};
     if(b2)b2.onclick=function(){if(typeof tryRestoreSession==='function')tryRestoreSession();};
+    // Coop-flavor splash content — IS_COOP is declared later in the
+    // main script, but this inline block runs after it on DOMContentLoaded,
+    // so it's already defined by the time this executes.
+    if (typeof IS_COOP !== 'undefined' && IS_COOP) {
+      var tagline = document.getElementById('splash-tagline');
+      var icon = document.getElementById('splash-icon');
+      var propsDefault = document.getElementById('splash-props-default');
+      var propsCoop = document.getElementById('splash-props-coop');
+      if (tagline) tagline.textContent = 'Your Cooperative Savings & Loans';
+      if (icon) { icon.textContent = ''; icon.innerHTML = '🤝'; icon.style.fontSize = '48px'; }
+      if (propsDefault) propsDefault.style.display = 'none';
+      if (propsCoop) propsCoop.style.display = '';
+    }
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',bind);}
   else{bind();}
@@ -1763,6 +1796,22 @@ function loadHistory() {
 }
 const MINT_PUBLIC_KEY = null; // loaded from env on first sync
 
+// -- Coop flavor detection ---------------------------------------
+// Set by the native Android "Zillion Coop" build's WALLET_URL, which
+// includes ?app=coop — every install of that flavor is, by definition,
+// a cooperative member, so this app skips the generic offline-cash
+// pitch and the Customer/Merchant/Agent role picker entirely (there's
+// only one role in this build). Persisted to localStorage as a
+// fallback in case any in-SPA navigation ever drops the query string —
+// the native shell always launches with it, but this is a cheap safety
+// net against that one edge case.
+const IS_COOP = (() => {
+  const fromUrl = new URLSearchParams(location.search).get('app') === 'coop';
+  if (fromUrl) { try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {} }
+  try { return fromUrl || localStorage.getItem('zillion_is_coop_flavor') === '1'; }
+  catch { return fromUrl; }
+})();
+
 // -- State -----------------------------------------------------
 let STATE = {
   screen:    'screen-splash',
@@ -2083,7 +2132,15 @@ function processPinComplete() {
     } else {
       STATE.pin = pinBuffer;
       pinBuffer=''; pinFirst='';
-      goTo('screen-role');
+      // Coop-flavor users skip role selection entirely — every install
+      // of this app is, by definition, a Customer (there's only one
+      // role in this build). selectedRole already defaults to
+      // 'customer', so completeOnboarding() needs no other changes.
+      if (typeof IS_COOP !== 'undefined' && IS_COOP) {
+        completeOnboarding();
+      } else {
+        goTo('screen-role');
+      }
     }
   }
 }
@@ -2114,7 +2171,7 @@ async function completeOnboarding() {
     STATE.history = existingHistory; // restore history from permanent key
     toast('Welcome back! Your transaction history has been restored. 🎉');
   } else {
-    toast('Welcome to Zillion! 🎉');
+    toast((typeof IS_COOP !== 'undefined' && IS_COOP) ? 'Welcome! Your cooperative membership is ready. 🎉' : 'Welcome to Zillion! 🎉');
   }
 
   STATE.user = {
