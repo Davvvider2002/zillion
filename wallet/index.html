@@ -2637,43 +2637,129 @@ function coopShowPayNowModal(type, planId) {
   const subtitle = document.getElementById('coop-paynow-subtitle');
   const bodyEl = document.getElementById('coop-paynow-body');
 
-  let accountNumber, bankName, amountLabel;
+  let accountNumber, bankName, defaultAmountKobo;
   if (type === 'savings') {
     const plan = (_coopLatestStatus?.savings_plans || []).find(p => p.id === planId);
     title.textContent = 'Pay Your Savings';
     subtitle.textContent = plan ? `${fmtNaira(plan.monthly_contribution_kobo)} / month` : '';
     accountNumber = plan?.flutterwave_account_number;
     bankName = plan?.flutterwave_bank_name;
+    defaultAmountKobo = plan?.monthly_contribution_kobo || 0;
   } else {
     const dues = _coopLatestStatus?.dues;
     title.textContent = 'Pay Your Dues';
     subtitle.textContent = dues ? `${fmtNaira(dues.owing_kobo)} owing` : '';
     accountNumber = dues?.flutterwave_dues_account_number;
     bankName = dues?.flutterwave_dues_bank_name;
+    defaultAmountKobo = dues?.owing_kobo || 0;
   }
 
+  let html = '';
   if (accountNumber) {
-    bodyEl.innerHTML = `
+    html += `
       <div style="background:#081A11;border:1px solid #234A38;border-radius:12px;padding:16px;text-align:center">
         <div style="font-size:11px;color:#9CC4B0;margin-bottom:6px">Transfer to</div>
         <div style="font-size:24px;font-weight:800;color:#00E0AC;letter-spacing:1px" id="coop-paynow-acct">${accountNumber}</div>
         <div style="font-size:13px;color:#E8F5EE;margin-top:4px">${bankName || 'Bank transfer'}</div>
         <button onclick="coopCopyPayNowAccount()" style="margin-top:12px;padding:8px 16px;background:#1A4030;color:#00E0AC;border:none;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer">Copy Account Number</button>
       </div>
-      <div style="font-size:11px;color:#7FA894;margin-top:10px;text-align:center">Send from any Nigerian bank — your payment is detected and credited automatically.</div>`;
+      <div style="font-size:11px;color:#7FA894;margin-top:10px;text-align:center">Send from any Nigerian bank — your payment is detected and credited automatically.</div>
+      <div style="text-align:center;margin:14px 0;color:#5A8069;font-size:11px">— OR —</div>`;
   } else {
-    bodyEl.innerHTML = `
-      <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:16px;text-align:center">
-        <div style="font-size:13px;color:#F5B87A">No payment account set up yet</div>
-        <div style="font-size:12px;color:#9CC4B0;margin-top:6px">Contact your society admin to arrange this — they'll set it up from their end.</div>
+    html += `
+      <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
+        <div style="font-size:13px;color:#F5B87A">No dedicated account set up yet</div>
+        <div style="font-size:12px;color:#9CC4B0;margin-top:6px">Ask your society admin, or pay right now below instead.</div>
       </div>`;
   }
+
+  html += `
+    <div style="background:#081A11;border:1px solid #234A38;border-radius:12px;padding:16px">
+      <div style="font-size:11px;color:#9CC4B0;margin-bottom:6px">Pay now — card, bank transfer, or USSD</div>
+      <input id="coop-checkout-amount" type="number" value="${(defaultAmountKobo/100).toFixed(0)}" style="width:100%;padding:10px;background:#0F2B1D;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;text-align:center;margin-bottom:10px">
+      <button onclick="coopStartHostedCheckout('${type}', '${planId||''}')" style="width:100%;padding:12px;background:#00C896;color:#05140D;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer">Pay Now</button>
+      <div id="coop-checkout-error" style="color:#FF8A8A;font-size:11px;margin-top:8px;text-align:center;display:none"></div>
+    </div>`;
+
+  bodyEl.innerHTML = html;
 
   document.getElementById('coop-paynow-modal').style.display = 'flex';
 }
 function coopClosePayNowModal() {
   document.getElementById('coop-paynow-modal').style.display = 'none';
 }
+async function coopStartHostedCheckout(type, planId) {
+  const errEl = document.getElementById('coop-checkout-error');
+  errEl.style.display = 'none';
+  const amountNaira = parseFloat(document.getElementById('coop-checkout-amount').value);
+  if (!amountNaira || amountNaira <= 0) {
+    errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return;
+  }
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-flutterwave-checkout-init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({
+        type,
+        savings_plan_id: planId || undefined,
+        amount_kobo: Math.round(amountNaira * 100),
+        return_url: window.location.href.split('?')[0], // strip any existing query string, checkout_return gets appended fresh
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.checkout_url) {
+      errEl.textContent = data.error || 'Could not start checkout.'; errEl.style.display = 'block'; return;
+    }
+    // Whole flow stays inside this same WebView — navigate to
+    // Flutterwave's hosted page, which redirects back to this exact
+    // wallet URL (with checkout_return=1) once payment completes.
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+// Called once on app load — checks whether this load is the member
+// returning from Flutterwave's hosted checkout page. Cleans the URL
+// immediately so a page refresh afterward can't re-trigger this.
+async function coopCheckForCheckoutReturn() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('checkout_return') !== '1') return;
+
+  const status = params.get('status');
+  const txRef = params.get('tx_ref');
+  const transactionId = params.get('transaction_id');
+
+  try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
+
+  if (status === 'cancelled') {
+    toast('Payment cancelled.', true);
+    return;
+  }
+  if (!txRef || !transactionId) return; // not a real checkout return, nothing to verify
+
+  toast('Verifying your payment…');
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-flutterwave-checkout-verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ tx_ref: txRef, transaction_id: transactionId }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      toast(data.message || 'Payment confirmed!', false, 5000);
+      zilRenderCoopSummary(); // refresh balances immediately, don't wait for the next poll
+    } else {
+      toast(data.message || data.error || 'Payment could not be confirmed.', true, 5000);
+    }
+  } catch (e) {
+    toast('Could not verify payment: ' + e.message, true, 5000);
+  }
+}
+
 function coopCopyPayNowAccount() {
   const text = document.getElementById('coop-paynow-acct')?.textContent;
   if (!text) return;
@@ -4603,6 +4689,11 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => trySync(), 1500);
     // Check for QR claim in URL (customer scanned QR from WhatsApp link)
     setTimeout(() => checkClaimParam(), 800);
+    // Coming back from Flutterwave's hosted checkout page — verify and
+    // credit server-side before showing any result. Only meaningful
+    // once STATE.user is confirmed restored, since verification needs
+    // a valid auth token.
+    coopCheckForCheckoutReturn();
   } else {
     // Check claim param - store for after onboarding
     const params = new URLSearchParams(location.search);
