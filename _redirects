@@ -125,3 +125,5 @@
 /api/v1/coop-send-notification                     /.netlify/functions/coop-send-notification                     200
 /api/v1/coop-notifications                         /.netlify/functions/coop-notifications                         200
 /api/v1/coop-provision-flutterwave-dues-account    /.netlify/functions/coop-provision-flutterwave-dues-account    200
+/api/v1/coop-flutterwave-checkout-init      /.netlify/functions/coop-flutterwave-checkout-init      200
+/api/v1/coop-flutterwave-checkout-verify    /.netlify/functions/coop-flutterwave-checkout-verify    200
