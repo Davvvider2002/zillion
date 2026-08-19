@@ -1910,6 +1910,22 @@ if (IS_COOP) {
   document.querySelectorAll('[data-bnav-role="send"]').forEach(btn => {
     btn.style.display = 'none';
   });
+
+  // FIX: this used to live inside zilRenderCoopSummary(), gated behind
+  // an `await` for a network call to /coop-member-status — meaning
+  // there was a real window (network round-trip time) where the
+  // regular Zil UI was visible before being hidden, causing a visible
+  // flash of the wrong screen on every load. Moved here so it's
+  // synchronous and has zero network dependency — the structural
+  // hide/show now happens instantly; zilRenderCoopSummary() still
+  // handles populating the actual numbers once data arrives, but no
+  // longer controls whether the sections are even visible.
+  const zilSectionEarly = document.getElementById('home-zil-section');
+  const heroSectionEarly = document.getElementById('home-coop-hero-section');
+  const hdrLogoEarly = document.getElementById('home-hdr-logo');
+  if (zilSectionEarly) zilSectionEarly.style.display = 'none';
+  if (heroSectionEarly) heroSectionEarly.style.display = '';
+  if (hdrLogoEarly) hdrLogoEarly.textContent = 'ZILLION COOP';
 }
 
 // -- State -----------------------------------------------------
@@ -2449,15 +2465,6 @@ async function zilRenderCoopSummary() {
   _coopUpdateNotifBell(data);
 
   if (typeof IS_COOP !== 'undefined' && IS_COOP) {
-    // Coop-flavor app: Zil section is always hidden, hero section is
-    // the whole home screen. Toggled here (not just at load) so it
-    // stays correct even if this fires before the DOM fully settles.
-    const zilSection = document.getElementById('home-zil-section');
-    const heroSection = document.getElementById('home-coop-hero-section');
-    const hdrLogo = document.getElementById('home-hdr-logo');
-    if (zilSection) zilSection.style.display = 'none';
-    if (heroSection) heroSection.style.display = '';
-    if (hdrLogo) hdrLogo.textContent = 'ZILLION COOP';
     if (!data || !data.is_coop_member) return; // shouldn't happen for this flavor, but don't crash if it does
 
     const plans = data.savings_plans || [];
@@ -2705,7 +2712,10 @@ async function coopStartHostedCheckout(type, planId) {
         type,
         savings_plan_id: planId || undefined,
         amount_kobo: Math.round(amountNaira * 100),
-        return_url: window.location.href.split('?')[0], // strip any existing query string, checkout_return gets appended fresh
+        return_url: (() => {
+          const base = window.location.href.split('?')[0];
+          return (typeof IS_COOP !== 'undefined' && IS_COOP) ? `${base}?app=coop` : base;
+        })(),
       }),
     });
     const data = await res.json();
