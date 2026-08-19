@@ -21,6 +21,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { computeDuesOwing } = require('../../lib/coopDues');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -37,12 +38,28 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, name, phone_normalized, opening_balance_kobo, status, coop_societies(name)')
+    .select('id, coop_id, name, phone_normalized, opening_balance_kobo, status, activated_at, coop_societies(name)')
     .eq('zillion_id', zillionId).maybeSingle();
 
   if (!member) return ok({ is_coop_member: false });
 
-  const { data: society } = await db.from('coop_societies').select('merchant_id, name').eq('coop_id', member.coop_id).single();
+  const { data: society } = await db.from('coop_societies')
+    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled')
+    .eq('coop_id', member.coop_id).single();
+
+  // Dues — same "never a stored figure that could drift" philosophy as
+  // savings. A brand-new member correctly owes nothing until their
+  // first full period completes.
+  const dues = await computeDuesOwing(db, member, society);
+
+  const [broadcastRes, individualRes, readsRes] = await Promise.all([
+    db.from('coop_notifications').select('id').eq('coop_id', member.coop_id).eq('target_type', 'broadcast'),
+    db.from('coop_notifications').select('id').eq('target_member_id', member.id).eq('target_type', 'individual'),
+    db.from('coop_notification_reads').select('notification_id').eq('member_id', member.id),
+  ]);
+  const readIds = new Set((readsRes.data || []).map(r => r.notification_id));
+  const allNotifIds = [...(broadcastRes.data || []), ...(individualRes.data || [])].map(n => n.id);
+  const unreadNotifCount = allNotifIds.filter(id => !readIds.has(id)).length;
 
   const { data: plans } = await db.from('coop_savings_plans')
     .select('*').eq('member_id', member.id).order('created_at', { ascending: false });
@@ -74,5 +91,7 @@ exports.handler = async (event) => {
     loans:               loans || [],
     total_outstanding_loan_kobo: totalOutstandingLoanKobo,
     guarantor_requests_pending:  guarantorRequests || [],
+    dues,
+    unread_notification_count: unreadNotifCount,
   });
 };
