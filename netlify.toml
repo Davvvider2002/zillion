@@ -548,3 +548,13 @@
   from = "/api/v1/coop-provision-flutterwave-dues-account"
   to   = "/.netlify/functions/coop-provision-flutterwave-dues-account"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-flutterwave-checkout-init"
+  to   = "/.netlify/functions/coop-flutterwave-checkout-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-flutterwave-checkout-verify"
+  to   = "/.netlify/functions/coop-flutterwave-checkout-verify"
+  status = 200
