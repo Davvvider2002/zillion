@@ -74,9 +74,23 @@
   <div id="activate-out" class="out" style="display:none"></div>
 </div>
 
+<!-- STEP: Configure dues -->
+<div class="step">
+  <div class="step-title">4. Configure Society Dues</div>
+  <div class="step-desc">Society-level, not per-member — sets what everyone owes and how often. Without this, the dues section stays correctly hidden (nothing to show).</div>
+  <div class="row">
+    <div><label>Amount (₦)</label><input id="dues-amount" value="1500"></div>
+    <div><label>Frequency</label><select id="dues-frequency"><option value="monthly">monthly</option><option value="annual">annual</option></select></div>
+  </div>
+  <label><input type="checkbox" id="dues-enforce"> Block loan applications if dues are owing</label>
+  <button onclick="configureDues()">Configure Dues</button>
+  <div id="dues-config-status" class="status-ok"></div>
+  <div id="dues-config-out" class="out" style="display:none"></div>
+</div>
+
 <!-- STEP: Savings plan -->
 <div class="step">
-  <div class="step-title">4. Create a Savings Plan for the Borrower</div>
+  <div class="step-title">5. Create a Savings Plan for the Borrower</div>
   <div class="row">
     <div><label>Target (₦)</label><input id="plan-target" value="60000"></div>
     <div><label>Monthly (₦)</label><input id="plan-monthly" value="5000"></div>
@@ -89,7 +103,7 @@
 
 <!-- STEP: Provision Flutterwave account -->
 <div class="step">
-  <div class="step-title">5. Provision a Real Flutterwave Account (optional, needs real keys)</div>
+  <div class="step-title">6. Provision a Real Flutterwave Account (optional, needs real keys)</div>
   <div class="step-desc">Tests authentication + the provisioning endpoint against Flutterwave's real sandbox. Uses a test BVN — Flutterwave docs suggest any 11-digit value works in test mode, but this hasn't been confirmed against your specific account yet.</div>
   <label>BVN or NIN (test value)</label><input id="flw-bvn" value="12345678901">
   <button onclick="provisionFlutterwaveAccount()">Provision Account</button>
@@ -112,7 +126,7 @@
 
 <!-- STEP: Record savings payment -->
 <div class="step">
-  <div class="step-title">6. Admin Records a Savings Payment (manual path — always works)</div>
+  <div class="step-title">7. Admin Records a Savings Payment (manual path — always works)</div>
   <div class="step-desc">The real, correct flow: this stands in for a member paying into their own bank virtual account, with admin confirming the transfer landed — same interim step as the original manual process, no Zil/wallet involved at all.</div>
   <label>Amount (₦)</label><input id="savings-amount" value="5000">
   <label>Reference (optional)</label><input id="savings-ref" value="BANKTXN-TEST-001">
@@ -123,7 +137,7 @@
 
 <!-- STEP: Loan apply -->
 <div class="step">
-  <div class="step-title">7. Borrower Applies for a Loan</div>
+  <div class="step-title">8. Borrower Applies for a Loan</div>
   <div class="row">
     <div><label>Principal (₦)</label><input id="loan-principal" value="30000"></div>
     <div><label>Repayment (months)</label><input id="loan-months" value="6"></div>
@@ -135,7 +149,7 @@
 
 <!-- STEP: Guarantor responds -->
 <div class="step">
-  <div class="step-title">8. Guarantor Confirms</div>
+  <div class="step-title">9. Guarantor Confirms</div>
   <button onclick="guarantorRespond()">Approve as Guarantor</button>
   <div id="guarantor-status" class="status-ok"></div>
   <div id="guarantor-out" class="out" style="display:none"></div>
@@ -143,7 +157,7 @@
 
 <!-- STEP: Admin approve + disburse -->
 <div class="step">
-  <div class="step-title">9. Admin Reviews, Approves, Disburses</div>
+  <div class="step-title">10. Admin Reviews, Approves, Disburses</div>
   <button onclick="adminApproveLoan()">Approve</button>
   <button onclick="adminDisburseLoan()">Mark Disbursed</button>
   <div id="admin-loan-status" class="status-ok"></div>
@@ -152,7 +166,7 @@
 
 <!-- STEP: Member status -->
 <div class="step">
-  <div class="step-title">10. Check Borrower's Own Status View</div>
+  <div class="step-title">11. Check Borrower's Own Status View</div>
   <div class="step-desc">This is exactly what the wallet's Thrift &amp; Loan section will show once built.</div>
   <button onclick="checkMemberStatus()">Check Status</button>
   <div id="status-out" class="out" style="display:none"></div>
@@ -235,6 +249,23 @@ async function activateBothMembers() {
   setStatus('activate-status', (borrowerMemberId && guarantorMemberId)
     ? `✓ Borrower ${bNote}, guarantor ${gNote} — ready for next step`
     : '❌ Could not get a member ID for one or both — check response below');
+}
+
+async function configureDues() {
+  if (!adminToken) { setStatus('dues-config-status', '❌ Log in as admin first'); return; }
+  const coopId = document.getElementById('coop-id').value.trim();
+  const amountKobo = Math.round(parseFloat(document.getElementById('dues-amount').value) * 100);
+  const frequency = document.getElementById('dues-frequency').value;
+  const enforce = document.getElementById('dues-enforce').checked;
+  const { ok, data } = await call('/coop-configure-dues', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({
+      coop_id: coopId, dues_amount_kobo: amountKobo, dues_frequency: frequency,
+      dues_enforcement_enabled: enforce, dues_enforcement_rules: { block_loan_application: enforce },
+    }),
+  });
+  showOut('dues-config-out', data, !ok);
+  setStatus('dues-config-status', ok ? '✓ Dues configured — Thrift & Loan screen will now show it' : '❌ Failed');
 }
 
 async function createSavingsPlan() {
