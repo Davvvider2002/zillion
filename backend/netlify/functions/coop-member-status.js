@@ -38,7 +38,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, name, phone_normalized, opening_balance_kobo, status, activated_at, coop_societies(name)')
+    .select('id, coop_id, name, phone_normalized, opening_balance_kobo, status, activated_at, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)')
     .eq('zillion_id', zillionId).maybeSingle();
 
   if (!member) return ok({ is_coop_member: false });
@@ -51,6 +51,10 @@ exports.handler = async (event) => {
   // savings. A brand-new member correctly owes nothing until their
   // first full period completes.
   const dues = await computeDuesOwing(db, member, society);
+  if (dues) {
+    dues.flutterwave_dues_account_number = member.flutterwave_dues_account_number || null;
+    dues.flutterwave_dues_bank_name = member.flutterwave_dues_bank_name || null;
+  }
 
   const [broadcastRes, individualRes, readsRes] = await Promise.all([
     db.from('coop_notifications').select('id').eq('coop_id', member.coop_id).eq('target_type', 'broadcast'),
