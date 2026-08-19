@@ -2,7 +2,7 @@
 // Offline-first: app shell cached, API calls network-first
 'use strict';
 
-const CACHE_NAME    = 'zillion-wallet-v1.0.27';
+const CACHE_NAME    = 'zillion-wallet-v1.0.28';
 const OFFLINE_QUEUE = 'zillion-wallet-offline-queue';
 
 // App shell files — same origin only
