@@ -523,3 +523,28 @@
   from = "/api/v1/coop-simulate-flutterwave-payment"
   to   = "/.netlify/functions/coop-simulate-flutterwave-payment"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-record-dues-payment"
+  to   = "/.netlify/functions/coop-record-dues-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-configure-dues"
+  to   = "/.netlify/functions/coop-configure-dues"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-send-notification"
+  to   = "/.netlify/functions/coop-send-notification"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-notifications"
+  to   = "/.netlify/functions/coop-notifications"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-provision-flutterwave-dues-account"
+  to   = "/.netlify/functions/coop-provision-flutterwave-dues-account"
+  status = 200
