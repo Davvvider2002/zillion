@@ -120,3 +120,8 @@
 /api/v1/coop-flutterwave-webhook             /.netlify/functions/coop-flutterwave-webhook             200
 /api/v1/coop-provision-flutterwave-account   /.netlify/functions/coop-provision-flutterwave-account   200
 /api/v1/coop-simulate-flutterwave-payment    /.netlify/functions/coop-simulate-flutterwave-payment    200
+/api/v1/coop-record-dues-payment                   /.netlify/functions/coop-record-dues-payment                   200
+/api/v1/coop-configure-dues                        /.netlify/functions/coop-configure-dues                        200
+/api/v1/coop-send-notification                     /.netlify/functions/coop-send-notification                     200
+/api/v1/coop-notifications                         /.netlify/functions/coop-notifications                         200
+/api/v1/coop-provision-flutterwave-dues-account    /.netlify/functions/coop-provision-flutterwave-dues-account    200
