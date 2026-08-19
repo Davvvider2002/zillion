@@ -13,13 +13,22 @@
  * two ways a row can land here.
  *
  * Auth: SUPER_ADMIN or OPERATIONS.
- * Body: { savings_plan_id, amount_kobo, reference? }
+ * Body: { savings_plan_id, amount_kobo, reference?, source? }
+ *   source: "bank_transfer_manual" (default) | "cash_in_person"
+ *   For cash_in_person, reference is REQUIRED — cash has no independent
+ *   bank record behind it the way a manually-confirmed transfer does,
+ *   so a receipt number or witness note is the minimum honest audit
+ *   trail. This doesn't eliminate the trust dependency on the admin
+ *   recording it accurately, but it makes the audit trail honest about
+ *   where that dependency exists.
  */
 'use strict';
 
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
+
+const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -40,9 +49,12 @@ exports.handler = async (event) => {
   const savingsPlanId = (body.savings_plan_id || '').trim();
   const amountKobo    = Number.isInteger(body.amount_kobo) ? body.amount_kobo : 0;
   const reference      = (body.reference || '').trim() || null;
+  const source          = VALID_SOURCES.includes(body.source) ? body.source : 'bank_transfer_manual';
 
   if (!savingsPlanId)  return err(400, 'savings_plan_id is required');
   if (amountKobo <= 0) return err(400, 'amount_kobo must be a positive integer');
+  if (source === 'cash_in_person' && !reference)
+    return err(400, 'A reference (receipt number, witness name, etc.) is required when recording a cash payment — cash has no independent bank record behind it.');
 
   const db = getServiceClient();
 
@@ -56,7 +68,7 @@ exports.handler = async (event) => {
     member_id:         plan.member_id,
     savings_plan_id:    savingsPlanId,
     amount_kobo:         amountKobo,
-    source:               'bank_transfer_manual',
+    source,
     reference,
     recorded_by:           auth.payload.username || auth.payload.sub,
   }).select().single();
