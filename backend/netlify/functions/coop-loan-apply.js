@@ -23,6 +23,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { computeDuesOwing } = require('../../lib/coopDues');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -59,9 +60,23 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, status').eq('zillion_id', zillionId).maybeSingle();
+    .select('id, coop_id, status, activated_at').eq('zillion_id', zillionId).maybeSingle();
   if (!member) return err(404, 'No cooperative membership found for this wallet');
   if (member.status !== 'ACTIVE') return err(403, `Your membership status is ${member.status}, not ACTIVE`);
+
+  // Dues enforcement — respects each society's own toggle and rule
+  // (dues_enforcement_rules is a growable object, block_loan_application
+  // is just the first condition it supports). Societies that haven't
+  // enabled this, or don't charge dues at all, are unaffected.
+  const { data: society } = await db.from('coop_societies')
+    .select('dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules')
+    .eq('coop_id', member.coop_id).single();
+  if (society?.dues_enforcement_enabled && society.dues_enforcement_rules?.block_loan_application) {
+    const dues = await computeDuesOwing(db, member, society);
+    if (dues && dues.owing_kobo > 0) {
+      return err(403, `You have outstanding dues of ₦${(dues.owing_kobo / 100).toLocaleString()} — this must be cleared before applying for a loan.`);
+    }
+  }
 
   if (savingsPlanId) {
     const { data: plan } = await db.from('coop_savings_plans')
