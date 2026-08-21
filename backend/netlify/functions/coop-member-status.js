@@ -22,6 +22,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { computeDuesOwing } = require('../../lib/coopDues');
+const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -44,7 +45,7 @@ exports.handler = async (event) => {
   if (!member) return ok({ is_coop_member: false });
 
   const { data: society } = await db.from('coop_societies')
-    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled')
+    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled, late_fee_type, late_fee_value')
     .eq('coop_id', member.coop_id).single();
 
   // Dues — same "never a stored figure that could drift" philosophy as
@@ -75,17 +76,26 @@ exports.handler = async (event) => {
     return { ...plan, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / plan.target_amount_kobo) * 100)) };
   }));
 
-  const { data: loans } = await db.from('coop_loans')
+  const { data: loansRaw } = await db.from('coop_loans')
     .select('*, guarantor:coop_members!coop_loans_guarantor_member_id_fkey(name)')
     .eq('member_id', member.id).order('requested_at', { ascending: false });
+
+  const loans = await Promise.all((loansRaw || []).map(async (l) => {
+    if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return l;
+    const repaymentStatus = await computeLoanRepaymentStatus(db, l.id, society);
+    return { ...l, repayment: repaymentStatus };
+  }));
 
   const { data: guarantorRequests } = await db.from('coop_loans')
     .select('id, principal_kobo, repayment_months, monthly_repayment_kobo, requested_at, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized)')
     .eq('guarantor_member_id', member.id).eq('status', 'PENDING_GUARANTOR');
 
+  // FIX: previously always summed the ORIGINAL principal, never
+  // decreasing as repayments were made — now that repayment tracking
+  // exists, this reflects what's actually still owed.
   const totalOutstandingLoanKobo = (loans || [])
     .filter(l => ['DISBURSED', 'REPAYING'].includes(l.status))
-    .reduce((s, l) => s + (l.principal_kobo || 0), 0);
+    .reduce((s, l) => s + (l.repayment?.outstanding_kobo ?? l.principal_kobo ?? 0), 0);
 
   return ok({
     is_coop_member:     true,
