@@ -18,6 +18,7 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
+const { generateRepaymentSchedule } = require('../../lib/coopRepaymentSchedule');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -87,6 +88,22 @@ exports.handler = async (event) => {
     const { data: updated, error: updateErr } = await db.from('coop_loans')
       .update(update).eq('id', loanId).select().single();
     if (updateErr) return err(500, `Failed to update loan: ${updateErr.message}`);
+
+    // Generate the repayment schedule right when disbursement happens —
+    // without this, there'd be a real disbursed loan with no way to
+    // ever track it being paid back.
+    if (action === 'disburse') {
+      const schedule = generateRepaymentSchedule(loan.principal_kobo, loan.repayment_months, now);
+      const { error: scheduleErr } = await db.from('coop_loan_repayment_schedule').insert(
+        schedule.map(p => ({ loan_id: loanId, ...p }))
+      );
+      if (scheduleErr) console.error('[coop-loans-admin] Schedule generation failed:', scheduleErr.message);
+      // Non-fatal by design — disbursement itself already succeeded and
+      // real money already moved (or is about to, via the admin's own
+      // bank transfer); failing the whole request over a schedule
+      // insert error would be worse than a loan that needs its
+      // schedule regenerated manually.
+    }
 
     await auditLog(db, {
       action:       `COOP_LOAN_${action.toUpperCase()}D`,
