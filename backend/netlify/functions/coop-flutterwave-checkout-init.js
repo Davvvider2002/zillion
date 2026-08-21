@@ -4,25 +4,31 @@
  * POST /api/v1/coop-flutterwave-checkout-init
  *
  * Creates a Flutterwave v3 Standard Checkout session — the hosted,
- * in-app payment page (card/USSD/bank transfer, all in one), distinct
- * from the virtual-account approach already built. Uses v3's
- * POST /v3/payments with the older static Secret Key auth (v4 has no
- * hosted checkout yet, confirmed directly against Flutterwave's own
- * public documentation).
+ * in-app payment page. Now handles all three payment purposes
+ * (savings, dues, loan repayment) and multi-tenant settlement:
  *
- * The member's wallet provides its own current URL as return_url —
- * the backend doesn't hardcode a wallet URL, since it varies by
- * environment/flavor. Flutterwave appends its own status/
- * transaction_id query params to whatever's given.
+ * - Fee calculation (backend/lib/coopFees.js): the customer pays
+ *   base + Flutterwave's real fee + Zillion's matching fee (per
+ *   explicit instruction that Zillion's fee equals Flutterwave's).
+ * - If the society has a Flutterwave subaccount configured (multi-
+ *   tenant settlement), the payment is split so the subaccount
+ *   receives EXACTLY the base amount (flat split) — both fee
+ *   portions stay with Zillion's main account automatically, since
+ *   subaccounts only ever receive what's explicitly allocated.
+ * - If no subaccount exists yet for this society, the payment still
+ *   works (falls back to settling entirely with Zillion's main
+ *   account) — this is a deliberate soft-fail, not a hard requirement,
+ *   so payment collection isn't blocked on every society having
+ *   settlement configured on day one.
  *
- * Auth: wallet JWT (the member's own token).
- * Body: { type: 'savings' | 'dues', savings_plan_id?, amount_kobo, return_url }
+ * Auth: wallet JWT.
+ * Body: { type: 'savings' | 'dues' | 'loan_repayment', savings_plan_id?, loan_id?, amount_kobo, return_url }
  */
 'use strict';
 
-const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { calculateFees }    = require('../../lib/coopFees');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -43,14 +49,17 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const type          = body.type === 'dues' ? 'dues' : 'savings';
-  const savingsPlanId  = (body.savings_plan_id || '').trim() || null;
-  const amountKobo      = Number.isInteger(body.amount_kobo) ? body.amount_kobo : 0;
-  const returnUrl         = (body.return_url || '').trim();
+  const VALID_TYPES = ['savings', 'dues', 'loan_repayment'];
+  const type            = VALID_TYPES.includes(body.type) ? body.type : 'savings';
+  const savingsPlanId     = (body.savings_plan_id || '').trim() || null;
+  const loanId              = (body.loan_id || '').trim() || null;
+  const amountKobo            = Number.isInteger(body.amount_kobo) ? body.amount_kobo : 0;
+  const returnUrl                = (body.return_url || '').trim();
 
   if (amountKobo <= 0) return err(400, 'amount_kobo must be a positive integer');
   if (!returnUrl)       return err(400, 'return_url is required');
-  if (type === 'savings' && !savingsPlanId) return err(400, 'savings_plan_id is required for type "savings"');
+  if (type === 'savings' && !savingsPlanId)     return err(400, 'savings_plan_id is required for type "savings"');
+  if (type === 'loan_repayment' && !loanId)      return err(400, 'loan_id is required for type "loan_repayment"');
 
   const db = getServiceClient();
 
@@ -63,30 +72,55 @@ exports.handler = async (event) => {
       .select('id').eq('id', savingsPlanId).eq('member_id', member.id).maybeSingle();
     if (!plan) return err(400, 'That savings plan does not belong to you');
   }
+  if (type === 'loan_repayment') {
+    const { data: loan } = await db.from('coop_loans')
+      .select('id, status').eq('id', loanId).eq('member_id', member.id).maybeSingle();
+    if (!loan) return err(400, 'That loan does not belong to you');
+    if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
+  }
+
+  const { data: society } = await db.from('coop_societies')
+    .select('flutterwave_subaccount_id').eq('coop_id', member.coop_id).single();
+
+  const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, totalKobo } = calculateFees(amountKobo);
 
   const txRef = `ZILCHK-${type.toUpperCase()}-${member.id.slice(0, 8)}-${Date.now()}`;
   const separator = returnUrl.includes('?') ? '&' : '?';
   const redirectUrl = `${returnUrl}${separator}checkout_return=1`;
+
+  const paymentPayload = {
+    tx_ref:        txRef,
+    amount:         String(totalKobo / 100),
+    currency:        'NGN',
+    redirect_url:      redirectUrl,
+    customer: {
+      email:  `member.${(member.phone_normalized || '').replace(/\D/g,'')}@savings.zillion.ng`,
+      name:    member.name || member.phone_normalized,
+      phonenumber: member.phone_normalized,
+    },
+    customizations: {
+      title: { savings: 'Zillion Coop — Savings', dues: 'Zillion Coop — Membership Dues', loan_repayment: 'Zillion Coop — Loan Repayment' }[type],
+    },
+  };
+
+  // Multi-tenant settlement: only added if this society has a
+  // subaccount configured. Flat split = the subaccount receives
+  // EXACTLY the base amount; both fee portions stay with Zillion's
+  // main account by default (subaccounts only get what's allocated).
+  if (society?.flutterwave_subaccount_id) {
+    paymentPayload.subaccounts = [{
+      id: society.flutterwave_subaccount_id,
+      transaction_charge_type: 'flat',
+      transaction_charge: baseKobo / 100,
+    }];
+  }
 
   let flwResponse;
   try {
     const res = await fetch('https://api.flutterwave.com/v3/payments', {
       method: 'POST',
       headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tx_ref:        txRef,
-        amount:         String(amountKobo / 100),
-        currency:        'NGN',
-        redirect_url:      redirectUrl,
-        customer: {
-          email:  `member.${(member.phone_normalized || '').replace(/\D/g,'')}@savings.zillion.ng`,
-          name:    member.name || member.phone_normalized,
-          phonenumber: member.phone_normalized,
-        },
-        customizations: {
-          title: type === 'dues' ? 'Zillion Coop — Membership Dues' : 'Zillion Coop — Savings',
-        },
-      }),
+      body: JSON.stringify(paymentPayload),
     });
     flwResponse = await res.json();
     if (flwResponse.status !== 'success' || !flwResponse.data?.link) {
@@ -102,9 +136,15 @@ exports.handler = async (event) => {
     member_id:         member.id,
     type,
     savings_plan_id:     savingsPlanId,
-    amount_kobo:           amountKobo,
+    loan_id:               loanId,
+    amount_kobo:              baseKobo, // the credited amount — fees are re-derived from this at verify time via the same shared helper, never stored separately
   });
   if (insertErr) return err(500, `Failed to record checkout session: ${insertErr.message}`);
 
-  return ok({ success: true, checkout_url: flwResponse.data.link, tx_ref: txRef });
+  return ok({
+    success: true,
+    checkout_url: flwResponse.data.link,
+    tx_ref: txRef,
+    fee_breakdown: { base_kobo: baseKobo, flutterwave_fee_kobo: flutterwaveFeeKobo, zillion_fee_kobo: zillionFeeKobo, total_kobo: totalKobo },
+  });
 };
