@@ -22,6 +22,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { calculateFees }    = require('../../lib/coopFees');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -73,11 +74,16 @@ exports.handler = async (event) => {
   }
 
   const v = verifyData.data || {};
+  // session.amount_kobo is the BASE (credited) amount — the customer
+  // was actually charged base + both fees, re-derived here via the
+  // same shared calculation used at checkout-init, never stored
+  // separately.
+  const { totalKobo } = calculateFees(session.amount_kobo);
   const verifiedOk = verifyData.status === 'success'
     && v.status === 'successful'
     && v.tx_ref === txRef
     && v.currency === 'NGN'
-    && Number(v.amount) === Number(session.amount_kobo) / 100;
+    && Number(v.amount) === totalKobo / 100;
 
   if (!verifiedOk) {
     await db.from('coop_checkout_sessions').update({ status: 'failed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
@@ -87,15 +93,11 @@ exports.handler = async (event) => {
   // Credit the correct ledger — session.type/amount/member_id/coop_id
   // came from OUR OWN record of what this tx_ref was created for, never
   // from anything the client just sent.
-  const ledgerTable = session.type === 'dues' ? 'coop_dues_transactions' : 'coop_savings_transactions';
-  const insertRow = {
-    coop_id:      session.coop_id,
-    member_id:     session.member_id,
-    amount_kobo:    session.amount_kobo,
-    source:          'flutterwave_checkout',
-    reference:         txRef,
-    recorded_by:         'checkout:flutterwave_v3',
-  };
+  const LEDGER_TABLES = { savings: 'coop_savings_transactions', dues: 'coop_dues_transactions', loan_repayment: 'coop_loan_repayments' };
+  const ledgerTable = LEDGER_TABLES[session.type];
+  const insertRow = session.type === 'loan_repayment'
+    ? { loan_id: session.loan_id, amount_kobo: session.amount_kobo, source: 'flutterwave_checkout', reference: txRef, recorded_by: 'checkout:flutterwave_v3' }
+    : { coop_id: session.coop_id, member_id: session.member_id, amount_kobo: session.amount_kobo, source: 'flutterwave_checkout', reference: txRef, recorded_by: 'checkout:flutterwave_v3' };
   if (session.type === 'savings') insertRow.savings_plan_id = session.savings_plan_id;
 
   const { error: creditErr } = await db.from(ledgerTable).insert(insertRow);
@@ -117,6 +119,6 @@ exports.handler = async (event) => {
     success: true,
     type: session.type,
     amount_kobo: session.amount_kobo,
-    message: `Payment confirmed — ₦${(session.amount_kobo / 100).toLocaleString()} credited to your ${session.type === 'dues' ? 'dues' : 'savings'}.`,
+    message: `Payment confirmed — ₦${(session.amount_kobo / 100).toLocaleString()} credited to your ${{ savings: 'savings', dues: 'dues', loan_repayment: 'loan repayment' }[session.type]}.`,
   });
 };
