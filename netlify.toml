@@ -558,3 +558,28 @@
   from = "/api/v1/coop-flutterwave-checkout-verify"
   to   = "/.netlify/functions/coop-flutterwave-checkout-verify"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-create-coop-society"
+  to   = "/.netlify/functions/admin-create-coop-society"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-create-coop-subaccount"
+  to   = "/.netlify/functions/admin-create-coop-subaccount"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-record-loan-repayment"
+  to   = "/.netlify/functions/coop-record-loan-repayment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-repay-loan-from-savings"
+  to   = "/.netlify/functions/coop-repay-loan-from-savings"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-repay-loan-offline"
+  to   = "/.netlify/functions/coop-repay-loan-offline"
+  status = 200
