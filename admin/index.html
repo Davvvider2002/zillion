@@ -839,6 +839,13 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- COOP THRIFT & LOAN -->
 <div id="sec-coopthrift" class="sec">
   <div id="coopthrift-list-view">
+    <div id="coop-subplan-setup-banner" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:700;font-size:14px">Subscription billing isn't set up yet</div>
+        <div style="font-size:12.5px;color:var(--tx2);margin-top:2px" id="coop-subplan-setup-detail">The Flutterwave payment plans for Launch/Growth/Scale haven't been created — self-service signups will fail until this runs once.</div>
+      </div>
+      <button class="rbtn" style="background:var(--am);color:#1a1a1a;font-weight:700;white-space:nowrap" onclick="setupSubscriptionPlans()" id="coop-subplan-setup-btn">Set up now</button>
+    </div>
     <div class="card">
       <div class="card-title">
         Thrift &amp; Loan Societies
@@ -2912,7 +2919,39 @@ let ctCurrentCoopId = null;
 let ctCurrentDetail = null; // cached full detail response, avoids re-fetching per tab
 let ctRecordPaymentContext = null; // { type: 'savings'|'dues'|'loan', targetId, label }
 
+async function setupSubscriptionPlans() {
+  const btn = document.getElementById('coop-subplan-setup-btn');
+  const detail = document.getElementById('coop-subplan-setup-detail');
+  btn.disabled = true; btn.textContent = 'Setting up...';
+  try {
+    const res = await fetch(`${API}/admin-setup-subscription-plans`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + adminToken },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      notify('Setup failed: ' + (data.error || 'unknown error'), true);
+      btn.disabled = false; btn.textContent = 'Set up now';
+      return;
+    }
+    const created = data.results.filter(r => r.status === 'created').length;
+    const already = data.results.filter(r => r.status === 'already_exists').length;
+    const failed = data.results.filter(r => r.status === 'failed');
+    if (failed.length) {
+      detail.textContent = `${created} plan(s) created, ${already} already existed, but ${failed.length} failed: ${failed.map(f => f.tier + '/' + f.cycle + ' — ' + f.error).join('; ')}`;
+      notify(`Subscription plans: ${failed.length} failed — see details`, true);
+      btn.disabled = false; btn.textContent = 'Retry';
+    } else {
+      notify(`Subscription billing is set up — ${created} plan(s) created${already ? `, ${already} already existed` : ''}.`);
+      document.getElementById('coop-subplan-setup-banner').style.display = 'none';
+    }
+  } catch (e) {
+    notify('Setup: ' + e.message, true);
+    btn.disabled = false; btn.textContent = 'Set up now';
+  }
+}
+
 async function loadCoopThriftSocieties() {
+  document.getElementById('coop-subplan-setup-banner').style.display = 'flex';
   const tbody = document.getElementById('coopthrift-table-body');
   tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
   try {
