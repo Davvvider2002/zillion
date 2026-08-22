@@ -628,3 +628,28 @@
   from = "/api/v1/public-coop-trial-info"
   to   = "/.netlify/functions/public-coop-trial-info"
   status = 200
+
+[[redirects]]
+  from = "/coop-admin"
+  to   = "/coop-admin/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-society"
+  to   = "/.netlify/functions/coop-portal-society"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-activate-member"
+  to   = "/.netlify/functions/coop-portal-activate-member"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-record-savings-payment"
+  to   = "/.netlify/functions/coop-portal-record-savings-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-loan-action"
+  to   = "/.netlify/functions/coop-portal-loan-action"
+  status = 200
