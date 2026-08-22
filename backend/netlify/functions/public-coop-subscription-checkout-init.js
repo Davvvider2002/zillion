@@ -3,14 +3,15 @@
  *
  * POST /api/v1/public-coop-subscription-checkout-init
  *
- * Public, unauthenticated — the first payment for a self-service
+ * Public, unauthenticated — the first real payment for a self-service
+ * society, whether that's a trial converting to paid, a trial that's
+ * already ended, or (legacy path) a pre-trial pending_verification
  * signup. Uses the same proven /v3/payments mechanism as everything
  * else, with payment_plan added: per Flutterwave's own documentation,
  * including a plan ID on the first charge is what subscribes the
- * customer to recurring billing — every future charge on that
- * interval happens automatically on their end, no code needed here
- * for renewals themselves (though we do need to handle the webhook
- * they fire for each one — see coop-subscription-renewal-webhook.js).
+ * customer to recurring billing going forward — no code needed here
+ * for renewals themselves, only the webhook that fires for each one
+ * (see coop-flutterwave-webhook.js's payment_plan branch).
  *
  * Body: { coop_id, return_url }
  */
@@ -43,7 +44,8 @@ exports.handler = async (event) => {
     .select('coop_id, name, phone, owner_name, subscription_email, subscription_plan, subscription_cycle, flutterwave_payment_plan_id, subscription_status')
     .eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Society not found');
-  if (society.subscription_status !== 'pending_verification') return err(409, `This society's subscription is already ${society.subscription_status}`);
+  const PAYABLE_STATUSES = ['trial', 'trial_expired', 'pending_verification'];
+  if (!PAYABLE_STATUSES.includes(society.subscription_status)) return err(409, `This society's subscription is already ${society.subscription_status}`);
   if (!society.flutterwave_payment_plan_id) return err(500, 'Subscription plan not fully configured — contact support');
 
   const { data: planRow } = await db.from('coop_subscription_plan_catalog')
