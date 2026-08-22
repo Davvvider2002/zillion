@@ -46,10 +46,12 @@ exports.handler = async (event) => {
   const accountBankCode  = (body.account_bank_code || '').trim();
   const accountNumber     = (body.account_number || '').trim();
   const businessName        = (body.business_name || '').trim();
+  const businessEmail         = (body.business_email || '').trim();
 
   if (!coopId)           return err(400, 'coop_id is required');
   if (!accountBankCode)   return err(400, 'account_bank_code is required (Flutterwave bank code, e.g. "044" for Access Bank)');
   if (!accountNumber)      return err(400, 'account_number is required');
+  if (!businessEmail)       return err(400, 'business_email is required — Flutterwave uses this for settlement and compliance communications with the society');
 
   const db = getServiceClient();
 
@@ -66,7 +68,8 @@ exports.handler = async (event) => {
         account_bank:    accountBankCode,
         account_number:   accountNumber,
         business_name:     businessName || society.name,
-        business_mobile:     '00000000000', // required field; not otherwise used for split settlement itself
+        business_email:      businessEmail,
+        business_mobile:       '00000000000', // required field; not otherwise used for split settlement itself
         country:               'NG',
         split_type:               'flat',
         split_value:                 0, // 0 here — the actual split amount is specified per-transaction at checkout time (base amount varies every time), not fixed at subaccount creation
