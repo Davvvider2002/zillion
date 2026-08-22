@@ -34,6 +34,7 @@ const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { getFlutterwaveAccessToken, flutterwaveApiBase } = require('../../lib/flutterwave');
 const { logAlert }         = require('../../lib/alerts');
+const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -67,6 +68,78 @@ exports.handler = async (event) => {
   // payments land as charge.completed with payment_type:'account') —
   // acknowledge anything else with 200 so Flutterwave doesn't retry it.
   if (payload.event !== 'charge.completed' || !payload.data) return ok({ ignored: true });
+
+  // Subscription renewals are v3 charges (payment_plan present on the
+  // payload) — genuinely different verification (v3's own
+  // /v3/transactions/{id}/verify with the static secret key, not v4's
+  // OAuth /charges/{id}), so they're handled entirely separately here
+  // before falling into the existing virtual-account logic below,
+  // which stays untouched for the case it was actually built for.
+  if (payload.data.payment_plan) {
+    const db = getServiceClient();
+    const { id: flwTransactionId, tx_ref: renewalTxRef, status: renewalStatus, amount: renewalAmount, currency: renewalCurrency } = payload.data;
+    const SUCCESS_STATUSES_V3 = ['successful', 'succeeded'];
+    if (!SUCCESS_STATUSES_V3.includes(renewalStatus)) return ok({ ignored: true, reason: 'not successful' });
+
+    const { data: society } = await db.from('coop_societies')
+      .select('coop_id, subscription_plan, subscription_cycle, subscription_paid_until')
+      .eq('flutterwave_payment_plan_id', String(payload.data.payment_plan)).maybeSingle();
+    if (!society) {
+      await logAlert(db, {
+        severity: 'CRITICAL',
+        source:   'coop-flutterwave-webhook',
+        message:  `Renewal webhook for payment_plan ${payload.data.payment_plan} doesn't match any society`,
+        context:  { tx_ref: renewalTxRef, flw_transaction_id: flwTransactionId, payment_plan: payload.data.payment_plan },
+      });
+      return ok({ ignored: true, reason: 'no matching society for this payment plan' });
+    }
+
+    // Idempotent — Flutterwave's own docs confirm webhooks can be sent
+    // more than once.
+    const { data: existingPayment } = await db.from('coop_subscription_payments').select('id').eq('tx_ref', renewalTxRef).maybeSingle();
+    if (existingPayment) return ok({ success: true, idempotent: true });
+
+    const secretKeyV3 = process.env.FLW_V3_SECRET_KEY;
+    let verifiedOk = false;
+    if (secretKeyV3) {
+      try {
+        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwTransactionId}/verify`, {
+          headers: { Authorization: `Bearer ${secretKeyV3}` },
+        });
+        const verifyData = await verifyRes.json();
+        const v = verifyData.data || {};
+        verifiedOk = verifyData.status === 'success' && SUCCESS_STATUSES_V3.includes(v.status)
+          && v.tx_ref === renewalTxRef && v.currency === renewalCurrency;
+      } catch (e) {
+        console.error('[coop-flutterwave-webhook] Renewal verification call failed:', e.message);
+        return reject(500, 'Verification failed, will retry');
+      }
+    }
+
+    await db.from('coop_subscription_payments').insert({
+      coop_id: society.coop_id,
+      amount_kobo: Math.round(Number(renewalAmount) * 100),
+      type: 'renewal',
+      status: verifiedOk ? 'success' : 'failed',
+      flw_transaction_id: flwTransactionId,
+      tx_ref: renewalTxRef,
+    });
+
+    if (!verifiedOk) {
+      // A failed/unverifiable renewal charge — don't extend coverage,
+      // but don't touch anything else either. The grace-period check
+      // (in scheduled-reconcile.js) is what actually acts on this,
+      // giving the society time before anything happens to their
+      // access, rather than suspending immediately on one failed charge.
+      return ok({ ignored: true, reason: 'renewal not verified' });
+    }
+
+    const paidUntil = extendSubscription(society.subscription_paid_until, society.subscription_cycle);
+    await db.from('coop_societies').update({ subscription_paid_until: paidUntil.toISOString() }).eq('coop_id', society.coop_id);
+
+    console.log(`[coop-flutterwave-webhook] ✅ Subscription renewed for ${society.coop_id}, paid until ${paidUntil.toISOString()}`);
+    return ok({ success: true, renewed: true });
+  }
 
   const { id: flwTransactionId, tx_ref, status, amount, currency } = payload.data;
   // Two Flutterwave API generations use different status strings for the
