@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Zillion Coop — Software for Cooperative Thrift &amp; Loan Societies</title>
+<meta name="description" content="Members, savings, loans, dues, and payments — run your cooperative society from a phone, with room to grow.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0A2E1A;--amber:#F59E0B;--amber-d:#D97706;
+  --cream:#F7F3EC;--muted:#C8BFA8;
+  --green-mid:#1A5C32;--green-lt:#2D8A4E;
+  --card:#0F3A22;--line:rgba(247,243,236,0.14);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--ink);color:var(--cream);overflow-x:hidden;line-height:1.5}
+h1,h2,h3,.serif{font-family:'Fraunces',serif}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 26px;border-radius:10px;font-weight:600;font-size:15px;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:transform .15s,opacity .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:var(--amber);color:var(--ink)}
+.btn-primary:hover{background:#FFB020}
+.btn-ghost{background:transparent;color:var(--cream);border:1.5px solid var(--line)}
+.btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:rgba(10,46,26,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.logo{font-family:'Fraunces',serif;font-size:21px;font-weight:900;display:flex;align-items:center;gap:9px}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:var(--amber);display:flex;align-items:center;justify-content:center;color:var(--ink);font-weight:900;font-size:14px}
+.nav-links{display:flex;gap:32px;font-size:14px;font-weight:500}
+.nav-links a{opacity:.85}
+.nav-links a:hover{opacity:1;color:var(--amber)}
+.nav-cta{display:flex;gap:12px;align-items:center}
+@media (max-width:760px){.nav-links{display:none}}
+
+/* HERO */
+.hero{padding:170px 24px 100px;position:relative}
+.hero-inner{max-width:780px}
+.hero h1{font-size:clamp(34px,5.4vw,58px);font-weight:700;line-height:1.08;margin:18px 0 22px;letter-spacing:-.01em}
+.hero h1 em{font-style:italic;color:var(--amber)}
+.hero p{font-size:19px;color:var(--muted);max-width:560px;margin-bottom:34px;line-height:1.6}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap}
+.hero-stats{display:flex;gap:40px;margin-top:64px;flex-wrap:wrap}
+.hero-stat b{display:block;font-family:'Fraunces',serif;font-size:30px;color:var(--amber)}
+.hero-stat span{font-size:13px;color:var(--muted)}
+
+/* PROBLEM */
+.problem{padding:80px 24px;border-top:1px solid var(--line)}
+.problem-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}
+.problem h2{font-size:clamp(26px,3.4vw,36px);font-weight:700;line-height:1.15;margin-bottom:18px}
+.problem-lede{color:var(--muted);font-size:16px;line-height:1.65}
+.pain-list{display:flex;flex-direction:column;gap:20px}
+.pain{display:flex;gap:16px;align-items:flex-start;padding:18px 0;border-bottom:1px solid var(--line)}
+.pain:last-child{border-bottom:none}
+.pain-mark{font-family:'Fraunces',serif;font-style:italic;color:var(--amber);font-size:15px;flex-shrink:0;width:20px}
+.pain strong{display:block;font-size:15px;margin-bottom:3px}
+.pain p{font-size:14px;color:var(--muted)}
+@media (max-width:800px){.problem-grid{grid-template-columns:1fr;gap:32px}}
+
+/* HOW IT WORKS — an operational sequence, not a feature grid */
+.flow{padding:90px 24px;background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.flow-head{max-width:600px;margin-bottom:56px}
+.flow-head .eyebrow{margin-bottom:14px}
+.flow-head h2{font-size:clamp(26px,3.4vw,36px);font-weight:700;line-height:1.15}
+.flow-steps{position:relative}
+.flow-steps::before{content:'';position:absolute;left:27px;top:14px;bottom:14px;width:2px;background:linear-gradient(var(--amber),transparent 95%);opacity:.35}
+.flow-step{display:grid;grid-template-columns:56px 1fr;gap:24px;padding-bottom:44px;position:relative}
+.flow-step:last-child{padding-bottom:0}
+.flow-num{width:56px;height:56px;border-radius:50%;background:var(--ink);border:1.5px solid var(--amber);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;color:var(--amber);font-size:18px;z-index:1}
+.flow-step h3{font-size:18px;margin-bottom:6px}
+.flow-step p{font-size:14.5px;color:var(--muted);max-width:520px;line-height:1.6}
+
+
+/* PRICING — a connected growth path, not flat cards */
+.pricing{padding:90px 24px 110px}
+.pricing-head{text-align:center;max-width:620px;margin:0 auto 20px}
+.pricing-head h2{font-size:clamp(26px,3.4vw,36px);font-weight:700;margin-bottom:14px}
+.pricing-head p{color:var(--muted);font-size:16px}
+.toggle-row{display:flex;align-items:center;justify-content:center;gap:14px;margin:34px 0 56px}
+.toggle-label{font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;transition:color .15s}
+.toggle-label.active{color:var(--cream)}
+.toggle-switch{width:50px;height:28px;border-radius:14px;background:var(--card);border:1.5px solid var(--line);position:relative;cursor:pointer;flex-shrink:0}
+.toggle-knob{position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:var(--amber);transition:transform .2s}
+.toggle-switch.yearly .toggle-knob{transform:translateX(22px)}
+.save-badge{background:rgba(245,158,11,.16);color:var(--amber);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.02em}
+.path-wrap{position:relative}
+.path-line{position:absolute;top:64px;left:6%;right:6%;height:2px;background:linear-gradient(90deg,transparent,var(--amber) 15%,var(--amber) 85%,transparent);opacity:.3;z-index:0}
+.tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;position:relative;z-index:1;align-items:start}
+.tier{background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:28px 22px;display:flex;flex-direction:column;transition:border-color .2s,transform .2s;position:relative}
+.tier:hover{border-color:rgba(245,158,11,.4)}
+.tier.featured{border-color:var(--amber);transform:translateY(-14px);box-shadow:0 20px 50px -20px rgba(245,158,11,.35)}
+.tier-step{width:34px;height:34px;border-radius:50%;background:var(--ink);border:1.5px solid var(--amber);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;color:var(--amber);font-size:13px;margin-bottom:16px}
+.tier-name{font-family:'Fraunces',serif;font-size:21px;font-weight:700;margin-bottom:4px}
+.tier-for{font-size:12.5px;color:var(--muted);margin-bottom:18px;min-height:32px}
+.tier-price{font-family:'Fraunces',serif;font-size:30px;font-weight:700;margin-bottom:2px}
+.tier-price span{font-size:14px;font-weight:400;color:var(--muted);font-family:'Inter',sans-serif}
+.tier-cap{font-size:12.5px;color:var(--amber);font-weight:600;margin-bottom:20px}
+.tier-features{list-style:none;display:flex;flex-direction:column;gap:9px;margin-bottom:24px;flex:1}
+.tier-features li{font-size:13.5px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}
+.tier-features li::before{content:'✓';color:var(--amber);font-weight:700;flex-shrink:0}
+.tier .btn{width:100%;justify-content:center}
+.featured-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--amber);color:var(--ink);font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.03em;white-space:nowrap}
+@media (max-width:980px){.tiers{grid-template-columns:1fr 1fr}.path-line{display:none}.tier.featured{transform:none}}
+@media (max-width:600px){.tiers{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="#top" class="logo"><span class="logo-mark">Z</span>Zillion Coop</a>
+  <div class="nav-links">
+    <a href="#how-it-works">How it works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="https://zillion.ng">Zillion for individuals</a>
+  </div>
+  <div class="nav-cta">
+    <a href="#pricing" class="btn btn-primary" style="padding:10px 20px;font-size:14px">See pricing</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="wrap hero-inner">
+    <div class="eyebrow">For Cooperative Thrift &amp; Loan Societies</div>
+    <h1>Built for the cooperative you're <em>becoming</em>, not just the one you are today.</h1>
+    <p>Members, savings, loans, guarantors, and dues — run your whole society from a phone, with real records instead of a register book. Start small, grow into more as your membership does.</p>
+    <div class="hero-ctas">
+      <a href="#pricing" class="btn btn-primary">See pricing →</a>
+      <a href="#how-it-works" class="btn btn-ghost">How it works</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><b>4</b><span>plans, from small societies to federations</span></div>
+      <div class="hero-stat"><b>15%</b><span>saved by paying yearly</span></div>
+      <div class="hero-stat"><b>0</b><span>spreadsheets required</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="problem">
+  <div class="wrap problem-grid">
+    <div>
+      <h2>The register book doesn't scale past 50 members.</h2>
+      <p class="problem-lede">Most societies start on paper, move to Excel when that fails, and stall there — because neither one can answer a simple question fast: who's paid this month, who's owing, and how much is safely out on loan right now.</p>
+    </div>
+    <div class="pain-list">
+      <div class="pain"><span class="pain-mark">01</span><div><strong>Contributions get missed quietly</strong><p>No one notices a member stopped paying until months later.</p></div></div>
+      <div class="pain"><span class="pain-mark">02</span><div><strong>Loan tracking lives in someone's head</strong><p>If the treasurer is away, no one else can say what's owed.</p></div></div>
+      <div class="pain"><span class="pain-mark">03</span><div><strong>Members can't check their own standing</strong><p>Every balance question becomes a phone call or a visit.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="flow" id="how-it-works">
+  <div class="wrap">
+    <div class="flow-head">
+      <div class="eyebrow">How it works</div>
+      <h2>The way a cooperative actually runs — just no longer on paper.</h2>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div><h3>Members join</h3><p>Add existing members in bulk from a spreadsheet, or one at a time. Each gets their own record — no more shared exercise books.</p></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div><h3>They save, on a schedule</h3><p>Set contribution targets and watch progress in real time. Members pay by bank transfer, card, or in person — every kobo lands on the right record automatically.</p></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div><h3>They borrow against it</h3><p>Loan applications, guarantor approval, and disbursement — all tracked, with a real repayment schedule generated the moment money goes out.</p></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div><h3>Dues stay current</h3><p>Membership dues accrue automatically and can block a loan application until they're cleared — your rules, enforced without anyone having to remember them.</p></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">5</div>
+        <div><h3>Everyone stays informed</h3><p>Send a reminder or an announcement to one member or the whole society. No more relying on word of mouth.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <div class="pricing-head">
+      <div class="eyebrow">Pricing</div>
+      <h2>Pick the plan for the cooperative you have now.</h2>
+      <p>Every plan grows with you — moving up is just a plan change, not a new system.</p>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label active" id="label-monthly">Monthly</span>
+      <div class="toggle-switch" id="cycle-toggle" onclick="toggleCycle()" role="switch" aria-checked="false" tabindex="0"><div class="toggle-knob"></div></div>
+      <span class="toggle-label" id="label-yearly">Yearly</span>
+      <span class="save-badge">Save 15%</span>
+    </div>
+
+    <div class="path-wrap">
+      <div class="path-line"></div>
+      <div class="tiers" id="tiers-grid"><!-- populated by JS --></div>
+    </div>
+  </div>
+</section>
+
+<footer style="padding:50px 24px;border-top:1px solid var(--line);text-align:center">
+  <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+    <a href="#top" class="logo" style="font-size:16px"><span class="logo-mark" style="width:24px;height:24px;font-size:12px">Z</span>Zillion Coop</a>
+    <div style="font-size:13px;color:var(--muted)">© 2026 Zillion. Software for cooperative thrift &amp; loan societies.</div>
+  </div>
+</footer>
+
+<!-- Signup Modal -->
+<div id="signup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:16px;padding:32px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;margin-bottom:4px">Register your society</div>
+    <div id="signup-plan-summary" style="font-size:13px;color:var(--amber);font-weight:600;margin-bottom:22px"></div>
+
+    <div id="signup-form-body">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Society name</label>
+      <input id="su-name" type="text" placeholder="e.g. Unity Thrift &amp; Credit Society" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Phone number</label>
+      <input id="su-phone" type="tel" placeholder="08012345678" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Chairperson / Secretary name</label>
+      <input id="su-owner" type="text" placeholder="e.g. Amina Bello" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Email address</label>
+      <input id="su-email" type="email" placeholder="you@society.org" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);margin:-10px 0 14px">Billing reminders and receipts go here — this is also how your card gets billed each cycle.</div>
+
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Password</label>
+      <input id="su-password" type="password" placeholder="At least 6 characters" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Location (optional)</label>
+      <input id="su-location" type="text" placeholder="e.g. Lagos" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:20px">
+
+      <div id="su-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:14px"></div>
+
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitSignup()" id="su-submit-btn">Continue to payment →</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:10px" onclick="closeSignupModal()">Cancel</button>
+    </div>
+
+    <div id="signup-pending-body" style="display:none;text-align:center;padding:20px 0">
+      <div style="font-size:38px;margin-bottom:12px">✓</div>
+      <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:700;margin-bottom:10px">Payment received</div>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6" id="signup-pending-message">Your registration is pending review — you'll be notified once your account is activated.</p>
+      <button class="btn btn-primary" style="margin-top:20px" onclick="closeSignupModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/v1';
+
+const TIERS = [
+  {
+    key: 'launch', name: 'Launch', step: 1,
+    for_: 'Small/new cooperatives, church &amp; staff savings groups',
+    monthly: 9900, yearly: 100980, cap: '100 members',
+    features: ['Member management &amp; KYC', 'Savings &amp; contributions', 'Basic loan management', 'Member statements &amp; receipts', '2 admin users', 'Email support'],
+    featured: false,
+  },
+  {
+    key: 'growth', name: 'Growth', step: 2,
+    for_: 'Cooperatives moving beyond Excel and manual operations',
+    monthly: 24900, yearly: 253980, cap: '500 members',
+    features: ['Everything in Launch', 'Full loan workflow &amp; guarantors', 'Penalties &amp; charges', 'Role &amp; permission management', 'Payment integration', '5 admin users', 'Priority support'],
+    featured: true,
+  },
+  {
+    key: 'scale', name: 'Scale', step: 3,
+    for_: 'Established cooperatives with larger financial activity',
+    monthly: 49900, yearly: 508980, cap: '2,000 members',
+    features: ['Everything in Growth', 'Multi-branch support', 'Bulk member &amp; transaction upload', 'Advanced financial analytics', 'API/webhook access', '15 admin users', 'WhatsApp support'],
+    featured: false,
+  },
+  {
+    key: 'enterprise', name: 'Enterprise', step: 4,
+    for_: 'Federations, unions, and large multi-branch cooperatives',
+    monthly: null, yearly: null, cap: 'Unlimited members',
+    features: ['Everything in Scale', 'Multiple cooperatives/branches', 'White-label branding', 'Payroll integration', 'Dedicated account manager', 'Custom SLA'],
+    featured: false,
+  },
+];
+
+let currentCycle = 'monthly';
+let selectedPlan = null;
+
+function fmtNaira(kobo) { return '₦' + kobo.toLocaleString(); }
+
+function renderTiers() {
+  const grid = document.getElementById('tiers-grid');
+  grid.innerHTML = TIERS.map(t => {
+    const isEnterprise = t.key === 'enterprise';
+    const price = isEnterprise ? null : (currentCycle === 'yearly' ? t.yearly : t.monthly);
+    const priceHtml = isEnterprise
+      ? `<div class="tier-price" style="font-size:22px">Custom pricing</div>`
+      : `<div class="tier-price">${fmtNaira(price)}<span>/${currentCycle === 'yearly' ? 'year' : 'mo'}</span></div>`;
+    const cta = isEnterprise
+      ? `<a href="mailto:sales@zillion.ng?subject=Enterprise%20plan%20enquiry" class="btn btn-ghost">Contact sales →</a>`
+      : `<button class="btn btn-primary" onclick="openSignupModal('${t.key}')">Get started →</button>`;
+    return `
+      <div class="tier ${t.featured ? 'featured' : ''}">
+        ${t.featured ? '<div class="featured-badge">Most popular</div>' : ''}
+        <div class="tier-step">${t.step}</div>
+        <div class="tier-name">${t.name}</div>
+        <div class="tier-for">${t.for_}</div>
+        ${priceHtml}
+        <div class="tier-cap">${t.cap}</div>
+        <ul class="tier-features">${t.features.map(f => `<li>${f}</li>`).join('')}</ul>
+        ${cta}
+      </div>`;
+  }).join('');
+}
+
+function toggleCycle() {
+  currentCycle = currentCycle === 'monthly' ? 'yearly' : 'monthly';
+  document.getElementById('cycle-toggle').classList.toggle('yearly', currentCycle === 'yearly');
+  document.getElementById('cycle-toggle').setAttribute('aria-checked', currentCycle === 'yearly');
+  document.getElementById('label-monthly').classList.toggle('active', currentCycle === 'monthly');
+  document.getElementById('label-yearly').classList.toggle('active', currentCycle === 'yearly');
+  renderTiers();
+}
+document.getElementById('cycle-toggle').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCycle(); }
+});
+
+function openSignupModal(planKey) {
+  selectedPlan = planKey;
+  const tier = TIERS.find(t => t.key === planKey);
+  const price = currentCycle === 'yearly' ? tier.yearly : tier.monthly;
+  document.getElementById('signup-plan-summary').textContent = `${tier.name} plan — ${fmtNaira(price)}/${currentCycle === 'yearly' ? 'year' : 'month'}`;
+  document.getElementById('signup-form-body').style.display = '';
+  document.getElementById('signup-pending-body').style.display = 'none';
+  document.getElementById('su-error').style.display = 'none';
+  document.getElementById('signup-modal').style.display = 'flex';
+}
+function closeSignupModal() {
+  document.getElementById('signup-modal').style.display = 'none';
+}
+
+async function submitSignup() {
+  const errEl = document.getElementById('su-error');
+  errEl.style.display = 'none';
+  const body = {
+    society_name: document.getElementById('su-name').value.trim(),
+    phone: document.getElementById('su-phone').value.trim(),
+    owner_name: document.getElementById('su-owner').value.trim(),
+    email: document.getElementById('su-email').value.trim(),
+    password: document.getElementById('su-password').value,
+    location: document.getElementById('su-location').value.trim(),
+    plan: selectedPlan,
+    cycle: currentCycle,
+  };
+  if (!body.society_name || !body.phone || !body.owner_name || !body.email || !body.password) {
+    errEl.textContent = 'Please fill in all required fields.'; errEl.style.display = 'block'; return;
+  }
+
+  const btn = document.getElementById('su-submit-btn');
+  btn.disabled = true; btn.textContent = 'Registering...';
+
+  try {
+    const signupRes = await fetch(`${API}/public-coop-signup`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const signupData = await signupRes.json();
+    if (!signupRes.ok) {
+      errEl.textContent = signupData.error || 'Registration failed.'; errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Continue to payment →';
+      return;
+    }
+
+    btn.textContent = 'Redirecting to payment...';
+    const checkoutRes = await fetch(`${API}/public-coop-subscription-checkout-init`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coop_id: signupData.coop_id, return_url: window.location.href.split('?')[0] }),
+    });
+    const checkoutData = await checkoutRes.json();
+    if (!checkoutRes.ok || !checkoutData.checkout_url) {
+      errEl.textContent = checkoutData.error || 'Could not start payment. Your society is registered — contact support to complete payment.';
+      errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Continue to payment →';
+      return;
+    }
+    window.location.href = checkoutData.checkout_url;
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Continue to payment →';
+  }
+}
+
+async function checkForCheckoutReturn() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('checkout_return') !== '1') return;
+  const status = params.get('status');
+  const coopId = params.get('coop_id');
+  const txRef = params.get('tx_ref');
+  const transactionId = params.get('transaction_id');
+  try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
+
+  if (!coopId) return;
+  document.getElementById('signup-modal').style.display = 'flex';
+  document.getElementById('signup-form-body').style.display = 'none';
+  document.getElementById('signup-pending-body').style.display = '';
+
+  if (status === 'cancelled') {
+    document.getElementById('signup-pending-message').textContent = 'Payment was cancelled. Your society is registered but payment is still needed to proceed — contact support if you need help completing this.';
+    return;
+  }
+  if (!txRef || !transactionId) return;
+
+  document.getElementById('signup-pending-message').textContent = 'Verifying your payment...';
+  try {
+    const res = await fetch(`${API}/public-coop-subscription-checkout-verify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coop_id: coopId, transaction_id: transactionId, tx_ref: txRef }),
+    });
+    const data = await res.json();
+    document.getElementById('signup-pending-message').textContent = data.message || (data.success ? 'Payment confirmed.' : 'Payment could not be confirmed — contact support.');
+  } catch (e) {
+    document.getElementById('signup-pending-message').textContent = 'Could not verify payment: ' + e.message;
+  }
+}
+
+renderTiers();
+checkForCheckoutReturn();
+</script>
+</body>
+</html>
