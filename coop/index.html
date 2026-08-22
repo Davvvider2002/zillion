@@ -274,6 +274,7 @@ a{color:inherit;text-decoration:none}
         </div>
       </div>
       <div id="signup-pending-actions">
+        <a href="/coop-admin" class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:10px">Go to your society portal →</a>
         <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="payNowFromModal()" id="signup-paynow-btn">Add payment now →</button>
         <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:10px" onclick="closeSignupModal()">I'll do this later</button>
       </div>
@@ -416,7 +417,7 @@ async function submitSignup() {
     document.getElementById('signup-form-body').style.display = 'none';
     document.getElementById('signup-pending-body').style.display = '';
     document.getElementById('signup-pending-title').textContent = 'Your 30-day free trial has started';
-    document.getElementById('signup-pending-message').textContent = `You can start using ${body.society_name}'s account right away. Your trial runs until ${trialEndStr} — add payment anytime before then to keep going without interruption.`;
+    document.getElementById('signup-pending-message').textContent = `Sign in below with the phone and password you just entered to start using ${body.society_name}'s account. Your trial runs until ${trialEndStr} — add payment anytime before then to keep going without interruption.`;
 
     const resumeUrl = `${window.location.origin}${window.location.pathname}?resume=${encodeURIComponent(signupData.coop_id)}`;
     document.getElementById('signup-resume-link-input').value = resumeUrl;
