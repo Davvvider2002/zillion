@@ -146,3 +146,6 @@
 /api/v1/coop-portal-activate-member                   /.netlify/functions/coop-portal-activate-member                   200
 /api/v1/coop-portal-record-savings-payment            /.netlify/functions/coop-portal-record-savings-payment            200
 /api/v1/coop-portal-loan-action                       /.netlify/functions/coop-portal-loan-action                       200
+/api/v1/coop-portal-bulk-import                       /.netlify/functions/coop-portal-bulk-import                       200
+/api/v1/coop-portal-record-dues-payment               /.netlify/functions/coop-portal-record-dues-payment               200
+/api/v1/coop-portal-send-notification                 /.netlify/functions/coop-portal-send-notification                 200
