@@ -127,12 +127,16 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-view="members" onclick="switchView('members')">Members</div>
     <div class="tab" data-view="savings" onclick="switchView('savings')">Savings</div>
     <div class="tab" data-view="loans" onclick="switchView('loans')">Loans</div>
+    <div class="tab" data-view="dues" onclick="switchView('dues')">Dues</div>
+    <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
   </div>
 
   <div class="view active" id="view-dashboard"></div>
   <div class="view" id="view-members"></div>
   <div class="view" id="view-savings"></div>
   <div class="view" id="view-loans"></div>
+  <div class="view" id="view-dues"></div>
+  <div class="view" id="view-notifications"></div>
 </div>
 
 <!-- ACTIVATE MEMBER MODAL -->
@@ -175,6 +179,62 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Reason (optional)</label><input type="text" id="rl-reason" placeholder="e.g. Insufficient savings history"></div>
     <button class="btn btn-danger" style="width:100%" onclick="submitRejectLoan()" id="rl-btn">Reject loan</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-reject-loan')">Cancel</button>
+  </div>
+</div>
+
+<!-- CSV IMPORT MODAL -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Import members from CSV</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">First row must be a header with a <code>phone</code> column. Optional: <code>name</code>, <code>opening_balance</code> (in ₦).</div>
+    <div class="field"><label>Paste CSV</label><textarea id="im-csv" rows="8" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px;font-family:monospace" placeholder="phone,name,opening_balance&#10;08012345678,Amina Bello,5000"></textarea></div>
+    <div id="im-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <div id="im-results" style="display:none;max-height:200px;overflow-y:auto;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitBulkImport()" id="im-btn">Import</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-import')">Close</button>
+  </div>
+</div>
+
+<!-- RECORD DUES PAYMENT MODAL -->
+<div class="modal-overlay" id="modal-dues-payment">
+  <div class="modal-box">
+    <div class="modal-title">Record a dues payment</div>
+    <div id="dp-member-label" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="dp-amount" placeholder="0"></div>
+    <div class="field">
+      <label>How was this paid?</label>
+      <select id="dp-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('dp-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
+        <option value="bank_transfer_manual">Bank transfer</option>
+        <option value="cash_in_person">Cash</option>
+      </select>
+    </div>
+    <div class="field" id="dp-ref-field" style="display:none"><label>Reference</label><input type="text" id="dp-reference"></div>
+    <div id="dp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitDuesPayment()" id="dp-btn">Record payment</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-dues-payment')">Cancel</button>
+  </div>
+</div>
+
+<!-- COMPOSE NOTIFICATION MODAL -->
+<div class="modal-overlay" id="modal-notify">
+  <div class="modal-box">
+    <div class="modal-title">Send a notification</div>
+    <div class="field">
+      <label>Send to</label>
+      <select id="nt-target" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('nt-member-field').style.display = this.value==='individual' ? '' : 'none'">
+        <option value="broadcast">Everyone</option>
+        <option value="individual">One member</option>
+      </select>
+    </div>
+    <div class="field" id="nt-member-field" style="display:none">
+      <label>Member</label>
+      <select id="nt-member-id" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></select>
+    </div>
+    <div class="field"><label>Title</label><input type="text" id="nt-title" placeholder="e.g. Meeting reminder"></div>
+    <div class="field"><label>Message</label><textarea id="nt-body" rows="4" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></textarea></div>
+    <div id="nt-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNotification()" id="nt-btn">Send</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-notify')">Cancel</button>
   </div>
 </div>
 
@@ -290,6 +350,8 @@ function switchView(name) {
   if (name === 'members') renderMembers();
   if (name === 'savings') renderSavings();
   if (name === 'loans') renderLoans();
+  if (name === 'dues') renderDues();
+  if (name === 'notifications') renderNotifications();
 }
 
 async function refreshAndRender() {
@@ -335,7 +397,10 @@ function renderMembers() {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Members
-        <button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>
+          <button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>
+        </div>
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
       <div class="table-wrap"><table>
@@ -379,6 +444,36 @@ async function submitActivateMember() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Activate member';
+  }
+}
+
+async function submitBulkImport() {
+  const errEl = document.getElementById('im-error');
+  const resultsEl = document.getElementById('im-results');
+  errEl.style.display = 'none'; resultsEl.style.display = 'none';
+  const csvText = document.getElementById('im-csv').value.trim();
+  if (!csvText) { errEl.textContent = 'Paste some CSV first.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('im-btn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  try {
+    const res = await fetch(`${API}/coop-portal-bulk-import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ csv_text: csvText }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Import failed.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Import'; return; }
+
+    const s = data.summary;
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = `<div style="margin-bottom:6px;font-weight:600">${s.created} created · ${s.already_existed} already existed · ${s.failed} failed</div>` +
+      data.results.filter(r => r.status === 'failed').map(r => `<div style="color:#FF8A8A">Line ${r.line}: ${r.error}</div>`).join('');
+    notify(`Import complete — ${s.created} member(s) added`);
+    btn.disabled = false; btn.textContent = 'Import';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Import';
   }
 }
 
@@ -511,6 +606,133 @@ async function submitRejectLoan() {
   const reason = document.getElementById('rl-reason').value.trim();
   closeModal('modal-reject-loan');
   await doLoanAction(pendingLoanId, 'reject', reason);
+}
+
+// ── DUES ──────────────────────────────────────────────────────────────
+let pendingDuesMemberId = null;
+
+function renderDues() {
+  const d = portalData;
+  const el = document.getElementById('view-dues');
+  const withDues = d.members.filter(m => m.dues);
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Dues</div>
+      <div class="card-sub">${d.society.dues_amount_kobo ? `₦${(d.society.dues_amount_kobo/100).toLocaleString()} ${d.society.dues_frequency || 'monthly'} per member.` : 'Dues are not configured for this society yet.'}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Member</th><th>Accrued</th><th>Paid</th><th>Owing</th><th></th></tr></thead>
+        <tbody>${withDues.map(m => `
+          <tr>
+            <td>${m.name || m.phone_normalized}</td>
+            <td>${fmtNaira(m.dues.total_accrued_kobo)}</td>
+            <td>${fmtNaira(m.dues.total_paid_kobo)}</td>
+            <td>${m.dues.owing_kobo > 0 ? `<span class="pill pill-amber">${fmtNaira(m.dues.owing_kobo)}</span>` : `<span class="pill pill-green">Clear</span>`}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openDuesPaymentModal('${m.id}','${(m.name || m.phone_normalized).replace(/'/g,"\\'")}')">Record payment</button></td>
+          </tr>
+        `).join('') || '<tr><td colspan="5" class="no-data">No dues to show yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openDuesPaymentModal(memberId, memberLabel) {
+  pendingDuesMemberId = memberId;
+  document.getElementById('dp-member-label').textContent = `For: ${memberLabel}`;
+  document.getElementById('dp-amount').value = '';
+  document.getElementById('dp-reference').value = '';
+  document.getElementById('dp-error').style.display = 'none';
+  openModal('modal-dues-payment');
+}
+
+async function submitDuesPayment() {
+  const errEl = document.getElementById('dp-error');
+  errEl.style.display = 'none';
+  const amount = parseInt(document.getElementById('dp-amount').value) || 0;
+  const source = document.getElementById('dp-source').value;
+  const reference = document.getElementById('dp-reference').value.trim();
+  if (amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('dp-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-dues-payment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: pendingDuesMemberId, amount_kobo: amount * 100, source, reference }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record payment.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Record payment'; return; }
+    notify('Dues payment recorded');
+    closeModal('modal-dues-payment');
+    btn.disabled = false; btn.textContent = 'Record payment';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Record payment';
+  }
+}
+
+// ── NOTIFICATIONS ────────────────────────────────────────────────────
+function renderNotifications() {
+  const d = portalData;
+  const el = document.getElementById('view-notifications');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Notifications
+        <button class="btn btn-primary btn-sm" onclick="openNotifyModal()">✎ New message</button>
+      </div>
+      <div class="card-sub">One-way messages to your members — broadcasts or individual notes.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Title</th><th>To</th><th>Sent</th></tr></thead>
+        <tbody>${d.notifications.map(n => `
+          <tr>
+            <td>${n.title}</td>
+            <td>${n.target_type === 'individual' ? (n.target_member?.name || 'One member') : '<span class="pill pill-muted">Everyone</span>'}</td>
+            <td>${fmtDate(n.created_at)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="3" class="no-data">No notifications sent yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openNotifyModal() {
+  document.getElementById('nt-target').value = 'broadcast';
+  document.getElementById('nt-member-field').style.display = 'none';
+  document.getElementById('nt-title').value = '';
+  document.getElementById('nt-body').value = '';
+  document.getElementById('nt-error').style.display = 'none';
+  const sel = document.getElementById('nt-member-id');
+  sel.innerHTML = portalData.members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  openModal('modal-notify');
+}
+
+async function submitNotification() {
+  const errEl = document.getElementById('nt-error');
+  errEl.style.display = 'none';
+  const targetType = document.getElementById('nt-target').value;
+  const targetMemberId = document.getElementById('nt-member-id').value;
+  const title = document.getElementById('nt-title').value.trim();
+  const bodyText = document.getElementById('nt-body').value.trim();
+  if (!title || !bodyText) { errEl.textContent = 'Title and message are both required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('nt-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(`${API}/coop-portal-send-notification`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ title, body: bodyText, target_type: targetType, target_member_id: targetType === 'individual' ? targetMemberId : null }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Send'; return; }
+    notify('Notification sent');
+    closeModal('modal-notify');
+    btn.disabled = false; btn.textContent = 'Send';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Send';
+  }
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────
