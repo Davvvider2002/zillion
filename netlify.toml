@@ -583,3 +583,8 @@
   from = "/api/v1/coop-repay-loan-offline"
   to   = "/.netlify/functions/coop-repay-loan-offline"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-societies"
+  to   = "/.netlify/functions/admin-coop-societies"
+  status = 200
