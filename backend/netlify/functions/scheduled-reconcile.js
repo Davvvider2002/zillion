@@ -138,6 +138,45 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] subscription grace-period check failed:', e.message);
   }
 
+  // ── 5. Trial expiry (no automated reminder yet — see note) ──────────────
+  // Self-service trials run 30 days with zero payment collected
+  // (Flutterwave has no delayed-first-charge mechanism, so this is the
+  // only honest way to offer a real trial). This flags trials that have
+  // run out without ever getting a real payment, flips them to
+  // 'trial_expired' so admin sees it, and raises one alert — naturally
+  // non-repeating, since the status change away from 'trial' means this
+  // query no longer matches that society on the next run.
+  //
+  // What this deliberately does NOT do: send the society an automated
+  // "your trial ends soon" reminder — no email/SMS sending exists yet
+  // in Zillion (that's the still-unbuilt Communication Hub module).
+  // This alert is the honest substitute: it surfaces in admin + Discord
+  // so a real person can follow up directly, rather than pretending an
+  // automated reminder pipeline exists when it doesn't.
+  try {
+    const { data: trialSocieties } = await db.from('coop_societies')
+      .select('coop_id, name, trial_ends_at, subscription_paid_until')
+      .eq('subscription_status', 'trial')
+      .not('trial_ends_at', 'is', null);
+
+    const now = new Date();
+    for (const society of (trialSocieties || [])) {
+      const expired = new Date(society.trial_ends_at) < now;
+      if (expired && !society.subscription_paid_until) {
+        await db.from('coop_societies').update({ subscription_status: 'trial_expired' }).eq('coop_id', society.coop_id);
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'WARNING',
+          source:   SOURCE,
+          message:  `${society.name}'s free trial has ended with no payment — worth a follow-up call`,
+          context:  { coop_id: society.coop_id, trial_ends_at: society.trial_ends_at },
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] trial expiry check failed:', e.message);
+  }
+
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
   return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised }) };
 };
