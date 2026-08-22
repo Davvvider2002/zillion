@@ -593,3 +593,28 @@
   from = "/api/v1/admin-coop-bulk-import"
   to   = "/.netlify/functions/admin-coop-bulk-import"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-setup-subscription-plans"
+  to   = "/.netlify/functions/admin-setup-subscription-plans"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-signup"
+  to   = "/.netlify/functions/public-coop-signup"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-subscription-checkout-init"
+  to   = "/.netlify/functions/public-coop-subscription-checkout-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-subscription-checkout-verify"
+  to   = "/.netlify/functions/public-coop-subscription-checkout-verify"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-activate-coop-subscription"
+  to   = "/.netlify/functions/admin-activate-coop-subscription"
+  status = 200
