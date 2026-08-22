@@ -139,3 +139,4 @@
 /api/v1/public-coop-subscription-checkout-init       /.netlify/functions/public-coop-subscription-checkout-init       200
 /api/v1/public-coop-subscription-checkout-verify     /.netlify/functions/public-coop-subscription-checkout-verify     200
 /api/v1/admin-activate-coop-subscription             /.netlify/functions/admin-activate-coop-subscription             200
+/coop            /coop/index.html            200
