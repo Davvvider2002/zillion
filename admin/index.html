@@ -880,7 +880,7 @@ tbody tr:last-child td{border-bottom:none;}
 
     <div id="ct-tab-members" class="ct-tab-content">
       <div class="card">
-        <div class="card-title">Members<div><button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openActivateMemberModal()">&#x2795; Activate Member</button></div></div>
+        <div class="card-title">Members<div style="display:flex;gap:8px"><button class="rbtn" onclick="openBulkImportModal()">&#x1F4C4; Import CSV</button><button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openActivateMemberModal()">&#x2795; Activate Member</button></div></div>
         <div class="table-wrap"><table>
           <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Activated</th></tr></thead>
           <tbody id="ct-members-table-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
@@ -989,6 +989,32 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:10px">
       <button onclick="closeActivateMemberModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitActivateMember()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Activate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Import Members modal -->
+<div id="bulk-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px">Import Members from CSV</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:14px">First row must be a header. Required column: <code>phone</code>. Optional: <code>name</code>, <code>opening_balance</code> (in Naira). Column order doesn't matter.</div>
+    <div style="background:var(--grl);border-radius:8px;padding:10px;font-family:monospace;font-size:11px;color:var(--tx2);margin-bottom:12px;white-space:pre">phone,name,opening_balance
+08011111111,Amina Bello,5000
+08022222222,Musa Ibrahim,</div>
+    <textarea class="field-input" id="bi-csv-text" rows="8" placeholder="Paste your CSV here..." style="margin-bottom:12px;width:100%;box-sizing:border-box;resize:vertical;font-family:monospace;font-size:12px"></textarea>
+    <div id="bi-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div id="bi-results" style="display:none;margin-bottom:14px">
+      <div id="bi-summary" style="font-weight:600;margin-bottom:10px"></div>
+      <div class="table-wrap" style="max-height:240px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Line</th><th>Phone</th><th>Name</th><th>Result</th></tr></thead>
+          <tbody id="bi-results-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeBulkImportModal()" id="bi-cancel-btn" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Close</button>
+      <button onclick="submitBulkImport()" id="bi-submit-btn" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Import</button>
     </div>
   </div>
 </div>
@@ -3134,6 +3160,67 @@ async function submitActivateMember() {
     notify(res.ok ? 'Member activated' : 'Member already existed — refreshed');
     openSocietyDetail(ctCurrentCoopId);
   } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+function openBulkImportModal() {
+  document.getElementById('bi-csv-text').value = '';
+  document.getElementById('bi-error').style.display = 'none';
+  document.getElementById('bi-results').style.display = 'none';
+  document.getElementById('bi-submit-btn').style.display = '';
+  document.getElementById('bi-submit-btn').disabled = false;
+  document.getElementById('bi-submit-btn').textContent = 'Import';
+  document.getElementById('bulk-import-modal').style.display = 'flex';
+}
+function closeBulkImportModal() {
+  document.getElementById('bulk-import-modal').style.display = 'none';
+  // Refresh the members list in case an import happened before closing
+  if (ctCurrentCoopId) openSocietyDetail(ctCurrentCoopId);
+}
+
+async function submitBulkImport() {
+  const errEl = document.getElementById('bi-error');
+  errEl.style.display = 'none';
+  const csvText = document.getElementById('bi-csv-text').value.trim();
+  if (!csvText) { errEl.textContent = 'Paste a CSV first.'; errEl.style.display = 'block'; return; }
+
+  const submitBtn = document.getElementById('bi-submit-btn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Importing...';
+
+  try {
+    const res = await fetch(`${API}/admin-coop-bulk-import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, csv_text: csvText }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Import failed.'; errEl.style.display = 'block';
+      submitBtn.disabled = false; submitBtn.textContent = 'Import';
+      return;
+    }
+
+    const s = data.summary;
+    document.getElementById('bi-summary').innerHTML =
+      `${s.total} rows · <span style="color:var(--g)">${s.created} activated</span> · <span style="color:var(--tx3)">${s.already_existed} already existed</span>` +
+      (s.failed > 0 ? ` · <span style="color:#e74c3c">${s.failed} failed</span>` : '');
+
+    const statusColor = st => ({ created: 'var(--g)', already_existed: 'var(--tx3)', failed: '#e74c3c' }[st]);
+    document.getElementById('bi-results-body').innerHTML = data.results.map(r => `
+      <tr>
+        <td>${r.line}</td>
+        <td>${r.phone || '—'}</td>
+        <td>${r.name || '—'}</td>
+        <td style="color:${statusColor(r.status)};font-weight:600">${r.status === 'failed' ? (r.error || 'failed') : r.status.replace(/_/g,' ')}</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('bi-results').style.display = '';
+    submitBtn.style.display = 'none'; // import is one-shot per paste — re-running would re-process already-handled rows
+    notify(`Import complete: ${s.created} activated, ${s.already_existed} already existed, ${s.failed} failed`);
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    submitBtn.disabled = false; submitBtn.textContent = 'Import';
+  }
 }
 
 // -- Create Savings Plan --
