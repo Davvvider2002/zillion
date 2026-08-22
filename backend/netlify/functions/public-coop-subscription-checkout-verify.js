@@ -3,11 +3,13 @@
  *
  * POST /api/v1/public-coop-subscription-checkout-verify
  *
- * Public, unauthenticated — verifies the first subscription payment
- * server-side (never trusts the redirect alone), records it, and
- * extends subscription_paid_until. Deliberately does NOT change
- * subscription_status — payment success alone does not activate a
- * society; that stays a manual admin action per explicit instruction.
+ * Public, unauthenticated — verifies the first real subscription
+ * payment server-side (never trusts the redirect alone), records it,
+ * and extends subscription_paid_until. Moves subscription_status to
+ * 'pending_verification' on success — payment alone still doesn't
+ * activate a society, matching instruction that only an admin does
+ * that, whether this payment came from a trial converting to paid or
+ * the legacy pre-trial signup path.
  *
  * Body: { coop_id, transaction_id, tx_ref }
  */
@@ -83,7 +85,18 @@ exports.handler = async (event) => {
   }
 
   const paidUntil = extendSubscription(society.subscription_paid_until, society.subscription_cycle);
-  await db.from('coop_societies').update({ subscription_paid_until: paidUntil.toISOString() }).eq('coop_id', coopId);
+  await db.from('coop_societies').update({
+    subscription_paid_until: paidUntil.toISOString(),
+    // Real money has now landed — whether this society was on a trial,
+    // past its trial, or on the legacy pre-trial path, it moves to
+    // pending_verification so an admin still explicitly activates it,
+    // per instruction that payment alone never does. This does briefly
+    // demote a mid-trial society (status stays 'TRIAL' operationally,
+    // only the billing-side subscription_status changes) but that's
+    // correct — they've now paid and are waiting on the same admin
+    // review every self-service signup goes through.
+    subscription_status: 'pending_verification',
+  }).eq('coop_id', coopId);
 
   return ok({
     success: true,
