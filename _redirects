@@ -132,3 +132,4 @@
 /api/v1/coop-record-loan-repayment       /.netlify/functions/coop-record-loan-repayment       200
 /api/v1/coop-repay-loan-from-savings     /.netlify/functions/coop-repay-loan-from-savings     200
 /api/v1/coop-repay-loan-offline          /.netlify/functions/coop-repay-loan-offline          200
+/api/v1/admin-coop-societies    /.netlify/functions/admin-coop-societies    200
