@@ -134,3 +134,8 @@
 /api/v1/coop-repay-loan-offline          /.netlify/functions/coop-repay-loan-offline          200
 /api/v1/admin-coop-societies    /.netlify/functions/admin-coop-societies    200
 /api/v1/admin-coop-bulk-import    /.netlify/functions/admin-coop-bulk-import    200
+/api/v1/admin-setup-subscription-plans              /.netlify/functions/admin-setup-subscription-plans              200
+/api/v1/public-coop-signup                           /.netlify/functions/public-coop-signup                           200
+/api/v1/public-coop-subscription-checkout-init       /.netlify/functions/public-coop-subscription-checkout-init       200
+/api/v1/public-coop-subscription-checkout-verify     /.netlify/functions/public-coop-subscription-checkout-verify     200
+/api/v1/admin-activate-coop-subscription             /.netlify/functions/admin-activate-coop-subscription             200
