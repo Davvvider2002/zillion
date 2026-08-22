@@ -2927,8 +2927,8 @@ function renderCoopThriftTable(societies) {
   const tbody = document.getElementById('coopthrift-table-body');
   if (!societies.length) { tbody.innerHTML = '<tr><td colspan="5" class="no-data">No societies yet — create one to get started.</td></tr>'; return; }
   const statusColor = s => ({ TRIAL: 'var(--am)', ACTIVE: 'var(--g)', SUSPENDED: '#e74c3c' }[s] || 'var(--tx2)');
-  const subColor = s => ({ pending_verification: 'var(--am)', active: 'var(--g)', suspended: '#e74c3c' }[s] || 'var(--tx3)');
-  const subLabel = s => ({ pending_verification: 'Pending', active: 'Active', suspended: 'Suspended' }[s] || s || '—');
+  const subColor = s => ({ trial: 'var(--g)', trial_expired: '#e74c3c', pending_verification: 'var(--am)', active: 'var(--g)', suspended: '#e74c3c' }[s] || 'var(--tx3)');
+  const subLabel = s => ({ trial: 'Trial', trial_expired: 'Trial ended', pending_verification: 'Pending', active: 'Active', suspended: 'Suspended' }[s] || s || '—');
   tbody.innerHTML = societies.map(s => `
     <tr>
       <td style="font-weight:600">${s.name}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
