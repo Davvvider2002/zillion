@@ -850,8 +850,8 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="card-sub">A cooperative savings &amp; loan society — members are existing wallet users the admin activates and manages.</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Status</th><th>Trial Ends</th><th>Action</th></tr></thead>
-          <tbody id="coopthrift-table-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>Status</th><th>Subscription</th><th>Trial Ends</th><th>Action</th></tr></thead>
+          <tbody id="coopthrift-table-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -2925,16 +2925,37 @@ async function loadCoopThriftSocieties() {
 
 function renderCoopThriftTable(societies) {
   const tbody = document.getElementById('coopthrift-table-body');
-  if (!societies.length) { tbody.innerHTML = '<tr><td colspan="4" class="no-data">No societies yet — create one to get started.</td></tr>'; return; }
+  if (!societies.length) { tbody.innerHTML = '<tr><td colspan="5" class="no-data">No societies yet — create one to get started.</td></tr>'; return; }
   const statusColor = s => ({ TRIAL: 'var(--am)', ACTIVE: 'var(--g)', SUSPENDED: '#e74c3c' }[s] || 'var(--tx2)');
+  const subColor = s => ({ pending_verification: 'var(--am)', active: 'var(--g)', suspended: '#e74c3c' }[s] || 'var(--tx3)');
+  const subLabel = s => ({ pending_verification: 'Pending', active: 'Active', suspended: 'Suspended' }[s] || s || '—');
   tbody.innerHTML = societies.map(s => `
     <tr>
-      <td style="font-weight:600">${s.name}</td>
+      <td style="font-weight:600">${s.name}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
       <td><span style="color:${statusColor(s.status)};font-weight:600">${s.status}</span></td>
+      <td>
+        <span style="color:${subColor(s.subscription_status)};font-weight:600">${subLabel(s.subscription_status)}</span>
+        ${s.subscription_plan ? `<div style="font-size:10px;color:var(--tx3)">${s.subscription_plan} · ${s.subscription_cycle}</div>` : ''}
+        ${s.subscription_status === 'pending_verification' && s.subscription_paid_until ? `<button class="rbtn" style="background:var(--gl);color:var(--g);margin-top:4px" onclick="activateSubscription('${s.coop_id}')">Activate</button>` : ''}
+      </td>
       <td>${s.trial_ends_at ? new Date(s.trial_ends_at).toLocaleDateString() : '—'}</td>
       <td><button class="rbtn" onclick="openSocietyDetail('${s.coop_id}')">View &rsaquo;</button></td>
     </tr>
   `).join('');
+}
+
+async function activateSubscription(coopId) {
+  if (!confirm('Activate this society? Confirm you have completed the necessary verification first.')) return;
+  try {
+    const res = await fetch(`${API}/admin-activate-coop-subscription`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: coopId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('Activation: ' + (data.error || 'failed'), true); return; }
+    notify(data.message || 'Activated');
+    loadCoopThriftSocieties();
+  } catch (e) { notify('Activation: ' + e.message, true); }
 }
 
 function openCreateSocietyModal() {
