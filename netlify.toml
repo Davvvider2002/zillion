@@ -588,3 +588,8 @@
   from = "/api/v1/admin-coop-societies"
   to   = "/.netlify/functions/admin-coop-societies"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-bulk-import"
+  to   = "/.netlify/functions/admin-coop-bulk-import"
+  status = 200
