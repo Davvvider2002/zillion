@@ -152,15 +152,27 @@ exports.handler = async (event) => {
         .filter(tx => result.settled.includes(tx.coin_id) && !tx.is_sent)
         .reduce((s, tx) => s + (tx.value_kobo || tx.amount || 0), 0);
       if (receivedTotalKobo > 0) {
-        try {
-          await applyCommission({
-            txnType:    'p2p',
-            amountKobo: receivedTotalKobo,
-            agentId:    null,
-            mfbId:      null,
-            coinId:     result.settled[0] || null,
-          });
-        } catch (ce) { console.warn('[sync] commission (p2p):', ce.message); }
+        // Cooperative societies are exempt from P2P commission — part of
+        // the original coop module design, never actually implemented
+        // until now. Checked by matching the receiving merchant identity
+        // against coop_societies.merchant_id.
+        let isCoopSociety = false;
+        if (body.device_id && body.device_id.startsWith('MERCHANT-')) {
+          const merchantId = body.device_id.slice('MERCHANT-'.length);
+          const { data: society } = await db.from('coop_societies').select('coop_id').eq('merchant_id', merchantId).maybeSingle();
+          isCoopSociety = !!society;
+        }
+        if (!isCoopSociety) {
+          try {
+            await applyCommission({
+              txnType:    'p2p',
+              amountKobo: receivedTotalKobo,
+              agentId:    null,
+              mfbId:      null,
+              coinId:     result.settled[0] || null,
+            });
+          } catch (ce) { console.warn('[sync] commission (p2p):', ce.message); }
+        }
       }
     }
 
