@@ -618,3 +618,8 @@
   from = "/api/v1/admin-activate-coop-subscription"
   to   = "/.netlify/functions/admin-activate-coop-subscription"
   status = 200
+
+[[redirects]]
+  from = "/coop"
+  to   = "/coop/index.html"
+  status = 200
