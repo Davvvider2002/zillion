@@ -4,12 +4,15 @@
  * POST /api/v1/public-coop-signup
  *
  * Public self-service signup — no authentication, reachable from the
- * landing page. Creates a real merchant identity + coop_societies row,
- * same as the admin-created path, but landing in
- * subscription_status='pending_verification' rather than any active
- * state. Payment (next step) does NOT change this — per explicit
- * instruction, only admin activates after verification. This endpoint
- * only registers the society; it never activates anything on its own.
+ * landing page. Creates a real merchant identity + coop_societies row
+ * with a real, immediately-usable 30-day free trial — no payment
+ * collected at signup. Flutterwave has no mechanism to collect a card
+ * now and delay the first charge, so a genuine trial has to mean
+ * "usable now, pay before it ends" rather than "card on file,
+ * charged later." subscription_status starts as 'trial'; the
+ * society's operational status is 'TRIAL' too (same field
+ * admin-created societies use), so they can actually log in and use
+ * the product during the trial, not just be registered.
  *
  * Body: { society_name, phone, owner_name, email, password, location?, plan, cycle }
  */
@@ -104,13 +107,14 @@ exports.handler = async (event) => {
     name,
     phone,
     owner_name:                  ownerName,
-    subscription_status:            'pending_verification',
+    subscription_status:            'trial',
     subscription_plan:                 plan,
     subscription_cycle:                   cycle,
     subscription_email:                      email,
     flutterwave_payment_plan_id:                planRow.flutterwave_plan_id,
     signup_source:                                 'self_service',
-    status:                                           'TRIAL', // reuses the existing status field for the operational-society-state machine; subscription_status tracks the billing/verification side separately
+    status:                                           'TRIAL', // usable immediately, matching how admin-created trial societies already work
+    trial_ends_at:                                       new Date(Date.now() + 30*24*60*60*1000).toISOString(),
   }).select().single();
 
   if (societyErr) {
@@ -121,6 +125,7 @@ exports.handler = async (event) => {
   return ok({
     success: true,
     coop_id: society.coop_id,
-    message: `${name} registered. Complete payment to proceed — your account will be reviewed and activated shortly after.`,
+    trial_ends_at: society.trial_ends_at,
+    message: `${name} is registered and ready to use — your 30-day free trial has started.`,
   });
 };
