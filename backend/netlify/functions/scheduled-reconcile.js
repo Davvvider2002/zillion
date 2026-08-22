@@ -7,10 +7,16 @@
  * coins table for every holder, and writes any drift to system_alerts
  * so it surfaces in the admin dashboard's System Health panel.
  *
- * Read-only against financial data — never modifies coins or balances,
- * only ever writes to system_alerts. Also checks a couple of other
- * cheap, useful signals: open fraud events, and old pending agent MFB
- * change requests nobody's actioned.
+ * Read-only against financial/coin data — never modifies coins or
+ * balances, only ever writes to system_alerts. Also checks a couple of
+ * other cheap, useful signals: open fraud events, and old pending
+ * agent MFB change requests nobody's actioned. One exception: the
+ * subscription grace-period check below DOES modify
+ * coop_societies.subscription_status — a real, deliberate departure
+ * from "read-only," since suspending access for an overdue
+ * subscription is an operational action, not a financial-balance one,
+ * and this is where the grace period (no immediate suspension on one
+ * failed renewal charge) actually gets enforced.
  */
 'use strict';
 
@@ -101,6 +107,35 @@ exports.handler = async () => {
     }
   } catch (e) {
     // Table may not exist in all environments — non-fatal
+  }
+
+  // ── 4. Subscription grace-period suspension ──────────────────────────────
+  // Societies whose subscription_paid_until is more than 7 days in the
+  // past get suspended here — not immediately on a failed renewal charge
+  // (handled in the webhook), giving real time before anything happens
+  // to their access.
+  try {
+    const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
+    const { data: activeSocieties } = await db.from('coop_societies')
+      .select('coop_id, name, subscription_status, subscription_paid_until')
+      .not('subscription_paid_until', 'is', null)
+      .eq('subscription_status', 'active');
+
+    const now = new Date();
+    for (const society of (activeSocieties || [])) {
+      if (isPastGrace(society.subscription_paid_until, now)) {
+        await db.from('coop_societies').update({ subscription_status: 'suspended' }).eq('coop_id', society.coop_id);
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'WARNING',
+          source:   SOURCE,
+          message:  `${society.name} suspended — subscription unpaid past the 7-day grace period`,
+          context:  { coop_id: society.coop_id, subscription_paid_until: society.subscription_paid_until },
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] subscription grace-period check failed:', e.message);
   }
 
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
