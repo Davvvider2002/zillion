@@ -653,3 +653,18 @@
   from = "/api/v1/coop-portal-loan-action"
   to   = "/.netlify/functions/coop-portal-loan-action"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-bulk-import"
+  to   = "/.netlify/functions/coop-portal-bulk-import"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-record-dues-payment"
+  to   = "/.netlify/functions/coop-portal-record-dues-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-send-notification"
+  to   = "/.netlify/functions/coop-portal-send-notification"
+  status = 200
