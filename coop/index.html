@@ -138,14 +138,14 @@ a{color:inherit;text-decoration:none}
     <div class="hero-text">
       <div class="eyebrow">For Cooperative Thrift &amp; Loan Societies</div>
       <h1>Built for the cooperative you're <em>becoming</em>, not just the one you are today.</h1>
-      <p>Members, savings, loans, guarantors, and dues — run your whole society from a phone, with real records instead of a register book. Start small, grow into more as your membership does.</p>
+      <p>Members, savings, loans, guarantors, and dues — run your whole society from a phone, with real records instead of a register book. Try it free for 30 days, no card required.</p>
       <div class="hero-ctas">
-        <a href="#pricing" class="btn btn-primary">See pricing →</a>
+        <a href="#pricing" class="btn btn-primary">Start free trial →</a>
         <a href="#how-it-works" class="btn btn-ghost">How it works</a>
       </div>
       <div class="hero-stats">
-        <div class="hero-stat"><b>4</b><span>plans, from small societies to federations</span></div>
-        <div class="hero-stat"><b>15%</b><span>saved by paying yearly</span></div>
+        <div class="hero-stat"><b>30</b><span>days free, no card required</span></div>
+        <div class="hero-stat"><b>15%</b><span>saved by paying yearly after</span></div>
         <div class="hero-stat"><b>0</b><span>spreadsheets required</span></div>
       </div>
     </div>
@@ -207,7 +207,7 @@ a{color:inherit;text-decoration:none}
     <div class="pricing-head">
       <div class="eyebrow">Pricing</div>
       <h2>Pick the plan for the cooperative you have now.</h2>
-      <p>Every plan grows with you — moving up is just a plan change, not a new system.</p>
+      <p>Every plan starts with a free 30-day trial — no card needed. Pick the plan for the cooperative you have now; moving up later is just a plan change, not a new system.</p>
     </div>
     <div class="toggle-row">
       <span class="toggle-label active" id="label-monthly">Monthly</span>
@@ -248,7 +248,7 @@ a{color:inherit;text-decoration:none}
 
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Email address</label>
       <input id="su-email" type="email" placeholder="you@society.org" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
-      <div style="font-size:11px;color:var(--muted);margin:-10px 0 14px">Billing reminders and receipts go here — this is also how your card gets billed each cycle.</div>
+      <div style="font-size:11px;color:var(--muted);margin:-10px 0 14px">Where we'll reach you about your trial and account — no card needed to start.</div>
 
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Password</label>
       <input id="su-password" type="password" placeholder="At least 6 characters" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
@@ -258,15 +258,25 @@ a{color:inherit;text-decoration:none}
 
       <div id="su-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:14px"></div>
 
-      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitSignup()" id="su-submit-btn">Continue to payment →</button>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitSignup()" id="su-submit-btn">Start free trial →</button>
       <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:10px" onclick="closeSignupModal()">Cancel</button>
     </div>
 
-    <div id="signup-pending-body" style="display:none;text-align:center;padding:20px 0">
+    <div id="signup-pending-body" style="display:none;text-align:center;padding:10px 0">
       <div style="font-size:38px;margin-bottom:12px">✓</div>
-      <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:700;margin-bottom:10px">Payment received</div>
-      <p style="font-size:14px;color:var(--muted);line-height:1.6" id="signup-pending-message">Your registration is pending review — you'll be notified once your account is activated.</p>
-      <button class="btn btn-primary" style="margin-top:20px" onclick="closeSignupModal()">Done</button>
+      <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:700;margin-bottom:10px" id="signup-pending-title">Your 30-day free trial has started</div>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6" id="signup-pending-message">You can start using your society's account right away — no payment needed yet.</p>
+      <div id="signup-resume-link-box" style="display:none;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;margin:18px 0;text-align:left">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Bookmark this link to add payment anytime before your trial ends:</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="signup-resume-link-input" readonly style="flex:1;background:transparent;border:none;color:var(--amber);font-size:12px;font-family:monospace;overflow:hidden;text-overflow:ellipsis" onclick="this.select()">
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px" onclick="copyResumeLink()">Copy</button>
+        </div>
+      </div>
+      <div id="signup-pending-actions">
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="payNowFromModal()" id="signup-paynow-btn">Add payment now →</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:10px" onclick="closeSignupModal()">I'll do this later</button>
+      </div>
     </div>
   </div>
 </div>
@@ -320,7 +330,7 @@ function renderTiers() {
       : `<div class="tier-price">${fmtNaira(price)}<span>/${currentCycle === 'yearly' ? 'year' : 'mo'}</span></div>`;
     const cta = isEnterprise
       ? `<a href="mailto:sales@zillion.ng?subject=Enterprise%20plan%20enquiry" class="btn btn-ghost">Contact sales →</a>`
-      : `<button class="btn btn-primary" onclick="openSignupModal('${t.key}')">Get started →</button>`;
+      : `<button class="btn btn-primary" onclick="openSignupModal('${t.key}')">Start free trial →</button>`;
     return `
       <div class="tier ${t.featured ? 'featured' : ''}">
         ${t.featured ? '<div class="featured-badge">Most popular</div>' : ''}
@@ -351,15 +361,22 @@ function openSignupModal(planKey) {
   selectedPlan = planKey;
   const tier = TIERS.find(t => t.key === planKey);
   const price = currentCycle === 'yearly' ? tier.yearly : tier.monthly;
-  document.getElementById('signup-plan-summary').textContent = `${tier.name} plan — ${fmtNaira(price)}/${currentCycle === 'yearly' ? 'year' : 'month'}`;
+  document.getElementById('signup-plan-summary').textContent = `${tier.name} plan — 30 days free, then ${fmtNaira(price)}/${currentCycle === 'yearly' ? 'year' : 'month'}`;
   document.getElementById('signup-form-body').style.display = '';
   document.getElementById('signup-pending-body').style.display = 'none';
+  document.getElementById('signup-resume-link-box').style.display = 'none';
+  document.getElementById('signup-pending-actions').style.display = '';
+  document.getElementById('signup-paynow-btn').style.display = '';
   document.getElementById('su-error').style.display = 'none';
+  const submitBtn = document.getElementById('su-submit-btn');
+  submitBtn.disabled = false; submitBtn.textContent = 'Start free trial →';
   document.getElementById('signup-modal').style.display = 'flex';
 }
 function closeSignupModal() {
   document.getElementById('signup-modal').style.display = 'none';
 }
+
+let pendingCoopId = null; // set once we know which society we're showing the confirmation/resume state for
 
 async function submitSignup() {
   const errEl = document.getElementById('su-error');
@@ -379,7 +396,7 @@ async function submitSignup() {
   }
 
   const btn = document.getElementById('su-submit-btn');
-  btn.disabled = true; btn.textContent = 'Registering...';
+  btn.disabled = true; btn.textContent = 'Starting your trial...';
 
   try {
     const signupRes = await fetch(`${API}/public-coop-signup`, {
@@ -388,26 +405,58 @@ async function submitSignup() {
     const signupData = await signupRes.json();
     if (!signupRes.ok) {
       errEl.textContent = signupData.error || 'Registration failed.'; errEl.style.display = 'block';
-      btn.disabled = false; btn.textContent = 'Continue to payment →';
+      btn.disabled = false; btn.textContent = 'Start free trial →';
       return;
     }
 
-    btn.textContent = 'Redirecting to payment...';
+    pendingCoopId = signupData.coop_id;
+    const trialEnd = signupData.trial_ends_at ? new Date(signupData.trial_ends_at) : null;
+    const trialEndStr = trialEnd ? trialEnd.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : 'in 30 days';
+
+    document.getElementById('signup-form-body').style.display = 'none';
+    document.getElementById('signup-pending-body').style.display = '';
+    document.getElementById('signup-pending-title').textContent = 'Your 30-day free trial has started';
+    document.getElementById('signup-pending-message').textContent = `You can start using ${body.society_name}'s account right away. Your trial runs until ${trialEndStr} — add payment anytime before then to keep going without interruption.`;
+
+    const resumeUrl = `${window.location.origin}${window.location.pathname}?resume=${encodeURIComponent(signupData.coop_id)}`;
+    document.getElementById('signup-resume-link-input').value = resumeUrl;
+    document.getElementById('signup-resume-link-box').style.display = '';
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Start free trial →';
+  }
+}
+
+function copyResumeLink() {
+  const input = document.getElementById('signup-resume-link-input');
+  input.select();
+  navigator.clipboard?.writeText(input.value).catch(() => {});
+  document.execCommand && document.execCommand('copy');
+}
+
+async function payNowFromModal() {
+  if (!pendingCoopId) return;
+  const btn = document.getElementById('signup-paynow-btn');
+  btn.disabled = true; btn.textContent = 'Redirecting to payment...';
+  await initiateCheckout(pendingCoopId, btn, 'Add payment now →');
+}
+
+async function initiateCheckout(coopId, btnEl, resetLabel) {
+  try {
     const checkoutRes = await fetch(`${API}/public-coop-subscription-checkout-init`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coop_id: signupData.coop_id, return_url: window.location.href.split('?')[0] }),
+      body: JSON.stringify({ coop_id: coopId, return_url: window.location.origin + window.location.pathname }),
     });
     const checkoutData = await checkoutRes.json();
     if (!checkoutRes.ok || !checkoutData.checkout_url) {
-      errEl.textContent = checkoutData.error || 'Could not start payment. Your society is registered — contact support to complete payment.';
-      errEl.style.display = 'block';
-      btn.disabled = false; btn.textContent = 'Continue to payment →';
+      alert(checkoutData.error || 'Could not start payment right now — please try again shortly.');
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = resetLabel; }
       return;
     }
     window.location.href = checkoutData.checkout_url;
   } catch (e) {
-    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Continue to payment →';
+    alert('Network error: ' + e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = resetLabel; }
   }
 }
 
@@ -421,16 +470,23 @@ async function checkForCheckoutReturn() {
   try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
 
   if (!coopId) return;
+  pendingCoopId = coopId;
   document.getElementById('signup-modal').style.display = 'flex';
   document.getElementById('signup-form-body').style.display = 'none';
   document.getElementById('signup-pending-body').style.display = '';
+  document.getElementById('signup-resume-link-box').style.display = 'none';
+  document.getElementById('signup-pending-actions').style.display = 'none';
 
   if (status === 'cancelled') {
-    document.getElementById('signup-pending-message').textContent = 'Payment was cancelled. Your society is registered but payment is still needed to proceed — contact support if you need help completing this.';
+    document.getElementById('signup-pending-title').textContent = 'Payment cancelled';
+    document.getElementById('signup-pending-message').textContent = 'No charge was made. Your trial is still running — you can add payment anytime from the pricing section.';
+    document.getElementById('signup-pending-actions').style.display = '';
+    document.getElementById('signup-paynow-btn').style.display = 'none';
     return;
   }
   if (!txRef || !transactionId) return;
 
+  document.getElementById('signup-pending-title').textContent = 'Confirming your payment';
   document.getElementById('signup-pending-message').textContent = 'Verifying your payment...';
   try {
     const res = await fetch(`${API}/public-coop-subscription-checkout-verify`, {
@@ -438,14 +494,63 @@ async function checkForCheckoutReturn() {
       body: JSON.stringify({ coop_id: coopId, transaction_id: transactionId, tx_ref: txRef }),
     });
     const data = await res.json();
-    document.getElementById('signup-pending-message').textContent = data.message || (data.success ? 'Payment confirmed.' : 'Payment could not be confirmed — contact support.');
+    document.getElementById('signup-pending-title').textContent = data.success ? 'Payment confirmed' : 'Payment could not be confirmed';
+    document.getElementById('signup-pending-message').textContent = data.message || (data.success ? 'Payment confirmed.' : 'Contact support if this persists.');
+    document.getElementById('signup-pending-actions').style.display = '';
+    document.getElementById('signup-paynow-btn').style.display = 'none';
   } catch (e) {
     document.getElementById('signup-pending-message').textContent = 'Could not verify payment: ' + e.message;
+    document.getElementById('signup-pending-actions').style.display = '';
+    document.getElementById('signup-paynow-btn').style.display = 'none';
+  }
+}
+
+async function checkForResumeLink() {
+  const params = new URLSearchParams(location.search);
+  const coopId = params.get('resume');
+  if (!coopId) return;
+
+  try {
+    const res = await fetch(`${API}/public-coop-trial-info?coop_id=${encodeURIComponent(coopId)}`);
+    if (!res.ok) return;
+    const info = await res.json();
+
+    pendingCoopId = info.coop_id;
+    document.getElementById('signup-modal').style.display = 'flex';
+    document.getElementById('signup-form-body').style.display = 'none';
+    document.getElementById('signup-pending-body').style.display = '';
+    document.getElementById('signup-resume-link-box').style.display = 'none';
+
+    if (info.subscription_status === 'active') {
+      document.getElementById('signup-pending-title').textContent = 'You\'re already active';
+      document.getElementById('signup-pending-message').textContent = `${info.name} is on an active subscription — nothing more needed here.`;
+      document.getElementById('signup-pending-actions').style.display = 'none';
+      return;
+    }
+    if (info.subscription_status === 'pending_verification') {
+      document.getElementById('signup-pending-title').textContent = 'Payment received';
+      document.getElementById('signup-pending-message').textContent = `${info.name}'s payment is in and pending review — you'll be notified once activated.`;
+      document.getElementById('signup-pending-actions').style.display = 'none';
+      return;
+    }
+
+    const daysLeft = info.trial_ends_at ? Math.max(0, Math.ceil((new Date(info.trial_ends_at) - new Date()) / 86400000)) : null;
+    const expired = info.subscription_status === 'trial_expired';
+    document.getElementById('signup-pending-title').textContent = expired ? 'Welcome back — your trial has ended' : `Welcome back, ${info.name}`;
+    document.getElementById('signup-pending-message').textContent = expired
+      ? 'Add payment now to pick up right where you left off.'
+      : `${daysLeft != null ? daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left in your trial. ' : ''}Add payment anytime to keep going without interruption.`;
+    document.getElementById('signup-pending-actions').style.display = '';
+    document.getElementById('signup-paynow-btn').style.display = '';
+    document.getElementById('signup-paynow-btn').textContent = 'Add payment now →';
+  } catch (e) {
+    // Silently do nothing — a broken resume link shouldn't block the rest of the page.
   }
 }
 
 renderTiers();
 checkForCheckoutReturn();
+checkForResumeLink();
 </script>
 </body>
 </html>
