@@ -623,3 +623,8 @@
   from = "/coop"
   to   = "/coop/index.html"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-trial-info"
+  to   = "/.netlify/functions/public-coop-trial-info"
+  status = 200
