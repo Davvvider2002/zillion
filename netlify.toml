@@ -688,3 +688,13 @@
   from = "/api/v1/coop-portal-configure-dues"
   to   = "/.netlify/functions/coop-portal-configure-dues"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-change-coop-plan"
+  to   = "/.netlify/functions/admin-change-coop-plan"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-add-addon"
+  to   = "/.netlify/functions/coop-portal-add-addon"
+  status = 200
