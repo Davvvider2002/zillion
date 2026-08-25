@@ -1752,7 +1752,7 @@ function triggerPWAInstall() {
         </div>
       </div>
 
-      <div class="settings-group">
+      <div class="settings-group" id="zil-wallet-group">
         <div class="settings-group-label">Wallet</div>
         <div class="settings-row" onclick="exportVaultBackup()">
           <span class="settings-label">Export Backup</span>
@@ -1761,6 +1761,18 @@ function triggerPWAInstall() {
         <div class="settings-row">
           <span class="settings-label">Vault Version</span>
           <span class="settings-value">v1.0.4</span>
+        </div>
+      </div>
+
+      <div class="settings-group" id="coop-membership-group" style="display:none">
+        <div class="settings-group-label">Cooperative</div>
+        <div class="settings-row">
+          <span class="settings-label">Society</span>
+          <span class="settings-value" id="coop-profile-society">—</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Member since</span>
+          <span class="settings-value" id="coop-profile-since">—</span>
         </div>
       </div>
 
@@ -1801,7 +1813,7 @@ function triggerPWAInstall() {
           <span class="settings-label">App Version</span>
           <span class="settings-value">PWA v1.0.5</span>
         </div>
-                <div class="settings-row" style="padding:16px 0">
+                <div class="settings-row" id="zil-recover-row" style="padding:16px 0">
           <button onclick="manualWalletRecover()" style="
             width:100%;padding:14px;background:#00C896;color:#0A1F14;
             border:none;border-radius:10px;font-weight:700;font-size:15px;
@@ -1815,7 +1827,7 @@ function triggerPWAInstall() {
         </div>
       </div>
 
-      <div style="margin-top:8px">
+      <div style="margin-top:8px" id="zil-restore-card">
         <div style="background:rgba(217,119,6,.08);border:2px dashed #D97706;border-radius:12px;padding:14px;margin-bottom:12px">
           <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Restore Coins from Server</div>
           <div style="font-size:11px;color:var(--gr);margin-bottom:10px;line-height:1.5">Re-installed or new phone? Pull your coins back from Zillion servers.</div>
@@ -1823,7 +1835,7 @@ function triggerPWAInstall() {
             Restore My Coins
           </button>
         </div>
-        <button class="btn btn-outline" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
+        <button class="btn btn-outline" id="zil-reset-wallet-btn" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
           onclick="resetWallet()">Reset Wallet</button>
         <button class="btn btn-ghost" onclick="logout()">Log Out</button>
       </div>
@@ -2542,7 +2554,7 @@ async function refreshCoopScreen() {
             <div style="font-size:12px;color:#9CC4B0">${fmtNaira(data.dues.amount_kobo)} / ${data.dues.frequency}</div>
             <div style="font-size:16px;font-weight:700;margin-top:2px;color:${owing > 0 ? '#F5B87A' : '#00E0AC'}">${owing > 0 ? fmtNaira(owing) + ' owing' : 'Up to date'}</div>
           </div>
-          ${owing > 0 ? `<button onclick="coopShowPayNowModal('dues')" style="padding:9px 16px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Pay Now</button>` : ''}
+          <button onclick="coopShowPayNowModal('dues')" style="padding:9px 16px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${owing > 0 ? 'Pay Now' : 'Pay Ahead'}</button>
         </div>
       </div>`;
   } else {
@@ -2658,7 +2670,7 @@ function coopShowPayNowModal(type, planId) {
     subtitle.textContent = dues ? `${fmtNaira(dues.owing_kobo)} owing` : '';
     accountNumber = dues?.flutterwave_dues_account_number;
     bankName = dues?.flutterwave_dues_bank_name;
-    defaultAmountKobo = dues?.owing_kobo || 0;
+    defaultAmountKobo = dues?.owing_kobo > 0 ? dues.owing_kobo : (dues?.amount_kobo || 0);
   }
 
   let html = '';
@@ -3306,6 +3318,7 @@ function filterHistory(f, el) {
   refreshHistory();
 }
 function refreshHistory() {
+  if (typeof IS_COOP !== 'undefined' && IS_COOP) { refreshCoopHistory(); return; }
   // Merge localStorage history in case STATE was populated before history loaded
   try {
     var stored = loadHistory();
@@ -3351,6 +3364,44 @@ function txRow(tx) {
   </div>`;
 }
 
+// -- Coop thrift activity (used in place of Zil tx history for the coop flavor) --
+async function refreshCoopHistory() {
+  const filterTabs = document.querySelector('#screen-history .filter-tabs');
+  if (filterTabs) filterTabs.style.display = 'none';
+
+  const el = document.getElementById('history-list');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state"><span class="empty-icon">⏳</span><div class="empty-title">Loading…</div></div>`;
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  if (!token) { el.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No activity yet</div></div>`; return; }
+
+  try {
+    const res = await fetch(`${API}/coop-member-activity`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const activity = data.activity || [];
+    if (!activity.length) {
+      el.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No activity yet</div><div class="empty-sub">Your savings and dues payments will appear here.</div></div>`;
+      return;
+    }
+    const rows = activity.map(a => {
+      const label = a.type === 'savings' ? 'Savings payment' : 'Dues payment';
+      const sourceLabel = a.source === 'cash_in_person' ? 'Cash' : (a.source === 'bank_transfer_manual' ? 'Bank transfer' : 'Payment');
+      return `<div class="tx-row">
+        <div class="tx-dot in">↓</div>
+        <div class="tx-info">
+          <div class="tx-name">${label}</div>
+          <div class="tx-meta">${fmtTime(a.ts)}  ·  <span style="color:var(--g);font-weight:600">${sourceLabel}</span></div>
+        </div>
+        <div class="tx-amount in">+${fmtNaira(a.amount_kobo)}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = '<div class="tx-card">' + rows + '</div>';
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-icon">⚠️</span><div class="empty-title">Could not load activity</div></div>`;
+  }
+}
+
 // -- Profile ----------------------------------------------------
 function refreshProfile() {
   const u = STATE.user;
@@ -3370,8 +3421,25 @@ function refreshProfile() {
   } else {
     document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
   }
-  zilLoadMfb();
-  zilRenderBalanceByBank();
+  const isCoop = typeof IS_COOP !== 'undefined' && IS_COOP;
+
+  ['zil-mfb-group', 'zil-balance-by-bank-group', 'zil-role-switch-group', 'zil-wallet-group', 'zil-recover-row', 'zil-restore-card', 'zil-reset-wallet-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isCoop ? 'none' : (id === 'zil-role-switch-group' ? el.style.display : '');
+  });
+
+  if (isCoop) {
+    document.getElementById('coop-membership-group').style.display = '';
+    zilCoopFetchStatus(false).then(data => {
+      if (!data || !data.is_coop_member) return;
+      document.getElementById('coop-profile-society').textContent = data.society?.name || '—';
+      const since = data.member?.activated_at ? new Date(data.member.activated_at) : null;
+      document.getElementById('coop-profile-since').textContent = since ? since.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+    });
+  } else {
+    zilLoadMfb();
+    zilRenderBalanceByBank();
+  }
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 // ── Preferred Bank (MFB) ────────────────────────────────────────────────
@@ -6301,9 +6369,11 @@ document.addEventListener('DOMContentLoaded', function() {
         window._nfcAvailable = caps.nfc || false;
       } catch(e) { window._sppAvailable = true; }
       // Switch Role only makes sense inside the installed app — the browser
-      // PWA version has no native bridge to switch portals with.
+      // PWA version has no native bridge to switch portals with. Never
+      // shown for the coop flavor at all — a cooperative member is never
+      // also an agent or merchant in the same identity.
       var roleGroup = document.getElementById('zil-role-switch-group');
-      if (roleGroup) roleGroup.style.display = '';
+      if (roleGroup && !(typeof IS_COOP !== 'undefined' && IS_COOP)) roleGroup.style.display = '';
     }
   }, 600);
 });
