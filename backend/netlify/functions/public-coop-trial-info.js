@@ -26,7 +26,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
   const { data: society } = await db.from('coop_societies')
-    .select('coop_id, name, subscription_status, subscription_plan, subscription_cycle, trial_ends_at')
+    .select('coop_id, name, subscription_status, subscription_plan, subscription_cycle, subscription_paid_until, trial_ends_at')
     .eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Not found');
 
@@ -36,6 +36,7 @@ exports.handler = async (event) => {
     subscription_status: society.subscription_status,
     subscription_plan: society.subscription_plan,
     subscription_cycle: society.subscription_cycle,
+    subscription_paid_until: society.subscription_paid_until,
     trial_ends_at: society.trial_ends_at,
   });
 };
