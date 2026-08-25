@@ -846,6 +846,18 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
       <button class="rbtn" style="background:var(--am);color:#1a1a1a;font-weight:700;white-space:nowrap" onclick="setupSubscriptionPlans()" id="coop-subplan-setup-btn">Set up now</button>
     </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Add-on Modules
+        <button class="rbtn" onclick="loadAddonModulesAdmin()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">Set pricing here — nowhere else in the codebase hardcodes an add-on price. An add-on can't be activated (selectable at signup) until it has a real price above ₦0.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Module</th><th>Price (₦/mo)</th><th>Active</th><th></th></tr></thead>
+          <tbody id="addon-modules-table-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
     <div class="card">
       <div class="card-title">
         Thrift &amp; Loan Societies
@@ -949,6 +961,26 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- Edit Add-on Module modal -->
+<div id="edit-addon-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="ea-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:18px">Editing pricing and availability for this add-on.</div>
+    <label class="field-label">Description</label>
+    <textarea class="field-input" id="ea-description" rows="3" style="margin-bottom:12px;width:100%;box-sizing:border-box;resize:vertical"></textarea>
+    <label class="field-label">Monthly price (₦)</label>
+    <input class="field-input" type="number" id="ea-price" style="margin-bottom:14px;width:100%;box-sizing:border-box">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px;cursor:pointer">
+      <input type="checkbox" id="ea-active"> Active (selectable at signup)
+    </label>
+    <div id="ea-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeEditAddonModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitEditAddon()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Create Society modal -->
 <div id="create-society-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto">
@@ -976,6 +1008,28 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
     <div style="font-size:11px;color:var(--tx3);margin:6px 0 18px">Reference figures only — shown on the dashboard, not enforced against lending.</div>
+    <div style="border-top:1px solid var(--grb);padding-top:14px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">Subscription plan (optional)</div>
+      <label class="field-label">Plan</label>
+      <select id="cs-plan" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box" onchange="updateCreateSocietyTotal()">
+        <option value="">No plan — trial only, billed later</option>
+        <option value="launch">Launch</option>
+        <option value="growth">Growth</option>
+        <option value="scale">Scale</option>
+      </select>
+      <div id="cs-plan-details" style="display:none">
+        <label class="field-label">Billing cycle</label>
+        <select id="cs-cycle" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box" onchange="updateCreateSocietyTotal()">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly (15% off)</option>
+        </select>
+        <label class="field-label">Email (for billing)</label>
+        <input class="field-input" type="text" id="cs-email" placeholder="society@example.com" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">Add-on modules</div>
+        <div id="cs-addons-list" style="margin-bottom:10px"></div>
+        <div id="cs-total-display" style="font-size:13px;font-weight:700;color:var(--am);margin-bottom:12px"></div>
+      </div>
+    </div>
     <div id="cs-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
     <div style="display:flex;gap:10px">
       <button onclick="closeCreateSocietyModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
@@ -2952,6 +3006,7 @@ async function setupSubscriptionPlans() {
 
 async function loadCoopThriftSocieties() {
   document.getElementById('coop-subplan-setup-banner').style.display = 'flex';
+  loadAddonModulesAdmin();
   const tbody = document.getElementById('coopthrift-table-body');
   tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
   try {
@@ -2997,18 +3052,106 @@ async function activateSubscription(coopId) {
   } catch (e) { notify('Activation: ' + e.message, true); }
 }
 
+async function loadAddonModulesAdmin() {
+  const tbody = document.getElementById('addon-modules-table-body');
+  tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin-addon-modules`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${data.error || 'Failed to load'}</td></tr>`; return; }
+    tbody.innerHTML = (data.addons || []).map(a => `
+      <tr>
+        <td style="font-weight:600">${a.name}</td>
+        <td>${a.price_kobo > 0 ? '₦' + (a.price_kobo/100).toLocaleString() : '<span style="color:var(--tx3)">Not set</span>'}</td>
+        <td><span style="color:${a.active ? 'var(--g)' : 'var(--tx3)'};font-weight:600">${a.active ? 'Active' : 'Inactive'}</span></td>
+        <td><button class="rbtn" onclick='openEditAddonModal(${JSON.stringify(a).replace(/'/g, "&apos;")})'>Edit</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" class="no-data">No add-on modules yet.</td></tr>';
+  } catch (e) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${e.message}</td></tr>`; }
+}
+
+let editingAddonKey = null;
+function openEditAddonModal(addon) {
+  editingAddonKey = addon.key;
+  document.getElementById('ea-name').textContent = addon.name;
+  document.getElementById('ea-description').value = addon.description || '';
+  document.getElementById('ea-price').value = addon.price_kobo / 100;
+  document.getElementById('ea-active').checked = addon.active;
+  document.getElementById('ea-error').style.display = 'none';
+  document.getElementById('edit-addon-modal').style.display = 'flex';
+}
+function closeEditAddonModal() { document.getElementById('edit-addon-modal').style.display = 'none'; }
+
+async function submitEditAddon() {
+  const errEl = document.getElementById('ea-error');
+  errEl.style.display = 'none';
+  const priceKobo = Math.round(parseFloat(document.getElementById('ea-price').value || 0) * 100);
+  const active = document.getElementById('ea-active').checked;
+  if (active && priceKobo === 0) { errEl.textContent = 'Set a real price before activating.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/admin-addon-modules`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ key: editingAddonKey, name: document.getElementById('ea-name').textContent, description: document.getElementById('ea-description').value.trim(), price_kobo: priceKobo, active }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
+    closeEditAddonModal();
+    notify('Add-on updated');
+    loadAddonModulesAdmin();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
 function openCreateSocietyModal() {
-  ['cs-name', 'cs-phone', 'cs-owner-name', 'cs-location', 'cs-password', 'cs-lascofed-ref'].forEach(id => document.getElementById(id).value = '');
+  ['cs-name', 'cs-phone', 'cs-owner-name', 'cs-location', 'cs-password', 'cs-lascofed-ref', 'cs-email'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('cs-loan-capital').value = '0';
   document.getElementById('cs-bank-balance').value = '0';
+  document.getElementById('cs-plan').value = '';
+  document.getElementById('cs-plan-details').style.display = 'none';
   document.getElementById('cs-error').style.display = 'none';
   document.getElementById('create-society-modal').style.display = 'flex';
+  loadAddonModulesForCreateModal();
 }
 function closeCreateSocietyModal() { document.getElementById('create-society-modal').style.display = 'none'; }
+
+const CS_TIER_PRICES = { launch: { monthly: 990000, yearly: 10098000 }, growth: { monthly: 2490000, yearly: 25398000 }, scale: { monthly: 4990000, yearly: 50898000 } };
+let csAddonModules = [];
+
+async function loadAddonModulesForCreateModal() {
+  try {
+    const res = await fetch(`${API}/admin-addon-modules`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    csAddonModules = (data.addons || []).filter(a => a.active);
+    document.getElementById('cs-addons-list').innerHTML = csAddonModules.length
+      ? csAddonModules.map(a => `
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" class="cs-addon-checkbox" value="${a.key}" data-price="${a.price_kobo}" onchange="updateCreateSocietyTotal()">
+            ${a.name} — &#8358;${(a.price_kobo/100).toLocaleString()}/mo
+          </label>`).join('')
+      : '<div style="font-size:12px;color:var(--tx3)">No add-ons currently available.</div>';
+  } catch (e) { document.getElementById('cs-addons-list').innerHTML = ''; }
+  document.getElementById('cs-plan').addEventListener('change', () => {
+    document.getElementById('cs-plan-details').style.display = document.getElementById('cs-plan').value ? '' : 'none';
+    updateCreateSocietyTotal();
+  }, { once: true });
+}
+
+function updateCreateSocietyTotal() {
+  const plan = document.getElementById('cs-plan').value;
+  const totalEl = document.getElementById('cs-total-display');
+  if (!plan) { totalEl.textContent = ''; return; }
+  const cycle = document.getElementById('cs-cycle').value;
+  let total = CS_TIER_PRICES[plan][cycle];
+  document.querySelectorAll('.cs-addon-checkbox:checked').forEach(cb => {
+    const monthlyPrice = parseInt(cb.dataset.price);
+    total += cycle === 'yearly' ? Math.round(monthlyPrice * 12 * 0.85) : monthlyPrice;
+  });
+  totalEl.textContent = `Total: ₦${(total/100).toLocaleString()}/${cycle === 'yearly' ? 'year' : 'month'}`;
+}
 
 async function submitCreateSociety() {
   const errEl = document.getElementById('cs-error');
   errEl.style.display = 'none';
+  const plan = document.getElementById('cs-plan').value;
   const body = {
     name: document.getElementById('cs-name').value.trim(),
     phone: document.getElementById('cs-phone').value.trim(),
@@ -3019,6 +3162,12 @@ async function submitCreateSociety() {
     opening_loan_capital_kobo: Math.round(parseFloat(document.getElementById('cs-loan-capital').value || 0) * 100),
     opening_bank_balance_kobo: Math.round(parseFloat(document.getElementById('cs-bank-balance').value || 0) * 100),
   };
+  if (plan) {
+    body.plan = plan;
+    body.cycle = document.getElementById('cs-cycle').value;
+    body.email = document.getElementById('cs-email').value.trim();
+    body.addon_keys = Array.from(document.querySelectorAll('.cs-addon-checkbox:checked')).map(cb => cb.value);
+  }
   if (!body.name || !body.phone || !body.owner_name || !body.password) {
     errEl.textContent = 'Name, phone, owner name, and password are required.'; errEl.style.display = 'block'; return;
   }
