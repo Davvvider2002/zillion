@@ -798,14 +798,28 @@ async function submitDuesPayment() {
 }
 
 // ── ADD-ONS ───────────────────────────────────────────────────────────
-function renderAddons() {
+let availableAddonsCache = null;
+async function renderAddons() {
   const d = portalData;
   const el = document.getElementById('view-addons');
   const purchased = d.addons || [];
+  const purchasedKeys = new Set(purchased.map(a => a.addon_key));
+
+  if (!availableAddonsCache) {
+    try {
+      const res = await fetch(`${API}/public-coop-addon-modules`);
+      const data = await res.json();
+      availableAddonsCache = data.addons || [];
+    } catch (e) { availableAddonsCache = []; }
+  }
+  const addable = availableAddonsCache.filter(a => !purchasedKeys.has(a.key));
+
+  const needsPayment = d.society.subscription_plan && d.society.subscription_status !== 'active';
+
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Your add-ons</div>
-      <div class="card-sub">Modules included with your subscription. Contact us to add more.</div>
+      <div class="card-sub">Modules included with your subscription.</div>
       ${purchased.length ? purchased.map(a => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
           <div>
@@ -816,7 +830,55 @@ function renderAddons() {
         </div>
       `).join('') : `<div class="no-data">No add-on modules on your current plan.</div>`}
     </div>
+    ${addable.length ? `
+    <div class="card">
+      <div class="card-title">Add a module</div>
+      <div class="card-sub">Didn't select these at signup? Add them anytime — the extra cost is added to your total.</div>
+      ${addable.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
+          <div>
+            <div style="font-weight:600;font-size:14px">${a.name}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.description || ''} — ${fmtNaira(a.price_kobo)}/mo</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>
+        </div>
+      `).join('')}
+    </div>` : ''}
+    ${needsPayment ? `
+    <div class="card" style="border-color:var(--amber)">
+      <div class="card-title">Payment needed</div>
+      <div class="card-sub">Your subscription total has changed — pay the new total to keep your account active without interruption.</div>
+      <button class="btn btn-primary btn-sm" onclick="payNowFromPortal()" id="portal-paynow-btn">Pay now →</button>
+    </div>` : ''}
   `;
+}
+
+async function addAddonNow(addonKey) {
+  try {
+    const res = await fetch(`${API}/coop-portal-add-addon`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ addon_key: addonKey }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to add module', true); return; }
+    notify(data.message || 'Module added');
+    availableAddonsCache = null;
+    await refreshAndRender();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+
+async function payNowFromPortal() {
+  const btn = document.getElementById('portal-paynow-btn');
+  btn.disabled = true; btn.textContent = 'Redirecting...';
+  try {
+    const res = await fetch(`${API}/public-coop-subscription-checkout-init`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coop_id: portalData.society.coop_id, return_url: `${window.location.origin}/coop?resume=${encodeURIComponent(portalData.society.coop_id)}` }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.checkout_url) { notify(data.error || 'Could not start payment', true); btn.disabled = false; btn.textContent = 'Pay now →'; return; }
+    window.location.href = data.checkout_url;
+  } catch (e) { notify('Network error: ' + e.message, true); btn.disabled = false; btn.textContent = 'Pay now →'; }
 }
 
 // ── NOTIFICATIONS ────────────────────────────────────────────────────
