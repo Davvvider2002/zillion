@@ -21,6 +21,7 @@ const { verifyJWT }              = require('../../lib/validators');
 const { resolvePortalSociety }   = require('../../lib/coopPortalAuth');
 const { computeDuesOwing }       = require('../../lib/coopDues');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
+const { listAddons } = require('../../lib/coopEntitlements');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -67,6 +68,8 @@ exports.handler = async (event) => {
     .select('*, target_member:coop_members!coop_notifications_target_member_id_fkey(name)')
     .eq('coop_id', coopId).order('created_at', { ascending: false }).limit(50);
 
+  const addons = await listAddons(db, coopId);
+
   const totalSavedKobo = plans.reduce((s, p) => s + p.saved_kobo, 0);
   const activeLoansKobo = loans.filter(l => ['DISBURSED', 'REPAYING'].includes(l.status))
     .reduce((s, l) => s + (l.repayment?.outstanding_kobo ?? l.principal_kobo ?? 0), 0);
@@ -77,6 +80,7 @@ exports.handler = async (event) => {
     savings_plans: plans,
     loans,
     notifications: notifications || [],
+    addons,
     metrics: {
       active_members: members.filter(m => m.status === 'ACTIVE').length,
       total_saved_kobo: totalSavedKobo,
