@@ -256,6 +256,12 @@ a{color:inherit;text-decoration:none}
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Location (optional)</label>
       <input id="su-location" type="text" placeholder="e.g. Lagos" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:20px">
 
+      <div id="su-addons-section" style="display:none;margin-bottom:16px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:8px">Optional add-ons</label>
+        <div id="su-addons-list"></div>
+        <div id="su-total-display" style="font-size:13px;font-weight:700;color:var(--amber);margin-top:8px"></div>
+      </div>
+
       <div id="su-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:14px"></div>
 
       <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitSignup()" id="su-submit-btn">Start free trial →</button>
@@ -358,6 +364,34 @@ document.getElementById('cycle-toggle').addEventListener('keydown', e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCycle(); }
 });
 
+let signupAddons = [];
+async function loadSignupAddons() {
+  const section = document.getElementById('su-addons-section');
+  try {
+    const res = await fetch(`${API}/public-coop-addon-modules`);
+    const data = await res.json();
+    signupAddons = data.addons || [];
+    if (!signupAddons.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    document.getElementById('su-addons-list').innerHTML = signupAddons.map(a => `
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer;color:var(--muted)">
+        <input type="checkbox" class="su-addon-checkbox" value="${a.key}" data-price="${a.price_kobo}" onchange="updateSignupTotal()" style="margin-top:2px">
+        <span><span style="color:var(--cream)">${a.name}</span> — ${fmtNaira(a.price_kobo)}/mo<br><span style="font-size:11.5px">${a.description || ''}</span></span>
+      </label>`).join('');
+    updateSignupTotal();
+  } catch (e) { section.style.display = 'none'; }
+}
+
+function updateSignupTotal() {
+  const tier = TIERS.find(t => t.key === selectedPlan);
+  let total = currentCycle === 'yearly' ? tier.yearly : tier.monthly;
+  document.querySelectorAll('.su-addon-checkbox:checked').forEach(cb => {
+    const monthlyPrice = parseInt(cb.dataset.price);
+    total += currentCycle === 'yearly' ? Math.round(monthlyPrice * 12 * 0.85) : monthlyPrice;
+  });
+  document.getElementById('su-total-display').textContent = `Total after trial: ${fmtNaira(total)}/${currentCycle === 'yearly' ? 'year' : 'month'}`;
+}
+
 function openSignupModal(planKey) {
   selectedPlan = planKey;
   const tier = TIERS.find(t => t.key === planKey);
@@ -367,6 +401,7 @@ function openSignupModal(planKey) {
   document.getElementById('signup-pending-body').style.display = 'none';
   document.getElementById('signup-resume-link-box').style.display = 'none';
   document.getElementById('signup-pending-actions').style.display = '';
+  loadSignupAddons();
   document.getElementById('signup-paynow-btn').style.display = '';
   document.getElementById('su-error').style.display = 'none';
   const submitBtn = document.getElementById('su-submit-btn');
@@ -391,6 +426,7 @@ async function submitSignup() {
     location: document.getElementById('su-location').value.trim(),
     plan: selectedPlan,
     cycle: currentCycle,
+    addon_keys: Array.from(document.querySelectorAll('.su-addon-checkbox:checked')).map(cb => cb.value),
   };
   if (!body.society_name || !body.phone || !body.owner_name || !body.email || !body.password) {
     errEl.textContent = 'Please fill in all required fields.'; errEl.style.display = 'block'; return;
