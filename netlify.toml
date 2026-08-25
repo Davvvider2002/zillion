@@ -668,3 +668,8 @@
   from = "/api/v1/coop-portal-send-notification"
   to   = "/.netlify/functions/coop-portal-send-notification"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-addon-modules"
+  to   = "/.netlify/functions/admin-addon-modules"
+  status = 200
