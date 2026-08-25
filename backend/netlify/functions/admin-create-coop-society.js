@@ -12,7 +12,7 @@
  * together: a new merchant (for in-person payment collection via the
  * existing Merchant app) and the coop_societies row linking to it.
  *
- * 30-day trial starts immediately (matches the agreed subscription
+ * 14-day trial starts immediately (matches the agreed subscription
  * design). plan/cycle/addon_keys are optional — if given, the society
  * gets the same real subscription tracking and add-on selection as a
  * self-service signup, computed via the same shared pricing lib so
@@ -127,7 +127,7 @@ exports.handler = async (event) => {
   });
   if (merchantErr) return err(500, `Failed to create the society's merchant identity: ${merchantErr.message}`);
 
-  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: society, error: societyErr } = await db.from('coop_societies').insert({
     merchant_id:                merchantId,
