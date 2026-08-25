@@ -698,3 +698,18 @@
   from = "/api/v1/coop-portal-add-addon"
   to   = "/.netlify/functions/coop-portal-add-addon"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-chart-of-accounts"
+  to   = "/.netlify/functions/coop-portal-chart-of-accounts"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-journal-entry"
+  to   = "/.netlify/functions/coop-portal-journal-entry"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-opening-balance-wizard"
+  to   = "/.netlify/functions/coop-portal-opening-balance-wizard"
+  status = 200
