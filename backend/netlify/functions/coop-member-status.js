@@ -100,7 +100,7 @@ exports.handler = async (event) => {
   return ok({
     is_coop_member:     true,
     society:            { name: society.name },
-    member:             { name: member.name, status: member.status },
+    member:             { name: member.name, status: member.status, activated_at: member.activated_at },
     savings_plans:      plansWithProgress,
     loans:               loans || [],
     total_outstanding_loan_kobo: totalOutstandingLoanKobo,
