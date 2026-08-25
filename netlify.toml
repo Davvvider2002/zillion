@@ -728,3 +728,8 @@
   from = "/api/v1/admin-flutterwave-settlements"
   to   = "/.netlify/functions/admin-flutterwave-settlements"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-activity"
+  to   = "/.netlify/functions/coop-member-activity"
+  status = 200
