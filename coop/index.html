@@ -611,9 +611,22 @@ async function checkForResumeLink() {
       return;
     }
     if (info.subscription_status === 'pending_verification') {
-      document.getElementById('signup-pending-title').textContent = 'Payment received';
-      document.getElementById('signup-pending-message').textContent = `${info.name}'s payment is in and pending review — you'll be notified once activated.`;
-      document.getElementById('signup-pending-actions').style.display = 'none';
+      if (info.subscription_paid_until) {
+        // A real payment has actually landed — genuinely waiting on admin review.
+        document.getElementById('signup-pending-title').textContent = 'Payment received';
+        document.getElementById('signup-pending-message').textContent = `${info.name}'s payment is in and pending review — you'll be notified once activated.`;
+        document.getElementById('signup-pending-actions').style.display = 'none';
+        return;
+      }
+      // pending_verification with no payment on file yet — this is the
+      // state right after a plan change or a newly-added add-on (the
+      // old Flutterwave plan was invalidated, no fresh payment has
+      // happened). Needs a payment, not a "wait for review" message.
+      document.getElementById('signup-pending-title').textContent = 'Payment needed';
+      document.getElementById('signup-pending-message').textContent = `${info.name}'s plan was recently updated — pay the new total to keep things moving.`;
+      document.getElementById('signup-pending-actions').style.display = '';
+      document.getElementById('signup-paynow-btn').style.display = '';
+      document.getElementById('signup-paynow-btn').textContent = 'Pay now →';
       return;
     }
 
