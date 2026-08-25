@@ -673,3 +673,8 @@
   from = "/api/v1/admin-addon-modules"
   to   = "/.netlify/functions/admin-addon-modules"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-addon-modules"
+  to   = "/.netlify/functions/public-coop-addon-modules"
+  status = 200
