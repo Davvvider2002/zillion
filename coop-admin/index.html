@@ -130,6 +130,7 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-view="dues" onclick="switchView('dues')">Dues</div>
     <div class="tab" data-view="addons" onclick="switchView('addons')">Add-ons</div>
     <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
+    <div class="tab" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
   </div>
 
   <div class="view active" id="view-dashboard"></div>
@@ -139,6 +140,7 @@ tr:last-child td{border-bottom:none}
   <div class="view" id="view-dues"></div>
   <div class="view" id="view-addons"></div>
   <div class="view" id="view-notifications"></div>
+  <div class="view" id="view-accounting"></div>
 </div>
 
 <!-- ACTIVATE MEMBER MODAL -->
@@ -278,6 +280,61 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- NEW ACCOUNT MODAL -->
+<div class="modal-overlay" id="modal-new-account">
+  <div class="modal-box">
+    <div class="modal-title">New account</div>
+    <div class="field"><label>Account code</label><input type="text" id="na-code" placeholder="e.g. 5300"></div>
+    <div class="field"><label>Account name</label><input type="text" id="na-name" placeholder="e.g. Rent Expense"></div>
+    <div class="field">
+      <label>Type</label>
+      <select id="na-type" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <option value="ASSET">Asset</option>
+        <option value="LIABILITY">Liability</option>
+        <option value="EQUITY">Equity</option>
+        <option value="INCOME">Income</option>
+        <option value="EXPENSE">Expense</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Currency</label>
+      <input type="text" id="na-currency" placeholder="NGN" style="text-transform:uppercase">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave as your base currency unless this account holds a different one (e.g. a USD bank account).</div>
+    </div>
+    <div id="na-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNewAccount()" id="na-btn">Create account</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-account')">Cancel</button>
+  </div>
+</div>
+
+<!-- NEW JOURNAL ENTRY MODAL -->
+<div class="modal-overlay" id="modal-new-journal-entry">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-title">New journal entry</div>
+    <div class="field"><label>Date</label><input type="date" id="je-date"></div>
+    <div class="field"><label>Description</label><input type="text" id="je-description" placeholder="e.g. Office rent for August"></div>
+    <div id="je-lines"></div>
+    <button class="btn btn-ghost btn-sm" style="margin:6px 0 14px" onclick="addJournalLine()">＋ Add line</button>
+    <div id="je-balance-display" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
+    <div id="je-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitJournalEntry()" id="je-btn">Save entry</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-journal-entry')">Cancel</button>
+  </div>
+</div>
+
+<!-- OPENING BALANCE WIZARD MODAL -->
+<div class="modal-overlay" id="modal-opening-balance">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Opening balance wizard</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">Enter what each account currently holds — leave blank to skip. Anything that doesn't naturally balance is absorbed into Opening Balance Equity automatically, so you don't need to work out the double-entry yourself. This can only be run once.</div>
+    <div class="field"><label>As of date</label><input type="date" id="ob-date"></div>
+    <div id="ob-accounts-list" style="max-height:320px;overflow-y:auto;margin-bottom:14px"></div>
+    <div id="ob-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitOpeningBalances()" id="ob-btn">Save opening balances</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-opening-balance')">Cancel</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -393,6 +450,7 @@ function switchView(name) {
   if (name === 'dues') renderDues();
   if (name === 'addons') renderAddons();
   if (name === 'notifications') renderNotifications();
+  if (name === 'accounting') renderAccounting();
 }
 
 async function refreshAndRender() {
@@ -941,6 +999,284 @@ async function submitNotification() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Send';
+  }
+}
+
+// ── ACCOUNTING ────────────────────────────────────────────────────────
+let accountingAccounts = null;
+let accountingEntries = null;
+let accountingOpeningDone = false;
+let journalLineCount = 0;
+
+async function renderAccounting() {
+  const el = document.getElementById('view-accounting');
+  const hasAccounting = (portalData.addons || []).some(a => a.addon_key === 'accounting');
+
+  if (!hasAccounting) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Accounting &amp; Finance</div>
+        <div class="card-sub">Full manual bookkeeping — chart of accounts, journal entries, opening balances, multi-currency support. Not on your current plan.</div>
+        <button class="btn btn-primary btn-sm" onclick="switchView('addons')">View add-ons →</button>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="no-data">Loading...</div>`;
+  await Promise.all([fetchChartOfAccounts(), fetchJournalEntries()]);
+  renderAccountingContent();
+}
+
+async function fetchChartOfAccounts() {
+  try {
+    const res = await fetch(`${API}/coop-portal-chart-of-accounts`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    accountingAccounts = data.accounts || [];
+  } catch (e) { accountingAccounts = []; }
+}
+
+async function fetchJournalEntries() {
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-entry`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    accountingEntries = data.entries || [];
+    accountingOpeningDone = accountingEntries.some(e => e.entry_type === 'opening_balance');
+  } catch (e) { accountingEntries = []; }
+}
+
+function renderAccountingContent() {
+  const el = document.getElementById('view-accounting');
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  el.innerHTML = `
+    ${!accountingOpeningDone ? `
+    <div class="card" style="border-color:var(--amber)">
+      <div class="card-title">Set your opening balances</div>
+      <div class="card-sub">Before recording new activity, tell us what each account currently holds. One-time setup.</div>
+      <button class="btn btn-primary btn-sm" onclick="openOpeningBalanceModal()">Start wizard →</button>
+    </div>` : ''}
+    <div class="card">
+      <div class="card-title">Chart of accounts
+        <button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button>
+      </div>
+      <div class="card-sub">Base currency: ${baseCurrency}. Accounts in another currency show their own totals converted at the rate you enter per transaction.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Currency</th></tr></thead>
+        <tbody>${accountingAccounts.map(a => `
+          <tr><td>${a.account_code}</td><td>${a.account_name}${a.is_system ? ' <span class="pill pill-muted">system</span>' : ''}</td><td>${a.account_type}</td><td>${a.currency}</td></tr>
+        `).join('') || '<tr><td colspan="4" class="no-data">No accounts yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Journal entries
+        <button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>＋ New entry</button>
+      </div>
+      <div class="card-sub">All entries post immediately — there's no draft stage in this version.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Lines</th></tr></thead>
+        <tbody>${accountingEntries.map(e => `
+          <tr>
+            <td>${e.entry_number}</td><td>${e.entry_date}</td><td>${e.description}${e.entry_type === 'opening_balance' ? ' <span class="pill pill-amber">opening</span>' : ''}</td>
+            <td>${(e.coop_journal_entry_lines || []).map(l => `${l.coop_chart_of_accounts?.account_name || '—'}: ${l.line_type === 'debit' ? 'Dr' : 'Cr'} ${fmtNaira(l.base_amount)}`).join('; ')}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="4" class="no-data">No journal entries yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openNewAccountModal() {
+  document.getElementById('na-code').value = '';
+  document.getElementById('na-name').value = '';
+  document.getElementById('na-type').value = 'ASSET';
+  document.getElementById('na-currency').value = portalData.society.base_currency || 'NGN';
+  document.getElementById('na-error').style.display = 'none';
+  openModal('modal-new-account');
+}
+
+async function submitNewAccount() {
+  const errEl = document.getElementById('na-error');
+  errEl.style.display = 'none';
+  const code = document.getElementById('na-code').value.trim();
+  const name = document.getElementById('na-name').value.trim();
+  const type = document.getElementById('na-type').value;
+  const currency = document.getElementById('na-currency').value.trim().toUpperCase();
+  if (!code || !name) { errEl.textContent = 'Code and name are both required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('na-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-chart-of-accounts`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ account_code: code, account_name: name, account_type: type, currency }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create account.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create account'; return; }
+    notify('Account created');
+    closeModal('modal-new-account');
+    btn.disabled = false; btn.textContent = 'Create account';
+    await fetchChartOfAccounts();
+    renderAccountingContent();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+}
+
+function accountOptionsHtml() {
+  return accountingAccounts.map(a => `<option value="${a.id}" data-currency="${a.currency}">${a.account_code} — ${a.account_name} (${a.currency})</option>`).join('');
+}
+
+function openNewJournalEntryModal() {
+  document.getElementById('je-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('je-description').value = '';
+  document.getElementById('je-lines').innerHTML = '';
+  document.getElementById('je-error').style.display = 'none';
+  journalLineCount = 0;
+  addJournalLine(); addJournalLine();
+  openModal('modal-new-journal-entry');
+}
+
+function addJournalLine() {
+  const id = journalLineCount++;
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const row = document.createElement('div');
+  row.id = `je-line-${id}`;
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 90px 1fr 80px 24px;gap:6px;margin-bottom:8px;align-items:center';
+  row.innerHTML = `
+    <select class="je-line-account" onchange="onJournalAccountChange(${id})" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">${accountOptionsHtml()}</select>
+    <select class="je-line-type" onchange="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+      <option value="debit">Debit</option><option value="credit">Credit</option>
+    </select>
+    <input class="je-line-amount" type="number" placeholder="Amount" oninput="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+    <input class="je-line-rate" type="number" placeholder="Rate" step="0.0001" oninput="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px;display:none">
+    <button onclick="document.getElementById('je-line-${id}').remove();updateJournalBalance()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">×</button>
+  `;
+  document.getElementById('je-lines').appendChild(row);
+  onJournalAccountChange(id);
+}
+
+function onJournalAccountChange(id) {
+  const row = document.getElementById(`je-line-${id}`);
+  if (!row) return;
+  const select = row.querySelector('.je-line-account');
+  const currency = select.selectedOptions[0]?.dataset.currency;
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const rateInput = row.querySelector('.je-line-rate');
+  rateInput.style.display = currency === baseCurrency ? 'none' : '';
+  if (currency === baseCurrency) rateInput.value = '';
+  updateJournalBalance();
+}
+
+function updateJournalBalance() {
+  let totalDebit = 0, totalCredit = 0;
+  document.querySelectorAll('#je-lines > div').forEach(row => {
+    const amount = parseFloat(row.querySelector('.je-line-amount')?.value) || 0;
+    const rateField = row.querySelector('.je-line-rate');
+    const rate = rateField.style.display === 'none' ? 1 : (parseFloat(rateField.value) || 0);
+    const type = row.querySelector('.je-line-type')?.value;
+    const baseAmount = amount * rate;
+    if (type === 'debit') totalDebit += baseAmount; else totalCredit += baseAmount;
+  });
+  const display = document.getElementById('je-balance-display');
+  const balanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
+  display.style.color = balanced ? 'var(--green-lt)' : 'var(--amber)';
+  display.textContent = `Debit: ${fmtNaira(totalDebit*100)} · Credit: ${fmtNaira(totalCredit*100)} ${balanced ? '✓ balanced' : '— not balanced yet'}`;
+}
+
+async function submitJournalEntry() {
+  const errEl = document.getElementById('je-error');
+  errEl.style.display = 'none';
+  const entryDate = document.getElementById('je-date').value;
+  const description = document.getElementById('je-description').value.trim();
+  if (!entryDate || !description) { errEl.textContent = 'Date and description are required.'; errEl.style.display = 'block'; return; }
+
+  const lines = [];
+  let valid = true;
+  document.querySelectorAll('#je-lines > div').forEach(row => {
+    const accountId = row.querySelector('.je-line-account')?.value;
+    const lineType = row.querySelector('.je-line-type')?.value;
+    const amountNaira = parseFloat(row.querySelector('.je-line-amount')?.value);
+    const rateField = row.querySelector('.je-line-rate');
+    const rate = rateField.style.display === 'none' ? 1 : parseFloat(rateField.value);
+    if (!accountId || !amountNaira || amountNaira <= 0) { valid = false; return; }
+    if (rateField.style.display !== 'none' && (!rate || rate <= 0)) { valid = false; return; }
+    lines.push({ account_id: accountId, line_type: lineType, amount: Math.round(amountNaira * 100), exchange_rate: rate });
+  });
+  if (!valid || lines.length < 2) { errEl.textContent = 'Every line needs an account and a valid amount (and exchange rate, for non-base-currency accounts).'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('je-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-entry`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ entry_date: entryDate, description, lines }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save entry.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save entry'; return; }
+    notify(`Entry #${data.entry_number} saved`);
+    closeModal('modal-new-journal-entry');
+    btn.disabled = false; btn.textContent = 'Save entry';
+    await fetchJournalEntries();
+    renderAccountingContent();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save entry';
+  }
+}
+
+function openOpeningBalanceModal() {
+  document.getElementById('ob-date').value = new Date().toISOString().slice(0, 10);
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const nonSystem = accountingAccounts.filter(a => !a.is_system);
+  document.getElementById('ob-accounts-list').innerHTML = nonSystem.map(a => `
+    <div style="display:grid;grid-template-columns:2fr 1fr ${a.currency !== baseCurrency ? '80px' : ''};gap:6px;margin-bottom:8px;align-items:center">
+      <div style="font-size:12.5px">${a.account_code} — ${a.account_name} <span style="color:var(--muted)">(${a.currency})</span></div>
+      <input type="number" placeholder="Amount" data-account-id="${a.id}" class="ob-amount" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+      ${a.currency !== baseCurrency ? `<input type="number" placeholder="Rate" step="0.0001" data-account-id="${a.id}" class="ob-rate" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">` : ''}
+    </div>
+  `).join('');
+  document.getElementById('ob-error').style.display = 'none';
+  openModal('modal-opening-balance');
+}
+
+async function submitOpeningBalances() {
+  const errEl = document.getElementById('ob-error');
+  errEl.style.display = 'none';
+  const openingDate = document.getElementById('ob-date').value;
+  if (!openingDate) { errEl.textContent = 'Opening date is required.'; errEl.style.display = 'block'; return; }
+
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const balances = [];
+  let valid = true;
+  document.querySelectorAll('.ob-amount').forEach(input => {
+    const amountNaira = parseFloat(input.value);
+    if (!amountNaira || amountNaira <= 0) return;
+    const accountId = input.dataset.accountId;
+    const rateInput = document.querySelector(`.ob-rate[data-account-id="${accountId}"]`);
+    const rate = rateInput ? parseFloat(rateInput.value) : 1;
+    if (rateInput && (!rate || rate <= 0)) { valid = false; return; }
+    balances.push({ account_id: accountId, amount: Math.round(amountNaira * 100), exchange_rate: rate || 1 });
+  });
+  if (!valid) { errEl.textContent = 'Enter a valid exchange rate for every non-base-currency balance you entered.'; errEl.style.display = 'block'; return; }
+  if (!balances.length) { errEl.textContent = 'Enter at least one balance.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ob-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-opening-balance-wizard`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ opening_date: openingDate, balances }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save opening balances'; return; }
+    notify('Opening balances set');
+    closeModal('modal-opening-balance');
+    btn.disabled = false; btn.textContent = 'Save opening balances';
+    await fetchJournalEntries();
+    renderAccountingContent();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save opening balances';
   }
 }
 
