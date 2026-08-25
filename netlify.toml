@@ -678,3 +678,13 @@
   from = "/api/v1/public-coop-addon-modules"
   to   = "/.netlify/functions/public-coop-addon-modules"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-create-savings-plan"
+  to   = "/.netlify/functions/coop-portal-create-savings-plan"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-configure-dues"
+  to   = "/.netlify/functions/coop-portal-configure-dues"
+  status = 200
