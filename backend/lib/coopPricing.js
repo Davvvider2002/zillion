@@ -63,9 +63,16 @@ async function computeSubscriptionTotal(db, { tier, cycle, addonKeys = [] }) {
  * total still goes through the same admin-activation gate everything
  * else does; a trial/pending society's status is left alone since
  * they're already headed toward a first payment regardless.
+ *
+ * repricing_pending_since starts the 7-day grace-period clock
+ * (scheduled-reconcile.js) and is the real signal — not
+ * subscription_paid_until — that a fresh payment is genuinely owed.
+ * subscription_paid_until is cleared too: if this society was
+ * previously paying, its old paid_until date is now stale and could
+ * otherwise be misread elsewhere as evidence a new payment happened.
  */
 async function invalidateSubscriptionForRepricing(db, coopId, currentStatus) {
-  const update = { flutterwave_payment_plan_id: null };
+  const update = { flutterwave_payment_plan_id: null, subscription_paid_until: null, repricing_pending_since: new Date().toISOString() };
   if (currentStatus === 'active') update.subscription_status = 'pending_verification';
   await db.from('coop_societies').update(update).eq('coop_id', coopId);
 }
