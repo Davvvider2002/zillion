@@ -869,8 +869,8 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="card-sub">A cooperative savings &amp; loan society — members are existing wallet users the admin activates and manages.</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Status</th><th>Subscription</th><th>Trial Ends</th><th>Action</th></tr></thead>
-          <tbody id="coopthrift-table-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>Status</th><th>Plan</th><th>Subscription</th><th>Trial Ends</th><th>Action</th></tr></thead>
+          <tbody id="coopthrift-table-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -978,6 +978,34 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:10px">
       <button onclick="closeEditAddonModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitEditAddon()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Plan modal -->
+<div id="change-plan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="cp-society-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:18px">Changing plan requires a fresh payment for the new total — Flutterwave can't prorate a mid-cycle change.</div>
+    <label class="field-label">Plan</label>
+    <select id="cp-plan" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="launch">Launch</option>
+      <option value="growth">Growth</option>
+      <option value="scale">Scale</option>
+    </select>
+    <label class="field-label">Billing cycle</label>
+    <select id="cp-cycle" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="monthly">Monthly</option>
+      <option value="yearly">Yearly (15% off)</option>
+    </select>
+    <div id="cp-email-field" style="display:none">
+      <label class="field-label">Billing email (none on file yet)</label>
+      <input class="field-input" type="text" id="cp-email" placeholder="society@example.com" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    </div>
+    <div id="cp-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeChangePlanModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitChangePlan()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
     </div>
   </div>
 </div>
@@ -3020,18 +3048,22 @@ async function loadCoopThriftSocieties() {
 
 function renderCoopThriftTable(societies) {
   const tbody = document.getElementById('coopthrift-table-body');
-  if (!societies.length) { tbody.innerHTML = '<tr><td colspan="5" class="no-data">No societies yet — create one to get started.</td></tr>'; return; }
+  if (!societies.length) { tbody.innerHTML = '<tr><td colspan="6" class="no-data">No societies yet — create one to get started.</td></tr>'; return; }
   const statusColor = s => ({ TRIAL: 'var(--am)', ACTIVE: 'var(--g)', SUSPENDED: '#e74c3c' }[s] || 'var(--tx2)');
   const subColor = s => ({ trial: 'var(--g)', trial_expired: '#e74c3c', pending_verification: 'var(--am)', active: 'var(--g)', suspended: '#e74c3c' }[s] || 'var(--tx3)');
   const subLabel = s => ({ trial: 'Trial', trial_expired: 'Trial ended', pending_verification: 'Pending', active: 'Active', suspended: 'Suspended' }[s] || s || '—');
+  const planLabel = p => p ? p.charAt(0).toUpperCase() + p.slice(1) : '—';
   tbody.innerHTML = societies.map(s => `
     <tr>
       <td style="font-weight:600">${s.name}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
       <td><span style="color:${statusColor(s.status)};font-weight:600">${s.status}</span></td>
       <td>
+        <span style="font-weight:700">${planLabel(s.subscription_plan)}</span>${s.subscription_cycle ? `<div style="font-size:10.5px;color:var(--tx3)">${s.subscription_cycle}</div>` : ''}
+        <div><button class="rbtn" style="margin-top:4px" onclick="openChangePlanModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}','${s.subscription_plan||''}','${s.subscription_cycle||'monthly'}')">${s.subscription_plan ? 'Change' : 'Set'} plan</button></div>
+      </td>
+      <td>
         <span style="color:${subColor(s.subscription_status)};font-weight:600">${subLabel(s.subscription_status)}</span>
-        ${s.subscription_plan ? `<div style="font-size:10px;color:var(--tx3)">${s.subscription_plan} · ${s.subscription_cycle}</div>` : ''}
-        ${s.subscription_status === 'pending_verification' && s.subscription_paid_until ? `<button class="rbtn" style="background:var(--gl);color:var(--g);margin-top:4px" onclick="activateSubscription('${s.coop_id}')">Activate</button>` : ''}
+        ${s.subscription_status === 'pending_verification' && s.subscription_paid_until ? `<div><button class="rbtn" style="background:var(--gl);color:var(--g);margin-top:4px" onclick="activateSubscription('${s.coop_id}')">Activate</button></div>` : ''}
       </td>
       <td>${s.trial_ends_at ? new Date(s.trial_ends_at).toLocaleDateString() : '—'}</td>
       <td><button class="rbtn" onclick="openSocietyDetail('${s.coop_id}')">View &rsaquo;</button></td>
@@ -3099,6 +3131,41 @@ async function submitEditAddon() {
     closeEditAddonModal();
     notify('Add-on updated');
     loadAddonModulesAdmin();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+let cpCurrentCoopId = null;
+function openChangePlanModal(coopId, name, currentPlan, currentCycle) {
+  cpCurrentCoopId = coopId;
+  document.getElementById('cp-society-name').textContent = name;
+  document.getElementById('cp-plan').value = currentPlan || 'launch';
+  document.getElementById('cp-cycle').value = currentCycle || 'monthly';
+  document.getElementById('cp-email-field').style.display = currentPlan ? 'none' : '';
+  document.getElementById('cp-email').value = '';
+  document.getElementById('cp-error').style.display = 'none';
+  document.getElementById('change-plan-modal').style.display = 'flex';
+}
+function closeChangePlanModal() { document.getElementById('change-plan-modal').style.display = 'none'; }
+
+async function submitChangePlan() {
+  const errEl = document.getElementById('cp-error');
+  errEl.style.display = 'none';
+  const body = {
+    coop_id: cpCurrentCoopId,
+    plan: document.getElementById('cp-plan').value,
+    cycle: document.getElementById('cp-cycle').value,
+    email: document.getElementById('cp-email').value.trim(),
+  };
+  try {
+    const res = await fetch(`${API}/admin-change-coop-plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to change plan.'; errEl.style.display = 'block'; return; }
+    closeChangePlanModal();
+    notify(data.message || 'Plan updated');
+    loadCoopThriftSocieties();
   } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
 
@@ -3211,7 +3278,7 @@ function fmtNaira(kobo) { return '₦' + ((kobo || 0) / 100).toLocaleString(unde
 function renderSocietyDetail(data) {
   const { society, members, savings_plans, loans, notifications, metrics } = data;
   document.getElementById('ct-d-title').textContent = society.name;
-  document.getElementById('ct-d-sub').textContent = `${society.owner_name || ''} · ${society.phone || ''} · ${society.status}`;
+  document.getElementById('ct-d-sub').textContent = `${society.owner_name || ''} · ${society.phone || ''} · ${society.status}${society.subscription_plan ? ` · ${society.subscription_plan.charAt(0).toUpperCase()+society.subscription_plan.slice(1)} (${society.subscription_cycle})` : ' · No plan attached'}`;
   document.getElementById('ct-d-members').textContent = metrics.active_members;
   document.getElementById('ct-d-saved').textContent = fmtNaira(metrics.total_saved_kobo);
   document.getElementById('ct-d-loans').textContent = fmtNaira(metrics.active_loans_kobo);
