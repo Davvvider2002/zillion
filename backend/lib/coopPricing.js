@@ -50,4 +50,24 @@ async function computeSubscriptionTotal(db, { tier, cycle, addonKeys = [] }) {
   return { ok: true, totalKobo: tierRow.amount_kobo + addonsTotalKobo, tierKobo: tierRow.amount_kobo, addons };
 }
 
-module.exports = { computeSubscriptionTotal, addonPriceForCycle, YEARLY_DISCOUNT };
+/**
+ * Called whenever a society's billable total changes after signup —
+ * an admin changing their plan, or a society adding an add-on later.
+ * The existing Flutterwave payment plan (sized for the OLD total) is
+ * no longer correct, so it's cleared here; checkout-init.js creates a
+ * fresh one, sized to the new total, the next time this society pays.
+ * Flutterwave has no proration mechanism, so this deliberately doesn't
+ * try to prorate a mid-cycle change — it requires a fresh payment for
+ * the new total, same as a trial converting to paid. An already-active
+ * society is moved back to pending_verification so payment on the new
+ * total still goes through the same admin-activation gate everything
+ * else does; a trial/pending society's status is left alone since
+ * they're already headed toward a first payment regardless.
+ */
+async function invalidateSubscriptionForRepricing(db, coopId, currentStatus) {
+  const update = { flutterwave_payment_plan_id: null };
+  if (currentStatus === 'active') update.subscription_status = 'pending_verification';
+  await db.from('coop_societies').update(update).eq('coop_id', coopId);
+}
+
+module.exports = { computeSubscriptionTotal, addonPriceForCycle, invalidateSubscriptionForRepricing, YEARLY_DISCOUNT };
