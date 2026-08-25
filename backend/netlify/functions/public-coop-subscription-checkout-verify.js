@@ -17,6 +17,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { extendSubscription } = require('../../lib/coopSubscription');
+const { computeSubscriptionTotal } = require('../../lib/coopPricing');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -51,8 +52,10 @@ exports.handler = async (event) => {
     .select('id').eq('tx_ref', txRef).maybeSingle();
   if (existingPayment) return ok({ success: true, already_processed: true });
 
-  const { data: planRow } = await db.from('coop_subscription_plan_catalog')
-    .select('amount_kobo').eq('tier', society.subscription_plan).eq('cycle', society.subscription_cycle).single();
+  const { data: addonRows } = await db.from('coop_society_addons').select('addon_key').eq('coop_id', coopId);
+  const addonKeys = (addonRows || []).map(r => r.addon_key);
+  const pricing = await computeSubscriptionTotal(db, { tier: society.subscription_plan, cycle: society.subscription_cycle, addonKeys });
+  if (!pricing.ok) return err(500, `Pricing error: ${pricing.error}`);
 
   let verifyData;
   try {
@@ -69,11 +72,11 @@ exports.handler = async (event) => {
     && v.status === 'successful'
     && v.tx_ref === txRef
     && v.currency === 'NGN'
-    && Number(v.amount) === planRow.amount_kobo / 100;
+    && Number(v.amount) === pricing.totalKobo / 100;
 
   await db.from('coop_subscription_payments').insert({
     coop_id: coopId,
-    amount_kobo: planRow.amount_kobo,
+    amount_kobo: pricing.totalKobo,
     type: 'initial',
     status: verifiedOk ? 'success' : 'failed',
     flw_transaction_id: transactionId,
