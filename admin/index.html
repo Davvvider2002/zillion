@@ -886,6 +886,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="card">
       <div class="card-title" id="ct-d-title">Society</div>
       <div class="card-sub" id="ct-d-sub"></div>
+      <div id="ct-d-links" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--grb)"></div>
     </div>
 
     <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap" id="ct-tabs">
@@ -3181,6 +3182,7 @@ async function submitCreateSociety() {
     closeCreateSocietyModal();
     notify(data.message || `${body.name} created`);
     loadCoopThriftSocieties();
+    if (data.society?.coop_id) openSocietyDetail(data.society.coop_id);
   } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
 
@@ -3214,12 +3216,34 @@ function renderSocietyDetail(data) {
   document.getElementById('ct-d-saved').textContent = fmtNaira(metrics.total_saved_kobo);
   document.getElementById('ct-d-loans').textContent = fmtNaira(metrics.active_loans_kobo);
 
+  const loginUrl = `${window.location.origin}/coop-admin`;
+  const resumeUrl = `${window.location.origin}/coop?resume=${encodeURIComponent(society.coop_id)}`;
+  const needsPayment = society.subscription_plan && !['active'].includes(society.subscription_status);
+  document.getElementById('ct-d-links').innerHTML = `
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.02em;font-weight:600;margin-bottom:8px">Share with this society</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:${needsPayment ? '8px' : '0'}">
+      <span style="font-size:12.5px;color:var(--tx2);width:90px;flex-shrink:0">Portal login:</span>
+      <code style="font-size:11.5px;background:var(--grl);padding:4px 8px;border-radius:6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${loginUrl}</code>
+      <button class="rbtn" onclick="copyLink('${loginUrl}')">Copy</button>
+    </div>
+    ${needsPayment ? `
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="font-size:12.5px;color:var(--tx2);width:90px;flex-shrink:0">Payment link:</span>
+      <code style="font-size:11.5px;background:var(--grl);padding:4px 8px;border-radius:6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${resumeUrl}</code>
+      <button class="rbtn" onclick="copyLink('${resumeUrl}')">Copy</button>
+    </div>` : ''}
+  `;
+
   renderCtMembers(members);
   renderCtSavings(savings_plans);
   renderCtLoans(loans);
   renderCtDues(society, members);
   renderCtNotifications(notifications);
   renderCtSettlement(society);
+}
+
+function copyLink(url) {
+  navigator.clipboard?.writeText(url).then(() => notify('Link copied')).catch(() => notify('Could not copy — select and copy manually', true));
 }
 
 function switchCtTab(tab) {
