@@ -14,13 +14,21 @@
  * admin-created societies use), so they can actually log in and use
  * the product during the trial, not just be registered.
  *
- * Body: { society_name, phone, owner_name, email, password, location?, plan, cycle }
+ * Body: { society_name, phone, owner_name, email, password, location?, plan, cycle, addon_keys? }
+ *
+ * Note on Flutterwave plans: this endpoint no longer requires a
+ * pre-created static plan to exist. Since add-ons make the total
+ * payable vary per society, the actual Flutterwave payment plan is
+ * now created dynamically, sized to this exact society's selection,
+ * at checkout time (see public-coop-subscription-checkout-init.js) —
+ * not here, since a trial signup collects no payment at all.
  */
 'use strict';
 
 const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
+const { computeSubscriptionTotal } = require('../../lib/coopPricing');
 
 function mustEnv(name) {
   const v = process.env[name];
@@ -57,6 +65,7 @@ exports.handler = async (event) => {
   const location                = (body.location || '').trim();
   const plan                       = VALID_PLANS.includes(body.plan) ? body.plan : null;
   const cycle                         = VALID_CYCLES.includes(body.cycle) ? body.cycle : null;
+  const addonKeys                        = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
 
   if (!name)      return err(400, 'society_name is required');
   if (!rawPhone)   return err(400, 'phone is required');
@@ -75,9 +84,8 @@ exports.handler = async (event) => {
   const { data: existingMerchant } = await db.from('merchants').select('merchant_id').eq('merchant_id', merchantId).maybeSingle();
   if (existingMerchant) return err(409, `An account already exists for this phone number. Contact support if this is unexpected.`);
 
-  const { data: planRow } = await db.from('coop_subscription_plan_catalog').select('*').eq('tier', plan).eq('cycle', cycle).maybeSingle();
-  if (!planRow) return err(500, `Plan configuration missing for ${plan}/${cycle} — contact support`);
-  if (!planRow.flutterwave_plan_id) return err(500, 'Subscription billing is not fully configured yet — contact support');
+  const pricing = await computeSubscriptionTotal(db, { tier: plan, cycle, addonKeys });
+  if (!pricing.ok) return err(400, pricing.error);
 
   let zillionId = null;
   try { zillionId = await resolveOrCreateZillionId(db, phone, 'merchant'); }
@@ -111,7 +119,6 @@ exports.handler = async (event) => {
     subscription_plan:                 plan,
     subscription_cycle:                   cycle,
     subscription_email:                      email,
-    flutterwave_payment_plan_id:                planRow.flutterwave_plan_id,
     signup_source:                                 'self_service',
     status:                                           'TRIAL', // usable immediately, matching how admin-created trial societies already work
     trial_ends_at:                                       new Date(Date.now() + 30*24*60*60*1000).toISOString(),
@@ -122,10 +129,19 @@ exports.handler = async (event) => {
     return err(500, `Failed to register society: ${societyErr.message}`);
   }
 
+  if (pricing.addons.length) {
+    const { error: addonErr } = await db.from('coop_society_addons').insert(
+      pricing.addons.map(a => ({ coop_id: society.coop_id, addon_key: a.key }))
+    );
+    if (addonErr) console.error('[public-coop-signup] Add-on linking failed (non-fatal, society still created):', addonErr.message);
+  }
+
   return ok({
     success: true,
     coop_id: society.coop_id,
     trial_ends_at: society.trial_ends_at,
+    total_kobo: pricing.totalKobo,
+    addons: pricing.addons,
     message: `${name} is registered and ready to use — your 30-day free trial has started.`,
   });
 };
