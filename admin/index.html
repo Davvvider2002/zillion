@@ -839,6 +839,13 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- COOP THRIFT & LOAN -->
 <div id="sec-coopthrift" class="sec">
   <div id="coopthrift-list-view">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Ecosystem Finance
+        <button class="rbtn" onclick="loadEcosystemFinance()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">Subscription revenue across every society, and reconciliation against real Flutterwave settlements.</div>
+      <div id="ecosystem-finance-content"><div class="no-data">Loading...</div></div>
+    </div>
     <div id="coop-subplan-setup-banner" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div>
         <div style="font-weight:700;font-size:14px">Subscription billing isn't set up yet</div>
@@ -3033,9 +3040,58 @@ async function setupSubscriptionPlans() {
   }
 }
 
+async function loadEcosystemFinance() {
+  const el = document.getElementById('ecosystem-finance-content');
+  el.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const [financeRes, settlementRes] = await Promise.all([
+      fetch(`${API}/admin-coop-ecosystem-finance`, { headers: { Authorization: 'Bearer ' + adminToken } }),
+      fetch(`${API}/admin-flutterwave-settlements`, { headers: { Authorization: 'Bearer ' + adminToken } }),
+    ]);
+    const finance = await financeRes.json();
+    const settlement = await settlementRes.json();
+    if (!financeRes.ok) { el.innerHTML = `<div class="no-data">${finance.error || 'Failed to load'}</div>`; return; }
+
+    const a = finance.aggregate;
+    const fmtN = kobo => '₦' + Math.round((kobo||0)/100).toLocaleString();
+    let settlementHtml = '<div class="no-data">Settlement data unavailable</div>';
+    if (settlementRes.ok) {
+      const r = settlement.reconciliation;
+      settlementHtml = `
+        <div style="font-size:13px;margin-bottom:8px">${r.settled_count} of ${r.total_successful_payments} successful payments confirmed settled by Flutterwave.</div>
+        ${r.stale_unsettled.length ? `
+          <div style="background:rgba(231,76,60,.12);border:1px solid #e74c3c;border-radius:8px;padding:10px 12px;font-size:12.5px">
+            <strong>${r.stale_unsettled.length} payment(s)</strong> unsettled for more than 5 days — worth investigating:
+            ${r.stale_unsettled.map(s => `<div style="margin-top:4px">${s.society_name || s.coop_id}: ${fmtN(s.amount_kobo)}, ${s.days_unsettled}d unsettled</div>`).join('')}
+          </div>` : '<div style="color:var(--g);font-size:12.5px">✓ No stale unsettled payments</div>'}
+      `;
+    }
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+        <div><div style="font-size:20px;font-weight:700">${fmtN(a.total_revenue_kobo)}</div><div style="font-size:11px;color:var(--tx3)">Total revenue</div></div>
+        <div><div style="font-size:20px;font-weight:700">${fmtN(a.approximate_mrr_kobo)}</div><div style="font-size:11px;color:var(--tx3)">Approx. MRR</div></div>
+        <div><div style="font-size:20px;font-weight:700">${a.active_societies}</div><div style="font-size:11px;color:var(--tx3)">Active societies</div></div>
+        <div><div style="font-size:20px;font-weight:700">${a.trial_societies}</div><div style="font-size:11px;color:var(--tx3)">On trial</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;font-weight:600;margin-bottom:8px">Flutterwave settlement reconciliation</div>
+      ${settlementHtml}
+      <details style="margin-top:14px"><summary style="cursor:pointer;font-size:12.5px;color:var(--tx2)">Per-society breakdown</summary>
+        <div class="table-wrap" style="margin-top:10px"><table>
+          <thead><tr><th>Society</th><th>Plan</th><th>Total paid</th><th>Payments</th></tr></thead>
+          <tbody>${finance.societies.map(s => `<tr><td>${s.name}</td><td>${s.plan||'—'}</td><td>${fmtN(s.total_paid_kobo)}</td><td>${s.payment_count}</td></tr>`).join('') || '<tr><td colspan="4" class="no-data">No data</td></tr>'}</tbody>
+        </table></div>
+      </details>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
 async function loadCoopThriftSocieties() {
   document.getElementById('coop-subplan-setup-banner').style.display = 'flex';
   loadAddonModulesAdmin();
+  loadEcosystemFinance();
   const tbody = document.getElementById('coopthrift-table-body');
   tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
   try {
