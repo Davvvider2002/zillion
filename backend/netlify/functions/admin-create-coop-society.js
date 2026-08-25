@@ -13,12 +13,17 @@
  * existing Merchant app) and the coop_societies row linking to it.
  *
  * 30-day trial starts immediately (matches the agreed subscription
- * design — billing/enforcement logic for after the trial ends is
- * still a separate, not-yet-built piece; this just starts the clock).
+ * design). plan/cycle/addon_keys are optional — if given, the society
+ * gets the same real subscription tracking and add-on selection as a
+ * self-service signup, computed via the same shared pricing lib so
+ * the two paths can never disagree on a total. If omitted, behavior
+ * is unchanged from before (a society with no billing plan attached
+ * yet).
  *
  * Auth: SUPER_ADMIN or OPERATIONS.
  * Body: { name, phone, owner_name, location, password, lascofed_ref?,
- *         opening_loan_capital_kobo?, opening_bank_balance_kobo? }
+ *         opening_loan_capital_kobo?, opening_bank_balance_kobo?,
+ *         plan?, cycle?, addon_keys? }
  */
 'use strict';
 
@@ -27,6 +32,10 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 const { auditLog }               = require('../../lib/auditLog');
+const { computeSubscriptionTotal } = require('../../lib/coopPricing');
+
+const VALID_PLANS = ['launch', 'growth', 'scale'];
+const VALID_CYCLES = ['monthly', 'yearly'];
 
 function mustEnv(name) {
   const v = process.env[name];
@@ -61,21 +70,36 @@ exports.handler = async (event) => {
   const rawPhone       = (body.phone || '').trim();
   const ownerName        = (body.owner_name || '').trim();
   const location           = (body.location || '').trim();
-  const password             = (body.password || '').trim();
+  const email                = (body.email || '').trim().toLowerCase();
+  const password               = (body.password || '').trim();
   const lascofedRef            = (body.lascofed_ref || '').trim() || null;
   const openingLoanCapital       = Number.isInteger(body.opening_loan_capital_kobo) ? body.opening_loan_capital_kobo : 0;
   const openingBankBalance         = Number.isInteger(body.opening_bank_balance_kobo) ? body.opening_bank_balance_kobo : 0;
+  const plan                          = body.plan ? (VALID_PLANS.includes(body.plan) ? body.plan : 'INVALID') : null;
+  const cycle                            = body.cycle ? (VALID_CYCLES.includes(body.cycle) ? body.cycle : 'INVALID') : null;
+  const addonKeys                           = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
+
+  if (plan === 'INVALID')  return err(400, 'plan must be one of: launch, growth, scale');
+  if (cycle === 'INVALID')  return err(400, 'cycle must be one of: monthly, yearly');
+  if ((plan && !cycle) || (cycle && !plan)) return err(400, 'plan and cycle must be provided together');
 
   if (!name)      return err(400, 'name is required');
   if (!rawPhone)   return err(400, 'phone is required');
   if (!ownerName)   return err(400, 'owner_name is required');
   if (!password || password.length < 6) return err(400, 'password must be at least 6 characters');
+  if (body.plan && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return err(400, 'A valid email is required when attaching a subscription plan — recurring billing is tied to it');
 
   const phone = normalisePhone(rawPhone);
   if (!/^\+\d{10,15}$/.test(phone)) return err(400, `Invalid phone number: "${phone}"`);
 
   const db = getServiceClient();
   const merchantId = 'MERCH-' + phone.replace(/\D/g, '').slice(-8);
+
+  let pricing = null;
+  if (plan && cycle) {
+    pricing = await computeSubscriptionTotal(db, { tier: plan, cycle, addonKeys });
+    if (!pricing.ok) return err(400, pricing.error);
+  }
 
   const { data: existingMerchant } = await db.from('merchants').select('merchant_id').eq('merchant_id', merchantId).maybeSingle();
   if (existingMerchant) return err(409, `A merchant already exists for this phone number (${merchantId}) — choose a different number or use the existing account.`);
@@ -115,6 +139,12 @@ exports.handler = async (event) => {
     trial_ends_at:                        trialEndsAt,
     opening_loan_capital_kobo:               openingLoanCapital,
     opening_bank_balance_kobo:                  openingBankBalance,
+    ...(plan && cycle ? {
+      subscription_status: 'trial',
+      subscription_plan: plan,
+      subscription_cycle: cycle,
+      subscription_email: email,
+    } : {}),
   }).select().single();
 
   if (societyErr) {
@@ -122,6 +152,13 @@ exports.handler = async (event) => {
     // orphaned, non-functional merchant record with no society behind it.
     await db.from('merchants').delete().eq('merchant_id', merchantId);
     return err(500, `Failed to create the society record: ${societyErr.message}`);
+  }
+
+  if (pricing && pricing.addons.length) {
+    const { error: addonErr } = await db.from('coop_society_addons').insert(
+      pricing.addons.map(a => ({ coop_id: society.coop_id, addon_key: a.key }))
+    );
+    if (addonErr) console.error('[admin-create-coop-society] Add-on linking failed (non-fatal, society still created):', addonErr.message);
   }
 
   await auditLog(db, {
@@ -139,6 +176,7 @@ exports.handler = async (event) => {
     success: true,
     society,
     merchant_id: merchantId,
-    message: `${name} created — trial ends ${new Date(trialEndsAt).toLocaleDateString()}. The society can log into the Merchant app with ${phone} for in-person payment collection.`,
+    total_kobo: pricing ? pricing.totalKobo : null,
+    message: `${name} created — trial ends ${new Date(trialEndsAt).toLocaleDateString()}.${pricing ? ` Total once trial ends: ₦${(pricing.totalKobo/100).toLocaleString()}/${cycle}.` : ''} The society can log into the Merchant app with ${phone} for in-person payment collection.`,
   });
 };
