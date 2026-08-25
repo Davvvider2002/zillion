@@ -604,6 +604,14 @@ async function checkForResumeLink() {
     document.getElementById('signup-pending-body').style.display = '';
     document.getElementById('signup-resume-link-box').style.display = 'none';
 
+    if (info.status === 'SUSPENDED') {
+      document.getElementById('signup-pending-title').textContent = 'Operations paused';
+      document.getElementById('signup-pending-message').textContent = `${info.name}'s account was paused after 7 days without payment on an updated plan. Pay the current total to restore access immediately.`;
+      document.getElementById('signup-pending-actions').style.display = '';
+      document.getElementById('signup-paynow-btn').style.display = '';
+      document.getElementById('signup-paynow-btn').textContent = 'Pay now →';
+      return;
+    }
     if (info.subscription_status === 'active') {
       document.getElementById('signup-pending-title').textContent = 'You\'re already active';
       document.getElementById('signup-pending-message').textContent = `${info.name} is on an active subscription — nothing more needed here.`;
@@ -611,6 +619,17 @@ async function checkForResumeLink() {
       return;
     }
     if (info.subscription_status === 'pending_verification') {
+      if (info.repricing_pending_since) {
+        // The definitive "needs a fresh payment" signal — plan changed
+        // or an add-on was added, no payment made for the new total yet.
+        const graceDaysLeft = Math.max(0, 7 - Math.floor((new Date() - new Date(info.repricing_pending_since)) / 86400000));
+        document.getElementById('signup-pending-title').textContent = 'Payment needed';
+        document.getElementById('signup-pending-message').textContent = `${info.name}'s plan was recently updated — pay the new total to keep things moving. ${graceDaysLeft > 0 ? `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left before operations pause.` : 'Operations may pause very soon without payment.'}`;
+        document.getElementById('signup-pending-actions').style.display = '';
+        document.getElementById('signup-paynow-btn').style.display = '';
+        document.getElementById('signup-paynow-btn').textContent = 'Pay now →';
+        return;
+      }
       if (info.subscription_paid_until) {
         // A real payment has actually landed — genuinely waiting on admin review.
         document.getElementById('signup-pending-title').textContent = 'Payment received';
@@ -618,15 +637,11 @@ async function checkForResumeLink() {
         document.getElementById('signup-pending-actions').style.display = 'none';
         return;
       }
-      // pending_verification with no payment on file yet — this is the
-      // state right after a plan change or a newly-added add-on (the
-      // old Flutterwave plan was invalidated, no fresh payment has
-      // happened). Needs a payment, not a "wait for review" message.
-      document.getElementById('signup-pending-title').textContent = 'Payment needed';
-      document.getElementById('signup-pending-message').textContent = `${info.name}'s plan was recently updated — pay the new total to keep things moving.`;
-      document.getElementById('signup-pending-actions').style.display = '';
-      document.getElementById('signup-paynow-btn').style.display = '';
-      document.getElementById('signup-paynow-btn').textContent = 'Pay now →';
+      // No plan ever attached, or some other ambiguous legacy state —
+      // nothing concrete to charge, so no Pay Now button here.
+      document.getElementById('signup-pending-title').textContent = 'Registration pending';
+      document.getElementById('signup-pending-message').textContent = `${info.name}'s registration is pending — contact support if you're expecting an update.`;
+      document.getElementById('signup-pending-actions').style.display = 'none';
       return;
     }
 
