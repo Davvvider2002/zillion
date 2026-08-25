@@ -27,7 +27,7 @@ async function resolvePortalSociety(db, auth) {
   }
 
   const { data: society } = await db.from('coop_societies')
-    .select('coop_id, name, status, subscription_status, merchant_id')
+    .select('coop_id, name, status, subscription_status, merchant_id, base_currency')
     .eq('merchant_id', merchantId).maybeSingle();
 
   if (!society) {
