@@ -158,3 +158,6 @@
 /api/v1/coop-portal-chart-of-accounts                 /.netlify/functions/coop-portal-chart-of-accounts                 200
 /api/v1/coop-portal-journal-entry                     /.netlify/functions/coop-portal-journal-entry                     200
 /api/v1/coop-portal-opening-balance-wizard            /.netlify/functions/coop-portal-opening-balance-wizard            200
+/api/v1/coop-portal-financial-reports                 /.netlify/functions/coop-portal-financial-reports                 200
+/api/v1/admin-coop-ecosystem-finance                  /.netlify/functions/admin-coop-ecosystem-finance                  200
+/api/v1/admin-flutterwave-settlements                 /.netlify/functions/admin-flutterwave-settlements                 200
