@@ -43,7 +43,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: society } = await db.from('coop_societies')
-    .select('coop_id, subscription_plan, subscription_cycle, subscription_paid_until, subscription_status')
+    .select('coop_id, status, subscription_plan, subscription_cycle, subscription_paid_until, subscription_status')
     .eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Society not found');
 
@@ -88,7 +88,7 @@ exports.handler = async (event) => {
   }
 
   const paidUntil = extendSubscription(society.subscription_paid_until, society.subscription_cycle);
-  await db.from('coop_societies').update({
+  const update = {
     subscription_paid_until: paidUntil.toISOString(),
     // Real money has now landed — whether this society was on a trial,
     // past its trial, or on the legacy pre-trial path, it moves to
@@ -99,7 +99,17 @@ exports.handler = async (event) => {
     // correct — they've now paid and are waiting on the same admin
     // review every self-service signup goes through.
     subscription_status: 'pending_verification',
-  }).eq('coop_id', coopId);
+    // A real payment resolves any outstanding repricing debt — clear
+    // the 7-day grace-period clock so scheduled-reconcile.js stops
+    // watching this society for it.
+    repricing_pending_since: null,
+  };
+  // If this society had been suspended for not paying after a plan
+  // change, a real payment restores operational access — otherwise
+  // they'd have paid but still be locked out.
+  if (society.status === 'SUSPENDED') update.status = 'ACTIVE';
+
+  await db.from('coop_societies').update(update).eq('coop_id', coopId);
 
   return ok({
     success: true,
