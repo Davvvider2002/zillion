@@ -3286,7 +3286,15 @@ function renderSocietyDetail(data) {
   const loginUrl = `${window.location.origin}/coop-admin`;
   const resumeUrl = `${window.location.origin}/coop?resume=${encodeURIComponent(society.coop_id)}`;
   const needsPayment = society.subscription_plan && !['active'].includes(society.subscription_status);
+  let graceWarning = '';
+  if (society.repricing_pending_since) {
+    const daysLeft = Math.max(0, 7 - Math.floor((new Date() - new Date(society.repricing_pending_since)) / 86400000));
+    graceWarning = `<div style="background:${daysLeft <= 2 ? 'rgba(231,76,60,.12)' : 'rgba(245,158,11,.12)'};border:1px solid ${daysLeft <= 2 ? '#e74c3c' : 'var(--am)'};border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
+      ${society.status === 'SUSPENDED' ? '<strong>Operations paused</strong> — grace period expired with no payment.' : `<strong>${daysLeft} day${daysLeft === 1 ? '' : 's'} left</strong> to pay the updated total before operations pause automatically.`}
+    </div>`;
+  }
   document.getElementById('ct-d-links').innerHTML = `
+    ${graceWarning}
     <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.02em;font-weight:600;margin-bottom:8px">Share with this society</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:${needsPayment ? '8px' : '0'}">
       <span style="font-size:12.5px;color:var(--tx2);width:90px;flex-shrink:0">Portal login:</span>
