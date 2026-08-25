@@ -5,7 +5,7 @@
  *
  * Public self-service signup — no authentication, reachable from the
  * landing page. Creates a real merchant identity + coop_societies row
- * with a real, immediately-usable 30-day free trial — no payment
+ * with a real, immediately-usable 14-day free trial — no payment
  * collected at signup. Flutterwave has no mechanism to collect a card
  * now and delay the first charge, so a genuine trial has to mean
  * "usable now, pay before it ends" rather than "card on file,
@@ -121,7 +121,7 @@ exports.handler = async (event) => {
     subscription_email:                      email,
     signup_source:                                 'self_service',
     status:                                           'TRIAL', // usable immediately, matching how admin-created trial societies already work
-    trial_ends_at:                                       new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+    trial_ends_at:                                       new Date(Date.now() + 14*24*60*60*1000).toISOString(),
   }).select().single();
 
   if (societyErr) {
@@ -142,6 +142,6 @@ exports.handler = async (event) => {
     trial_ends_at: society.trial_ends_at,
     total_kobo: pricing.totalKobo,
     addons: pricing.addons,
-    message: `${name} is registered and ready to use — your 30-day free trial has started.`,
+    message: `${name} is registered and ready to use — your 14-day free trial has started.`,
   });
 };
