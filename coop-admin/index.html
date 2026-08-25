@@ -174,6 +174,44 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- NEW SAVINGS PLAN MODAL -->
+<div class="modal-overlay" id="modal-new-savings-plan">
+  <div class="modal-box">
+    <div class="modal-title">New savings plan</div>
+    <div class="field">
+      <label>Member</label>
+      <select id="nsp-member-id" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></select>
+    </div>
+    <div class="field"><label>Target amount (₦)</label><input type="number" id="nsp-target" placeholder="0"></div>
+    <div class="field"><label>Monthly contribution (₦)</label><input type="number" id="nsp-monthly" placeholder="0"></div>
+    <div class="field"><label>Duration (months)</label><input type="number" id="nsp-duration" placeholder="12"></div>
+    <div id="nsp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNewSavingsPlan()" id="nsp-btn">Create plan</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-savings-plan')">Cancel</button>
+  </div>
+</div>
+
+<!-- CONFIGURE DUES MODAL -->
+<div class="modal-overlay" id="modal-configure-dues">
+  <div class="modal-box">
+    <div class="modal-title">Configure dues</div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="cd-amount" placeholder="0"></div>
+    <div class="field">
+      <label>Frequency</label>
+      <select id="cd-frequency" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <option value="monthly">Monthly</option>
+        <option value="annual">Annual</option>
+      </select>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px;cursor:pointer;text-transform:none;letter-spacing:normal;color:var(--cream);font-weight:400">
+      <input type="checkbox" id="cd-enforce"> Block loan applications for members with unpaid dues
+    </label>
+    <div id="cd-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureDues()" id="cd-btn">Save</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-dues')">Cancel</button>
+  </div>
+</div>
+
 <!-- REJECT LOAN MODAL -->
 <div class="modal-overlay" id="modal-reject-loan">
   <div class="modal-box">
@@ -488,7 +526,9 @@ function renderSavings() {
   const el = document.getElementById('view-savings');
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Savings plans</div>
+      <div class="card-title">Savings plans
+        <button class="btn btn-primary btn-sm" onclick="openNewSavingsPlanModal()">＋ New savings plan</button>
+      </div>
       <div class="card-sub">Progress toward each member's savings target.</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Member</th><th>Target</th><th>Saved</th><th>Progress</th><th></th></tr></thead>
@@ -540,6 +580,47 @@ async function submitSavingsPayment() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Record payment';
+  }
+}
+
+function openNewSavingsPlanModal() {
+  const sel = document.getElementById('nsp-member-id');
+  sel.innerHTML = portalData.members.filter(m => m.status === 'ACTIVE').map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('') || '<option value="">No active members yet</option>';
+  document.getElementById('nsp-target').value = '';
+  document.getElementById('nsp-monthly').value = '';
+  document.getElementById('nsp-duration').value = '';
+  document.getElementById('nsp-error').style.display = 'none';
+  openModal('modal-new-savings-plan');
+}
+
+async function submitNewSavingsPlan() {
+  const errEl = document.getElementById('nsp-error');
+  errEl.style.display = 'none';
+  const memberId = document.getElementById('nsp-member-id').value;
+  const target = parseInt(document.getElementById('nsp-target').value) || 0;
+  const monthly = parseInt(document.getElementById('nsp-monthly').value) || 0;
+  const duration = parseInt(document.getElementById('nsp-duration').value) || 0;
+  if (!memberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  if (target <= 0) { errEl.textContent = 'Enter a valid target amount.'; errEl.style.display = 'block'; return; }
+  if (monthly <= 0) { errEl.textContent = 'Enter a valid monthly contribution.'; errEl.style.display = 'block'; return; }
+  if (duration <= 0) { errEl.textContent = 'Enter a valid duration in months.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('nsp-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-create-savings-plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: memberId, target_amount_kobo: target * 100, monthly_contribution_kobo: monthly * 100, duration_months: duration }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create plan.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create plan'; return; }
+    notify('Savings plan created');
+    closeModal('modal-new-savings-plan');
+    btn.disabled = false; btn.textContent = 'Create plan';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Create plan';
   }
 }
 
@@ -620,7 +701,9 @@ function renderDues() {
   const withDues = d.members.filter(m => m.dues);
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Dues</div>
+      <div class="card-title">Dues
+        <button class="btn btn-ghost btn-sm" onclick="openConfigureDuesModal()">${d.society.dues_amount_kobo ? 'Edit' : 'Configure'} dues</button>
+      </div>
       <div class="card-sub">${d.society.dues_amount_kobo ? `₦${(d.society.dues_amount_kobo/100).toLocaleString()} ${d.society.dues_frequency || 'monthly'} per member.` : 'Dues are not configured for this society yet.'}</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Member</th><th>Accrued</th><th>Paid</th><th>Owing</th><th></th></tr></thead>
@@ -636,6 +719,45 @@ function renderDues() {
       </table></div>
     </div>
   `;
+}
+
+function openConfigureDuesModal() {
+  const s = portalData.society;
+  document.getElementById('cd-amount').value = s.dues_amount_kobo ? s.dues_amount_kobo / 100 : '';
+  document.getElementById('cd-frequency').value = s.dues_frequency || 'monthly';
+  document.getElementById('cd-enforce').checked = !!s.dues_enforcement_enabled;
+  document.getElementById('cd-error').style.display = 'none';
+  openModal('modal-configure-dues');
+}
+
+async function submitConfigureDues() {
+  const errEl = document.getElementById('cd-error');
+  errEl.style.display = 'none';
+  const amount = parseInt(document.getElementById('cd-amount').value) || 0;
+  const frequency = document.getElementById('cd-frequency').value;
+  const enforce = document.getElementById('cd-enforce').checked;
+  if (amount <= 0) { errEl.textContent = 'Enter a valid dues amount.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('cd-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-configure-dues`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({
+        dues_amount_kobo: amount * 100, dues_frequency: frequency,
+        dues_enforcement_enabled: enforce, dues_enforcement_rules: { block_loan_application: enforce },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
+    notify('Dues configured');
+    closeModal('modal-configure-dues');
+    btn.disabled = false; btn.textContent = 'Save';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save';
+  }
 }
 
 function openDuesPaymentModal(memberId, memberLabel) {
