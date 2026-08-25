@@ -177,6 +177,41 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] trial expiry check failed:', e.message);
   }
 
+  // ── 6. Repricing grace period (upgrade/add-on unpaid) ────────────────────
+  // David's explicit instruction: a society that falls to
+  // pending_verification because of a plan/add-on change (not a fresh
+  // signup) gets a 7-day grace period. If they haven't paid the new
+  // total by then — via the payment link either sent to their email
+  // (no such automated sending exists yet) or shared manually by admin
+  // from the society's detail view — operations pause entirely
+  // (status → SUSPENDED, which coopPortalAuth.js already blocks at
+  // the portal for). repricing_pending_since is cleared on real
+  // payment (checkout-verify.js) or if this section suspends the
+  // society, so this only ever fires once per unpaid repricing event.
+  try {
+    const { data: repricingPending } = await db.from('coop_societies')
+      .select('coop_id, name, status, repricing_pending_since')
+      .not('repricing_pending_since', 'is', null)
+      .neq('status', 'SUSPENDED');
+
+    const now = new Date();
+    for (const society of (repricingPending || [])) {
+      const daysSince = (now - new Date(society.repricing_pending_since)) / 86400000;
+      if (daysSince >= 7) {
+        await db.from('coop_societies').update({ status: 'SUSPENDED' }).eq('coop_id', society.coop_id);
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'CRITICAL',
+          source:   SOURCE,
+          message:  `${society.name} operations paused — 7-day grace period expired with no payment for their updated plan`,
+          context:  { coop_id: society.coop_id, repricing_pending_since: society.repricing_pending_since },
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] repricing grace-period check failed:', e.message);
+  }
+
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
   return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised }) };
 };
