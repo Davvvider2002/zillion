@@ -128,6 +128,7 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-view="savings" onclick="switchView('savings')">Savings</div>
     <div class="tab" data-view="loans" onclick="switchView('loans')">Loans</div>
     <div class="tab" data-view="dues" onclick="switchView('dues')">Dues</div>
+    <div class="tab" data-view="addons" onclick="switchView('addons')">Add-ons</div>
     <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
   </div>
 
@@ -136,6 +137,7 @@ tr:last-child td{border-bottom:none}
   <div class="view" id="view-savings"></div>
   <div class="view" id="view-loans"></div>
   <div class="view" id="view-dues"></div>
+  <div class="view" id="view-addons"></div>
   <div class="view" id="view-notifications"></div>
 </div>
 
@@ -351,6 +353,7 @@ function switchView(name) {
   if (name === 'savings') renderSavings();
   if (name === 'loans') renderLoans();
   if (name === 'dues') renderDues();
+  if (name === 'addons') renderAddons();
   if (name === 'notifications') renderNotifications();
 }
 
@@ -670,6 +673,28 @@ async function submitDuesPayment() {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Record payment';
   }
+}
+
+// ── ADD-ONS ───────────────────────────────────────────────────────────
+function renderAddons() {
+  const d = portalData;
+  const el = document.getElementById('view-addons');
+  const purchased = d.addons || [];
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Your add-ons</div>
+      <div class="card-sub">Modules included with your subscription. Contact us to add more.</div>
+      ${purchased.length ? purchased.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
+          <div>
+            <div style="font-weight:600;font-size:14px">${a.coop_addon_modules?.name || a.addon_key}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.coop_addon_modules?.description || ''}</div>
+          </div>
+          <span class="pill pill-amber">Launching soon</span>
+        </div>
+      `).join('') : `<div class="no-data">No add-on modules on your current plan.</div>`}
+    </div>
+  `;
 }
 
 // ── NOTIFICATIONS ────────────────────────────────────────────────────
