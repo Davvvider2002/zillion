@@ -1025,6 +1025,7 @@ async function renderAccounting() {
   el.innerHTML = `<div class="no-data">Loading...</div>`;
   await Promise.all([fetchChartOfAccounts(), fetchJournalEntries()]);
   renderAccountingContent();
+  if (accountingOpeningDone) loadFinancialReport();
 }
 
 async function fetchChartOfAccounts() {
@@ -1054,6 +1055,17 @@ function renderAccountingContent() {
       <div class="card-sub">Before recording new activity, tell us what each account currently holds. One-time setup.</div>
       <button class="btn btn-primary btn-sm" onclick="openOpeningBalanceModal()">Start wizard →</button>
     </div>` : ''}
+    <div class="card">
+      <div class="card-title">Reports
+        <select id="report-type-select" onchange="loadFinancialReport()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">
+          <option value="trial_balance">Trial Balance</option>
+          <option value="income_expenditure">Income &amp; Expenditure</option>
+          <option value="balance_sheet">Balance Sheet</option>
+        </select>
+      </div>
+      <div class="card-sub">Computed live from your journal entries — always current.</div>
+      <div id="report-content">${accountingOpeningDone ? '<div class="no-data">Select a report above.</div>' : '<div class="no-data">Set opening balances first.</div>'}</div>
+    </div>
     <div class="card">
       <div class="card-title">Chart of accounts
         <button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button>
@@ -1218,6 +1230,7 @@ async function submitJournalEntry() {
     btn.disabled = false; btn.textContent = 'Save entry';
     await fetchJournalEntries();
     renderAccountingContent();
+    if (accountingOpeningDone) loadFinancialReport();
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Save entry';
@@ -1274,10 +1287,79 @@ async function submitOpeningBalances() {
     btn.disabled = false; btn.textContent = 'Save opening balances';
     await fetchJournalEntries();
     renderAccountingContent();
+    if (accountingOpeningDone) loadFinancialReport();
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Save opening balances';
   }
+}
+
+async function loadFinancialReport() {
+  const contentEl = document.getElementById('report-content');
+  if (!accountingOpeningDone) { contentEl.innerHTML = '<div class="no-data">Set opening balances first.</div>'; return; }
+  const reportType = document.getElementById('report-type-select').value;
+  contentEl.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-financial-reports?report=${reportType}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { contentEl.innerHTML = `<div class="no-data">${data.error || 'Failed to load report'}</div>`; return; }
+    if (reportType === 'trial_balance') renderTrialBalance(data);
+    if (reportType === 'income_expenditure') renderIncomeExpenditure(data);
+    if (reportType === 'balance_sheet') renderBalanceSheet(data);
+  } catch (e) {
+    contentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function renderTrialBalance(data) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Code</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+      <tbody>${data.accounts.filter(a => a.total_debit || a.total_credit).map(a => `
+        <tr><td>${a.account_code}</td><td>${a.account_name}</td>
+        <td>${a.total_debit ? fmtNaira(a.total_debit) : ''}</td><td>${a.total_credit ? fmtNaira(a.total_credit) : ''}</td></tr>
+      `).join('') || '<tr><td colspan="4" class="no-data">No activity yet.</td></tr>'}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Total</td><td>${fmtNaira(data.total_debit)}</td><td>${fmtNaira(data.total_credit)}</td></tr></tfoot>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${data.balanced ? 'var(--green-lt)' : '#e74c3c'}">${data.balanced ? '✓ Balanced' : '⚠ Not balanced — contact support'}</div>
+  `;
+}
+
+function renderIncomeExpenditure(data) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Income</td></tr>
+        ${data.income.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Expense</td></tr>
+        ${data.expense.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+      </tbody>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${data.net >= 0 ? 'var(--green-lt)' : '#e74c3c'}">Net ${data.net >= 0 ? 'surplus' : 'deficit'}: ${fmtNaira(Math.abs(data.net))}</div>
+  `;
+}
+
+function renderBalanceSheet(data) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = `
+    <div class="table-wrap"><table>
+      <tbody>
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Assets</td></tr>
+        ${data.assets.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Assets</td><td>${fmtNaira(data.total_assets)}</td></tr>
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Liabilities</td></tr>
+        ${data.liabilities.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Equity</td></tr>
+        ${data.equity.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('')}
+        <tr><td>Net income (this period)</td><td>${fmtNaira(data.net_income)}</td></tr>
+        <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Liabilities + Equity</td><td>${fmtNaira(data.total_liabilities + data.total_equity)}</td></tr>
+      </tbody>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${data.balanced ? 'var(--green-lt)' : '#e74c3c'}">${data.balanced ? '✓ Balanced' : '⚠ Not balanced — contact support'}</div>
+  `;
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────
