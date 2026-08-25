@@ -411,7 +411,7 @@ function renderSignupAddonsModal() {
   document.getElementById('su-addons-list').innerHTML = signupAddons.map(a => `
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer;color:var(--muted)">
         <input type="checkbox" class="su-addon-checkbox" value="${a.key}" data-price="${a.price_kobo}" onchange="updateSignupTotal()" style="margin-top:2px">
-        <span><span style="color:var(--cream)">${a.name}</span> — ${fmtNaira(a.price_kobo)}/mo<br><span style="font-size:11.5px">${a.description || ''}</span></span>
+        <span><span style="color:var(--cream)">${a.name}</span> — ${fmtNaira(a.price_kobo/100)}/mo<br><span style="font-size:11.5px">${a.description || ''}</span></span>
       </label>`).join('');
   updateSignupTotal();
 }
@@ -424,7 +424,7 @@ function renderPublicAddonsSection() {
     <div class="addon-card">
       <h3>${a.name}</h3>
       <p>${a.description || ''}</p>
-      <div class="price">${fmtNaira(a.price_kobo)}/mo</div>
+      <div class="price">${fmtNaira(a.price_kobo/100)}/mo</div>
     </div>`).join('');
 }
 
@@ -432,8 +432,8 @@ function updateSignupTotal() {
   const tier = TIERS.find(t => t.key === selectedPlan);
   let total = currentCycle === 'yearly' ? tier.yearly : tier.monthly;
   document.querySelectorAll('.su-addon-checkbox:checked').forEach(cb => {
-    const monthlyPrice = parseInt(cb.dataset.price);
-    total += currentCycle === 'yearly' ? Math.round(monthlyPrice * 12 * 0.85) : monthlyPrice;
+    const monthlyPriceNaira = parseInt(cb.dataset.price) / 100; // dataset.price is kobo; TIERS/total here are Naira
+    total += currentCycle === 'yearly' ? Math.round(monthlyPriceNaira * 12 * 0.85) : monthlyPriceNaira;
   });
   document.getElementById('su-total-display').textContent = `Total after trial: ${fmtNaira(total)}/${currentCycle === 'yearly' ? 'year' : 'month'}`;
 }
