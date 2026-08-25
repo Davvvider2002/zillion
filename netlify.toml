@@ -713,3 +713,18 @@
   from = "/api/v1/coop-portal-opening-balance-wizard"
   to   = "/.netlify/functions/coop-portal-opening-balance-wizard"
   status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-financial-reports"
+  to   = "/.netlify/functions/coop-portal-financial-reports"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-ecosystem-finance"
+  to   = "/.netlify/functions/admin-coop-ecosystem-finance"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-flutterwave-settlements"
+  to   = "/.netlify/functions/admin-flutterwave-settlements"
+  status = 200
