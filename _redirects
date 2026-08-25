@@ -155,3 +155,6 @@
 /api/v1/coop-portal-configure-dues                    /.netlify/functions/coop-portal-configure-dues                    200
 /api/v1/admin-change-coop-plan                        /.netlify/functions/admin-change-coop-plan                        200
 /api/v1/coop-portal-add-addon                         /.netlify/functions/coop-portal-add-addon                         200
+/api/v1/coop-portal-chart-of-accounts                 /.netlify/functions/coop-portal-chart-of-accounts                 200
+/api/v1/coop-portal-journal-entry                     /.netlify/functions/coop-portal-journal-entry                     200
+/api/v1/coop-portal-opening-balance-wizard            /.netlify/functions/coop-portal-opening-balance-wizard            200
