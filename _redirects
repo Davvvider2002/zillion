@@ -150,3 +150,4 @@
 /api/v1/coop-portal-record-dues-payment               /.netlify/functions/coop-portal-record-dues-payment               200
 /api/v1/coop-portal-send-notification                 /.netlify/functions/coop-portal-send-notification                 200
 /api/v1/admin-addon-modules                           /.netlify/functions/admin-addon-modules                           200
+/api/v1/public-coop-addon-modules                     /.netlify/functions/public-coop-addon-modules                     200
