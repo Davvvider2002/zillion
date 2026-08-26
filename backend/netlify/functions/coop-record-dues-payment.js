@@ -20,6 +20,7 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
+const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -65,6 +66,8 @@ exports.handler = async (event) => {
   }).select().single();
 
   if (insertErr) return err(500, `Failed to record dues payment: ${insertErr.message}`);
+
+  await recordDuesPaymentJournalEntry(db, member.coop_id, amountKobo, source, auth.payload.username || auth.payload.sub);
 
   await auditLog(db, {
     action:       'COOP_DUES_PAYMENT_RECORDED',
