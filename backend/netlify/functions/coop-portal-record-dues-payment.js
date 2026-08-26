@@ -16,6 +16,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
+const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -63,6 +64,8 @@ exports.handler = async (event) => {
   }).select().single();
 
   if (insertErr) return err(500, `Failed to record dues payment: ${insertErr.message}`);
+
+  await recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`);
 
   await auditLog(db, {
     action:       'COOP_PORTAL_DUES_PAYMENT_RECORDED',
