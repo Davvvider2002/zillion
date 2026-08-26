@@ -22,6 +22,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { recordLoanRepaymentJournalEntry } = require('../../lib/coopLoanAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -98,6 +99,8 @@ exports.handler = async (event) => {
   if (loan.status === 'DISBURSED') {
     await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
   }
+
+  await recordLoanRepaymentJournalEntry(db, plan.coop_id, amountKobo, 'savings_deduction', 'member:savings_deduction');
 
   return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} moved from your savings to repay this loan.` });
 };
