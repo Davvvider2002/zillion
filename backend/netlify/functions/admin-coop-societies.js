@@ -63,9 +63,24 @@ exports.handler = async (event) => {
 
   const { data: plansRaw } = await db.from('coop_savings_plans')
     .select('*, coop_members(name, phone_normalized)').eq('coop_id', coopId).order('created_at', { ascending: false });
+
+  // Same fix as coop-portal-society.js — opening balance was missing
+  // entirely here, and is credited only to each member's earliest
+  // plan to avoid double-counting for anyone with more than one.
+  const memberById = new Map((membersRaw || []).map(m => [m.id, m]));
+  const earliestPlanIdByMember = {};
+  for (const p of (plansRaw || [])) {
+    const existing = earliestPlanIdByMember[p.member_id];
+    if (!existing || new Date(p.created_at) < new Date(existing.created_at)) {
+      earliestPlanIdByMember[p.member_id] = { id: p.id, created_at: p.created_at };
+    }
+  }
+
   const plans = await Promise.all((plansRaw || []).map(async (p) => {
     const { data: txns } = await db.from('coop_savings_transactions').select('amount_kobo').eq('savings_plan_id', p.id);
-    const savedKobo = (txns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0);
+    const isEarliestForMember = earliestPlanIdByMember[p.member_id]?.id === p.id;
+    const openingBalanceForThisPlan = isEarliestForMember ? (memberById.get(p.member_id)?.opening_balance_kobo || 0) : 0;
+    const savedKobo = (txns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + openingBalanceForThisPlan;
     return { ...p, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / p.target_amount_kobo) * 100)) };
   }));
 
