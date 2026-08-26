@@ -1837,8 +1837,14 @@ function triggerPWAInstall() {
         </div>
         <button class="btn btn-outline" id="zil-reset-wallet-btn" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
           onclick="resetWallet()">Reset Wallet</button>
-        <button class="btn btn-ghost" onclick="logout()">Log Out</button>
       </div>
+      <!-- Log Out lives outside zil-restore-card on purpose — it's a
+           universal action every user needs regardless of flavor, and
+           previously being nested inside that wrapper meant hiding
+           Zil-specific content for coop silently took Log Out down
+           with it. Real bug David found — someone genuinely had no
+           way to log out of the coop app at all. -->
+      <button class="btn btn-ghost" onclick="logout()">Log Out</button>
       <div style="height:20px"></div>
     </div>
   </div>
