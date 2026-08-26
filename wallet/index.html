@@ -1898,7 +1898,19 @@ const MINT_PUBLIC_KEY = null; // loaded from env on first sync
 // fallback in case any in-SPA navigation ever drops the query string —
 // the native shell always launches with it, but this is a cheap safety
 // net against that one edge case.
-const IS_COOP = (() => {
+//
+// IMPORTANT: this URL/localStorage check is a FAST PATH, not the only
+// source of truth. It fails completely for a real coop member on a
+// brand-new browser/device who never happened to land on a ?app=coop
+// URL first — they'd see the full regular Zillion experience (Send
+// Zil, role picker, the works), which is exactly the gap David found
+// testing on a fresh Android session. `let`, not `const`, because
+// verifyOtp() below corrects it server-side the moment a JWT exists —
+// by checking whether THIS PHONE is already a known coop member,
+// regardless of what the URL or localStorage say. That happens before
+// the role picker or home screen are ever shown, so the correction is
+// invisible in the common case.
+let IS_COOP = (() => {
   const fromUrl = new URLSearchParams(location.search).get('app') === 'coop';
   if (fromUrl) { try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {} }
   try { return fromUrl || localStorage.getItem('zillion_is_coop_flavor') === '1'; }
@@ -1910,10 +1922,9 @@ const IS_COOP = (() => {
 // Non-destructive for the regular Zillion app: data-bnav-role tags were
 // added to the original Vault/Send buttons without changing their
 // default behavior at all, so this only ever runs for the coop flavor.
-// Safe to run synchronously here (not deferred to DOMContentLoaded) —
-// this script tag is the last one in the document, so every bnav block
-// already exists in the DOM by the time this line executes.
-if (IS_COOP) {
+// Wrapped in a function (not just run inline) so verifyOtp() can
+// re-apply it after a server-side correction, not only at initial load.
+function applyCoopFlavorUI() {
   document.querySelectorAll('[data-bnav-role="vault"]').forEach(btn => {
     btn.querySelector('.bnav-icon').textContent = '🤝';
     btn.querySelector('.bnav-label').textContent = 'Thrift';
@@ -1951,6 +1962,7 @@ if (IS_COOP) {
   if (pinStepEarly) pinStepEarly.textContent = 'Step 2 of 2';
   if (pinSubEarly) pinSubEarly.textContent = 'Secures your account. Never stored — only you know it.';
 }
+if (IS_COOP) applyCoopFlavorUI();
 
 // -- State -----------------------------------------------------
 let STATE = {
@@ -2223,6 +2235,27 @@ async function verifyOtp() {
     STATE._verifiedPhone = STATE._pendingPhone;
     STATE._verifiedToken = data.token || '';   // save JWT for sync
     clearInterval(otpTimer);
+
+    // Real gap David found testing fresh on Android: IS_COOP relies on
+    // a URL param or localStorage, which a brand-new browser/device
+    // simply doesn't have — even for someone who's a genuine, already-
+    // activated coop member. Now that a JWT exists, ask the server
+    // directly rather than trust only the client-side signal. Runs
+    // before screen-pin, so if this corrects IS_COOP, the role picker
+    // and home screen never get a chance to render with the wrong
+    // flavor in the first place — no flash, no stale UI.
+    if (!IS_COOP && STATE._verifiedToken) {
+      try {
+        const coopCheck = await fetch(`${API}/coop-member-status`, { headers: { Authorization: 'Bearer ' + STATE._verifiedToken } });
+        const coopData = await coopCheck.json();
+        if (coopData.is_coop_member) {
+          IS_COOP = true;
+          try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {}
+          applyCoopFlavorUI();
+        }
+      } catch (e) { /* non-fatal — worst case, falls back to the existing URL/localStorage behavior */ }
+    }
+
     goTo('screen-pin');
 
   } catch(e) {
@@ -2488,6 +2521,19 @@ function _coopUpdateNotifBell(data) {
 
 async function zilRenderCoopSummary() {
   const data = await zilCoopFetchStatus(false);
+
+  // Defensive backup for the same correction verifyOtp() does — this
+  // runs on every home-screen load (fresh signup AND returning
+  // session restore), so it also catches a returning user whose saved
+  // session predates them becoming a coop member, or predates this
+  // flavor-detection logic existing at all. Idempotent — a no-op if
+  // IS_COOP is already correct.
+  if (!IS_COOP && data && data.is_coop_member) {
+    IS_COOP = true;
+    try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {}
+    applyCoopFlavorUI();
+  }
+
   _coopUpdateNotifBell(data);
 
   if (typeof IS_COOP !== 'undefined' && IS_COOP) {
