@@ -26,6 +26,7 @@ const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { linesAreBalanced }     = require('../../lib/coopAccounting');
 const { auditLog }             = require('../../lib/auditLog');
+const { recordDuesAccrual }    = require('../../lib/coopDuesAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -43,6 +44,7 @@ exports.handler = async (event) => {
   if (!(await hasAddon(db, coopId, 'accounting'))) return err(403, 'The Accounting & Finance module is not on your current plan');
 
   if (event.httpMethod === 'GET') {
+    await recordDuesAccrual(db, coopId); // on-demand check — doesn't require waiting for the next scheduled run
     const { data: entries, error } = await db.from('coop_journal_entries')
       .select('*, coop_journal_entry_lines(*, coop_chart_of_accounts(account_code, account_name))')
       .eq('coop_id', coopId).order('entry_number', { ascending: false }).limit(200);
