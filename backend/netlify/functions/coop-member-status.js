@@ -69,10 +69,21 @@ exports.handler = async (event) => {
   const { data: plans } = await db.from('coop_savings_plans')
     .select('*').eq('member_id', member.id).order('created_at', { ascending: false });
 
+  // Opening balance belongs to the member, not any specific plan — it
+  // represents pre-existing savings recorded at onboarding. Applying
+  // it to every plan would double-count the same real money for
+  // anyone with more than one plan, so it's credited to whichever
+  // plan is earliest by created_at, independent of the display order
+  // above (which is newest-first).
+  const earliestPlanId = (plans || []).length
+    ? [...plans].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0].id
+    : null;
+
   const plansWithProgress = await Promise.all((plans || []).map(async (plan) => {
     const { data: txnRows } = await db.from('coop_savings_transactions')
       .select('amount_kobo').eq('savings_plan_id', plan.id);
-    const savedKobo = (txnRows || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + (member.opening_balance_kobo || 0);
+    const openingBalanceForThisPlan = plan.id === earliestPlanId ? (member.opening_balance_kobo || 0) : 0;
+    const savedKobo = (txnRows || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + openingBalanceForThisPlan;
     return { ...plan, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / plan.target_amount_kobo) * 100)) };
   }));
 
