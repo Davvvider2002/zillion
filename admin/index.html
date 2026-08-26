@@ -1187,8 +1187,10 @@ tbody tr:last-child td{border-bottom:none;}
 <div id="provision-settlement-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
     <div style="font-size:17px;font-weight:700;margin-bottom:18px">Configure Settlement Account</div>
-    <label class="field-label">Bank Code</label>
-    <input class="field-input" type="text" id="ps-bank-code" placeholder="e.g. 044 for Access Bank" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Bank</label>
+    <select class="field-input" id="ps-bank-code" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="">Loading banks…</option>
+    </select>
     <label class="field-label">Account Number</label>
     <input class="field-input" type="text" id="ps-account-number" placeholder="10-digit account number" style="margin-bottom:12px;width:100%;box-sizing:border-box">
     <label class="field-label">Society Business Email</label>
@@ -3693,12 +3695,32 @@ async function submitSendNotification() {
 }
 
 // -- Settlement --
+let ctBankListCache = null;
+
 function openProvisionSettlementModal() {
-  document.getElementById('ps-bank-code').value = '';
+  document.getElementById('ps-bank-code').innerHTML = '<option value="">Loading banks…</option>';
   document.getElementById('ps-account-number').value = '';
   document.getElementById('ps-business-email').value = '';
   document.getElementById('ps-error').style.display = 'none';
   document.getElementById('provision-settlement-modal').style.display = 'flex';
+  loadBankListIntoSelect();
+}
+
+async function loadBankListIntoSelect() {
+  const selectEl = document.getElementById('ps-bank-code');
+  if (ctBankListCache) {
+    selectEl.innerHTML = '<option value="">Select a bank…</option>' + ctBankListCache.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/flutterwave-bank-list`);
+    const data = await res.json();
+    if (!res.ok || !data.banks) { selectEl.innerHTML = '<option value="">Could not load bank list</option>'; return; }
+    ctBankListCache = data.banks;
+    selectEl.innerHTML = '<option value="">Select a bank…</option>' + data.banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+  } catch (e) {
+    selectEl.innerHTML = '<option value="">Could not load bank list</option>';
+  }
 }
 function closeProvisionSettlementModal() { document.getElementById('provision-settlement-modal').style.display = 'none'; }
 
@@ -3708,7 +3730,7 @@ async function submitProvisionSettlement() {
   const bankCode = document.getElementById('ps-bank-code').value.trim();
   const accountNumber = document.getElementById('ps-account-number').value.trim();
   const businessEmail = document.getElementById('ps-business-email').value.trim();
-  if (!bankCode || !accountNumber || !businessEmail) { errEl.textContent = 'Bank code, account number, and business email are all required.'; errEl.style.display = 'block'; return; }
+  if (!bankCode || !accountNumber || !businessEmail) { errEl.textContent = 'Bank, account number, and business email are all required.'; errEl.style.display = 'block'; return; }
   try {
     const res = await fetch(`${API}/admin-create-coop-subaccount`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
