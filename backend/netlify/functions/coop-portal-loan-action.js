@@ -23,6 +23,7 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 const { generateRepaymentSchedule } = require('../../lib/coopRepaymentSchedule');
+const { recordLoanDisbursementJournalEntry } = require('../../lib/coopLoanAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -81,6 +82,8 @@ exports.handler = async (event) => {
       schedule.map(p => ({ loan_id: loanId, ...p }))
     );
     if (scheduleErr) console.error('[coop-portal-loan-action] Schedule generation failed:', scheduleErr.message);
+
+    await recordLoanDisbursementJournalEntry(db, coopId, loan.principal_kobo, actorName);
   }
 
   await auditLog(db, {
