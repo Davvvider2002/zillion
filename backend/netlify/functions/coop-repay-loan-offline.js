@@ -30,6 +30,7 @@
 const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { recordLoanRepaymentJournalEntry } = require('../../lib/coopLoanAccounting');
 
 const VERIFICATION_WINDOW_MINUTES = 15;
 
@@ -105,6 +106,8 @@ exports.handler = async (event) => {
   if (loan.status === 'DISBURSED') {
     await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
   }
+
+  await recordLoanRepaymentJournalEntry(db, member.coop_id, amountKobo, 'offline_zil', 'member:offline_zil');
 
   return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} confirmed and applied to your loan.` });
 };
