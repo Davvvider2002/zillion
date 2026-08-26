@@ -19,6 +19,7 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
 const { generateRepaymentSchedule } = require('../../lib/coopRepaymentSchedule');
+const { recordLoanDisbursementJournalEntry } = require('../../lib/coopLoanAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -103,6 +104,8 @@ exports.handler = async (event) => {
       // bank transfer); failing the whole request over a schedule
       // insert error would be worse than a loan that needs its
       // schedule regenerated manually.
+
+      await recordLoanDisbursementJournalEntry(db, loan.coop_id, loan.principal_kobo, `admin:${adminName}`);
     }
 
     await auditLog(db, {
