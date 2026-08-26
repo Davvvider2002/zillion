@@ -14,6 +14,7 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
+const { recordLoanRepaymentJournalEntry } = require('../../lib/coopLoanAccounting');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -45,7 +46,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: loan } = await db.from('coop_loans').select('id, status').eq('id', loanId).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, coop_id, status').eq('id', loanId).maybeSingle();
   if (!loan) return err(404, 'Loan not found');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
@@ -58,6 +59,8 @@ exports.handler = async (event) => {
   }).select().single();
 
   if (insertErr) return err(500, `Failed to record repayment: ${insertErr.message}`);
+
+  await recordLoanRepaymentJournalEntry(db, loan.coop_id, amountKobo, source, `admin:${auth.payload.username || auth.payload.sub}`);
 
   // Move to REPAYING on the first repayment — DISBURSED alone doesn't
   // distinguish "nothing paid yet" from "actively being paid down".
