@@ -339,6 +339,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/flutterwave-bank-list"
+  to   = "/.netlify/functions/flutterwave-bank-list"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/wallet-set-mfb"
   to   = "/.netlify/functions/wallet-set-mfb"
   status = 200
