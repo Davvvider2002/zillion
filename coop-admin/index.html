@@ -700,12 +700,23 @@ function loanStatusPill(status) {
   return `<span class="pill ${map[status] || 'pill-muted'}">${status.replace(/_/g, ' ')}</span>`;
 }
 
+let loansViewMode = 'active';
+let loanHistoryData = null;
+
 function renderLoans() {
   const d = portalData;
   const el = document.getElementById('view-loans');
+
+  if (loansViewMode === 'history') {
+    renderLoanHistoryReport(el);
+    return;
+  }
+
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Loans</div>
+      <div class="card-title">Loans
+        <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
+      </div>
       <div class="card-sub">Applications, approvals, and repayment status.</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Borrower</th><th>Amount</th><th>Guarantor</th><th>Status</th><th>Outstanding</th><th></th></tr></thead>
@@ -720,6 +731,57 @@ function renderLoans() {
           </tr>
         `).join('') || '<tr><td colspan="6" class="no-data">No loan applications yet.</td></tr>'}</tbody>
       </table></div>
+    </div>
+  `;
+}
+
+function switchLoansView(mode) {
+  loansViewMode = mode;
+  renderLoans();
+}
+
+async function renderLoanHistoryReport(el) {
+  el.innerHTML = `<div class="card"><div class="card-title">Loan History<button class="btn btn-ghost btn-sm" onclick="switchLoansView('active')">Back to Active Loans</button></div><div class="card-sub">Loading…</div></div>`;
+
+  if (!loanHistoryData) {
+    try {
+      const res = await fetch(`${API}/coop-portal-loan-history-report`, { headers: { Authorization: 'Bearer ' + portalToken } });
+      loanHistoryData = await res.json();
+    } catch (e) {
+      el.innerHTML = `<div class="card"><div class="card-title">Loan History</div><div class="card-sub">Failed to load: ${e.message}</div></div>`;
+      return;
+    }
+  }
+
+  const members = loanHistoryData.members || [];
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Loan History
+        <button class="btn btn-ghost btn-sm" onclick="switchLoansView('active')">Back to Active Loans</button>
+      </div>
+      <div class="card-sub">Full loan and repayment trail, member by member.</div>
+      ${members.length ? members.map(m => `
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px">${m.member_name} <span style="font-weight:400;color:var(--muted);font-size:12px">(${m.phone_normalized})</span></div>
+          ${m.loans.map(l => `
+            <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span>${fmtNaira(l.principal_kobo)} · ${l.repayment_months}mo${l.guarantor_name ? ` · guarantor: ${l.guarantor_name}` : ''}</span>
+                ${loanStatusPill(l.status)}
+              </div>
+              <div style="font-size:12px;color:var(--muted)">
+                Requested ${fmtDate(l.requested_at)}${l.disbursed_at ? ` · Disbursed ${fmtDate(l.disbursed_at)}` : ''}
+                ${['DISBURSED','REPAYING','COMPLETED'].includes(l.status) ? ` · Paid ${fmtNaira(l.total_paid_kobo)} · Outstanding ${fmtNaira(l.outstanding_kobo)}${l.is_overdue ? ' <span style="color:#F5B87A">(overdue)</span>' : ''}` : ''}
+              </div>
+              ${l.repayments.length ? `
+                <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+                  ${l.repayments.map(r => `${fmtDate(r.recorded_at)} — ${fmtNaira(r.amount_kobo)} (${r.source})`).join('<br>')}
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `).join('') : '<div class="no-data" style="margin-top:14px">No loan history yet.</div>'}
     </div>
   `;
 }
