@@ -22,6 +22,7 @@ const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1000', name: 'Cash', type: 'ASSET' },
   { code: '1010', name: 'Bank Account', type: 'ASSET' },
   { code: '1100', name: 'Loans Receivable', type: 'ASSET' },
+  { code: '1150', name: 'Dues Receivable', type: 'ASSET', isSystem: true },
   { code: '1200', name: 'Other Receivables', type: 'ASSET' },
   { code: '2000', name: 'Member Savings Payable', type: 'LIABILITY' },
   { code: '2100', name: 'Accounts Payable', type: 'LIABILITY' },
@@ -37,16 +38,23 @@ const DEFAULT_CHART_OF_ACCOUNTS = [
 ];
 
 /**
- * Seeds the default chart of accounts for a society if it doesn't
- * already have one. Idempotent — safe to call on every accounting
- * page load, only actually inserts on the first call.
+ * Ensures every default account exists for a society — seeds the
+ * whole template on first use, and backfills any individual accounts
+ * added to the template later (like Dues Receivable, added for
+ * accrual-basis dues accounting) for societies that were already
+ * seeded before that account existed. Checked by code, not by
+ * "does any account exist", so this never disturbs accounts a
+ * society has already customized or renamed elsewhere in the chart.
+ * Idempotent — safe to call on every accounting page load.
  */
 async function ensureChartOfAccounts(db, coopId, baseCurrency) {
-  const { data: existing } = await db.from('coop_chart_of_accounts').select('id').eq('coop_id', coopId).limit(1);
-  if (existing && existing.length) return false; // already seeded
+  const { data: existing } = await db.from('coop_chart_of_accounts').select('account_code').eq('coop_id', coopId);
+  const existingCodes = new Set((existing || []).map(a => a.account_code));
+  const missing = DEFAULT_CHART_OF_ACCOUNTS.filter(a => !existingCodes.has(a.code));
+  if (!missing.length) return false; // nothing to add
 
   await db.from('coop_chart_of_accounts').insert(
-    DEFAULT_CHART_OF_ACCOUNTS.map(a => ({
+    missing.map(a => ({
       coop_id: coopId, account_code: a.code, account_name: a.name, account_type: a.type,
       currency: baseCurrency, is_system: !!a.isSystem,
     }))
