@@ -1,8 +1,8 @@
-// Zillion Wallet — Service Worker v1.0.11
+// Zillion Wallet — Service Worker
 // Offline-first: app shell cached, API calls network-first
 'use strict';
 
-const CACHE_NAME    = 'zillion-wallet-v1.0.31';
+const CACHE_NAME    = 'zillion-wallet-v1.0.32';
 const OFFLINE_QUEUE = 'zillion-wallet-offline-queue';
 
 // App shell files — same origin only
@@ -16,20 +16,33 @@ const SHELL_FILES = [
 ];
 
 // ── INSTALL ───────────────────────────────────────────────────────
+// cache.addAll() uses a plain fetch() internally, which does NOT
+// bypass the browser's own HTTP cache (a layer separate from this
+// Service Worker's Cache Storage). Android WebView's HTTP cache is
+// more aggressive than desktop browsers about reusing responses —
+// meaning cache.addAll could silently pull a STALE HTTP-cached copy
+// of index.html into what's supposed to be the fresh v1.0.32+ cache,
+// making the cache confidently wrong rather than actually current.
+// Explicit {cache:'reload'} on every shell-file fetch forces a real
+// network round-trip every install, closing that gap.
 self.addEventListener('install', event => {
-  console.log('[SW] Installing wallet v1.0.6');
+  console.log('[SW] Installing wallet ' + CACHE_NAME);
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(SHELL_FILES).catch(err => {
-        console.warn('[SW] Shell cache partial:', err.message);
-      });
+    caches.open(CACHE_NAME).then(async cache => {
+      await Promise.allSettled(
+        SHELL_FILES.map(url =>
+          fetch(url, { cache: 'reload' })
+            .then(resp => cache.put(url, resp))
+            .catch(err => console.warn('[SW] Shell fetch failed for', url, err.message))
+        )
+      );
     }).then(() => self.skipWaiting())
   );
 });
 
 // ── ACTIVATE: delete ALL old caches ──────────────────────────────
 self.addEventListener('activate', event => {
-  console.log('[SW] Activating wallet v1.0.6');
+  console.log('[SW] Activating wallet ' + CACHE_NAME);
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
@@ -77,8 +90,12 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(req).then(cached => {
       if (cached) {
-        // Serve from cache and refresh in background
-        const networkFetch = fetch(req).then(resp => {
+        // Serve from cache and refresh in background — cache:'reload'
+        // forces a genuine network fetch here too, so a stale entry
+        // can actually self-heal on the next load instead of the
+        // background "refresh" itself pulling the same stale HTTP-
+        // cached response back in.
+        const networkFetch = fetch(req, { cache: 'reload' }).then(resp => {
           if (resp && resp.status === 200 && resp.type !== 'opaque') {
             caches.open(CACHE_NAME).then(c => c.put(req, resp.clone()));
           }
@@ -87,7 +104,7 @@ self.addEventListener('fetch', event => {
         return cached;
       }
       // Not in cache — fetch from network
-      return fetch(req).then(resp => {
+      return fetch(req, { cache: 'reload' }).then(resp => {
         if (resp && resp.status === 200 && resp.type !== 'opaque') {
           const clone = resp.clone();
           caches.open(CACHE_NAME).then(c => c.put(req, clone));
