@@ -82,7 +82,7 @@ exports.handler = async (event) => {
 
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
     if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return l;
-    const repaymentStatus = await computeLoanRepaymentStatus(db, l.id, society);
+    const repaymentStatus = await computeLoanRepaymentStatus(db, l.id, society, l.principal_kobo);
     return { ...l, repayment: repaymentStatus };
   }));
 
