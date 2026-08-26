@@ -22,6 +22,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { logAlert } = require('../../lib/alerts');
+const { recordDuesAccrual } = require('../../lib/coopDuesAccounting');
 
 exports.handler = async () => {
   const db = getServiceClient();
@@ -210,6 +211,21 @@ exports.handler = async () => {
     }
   } catch (e) {
     console.error('[scheduled-reconcile] repricing grace-period check failed:', e.message);
+  }
+
+  // ── 7. Dues income accrual (accrual-basis accounting) ────────────────────
+  // For every society, recognizes dues income as it accrues — not only
+  // once collected. Silent no-op for any society without the Accounting
+  // add-on or without opening balances set (recordDuesAccrual handles
+  // that check internally); never fails this whole cron run if one
+  // society's accrual has an issue.
+  try {
+    const { data: allSocieties } = await db.from('coop_societies').select('coop_id');
+    for (const society of (allSocieties || [])) {
+      await recordDuesAccrual(db, society.coop_id);
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] dues accrual pass failed:', e.message);
   }
 
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
