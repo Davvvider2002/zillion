@@ -2550,9 +2550,18 @@ async function zilRenderCoopSummary() {
     document.getElementById('home-coop-hero-bar').style.width = pct + '%';
 
     const loanEl = document.getElementById('home-coop-hero-loan-status');
-    loanEl.textContent = data.total_outstanding_loan_kobo > 0
-      ? `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`
-      : 'No active loan';
+    const activeLoans = (data.loans || []).filter(l => ['DISBURSED', 'REPAYING'].includes(l.status));
+    if (activeLoans.length === 0) {
+      loanEl.textContent = 'No active loan';
+    } else if (data.total_outstanding_loan_kobo > 0) {
+      loanEl.textContent = `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`;
+    } else {
+      // A real, disbursed loan exists but nothing is due yet under its
+      // schedule — "No active loan" here would say the same thing as
+      // genuinely having zero loans, which is exactly the confusion
+      // David ran into. This is distinct from that case.
+      loanEl.textContent = 'Active — up to date';
+    }
 
     const guarantorBanner = document.getElementById('home-coop-hero-guarantor-banner');
     if (guarantorBanner) guarantorBanner.style.display = (data.guarantor_requests_pending || []).length ? '' : 'none';
