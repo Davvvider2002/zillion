@@ -130,6 +130,7 @@
 /api/v1/coop-flutterwave-checkout-verify    /.netlify/functions/coop-flutterwave-checkout-verify    200
 /api/v1/admin-create-coop-society        /.netlify/functions/admin-create-coop-society        200
 /api/v1/admin-create-coop-subaccount     /.netlify/functions/admin-create-coop-subaccount     200
+/api/v1/admin-list-flutterwave-subaccounts     /.netlify/functions/admin-list-flutterwave-subaccounts     200
 /api/v1/coop-record-loan-repayment       /.netlify/functions/coop-record-loan-repayment       200
 /api/v1/coop-repay-loan-from-savings     /.netlify/functions/coop-repay-loan-from-savings     200
 /api/v1/coop-repay-loan-offline          /.netlify/functions/coop-repay-loan-offline          200
