@@ -94,6 +94,20 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 
+<!-- TERMS CONSENT (blocking - no cancel, no click-outside dismiss) -->
+<div class="modal-overlay" id="modal-terms-consent">
+  <div class="modal-box">
+    <div class="modal-title">Before you continue</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5">Please review and agree to our Terms &amp; Conditions and Privacy Policy to continue using the Society Portal.</div>
+    <label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;margin-bottom:18px;cursor:pointer">
+      <input type="checkbox" id="terms-consent-checkbox" style="margin-top:2px;flex-shrink:0">
+      <span>I agree to Zillion Coop's <a href="/coop/terms.html" target="_blank">Terms &amp; Conditions</a> and <a href="/coop/privacy.html" target="_blank">Privacy Policy</a>.</span>
+    </label>
+    <div id="terms-consent-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitTermsConsent()" id="terms-consent-btn">Continue</button>
+  </div>
+</div>
+
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-box">
@@ -414,6 +428,32 @@ async function enterApp() {
   const loaded = await loadPortalData();
   if (!loaded) return; // loadPortalData already shows the login screen + error on failure
   document.getElementById('login-screen').style.display = 'none';
+  if (portalData.terms_accepted === false) {
+    document.getElementById('modal-terms-consent').classList.add('open');
+    return; // app-shell stays hidden until they agree
+  }
+  document.getElementById('app-shell').style.display = 'block';
+  switchView('dashboard');
+}
+
+async function submitTermsConsent() {
+  const errEl = document.getElementById('terms-consent-error');
+  errEl.style.display = 'none';
+  if (!document.getElementById('terms-consent-checkbox').checked) {
+    errEl.textContent = 'Please check the box to agree before continuing.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('terms-consent-btn');
+  btn.disabled = true; btn.textContent = 'Continuing...';
+  try {
+    await fetch(`${API}/coop-portal-record-terms-acceptance`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + portalToken },
+    });
+  } catch (e) {
+    console.warn('[terms] acceptance recording failed (non-fatal):', e.message);
+  }
+  document.getElementById('modal-terms-consent').classList.remove('open');
   document.getElementById('app-shell').style.display = 'block';
   switchView('dashboard');
 }
