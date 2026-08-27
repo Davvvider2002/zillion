@@ -8,7 +8,7 @@
 
 const { createHmac, randomInt } = require('crypto');
 const { createClient }          = require('@supabase/supabase-js');
-const { sendEmail }             = require('../../lib/brevoEmail');
+const { sendEmail }             = require('../../lib/resendEmail');
 
 // ── Helpers ───────────────────────────────────────────────────
 function generateOtp() { return String(randomInt(100000, 999999)); }
