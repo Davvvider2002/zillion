@@ -45,7 +45,7 @@ async function sendTermii(phone, otp) {
       const res  = await fetch(url, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ api_key:apiKey, to, from:process.env.TERMII_SENDER_ID||'N-Alert',
-          sms:`Your Zillion code: ${otp}\nDo not share. Valid 10 mins.`, type:'plain', channel:'generic' }),
+          sms:`Your Zillion code: ${otp}\nDo not share. Valid 10 mins.`, type:'plain', channel:'dnd' }),
       });
       const data = await res.json();
       if (data.code==='ok'||data.message_id||data.pinId)
