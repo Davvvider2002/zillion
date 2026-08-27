@@ -867,6 +867,7 @@ function triggerPWAInstall() {
       <button class="numpad-key" onclick="pinKey('0')">0</button>
       <button class="numpad-key action" onclick="pinKey('del')">⌫</button>
     </div>
+    <button class="btn btn-ghost" id="pin-forgot-btn" style="display:none;margin-top:14px" onclick="forgotPin()">Log in with phone number instead</button>
   </div>
 </div>
 
@@ -2305,6 +2306,11 @@ async function verifyOtp() {
 }
 
 // -- PIN flow ---------------------------------------------------
+async function hashPin(pin) {
+  const enc = new TextEncoder().encode(pin);
+  const hashBuf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
 let pinBuffer = '';
 let pinFirst  = '';
 STATE.pinState = 'create';
@@ -2324,7 +2330,8 @@ function pinKey(k) {
     setTimeout(() => processPinComplete(), 180);
   }
 }
-function processPinComplete() {
+let unlockAttempts = 0;
+async function processPinComplete() {
   if (STATE.pinState === 'create') {
     pinFirst = pinBuffer; pinBuffer = '';
     STATE.pinState = 'confirm';
@@ -2346,6 +2353,7 @@ function processPinComplete() {
       }, 600);
     } else {
       STATE.pin = pinBuffer;
+      STATE.settings.pinHash = await hashPin(pinBuffer);
       pinBuffer=''; pinFirst='';
       // Coop-flavor users skip role selection entirely — every install
       // of this app is, by definition, a Customer (there's only one
@@ -2356,6 +2364,39 @@ function processPinComplete() {
       } else {
         goTo('screen-role');
       }
+    }
+  } else if (STATE.pinState === 'unlock') {
+    // Verifies against the hash stored at PIN creation — the vault
+    // data itself (STATE.user, STATE.vault) was already loaded from
+    // localStorage before this screen ever showed, untouched by
+    // logout. This only gates WHETHER that already-loaded data gets
+    // displayed, never re-creates or wipes it.
+    const enteredHash = await hashPin(pinBuffer);
+    if (enteredHash === STATE.settings.pinHash) {
+      unlockAttempts = 0;
+      localStorage.removeItem('zillion_locked');
+      pinBuffer = '';
+      goTo('screen-home');
+      refreshHome();
+      refreshProfile();
+      setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+    } else {
+      unlockAttempts++;
+      for (let i=0;i<6;i++) document.getElementById('pd'+i).className='pin-dot error';
+      const remaining = 5 - unlockAttempts;
+      toast(remaining > 0 ? `Incorrect PIN — ${remaining} attempts left` : 'Incorrect PIN', true);
+      setTimeout(() => {
+        pinBuffer = '';
+        updatePinDots('');
+        if (unlockAttempts >= 5) {
+          // Not a hard lockout — forgetting a PIN shouldn't strand
+          // someone out of their own account. Offers phone+OTP as a
+          // clear way back in instead of a dead end.
+          document.getElementById('pin-sub').textContent = 'Forgot your PIN? Log in again with your phone number instead.';
+          const forgotBtn = document.getElementById('pin-forgot-btn');
+          if (forgotBtn) forgotBtn.style.display = '';
+        }
+      }, 500);
     }
   }
 }
@@ -2380,6 +2421,19 @@ async function completeOnboarding() {
     agentToken = document.getElementById('agent-token-input').value.trim();
     if (!agentId || !agentToken) { toast('Enter Agent ID and token', true); return; }
   }
+  // Preserve any existing vault/coins already on this device (e.g. the
+  // "forgot PIN, log in with phone again" fallback re-runs this same
+  // path) — without this, save() below would overwrite real coin data
+  // with an empty vault the moment onboarding completes again on a
+  // device that already had some.
+  try {
+    const existingRaw = localStorage.getItem(DB_KEY);
+    if (existingRaw) {
+      const existingData = JSON.parse(existingRaw);
+      if (existingData.vault) STATE.vault = existingData.vault;
+      if (existingData.settings) STATE.settings = { ...existingData.settings, ...STATE.settings };
+    }
+  } catch (e) { /* corrupt/unreadable — proceed with a fresh vault rather than crash */ }
   // Check if this phone previously had data (re-registration after clear)
   const existingHistory = loadHistory();
   if (existingHistory.length > 0) {
@@ -2417,8 +2471,30 @@ async function completeOnboarding() {
 }
 
 // -- Session restore --------------------------------------------
+function routeAfterSessionLoad() {
+  const locked = localStorage.getItem('zillion_locked') === '1';
+  if (!locked) return false;
+  if (STATE.settings && STATE.settings.pinHash) {
+    STATE.pinState = 'unlock';
+    pinBuffer = ''; unlockAttempts = 0;
+    document.getElementById('pin-title').textContent = 'Enter your PIN';
+    document.getElementById('pin-sub').textContent = 'Unlock your account to continue.';
+    document.getElementById('pin-step-label').textContent = '';
+    const backBtn = document.querySelector('#screen-pin .hdr-back');
+    if (backBtn) backBtn.style.visibility = 'hidden';
+    document.getElementById('pin-forgot-btn').style.display = 'none';
+    updatePinDots('');
+    goTo('screen-pin');
+    return true;
+  }
+  // Locked flag set but no pinHash exists on this device — predates
+  // this fix, nothing to safely check an unlock attempt against.
+  localStorage.removeItem('zillion_locked');
+  return false;
+}
 function tryRestoreSession() {
   if (load() && STATE.user) {
+    if (routeAfterSessionLoad()) return;
     goTo('screen-home');
     refreshHome();
     refreshProfile();
@@ -3656,9 +3732,23 @@ function forceSync() {
 }
 function logout() {
   if (!confirm('Log out? Your vault data stays on this device.')) return;
+  localStorage.setItem('zillion_locked', '1');
   STATE.user=null; STATE.pin=null;
   if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   goTo('screen-splash');
+}
+function forgotPin() {
+  localStorage.removeItem('zillion_locked');
+  unlockAttempts = 0;
+  STATE.pinState = 'create';
+  document.getElementById('pin-title').textContent = 'Create 6-digit PIN';
+  document.getElementById('pin-sub').textContent = (typeof IS_COOP !== 'undefined' && IS_COOP)
+    ? 'Secures your account. Never stored — only you know it.'
+    : 'Encrypts your coin vault. Never stored - only you know it.';
+  const backBtn = document.querySelector('#screen-pin .hdr-back');
+  if (backBtn) backBtn.style.visibility = '';
+  document.getElementById('pin-forgot-btn').style.display = 'none';
+  goTo('screen-phone');
 }
 function resetWallet() {
   if (!confirm('Reset wallet? This deletes all coins and history on this device. Only do this if you have a backup.')) return;
@@ -4868,6 +4958,9 @@ window.addEventListener('DOMContentLoaded', () => {
   updateConnBadge(navigator.onLine);
   if (!navigator.onLine) updateSyncStatus('Offline - changes saved locally');
   if (load() && STATE.user) {
+    if (routeAfterSessionLoad()) {
+      // Unlock screen shown instead — skip auto-restoring home.
+    } else {
     document.getElementById('screen-splash').classList.add('hidden');
     document.getElementById('screen-home').classList.remove('hidden');
     STATE.screen = 'screen-home';
@@ -4880,6 +4973,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // once STATE.user is confirmed restored, since verification needs
     // a valid auth token.
     coopCheckForCheckoutReturn();
+    }
   } else {
     // Check claim param - store for after onboarding
     const params = new URLSearchParams(location.search);
