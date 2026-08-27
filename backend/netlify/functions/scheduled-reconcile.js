@@ -125,7 +125,7 @@ exports.handler = async () => {
     const now = new Date();
     for (const society of (activeSocieties || [])) {
       if (isPastGrace(society.subscription_paid_until, now)) {
-        await db.from('coop_societies').update({ subscription_status: 'suspended' }).eq('coop_id', society.coop_id);
+        await db.from('coop_societies').update({ subscription_status: 'suspended', status: 'SUSPENDED' }).eq('coop_id', society.coop_id);
         alertsRaised++;
         await logAlert(db, {
           severity: 'WARNING',
