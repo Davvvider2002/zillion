@@ -2175,7 +2175,7 @@ async function submitPhone() {
       return;
     }
 
-    // Real SMS error
+    // Real delivery error (SMS or email)
     if (!res.ok) {
       let msg = data.error || 'SMS delivery failed.';
       if (data.detail) msg += ' - ' + data.detail;
@@ -2185,9 +2185,9 @@ async function submitPhone() {
       return;
     }
 
-    // Real SMS success
+    // Real success
     showOtpSection();
-    toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
+    toast('✅ ' + (data.message || 'Code sent'));
 
   } catch (e) {
     hideLoader();
