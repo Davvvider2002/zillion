@@ -26,7 +26,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: hdr, body: '' };
   if (event.httpMethod !== 'GET') return err(405, 'Method Not Allowed');
 
-  const secretKey = process.env.FLW_V3_SECRET_KEY;
+  const secretKey = (process.env.FLW_V3_SECRET_KEY || '').trim();
   if (!secretKey) return err(500, 'FLW_V3_SECRET_KEY not configured');
 
   try {
