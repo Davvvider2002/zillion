@@ -21,6 +21,7 @@ const { verifyJWT }              = require('../../lib/validators');
 const { resolvePortalSociety }   = require('../../lib/coopPortalAuth');
 const { computeDuesOwing }       = require('../../lib/coopDues');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
+const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = require('../../lib/coopTermsAcceptance');
 const { listAddons } = require('../../lib/coopEntitlements');
 
 exports.handler = async (event) => {
@@ -40,6 +41,9 @@ exports.handler = async (event) => {
   const coopId = societySummary.coop_id;
 
   const { data: society } = await db.from('coop_societies').select('*').eq('coop_id', coopId).maybeSingle();
+
+  const { data: termsAcceptance } = await db.from('coop_terms_acceptances')
+    .select('id').eq('accepted_by_type', 'society_admin').eq('accepted_by_id', societySummary.merchant_id).maybeSingle();
 
   const { data: membersRaw } = await db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false });
   const members = await Promise.all((membersRaw || []).map(async (m) => {
@@ -103,6 +107,9 @@ exports.handler = async (event) => {
 
   return ok({
     society,
+    terms_accepted: !!termsAcceptance,
+    terms_version: CURRENT_TERMS_VERSION,
+    privacy_version: CURRENT_PRIVACY_VERSION,
     members,
     savings_plans: plans,
     loans,
