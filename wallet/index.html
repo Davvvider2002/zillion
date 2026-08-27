@@ -777,7 +777,7 @@ function triggerPWAInstall() {
   <div class="ob-body">
     <div class="ob-step-label" id="phone-step-label">Step 1 of 4</div>
     <div class="ob-title">Verify your phone</div>
-    <div class="ob-sub">We'll send a one-time code via SMS. No email or bank account needed.</div>
+    <div class="ob-sub">We'll send a one-time code via SMS or email — your choice. No bank account needed.</div>
 
     <div class="field-group">
       <label class="field-label">Phone Number</label>
@@ -786,6 +786,17 @@ function triggerPWAInstall() {
         <input class="phone-number-input" type="tel" id="phone-input"
           placeholder="801 234 5678" maxlength="11"
           oninput="onPhoneInput(this)" inputmode="numeric">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <div style="display:flex;gap:8px;margin-bottom:8px" id="otp-channel-toggle">
+        <button type="button" class="btn btn-outline" id="channel-btn-sms" style="flex:1;padding:9px;font-size:13px;background:var(--g);color:#fff" onclick="setOtpChannel('sms')">📱 SMS</button>
+        <button type="button" class="btn btn-outline" id="channel-btn-email" style="flex:1;padding:9px;font-size:13px" onclick="setOtpChannel('email')">✉️ Email</button>
+      </div>
+      <div id="otp-email-wrap" style="display:none">
+        <label class="field-label">Email Address</label>
+        <input class="field-input" type="email" id="otp-email-input" placeholder="you@example.com" style="width:100%;box-sizing:border-box">
       </div>
     </div>
 
@@ -2093,6 +2104,18 @@ function hideLoader() { document.getElementById('loader').classList.remove('show
 
 // -- Phone OTP --------------------------------------------------
 let otpTimer = null;
+let STATE_otpChannel = 'sms';
+function setOtpChannel(channel) {
+  STATE_otpChannel = channel;
+  const smsBtn = document.getElementById('channel-btn-sms');
+  const emailBtn = document.getElementById('channel-btn-email');
+  smsBtn.style.background = channel === 'sms' ? 'var(--g)' : 'transparent';
+  smsBtn.style.color = channel === 'sms' ? '#fff' : 'var(--g)';
+  emailBtn.style.background = channel === 'email' ? 'var(--g)' : 'transparent';
+  emailBtn.style.color = channel === 'email' ? '#fff' : 'var(--g)';
+  document.getElementById('otp-email-wrap').style.display = channel === 'email' ? '' : 'none';
+  document.getElementById('phone-error').style.display = 'none';
+}
 function onPhoneInput(el) {
   el.value = el.value.replace(/\D/g,'');
   document.getElementById('phone-error').style.display = 'none';
@@ -2114,12 +2137,22 @@ async function submitPhone() {
   else if (!phone.startsWith('+')) phone = '+234' + phone;
   STATE._pendingPhone = phone;
 
+  let email = '';
+  if (STATE_otpChannel === 'email') {
+    email = document.getElementById('otp-email-input').value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errEl.textContent = 'Please enter a valid email address.';
+      errEl.style.display = 'block';
+      return;
+    }
+  }
+
   showLoader('Sending code...');
   try {
     const res  = await fetch('/api/v1/send-otp', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phone }),
+      body:    JSON.stringify({ phone, channel: STATE_otpChannel, email: email || undefined }),
     });
     const data = await res.json();
     hideLoader();
