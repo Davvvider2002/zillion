@@ -92,10 +92,12 @@ exports.handler = async (event) => {
     }
   }
 
-  // ── Demo bypass — set DEMO_OTP env var in Netlify to enable ──────────────
-  // Remove this block before going live. Any phone + DEMO_OTP code = instant login.
+  // ── Demo bypass — set DEMO_OTP + DEMO_OTP_PHONES env vars in Netlify ─────
+  // Restricted to the same allowlist send-otp.js uses — the code itself
+  // is only useful against a phone it's actually valid for.
   const DEMO_OTP = (process.env.DEMO_OTP || '').trim();
-  if (DEMO_OTP && otpStr === DEMO_OTP) {
+  const demoOtpPhonesVerify = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
+  if (DEMO_OTP && otpStr === DEMO_OTP && demoOtpPhonesVerify.includes(phone)) {
     const deviceId = createHash('sha256')
       .update(phone + (mustEnv('SUPABASE_SERVICE_KEY')))
       .digest('hex').slice(0, 16);
@@ -115,8 +117,15 @@ exports.handler = async (event) => {
   }
   // ── End demo bypass ───────────────────────────────────────────────────────
 
-  // hashOtp: consistent OTP hashing used by both send-otp and verify-otp
-  const hashOtp = (code) => createHmac('sha256', otpSalt).update(String(code).trim()).digest('hex');
+  // hashOtp: MUST exactly match send-otp.js's hashing — code + phone,
+  // same secret. This was previously missing the phone component
+  // entirely (just hashing the code alone), so the computed hash here
+  // could never match what send-otp.js actually stored — every real,
+  // non-demo verification attempt was silently doomed to fail
+  // regardless of the code being correct. Masked this whole session
+  // because every test used the DEMO_OTP_PHONES bypass instead of
+  // this path, which skips this comparison entirely.
+  const hashOtp = (code) => createHmac('sha256', otpSalt).update(`${code}:${phone}`).digest('hex');
   const hashedInput = hashOtp(otpStr);
 
   const { data: rows, error } = await db

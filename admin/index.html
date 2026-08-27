@@ -23,7 +23,7 @@
   --pu:#8B5CF6;--pul:#F5F3FF;--pum:#C4B5FD;
   --d:#111827;--d2:#1F2937;--d3:#374151;
   --tx:#374151;--tx2:#6B7280;--tx3:#9CA3AF;
-  --bg:#F3F4F6;--w:#FFFFFF;--grb:#E5E7EB;--gr:#9CA3AF;--grl:#F9FAFB;
+  --bg:#F3F4F6;--bg2:#FFFFFF;--w:#FFFFFF;--grb:#E5E7EB;--gr:#9CA3AF;--grl:#F9FAFB;
   --gt:#059669;--gl2:#D1FAE5;
 }
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
@@ -259,6 +259,9 @@ tbody tr:last-child td{border-bottom:none;}
 .btn-sm{padding:5px 10px;font-size:11px;border-radius:6px;}
 .rbtn{padding:6px 10px;border-radius:7px;font-size:11px;font-weight:600;border:1.5px solid var(--grb);background:var(--w);color:var(--tx);cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:4px;transition:border-color .15s;}
 .rbtn:hover{border-color:var(--g);color:var(--g);}
+.ct-tab-btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;border:1.5px solid var(--grb);background:var(--w);color:var(--tx2);cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}
+.ct-tab-btn:hover{border-color:var(--g);color:var(--g);}
+.ct-tab-btn.active{background:var(--g);border-color:var(--g);color:#fff;}
 .export-btn{padding:6px 12px;border-radius:7px;font-size:11px;font-weight:600;border:1.5px solid var(--grb);background:var(--w);color:var(--tx);cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:5px;}
 .export-btn:hover{background:var(--bg);}
 
@@ -538,6 +541,10 @@ tbody tr:last-child td{border-bottom:none;}
       <button class="snav-item" id="nav-cooperatives"
               onclick="showSec('cooperatives',this);loadCooperatives()">
         <span class="si">🌾</span> Cooperatives
+      </button>
+      <button class="snav-item" id="nav-coopthrift"
+              onclick="showSec('coopthrift',this);loadCoopThriftSocieties()">
+        <span class="si">🏦</span> Thrift &amp; Loan
       </button>
       <button class="snav-item" id="nav-identity"
               onclick="showSec('identity',this)">
@@ -828,6 +835,398 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
 </div>
+
+<!-- COOP THRIFT & LOAN -->
+<div id="sec-coopthrift" class="sec">
+  <div id="coopthrift-list-view">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Ecosystem Finance
+        <button class="rbtn" onclick="loadEcosystemFinance()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">Subscription revenue across every society, and reconciliation against real Flutterwave settlements.</div>
+      <div id="ecosystem-finance-content"><div class="no-data">Loading...</div></div>
+    </div>
+    <div id="coop-subplan-setup-banner" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:700;font-size:14px">Subscription billing isn't set up yet</div>
+        <div style="font-size:12.5px;color:var(--tx2);margin-top:2px" id="coop-subplan-setup-detail">The Flutterwave payment plans for Launch/Growth/Scale haven't been created — self-service signups will fail until this runs once.</div>
+      </div>
+      <button class="rbtn" style="background:var(--am);color:#1a1a1a;font-weight:700;white-space:nowrap" onclick="setupSubscriptionPlans()" id="coop-subplan-setup-btn">Set up now</button>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Add-on Modules
+        <button class="rbtn" onclick="loadAddonModulesAdmin()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">Set pricing here — nowhere else in the codebase hardcodes an add-on price. An add-on can't be activated (selectable at signup) until it has a real price above ₦0.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Module</th><th>Price (₦/mo)</th><th>Active</th><th></th></tr></thead>
+          <tbody id="addon-modules-table-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        Thrift &amp; Loan Societies
+        <div style="display:flex;gap:8px">
+          <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openCreateSocietyModal()">&#x2795; New Society</button>
+          <button class="rbtn" onclick="loadCoopThriftSocieties()">&#x21BB;</button>
+        </div>
+      </div>
+      <div class="card-sub">A cooperative savings &amp; loan society — members are existing wallet users the admin activates and manages.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Status</th><th>Plan</th><th>Subscription</th><th>Trial Ends</th><th>Action</th></tr></thead>
+          <tbody id="coopthrift-table-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="coopthrift-detail-view" style="display:none">
+    <button class="rbtn" onclick="closeSocietyDetail()" style="margin-bottom:12px">&#x2039; Back to Societies</button>
+    <div class="metrics">
+      <div class="metric pu"><div class="mlabel">Members</div><div class="mvalue" id="ct-d-members">&mdash;</div><div class="msub">Active</div><div class="micon">&#x1F465;</div></div>
+      <div class="metric"><div class="mlabel">Total Saved</div><div class="mvalue" id="ct-d-saved" style="color:var(--g)">&mdash;</div><div class="msub">All plans</div><div class="micon">&#8358;</div></div>
+      <div class="metric am"><div class="mlabel">Active Loans</div><div class="mvalue" id="ct-d-loans">&mdash;</div><div class="msub">Outstanding</div><div class="micon">&#x1F91D;</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title" id="ct-d-title">Society</div>
+      <div class="card-sub" id="ct-d-sub"></div>
+      <div id="ct-d-links" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--grb)"></div>
+    </div>
+
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap" id="ct-tabs">
+      <button class="ct-tab-btn active" data-tab="members" onclick="switchCtTab('members')">Members</button>
+      <button class="ct-tab-btn" data-tab="savings" onclick="switchCtTab('savings')">Savings</button>
+      <button class="ct-tab-btn" data-tab="loans" onclick="switchCtTab('loans')">Loans</button>
+      <button class="ct-tab-btn" data-tab="dues" onclick="switchCtTab('dues')">Dues</button>
+      <button class="ct-tab-btn" data-tab="notifications" onclick="switchCtTab('notifications')">Notifications</button>
+      <button class="ct-tab-btn" data-tab="settlement" onclick="switchCtTab('settlement')">Settlement</button>
+    </div>
+
+    <div id="ct-tab-members" class="ct-tab-content">
+      <div class="card">
+        <div class="card-title">Members<div style="display:flex;gap:8px"><button class="rbtn" onclick="openBulkImportModal()">&#x1F4C4; Import CSV</button><button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openActivateMemberModal()">&#x2795; Activate Member</button></div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Activated</th></tr></thead>
+          <tbody id="ct-members-table-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="ct-tab-savings" class="ct-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Savings Plans<div><button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openCreateSavingsPlanModal()">&#x2795; Create Plan</button></div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Member</th><th>Target</th><th>Saved</th><th>Progress</th><th>Account</th><th>Action</th></tr></thead>
+          <tbody id="ct-savings-table-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="ct-tab-loans" class="ct-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Loans</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Member</th><th>Principal</th><th>Status</th><th>Outstanding</th><th>Guarantor</th><th>Action</th></tr></thead>
+          <tbody id="ct-loans-table-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="ct-tab-dues" class="ct-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Dues Configuration<div><button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openConfigureDuesModal()">&#x2699; Configure</button></div></div>
+        <div class="card-sub" id="ct-dues-config-summary">Not configured yet.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Member Dues Status</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Member</th><th>Owing</th><th>Paid</th><th>Action</th></tr></thead>
+          <tbody id="ct-dues-table-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="ct-tab-notifications" class="ct-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Notifications<div><button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openSendNotificationModal()">&#x2709; New Message</button></div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Title</th><th>To</th><th>Sent</th></tr></thead>
+          <tbody id="ct-notifications-table-body"><tr><td colspan="3" class="no-data">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="ct-tab-settlement" class="ct-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Settlement Account</div>
+        <div class="card-sub">Where this society's payments land after collection — configured once via Flutterwave Subaccounts.</div>
+        <div id="ct-settlement-status">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Add-on Module modal -->
+<div id="edit-addon-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="ea-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:18px">Editing pricing and availability for this add-on.</div>
+    <label class="field-label">Description</label>
+    <textarea class="field-input" id="ea-description" rows="3" style="margin-bottom:12px;width:100%;box-sizing:border-box;resize:vertical"></textarea>
+    <label class="field-label">Monthly price (₦)</label>
+    <input class="field-input" type="number" id="ea-price" style="margin-bottom:14px;width:100%;box-sizing:border-box">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px;cursor:pointer">
+      <input type="checkbox" id="ea-active"> Active (selectable at signup)
+    </label>
+    <div id="ea-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeEditAddonModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitEditAddon()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Plan modal -->
+<div id="change-plan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="cp-society-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:18px">Changing plan requires a fresh payment for the new total — Flutterwave can't prorate a mid-cycle change.</div>
+    <label class="field-label">Plan</label>
+    <select id="cp-plan" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="launch">Launch</option>
+      <option value="growth">Growth</option>
+      <option value="scale">Scale</option>
+    </select>
+    <label class="field-label">Billing cycle</label>
+    <select id="cp-cycle" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="monthly">Monthly</option>
+      <option value="yearly">Yearly (15% off)</option>
+    </select>
+    <div id="cp-email-field" style="display:none">
+      <label class="field-label">Billing email (none on file yet)</label>
+      <input class="field-input" type="text" id="cp-email" placeholder="society@example.com" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    </div>
+    <div id="cp-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeChangePlanModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitChangePlan()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Society modal -->
+<div id="create-society-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">New Thrift &amp; Loan Society</div>
+    <label class="field-label">Society Name</label>
+    <input class="field-input" type="text" id="cs-name" placeholder="e.g. Test Thrift &amp; Credit Society" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Phone Number</label>
+    <input class="field-input" type="text" id="cs-phone" placeholder="e.g. 08012345678" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Owner / Chairperson Name</label>
+    <input class="field-input" type="text" id="cs-owner-name" placeholder="e.g. Amina Bello" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Location (optional)</label>
+    <input class="field-input" type="text" id="cs-location" placeholder="e.g. Lagos" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Login Password (for their Merchant app)</label>
+    <input class="field-input" type="password" id="cs-password" placeholder="At least 6 characters" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">LASCOFED Reference (optional)</label>
+    <input class="field-input" type="text" id="cs-lascofed-ref" placeholder="If federated under LASCOFED" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div style="display:flex;gap:10px">
+      <div style="flex:1">
+        <label class="field-label">Opening Loan Capital (&#8358;)</label>
+        <input class="field-input" type="number" id="cs-loan-capital" value="0" style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="flex:1">
+        <label class="field-label">Opening Bank Balance (&#8358;)</label>
+        <input class="field-input" type="number" id="cs-bank-balance" value="0" style="width:100%;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--tx3);margin:6px 0 18px">Reference figures only — shown on the dashboard, not enforced against lending.</div>
+    <div style="border-top:1px solid var(--grb);padding-top:14px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">Subscription plan (optional)</div>
+      <label class="field-label">Plan</label>
+      <select id="cs-plan" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box" onchange="updateCreateSocietyTotal()">
+        <option value="">No plan — trial only, billed later</option>
+        <option value="launch">Launch</option>
+        <option value="growth">Growth</option>
+        <option value="scale">Scale</option>
+      </select>
+      <div id="cs-plan-details" style="display:none">
+        <label class="field-label">Billing cycle</label>
+        <select id="cs-cycle" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box" onchange="updateCreateSocietyTotal()">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly (15% off)</option>
+        </select>
+        <label class="field-label">Email (for billing)</label>
+        <input class="field-input" type="text" id="cs-email" placeholder="society@example.com" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">Add-on modules</div>
+        <div id="cs-addons-list" style="margin-bottom:10px"></div>
+        <div id="cs-total-display" style="font-size:13px;font-weight:700;color:var(--am);margin-bottom:12px"></div>
+      </div>
+    </div>
+    <div id="cs-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeCreateSocietyModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitCreateSociety()" id="cs-submit-btn" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Activate Member modal -->
+<div id="activate-member-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">Activate Member</div>
+    <label class="field-label">Phone Number</label>
+    <input class="field-input" type="text" id="tam-phone" placeholder="e.g. 08011111111" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Name</label>
+    <input class="field-input" type="text" id="tam-name" placeholder="e.g. Amina Bello" style="margin-bottom:18px;width:100%;box-sizing:border-box">
+    <div id="tam-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeActivateMemberModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitActivateMember()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Activate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Import Members modal -->
+<div id="bulk-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px">Import Members from CSV</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:14px">First row must be a header. Required column: <code>phone</code>. Optional: <code>name</code>, <code>opening_balance</code> (in Naira). Column order doesn't matter.</div>
+    <div style="background:var(--grl);border-radius:8px;padding:10px;font-family:monospace;font-size:11px;color:var(--tx2);margin-bottom:12px;white-space:pre">phone,name,opening_balance
+08011111111,Amina Bello,5000
+08022222222,Musa Ibrahim,</div>
+    <textarea class="field-input" id="bi-csv-text" rows="8" placeholder="Paste your CSV here..." style="margin-bottom:12px;width:100%;box-sizing:border-box;resize:vertical;font-family:monospace;font-size:12px"></textarea>
+    <div id="bi-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div id="bi-results" style="display:none;margin-bottom:14px">
+      <div id="bi-summary" style="font-weight:600;margin-bottom:10px"></div>
+      <div class="table-wrap" style="max-height:240px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Line</th><th>Phone</th><th>Name</th><th>Result</th></tr></thead>
+          <tbody id="bi-results-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeBulkImportModal()" id="bi-cancel-btn" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Close</button>
+      <button onclick="submitBulkImport()" id="bi-submit-btn" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Savings Plan modal -->
+<div id="create-savings-plan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">Create Savings Plan</div>
+    <label class="field-label">Member</label>
+    <select class="field-input" id="csp-member" style="margin-bottom:12px;width:100%;box-sizing:border-box"><option value="">Select a member...</option></select>
+    <label class="field-label">Target Amount (&#8358;)</label>
+    <input class="field-input" type="number" id="csp-target" placeholder="e.g. 60000" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Monthly Contribution (&#8358;)</label>
+    <input class="field-input" type="number" id="csp-monthly" placeholder="e.g. 5000" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Duration (months)</label>
+    <input class="field-input" type="number" id="csp-duration" value="12" style="margin-bottom:18px;width:100%;box-sizing:border-box">
+    <div id="csp-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeCreateSavingsPlanModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitCreateSavingsPlan()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Configure Dues modal -->
+<div id="configure-dues-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">Configure Dues</div>
+    <label class="field-label">Amount (&#8358;)</label>
+    <input class="field-input" type="number" id="cd-amount" placeholder="e.g. 1500" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Frequency</label>
+    <select class="field-input" id="cd-frequency" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="monthly">Monthly</option>
+      <option value="annual">Annual</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px;cursor:pointer">
+      <input type="checkbox" id="cd-enforce"> Block loan applications if dues are owing
+    </label>
+    <div id="cd-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeConfigureDuesModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitConfigureDues()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Send Notification modal -->
+<div id="send-notification-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">Send Notification</div>
+    <label class="field-label">Send To</label>
+    <select class="field-input" id="sn-target-type" onchange="onSnTargetTypeChange()" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="broadcast">Everyone in this society</option>
+      <option value="individual">One specific member</option>
+    </select>
+    <div id="sn-member-row" style="display:none">
+      <label class="field-label">Member</label>
+      <select class="field-input" id="sn-member" style="margin-bottom:12px;width:100%;box-sizing:border-box"><option value="">Select a member...</option></select>
+    </div>
+    <label class="field-label">Title</label>
+    <input class="field-input" type="text" id="sn-title" placeholder="e.g. Meeting reminder" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Message</label>
+    <textarea class="field-input" id="sn-body" rows="4" placeholder="Write your message..." style="margin-bottom:18px;width:100%;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+    <div id="sn-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeSendNotificationModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitSendNotification()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Provision Settlement modal -->
+<div id="provision-settlement-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">Configure Settlement Account</div>
+    <label class="field-label">Bank</label>
+    <select class="field-input" id="ps-bank-code" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="">Loading banks…</option>
+    </select>
+    <label class="field-label">Account Number</label>
+    <input class="field-input" type="text" id="ps-account-number" placeholder="10-digit account number" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Society Business Email</label>
+    <input class="field-input" type="email" id="ps-business-email" placeholder="e.g. accounts@society.org" style="margin-bottom:18px;width:100%;box-sizing:border-box">
+    <div id="ps-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeProvisionSettlementModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitProvisionSettlement()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Configure</button>
+    </div>
+  </div>
+</div>
+
+<!-- Record Payment modal (generic — savings, dues, or loan repayment) -->
+<div id="record-payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px" id="rp-title">Record Payment</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:18px" id="rp-subtitle"></div>
+    <label class="field-label">Amount (&#8358;)</label>
+    <input class="field-input" type="number" id="rp-amount" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Source</label>
+    <select class="field-input" id="rp-source" onchange="onRpSourceChange()" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="bank_transfer_manual">Bank transfer (confirmed manually)</option>
+      <option value="cash_in_person">Cash, in person</option>
+    </select>
+    <div id="rp-reference-row">
+      <label class="field-label" id="rp-reference-label">Reference (optional)</label>
+      <input class="field-input" type="text" id="rp-reference" placeholder="e.g. receipt number, witness name" style="margin-bottom:18px;width:100%;box-sizing:border-box">
+    </div>
+    <div id="rp-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeRecordPaymentModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitRecordPayment()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Record</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- Add Member modal -->
 <div id="add-member-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
@@ -2605,6 +3004,790 @@ async function removeCoopMember(memberId) {
     refreshCoopDetail();
     loadCooperatives();
   } catch(e) { notify('Remove member: '+e.message, true); }
+}
+
+// ── Thrift & Loan Societies ─────────────────────────────────────────────
+let ctCurrentCoopId = null;
+let ctCurrentDetail = null; // cached full detail response, avoids re-fetching per tab
+let ctRecordPaymentContext = null; // { type: 'savings'|'dues'|'loan', targetId, label }
+
+async function setupSubscriptionPlans() {
+  const btn = document.getElementById('coop-subplan-setup-btn');
+  const detail = document.getElementById('coop-subplan-setup-detail');
+  btn.disabled = true; btn.textContent = 'Setting up...';
+  try {
+    const res = await fetch(`${API}/admin-setup-subscription-plans`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + adminToken },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      notify('Setup failed: ' + (data.error || 'unknown error'), true);
+      btn.disabled = false; btn.textContent = 'Set up now';
+      return;
+    }
+    const created = data.results.filter(r => r.status === 'created').length;
+    const already = data.results.filter(r => r.status === 'already_exists').length;
+    const failed = data.results.filter(r => r.status === 'failed');
+    if (failed.length) {
+      detail.textContent = `${created} plan(s) created, ${already} already existed, but ${failed.length} failed: ${failed.map(f => f.tier + '/' + f.cycle + ' — ' + f.error).join('; ')}`;
+      notify(`Subscription plans: ${failed.length} failed — see details`, true);
+      btn.disabled = false; btn.textContent = 'Retry';
+    } else {
+      notify(`Subscription billing is set up — ${created} plan(s) created${already ? `, ${already} already existed` : ''}.`);
+      document.getElementById('coop-subplan-setup-banner').style.display = 'none';
+    }
+  } catch (e) {
+    notify('Setup: ' + e.message, true);
+    btn.disabled = false; btn.textContent = 'Set up now';
+  }
+}
+
+async function loadEcosystemFinance() {
+  const el = document.getElementById('ecosystem-finance-content');
+  el.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const [financeRes, settlementRes] = await Promise.all([
+      fetch(`${API}/admin-coop-ecosystem-finance`, { headers: { Authorization: 'Bearer ' + adminToken } }),
+      fetch(`${API}/admin-flutterwave-settlements`, { headers: { Authorization: 'Bearer ' + adminToken } }),
+    ]);
+    const finance = await financeRes.json();
+    const settlement = await settlementRes.json();
+    if (!financeRes.ok) { el.innerHTML = `<div class="no-data">${finance.error || 'Failed to load'}</div>`; return; }
+
+    const a = finance.aggregate;
+    const fmtN = kobo => '₦' + Math.round((kobo||0)/100).toLocaleString();
+    let settlementHtml = '<div class="no-data">Settlement data unavailable</div>';
+    if (settlementRes.ok) {
+      const r = settlement.reconciliation;
+      settlementHtml = `
+        <div style="font-size:13px;margin-bottom:8px">${r.settled_count} of ${r.total_successful_payments} successful payments confirmed settled by Flutterwave.</div>
+        ${r.stale_unsettled.length ? `
+          <div style="background:rgba(231,76,60,.12);border:1px solid #e74c3c;border-radius:8px;padding:10px 12px;font-size:12.5px">
+            <strong>${r.stale_unsettled.length} payment(s)</strong> unsettled for more than 5 days — worth investigating:
+            ${r.stale_unsettled.map(s => `<div style="margin-top:4px">${s.society_name || s.coop_id}: ${fmtN(s.amount_kobo)}, ${s.days_unsettled}d unsettled</div>`).join('')}
+          </div>` : '<div style="color:var(--g);font-size:12.5px">✓ No stale unsettled payments</div>'}
+      `;
+    }
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+        <div><div style="font-size:20px;font-weight:700">${fmtN(a.total_revenue_kobo)}</div><div style="font-size:11px;color:var(--tx3)">Total revenue</div></div>
+        <div><div style="font-size:20px;font-weight:700">${fmtN(a.approximate_mrr_kobo)}</div><div style="font-size:11px;color:var(--tx3)">Approx. MRR</div></div>
+        <div><div style="font-size:20px;font-weight:700">${a.active_societies}</div><div style="font-size:11px;color:var(--tx3)">Active societies</div></div>
+        <div><div style="font-size:20px;font-weight:700">${a.trial_societies}</div><div style="font-size:11px;color:var(--tx3)">On trial</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;font-weight:600;margin-bottom:8px">Flutterwave settlement reconciliation</div>
+      ${settlementHtml}
+      <details style="margin-top:14px"><summary style="cursor:pointer;font-size:12.5px;color:var(--tx2)">Per-society breakdown</summary>
+        <div class="table-wrap" style="margin-top:10px"><table>
+          <thead><tr><th>Society</th><th>Plan</th><th>Total paid</th><th>Payments</th></tr></thead>
+          <tbody>${finance.societies.map(s => `<tr><td>${s.name}</td><td>${s.plan||'—'}</td><td>${fmtN(s.total_paid_kobo)}</td><td>${s.payment_count}</td></tr>`).join('') || '<tr><td colspan="4" class="no-data">No data</td></tr>'}</tbody>
+        </table></div>
+      </details>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+async function loadCoopThriftSocieties() {
+  document.getElementById('coop-subplan-setup-banner').style.display = 'flex';
+  loadAddonModulesAdmin();
+  loadEcosystemFinance();
+  const tbody = document.getElementById('coopthrift-table-body');
+  tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin-coop-societies`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { notify('Societies: ' + (data.error || 'error'), true); return; }
+    renderCoopThriftTable(data.societies || []);
+  } catch (e) { notify('Societies: ' + e.message, true); }
+}
+
+function renderCoopThriftTable(societies) {
+  const tbody = document.getElementById('coopthrift-table-body');
+  if (!societies.length) { tbody.innerHTML = '<tr><td colspan="6" class="no-data">No societies yet — create one to get started.</td></tr>'; return; }
+  const statusColor = s => ({ TRIAL: 'var(--am)', ACTIVE: 'var(--g)', SUSPENDED: '#e74c3c' }[s] || 'var(--tx2)');
+  const subColor = s => ({ trial: 'var(--g)', trial_expired: '#e74c3c', pending_verification: 'var(--am)', active: 'var(--g)', suspended: '#e74c3c' }[s] || 'var(--tx3)');
+  const subLabel = s => ({ trial: 'Trial', trial_expired: 'Trial ended', pending_verification: 'Pending', active: 'Active', suspended: 'Suspended' }[s] || s || '—');
+  const planLabel = p => p ? p.charAt(0).toUpperCase() + p.slice(1) : '—';
+  tbody.innerHTML = societies.map(s => `
+    <tr>
+      <td style="font-weight:600">${s.name}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
+      <td><span style="color:${statusColor(s.status)};font-weight:600">${s.status}</span></td>
+      <td>
+        <span style="font-weight:700">${planLabel(s.subscription_plan)}</span>${s.subscription_cycle ? `<div style="font-size:10.5px;color:var(--tx3)">${s.subscription_cycle}</div>` : ''}
+        <div><button class="rbtn" style="margin-top:4px" onclick="openChangePlanModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}','${s.subscription_plan||''}','${s.subscription_cycle||'monthly'}')">${s.subscription_plan ? 'Change' : 'Set'} plan</button></div>
+      </td>
+      <td>
+        <span style="color:${subColor(s.subscription_status)};font-weight:600">${subLabel(s.subscription_status)}</span>
+        ${s.subscription_status === 'pending_verification' && s.subscription_paid_until ? `<div><button class="rbtn" style="background:var(--gl);color:var(--g);margin-top:4px" onclick="activateSubscription('${s.coop_id}')">Activate</button></div>` : ''}
+      </td>
+      <td>${s.trial_ends_at ? new Date(s.trial_ends_at).toLocaleDateString() : '—'}</td>
+      <td><button class="rbtn" onclick="openSocietyDetail('${s.coop_id}')">View &rsaquo;</button></td>
+    </tr>
+  `).join('');
+}
+
+async function activateSubscription(coopId) {
+  if (!confirm('Activate this society? Confirm you have completed the necessary verification first.')) return;
+  try {
+    const res = await fetch(`${API}/admin-activate-coop-subscription`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: coopId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('Activation: ' + (data.error || 'failed'), true); return; }
+    notify(data.message || 'Activated');
+    loadCoopThriftSocieties();
+  } catch (e) { notify('Activation: ' + e.message, true); }
+}
+
+async function loadAddonModulesAdmin() {
+  const tbody = document.getElementById('addon-modules-table-body');
+  tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin-addon-modules`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${data.error || 'Failed to load'}</td></tr>`; return; }
+    tbody.innerHTML = (data.addons || []).map(a => `
+      <tr>
+        <td style="font-weight:600">${a.name}</td>
+        <td>${a.price_kobo > 0 ? '₦' + (a.price_kobo/100).toLocaleString() : '<span style="color:var(--tx3)">Not set</span>'}</td>
+        <td><span style="color:${a.active ? 'var(--g)' : 'var(--tx3)'};font-weight:600">${a.active ? 'Active' : 'Inactive'}</span></td>
+        <td><button class="rbtn" onclick='openEditAddonModal(${JSON.stringify(a).replace(/'/g, "&apos;")})'>Edit</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" class="no-data">No add-on modules yet.</td></tr>';
+  } catch (e) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${e.message}</td></tr>`; }
+}
+
+let editingAddonKey = null;
+function openEditAddonModal(addon) {
+  editingAddonKey = addon.key;
+  document.getElementById('ea-name').textContent = addon.name;
+  document.getElementById('ea-description').value = addon.description || '';
+  document.getElementById('ea-price').value = addon.price_kobo / 100;
+  document.getElementById('ea-active').checked = addon.active;
+  document.getElementById('ea-error').style.display = 'none';
+  document.getElementById('edit-addon-modal').style.display = 'flex';
+}
+function closeEditAddonModal() { document.getElementById('edit-addon-modal').style.display = 'none'; }
+
+async function submitEditAddon() {
+  const errEl = document.getElementById('ea-error');
+  errEl.style.display = 'none';
+  const priceKobo = Math.round(parseFloat(document.getElementById('ea-price').value || 0) * 100);
+  const active = document.getElementById('ea-active').checked;
+  if (active && priceKobo === 0) { errEl.textContent = 'Set a real price before activating.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/admin-addon-modules`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ key: editingAddonKey, name: document.getElementById('ea-name').textContent, description: document.getElementById('ea-description').value.trim(), price_kobo: priceKobo, active }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
+    closeEditAddonModal();
+    notify('Add-on updated');
+    loadAddonModulesAdmin();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+let cpCurrentCoopId = null;
+function openChangePlanModal(coopId, name, currentPlan, currentCycle) {
+  cpCurrentCoopId = coopId;
+  document.getElementById('cp-society-name').textContent = name;
+  document.getElementById('cp-plan').value = currentPlan || 'launch';
+  document.getElementById('cp-cycle').value = currentCycle || 'monthly';
+  document.getElementById('cp-email-field').style.display = currentPlan ? 'none' : '';
+  document.getElementById('cp-email').value = '';
+  document.getElementById('cp-error').style.display = 'none';
+  document.getElementById('change-plan-modal').style.display = 'flex';
+}
+function closeChangePlanModal() { document.getElementById('change-plan-modal').style.display = 'none'; }
+
+async function submitChangePlan() {
+  const errEl = document.getElementById('cp-error');
+  errEl.style.display = 'none';
+  const body = {
+    coop_id: cpCurrentCoopId,
+    plan: document.getElementById('cp-plan').value,
+    cycle: document.getElementById('cp-cycle').value,
+    email: document.getElementById('cp-email').value.trim(),
+  };
+  try {
+    const res = await fetch(`${API}/admin-change-coop-plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to change plan.'; errEl.style.display = 'block'; return; }
+    closeChangePlanModal();
+    notify(data.message || 'Plan updated');
+    loadCoopThriftSocieties();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+function openCreateSocietyModal() {
+  ['cs-name', 'cs-phone', 'cs-owner-name', 'cs-location', 'cs-password', 'cs-lascofed-ref', 'cs-email'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cs-loan-capital').value = '0';
+  document.getElementById('cs-bank-balance').value = '0';
+  document.getElementById('cs-plan').value = '';
+  document.getElementById('cs-plan-details').style.display = 'none';
+  document.getElementById('cs-error').style.display = 'none';
+  document.getElementById('create-society-modal').style.display = 'flex';
+  loadAddonModulesForCreateModal();
+}
+function closeCreateSocietyModal() { document.getElementById('create-society-modal').style.display = 'none'; }
+
+const CS_TIER_PRICES = { launch: { monthly: 990000, yearly: 10098000 }, growth: { monthly: 2490000, yearly: 25398000 }, scale: { monthly: 4990000, yearly: 50898000 } };
+let csAddonModules = [];
+
+async function loadAddonModulesForCreateModal() {
+  try {
+    const res = await fetch(`${API}/admin-addon-modules`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    csAddonModules = (data.addons || []).filter(a => a.active);
+    document.getElementById('cs-addons-list').innerHTML = csAddonModules.length
+      ? csAddonModules.map(a => `
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" class="cs-addon-checkbox" value="${a.key}" data-price="${a.price_kobo}" onchange="updateCreateSocietyTotal()">
+            ${a.name} — &#8358;${(a.price_kobo/100).toLocaleString()}/mo
+          </label>`).join('')
+      : '<div style="font-size:12px;color:var(--tx3)">No add-ons currently available.</div>';
+  } catch (e) { document.getElementById('cs-addons-list').innerHTML = ''; }
+  document.getElementById('cs-plan').addEventListener('change', () => {
+    document.getElementById('cs-plan-details').style.display = document.getElementById('cs-plan').value ? '' : 'none';
+    updateCreateSocietyTotal();
+  }, { once: true });
+}
+
+function updateCreateSocietyTotal() {
+  const plan = document.getElementById('cs-plan').value;
+  const totalEl = document.getElementById('cs-total-display');
+  if (!plan) { totalEl.textContent = ''; return; }
+  const cycle = document.getElementById('cs-cycle').value;
+  let total = CS_TIER_PRICES[plan][cycle];
+  document.querySelectorAll('.cs-addon-checkbox:checked').forEach(cb => {
+    const monthlyPrice = parseInt(cb.dataset.price);
+    total += cycle === 'yearly' ? Math.round(monthlyPrice * 12 * 0.85) : monthlyPrice;
+  });
+  totalEl.textContent = `Total: ₦${(total/100).toLocaleString()}/${cycle === 'yearly' ? 'year' : 'month'}`;
+}
+
+async function submitCreateSociety() {
+  const errEl = document.getElementById('cs-error');
+  errEl.style.display = 'none';
+  const plan = document.getElementById('cs-plan').value;
+  const body = {
+    name: document.getElementById('cs-name').value.trim(),
+    phone: document.getElementById('cs-phone').value.trim(),
+    owner_name: document.getElementById('cs-owner-name').value.trim(),
+    location: document.getElementById('cs-location').value.trim(),
+    password: document.getElementById('cs-password').value,
+    lascofed_ref: document.getElementById('cs-lascofed-ref').value.trim(),
+    opening_loan_capital_kobo: Math.round(parseFloat(document.getElementById('cs-loan-capital').value || 0) * 100),
+    opening_bank_balance_kobo: Math.round(parseFloat(document.getElementById('cs-bank-balance').value || 0) * 100),
+  };
+  if (plan) {
+    body.plan = plan;
+    body.cycle = document.getElementById('cs-cycle').value;
+    body.email = document.getElementById('cs-email').value.trim();
+    body.addon_keys = Array.from(document.querySelectorAll('.cs-addon-checkbox:checked')).map(cb => cb.value);
+  }
+  if (!body.name || !body.phone || !body.owner_name || !body.password) {
+    errEl.textContent = 'Name, phone, owner name, and password are required.'; errEl.style.display = 'block'; return;
+  }
+  try {
+    const res = await fetch(`${API}/admin-create-coop-society`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create society.'; errEl.style.display = 'block'; return; }
+    closeCreateSocietyModal();
+    notify(data.message || `${body.name} created`);
+    loadCoopThriftSocieties();
+    if (data.society?.coop_id) openSocietyDetail(data.society.coop_id);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+async function openSocietyDetail(coopId) {
+  ctCurrentCoopId = coopId;
+  document.getElementById('coopthrift-list-view').style.display = 'none';
+  document.getElementById('coopthrift-detail-view').style.display = '';
+  document.getElementById('ct-d-title').textContent = 'Loading...';
+  try {
+    const res = await fetch(`${API}/admin-coop-societies?coop_id=${encodeURIComponent(coopId)}`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { notify('Society detail: ' + (data.error || 'error'), true); closeSocietyDetail(); return; }
+    ctCurrentDetail = data;
+    renderSocietyDetail(data);
+  } catch (e) { notify('Society detail: ' + e.message, true); closeSocietyDetail(); }
+}
+
+function closeSocietyDetail() {
+  ctCurrentCoopId = null; ctCurrentDetail = null;
+  document.getElementById('coopthrift-detail-view').style.display = 'none';
+  document.getElementById('coopthrift-list-view').style.display = '';
+}
+
+function fmtNaira(kobo) { return '₦' + ((kobo || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }); }
+
+function renderSocietyDetail(data) {
+  const { society, members, savings_plans, loans, notifications, metrics } = data;
+  document.getElementById('ct-d-title').textContent = society.name;
+  document.getElementById('ct-d-sub').textContent = `${society.owner_name || ''} · ${society.phone || ''} · ${society.status}${society.subscription_plan ? ` · ${society.subscription_plan.charAt(0).toUpperCase()+society.subscription_plan.slice(1)} (${society.subscription_cycle})` : ' · No plan attached'}`;
+  document.getElementById('ct-d-members').textContent = metrics.active_members;
+  document.getElementById('ct-d-saved').textContent = fmtNaira(metrics.total_saved_kobo);
+  document.getElementById('ct-d-loans').textContent = fmtNaira(metrics.active_loans_kobo);
+
+  const loginUrl = `${window.location.origin}/coop-admin`;
+  const resumeUrl = `${window.location.origin}/coop?resume=${encodeURIComponent(society.coop_id)}`;
+  const needsPayment = society.subscription_plan && !['active'].includes(society.subscription_status);
+  let graceWarning = '';
+  if (society.repricing_pending_since) {
+    const daysLeft = Math.max(0, 7 - Math.floor((new Date() - new Date(society.repricing_pending_since)) / 86400000));
+    graceWarning = `<div style="background:${daysLeft <= 2 ? 'rgba(231,76,60,.12)' : 'rgba(245,158,11,.12)'};border:1px solid ${daysLeft <= 2 ? '#e74c3c' : 'var(--am)'};border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
+      ${society.status === 'SUSPENDED' ? '<strong>Operations paused</strong> — grace period expired with no payment.' : `<strong>${daysLeft} day${daysLeft === 1 ? '' : 's'} left</strong> to pay the updated total before operations pause automatically.`}
+    </div>`;
+  }
+  document.getElementById('ct-d-links').innerHTML = `
+    ${graceWarning}
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.02em;font-weight:600;margin-bottom:8px">Share with this society</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:${needsPayment ? '8px' : '0'}">
+      <span style="font-size:12.5px;color:var(--tx2);width:90px;flex-shrink:0">Portal login:</span>
+      <code style="font-size:11.5px;background:var(--grl);padding:4px 8px;border-radius:6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${loginUrl}</code>
+      <button class="rbtn" onclick="copyLink('${loginUrl}')">Copy</button>
+    </div>
+    ${needsPayment ? `
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="font-size:12.5px;color:var(--tx2);width:90px;flex-shrink:0">Payment link:</span>
+      <code style="font-size:11.5px;background:var(--grl);padding:4px 8px;border-radius:6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${resumeUrl}</code>
+      <button class="rbtn" onclick="copyLink('${resumeUrl}')">Copy</button>
+    </div>` : ''}
+  `;
+
+  renderCtMembers(members);
+  renderCtSavings(savings_plans);
+  renderCtLoans(loans);
+  renderCtDues(society, members);
+  renderCtNotifications(notifications);
+  renderCtSettlement(society);
+}
+
+function copyLink(url) {
+  navigator.clipboard?.writeText(url).then(() => notify('Link copied')).catch(() => notify('Could not copy — select and copy manually', true));
+}
+
+function switchCtTab(tab) {
+  document.querySelectorAll('.ct-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.ct-tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('ct-tab-' + tab).style.display = '';
+}
+
+function renderCtMembers(members) {
+  const tbody = document.getElementById('ct-members-table-body');
+  if (!members.length) { tbody.innerHTML = '<tr><td colspan="4" class="no-data">No members yet.</td></tr>'; return; }
+  tbody.innerHTML = members.map(m => `
+    <tr>
+      <td style="font-weight:600">${m.name}</td>
+      <td>${m.phone_normalized}</td>
+      <td><span style="color:${m.status === 'ACTIVE' ? 'var(--g)' : 'var(--tx3)'};font-weight:600">${m.status}</span></td>
+      <td>${m.activated_at ? new Date(m.activated_at).toLocaleDateString() : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderCtSavings(plans) {
+  const tbody = document.getElementById('ct-savings-table-body');
+  if (!plans.length) { tbody.innerHTML = '<tr><td colspan="6" class="no-data">No savings plans yet.</td></tr>'; return; }
+  tbody.innerHTML = plans.map(p => `
+    <tr>
+      <td style="font-weight:600">${p.coop_members?.name || '—'}</td>
+      <td>${fmtNaira(p.target_amount_kobo)}</td>
+      <td>${fmtNaira(p.saved_kobo)}</td>
+      <td>${p.progress_pct}%</td>
+      <td style="font-size:11px">${p.flutterwave_account_number ? p.flutterwave_account_number + ' (' + (p.flutterwave_bank_name || '') + ')' : '<span style="color:var(--tx3)">Not set up</span>'}</td>
+      <td><button class="rbtn" onclick="openRecordPaymentModal('savings','${p.id}','${(p.coop_members?.name || 'Member').replace(/'/g,"\\'")}\\'s savings')">Record Payment</button></td>
+    </tr>
+  `).join('');
+}
+
+function renderCtLoans(loans) {
+  const tbody = document.getElementById('ct-loans-table-body');
+  if (!loans.length) { tbody.innerHTML = '<tr><td colspan="6" class="no-data">No loans yet.</td></tr>'; return; }
+  const statusColor = s => ({ PENDING_GUARANTOR: 'var(--am)', PENDING_APPROVAL: 'var(--am)', APPROVED: '#3B82F6', DISBURSED: 'var(--g)', REPAYING: 'var(--g)', COMPLETED: 'var(--tx3)', REJECTED: '#e74c3c', DEFAULTED: '#e74c3c' }[s] || 'var(--tx2)');
+  tbody.innerHTML = loans.map(l => {
+    let actions = '';
+    if (l.status === 'PENDING_APPROVAL') {
+      actions = `<button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="loanAction('${l.id}','approve')">Approve</button> <button class="rbtn" onclick="loanAction('${l.id}','reject')">Reject</button>`;
+    } else if (l.status === 'APPROVED') {
+      actions = `<button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="loanAction('${l.id}','disburse')">Disburse</button>`;
+    } else if (['DISBURSED', 'REPAYING'].includes(l.status)) {
+      actions = `<button class="rbtn" onclick="openRecordPaymentModal('loan','${l.id}','${(l.borrower?.name || 'Member').replace(/'/g,"\\'")}\\'s loan repayment')">Record Repayment</button>`;
+    }
+    return `
+    <tr>
+      <td style="font-weight:600">${l.borrower?.name || '—'}</td>
+      <td>${fmtNaira(l.principal_kobo)}</td>
+      <td><span style="color:${statusColor(l.status)};font-weight:600">${l.status.replace(/_/g, ' ')}</span></td>
+      <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
+      <td>${l.guarantor?.name || '—'}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loanAction(loanId, action) {
+  if (action === 'reject' && !confirm('Reject this loan application?')) return;
+  try {
+    const res = await fetch(`${API}/coop-loans-admin`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ loan_id: loanId, action }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('Loan action: ' + (data.error || 'failed'), true); return; }
+    notify(`Loan ${action}d`);
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { notify('Loan action: ' + e.message, true); }
+}
+
+function renderCtDues(society, members) {
+  const summaryEl = document.getElementById('ct-dues-config-summary');
+  if (society.dues_amount_kobo > 0) {
+    summaryEl.innerHTML = `${fmtNaira(society.dues_amount_kobo)} / ${society.dues_frequency}${society.dues_enforcement_enabled ? ' · <span style="color:var(--am)">Loan applications blocked if owing</span>' : ''}`;
+  } else {
+    summaryEl.textContent = 'Not configured yet.';
+  }
+  const tbody = document.getElementById('ct-dues-table-body');
+  const withDues = members.filter(m => m.dues);
+  if (!withDues.length) { tbody.innerHTML = '<tr><td colspan="4" class="no-data">Configure dues first to see member status.</td></tr>'; return; }
+  tbody.innerHTML = withDues.map(m => `
+    <tr>
+      <td style="font-weight:600">${m.name}</td>
+      <td style="color:${m.dues.owing_kobo > 0 ? '#e74c3c' : 'var(--g)'};font-weight:600">${fmtNaira(m.dues.owing_kobo)}</td>
+      <td>${fmtNaira(m.dues.total_paid_kobo)}</td>
+      <td>${m.dues.owing_kobo > 0 ? `<button class="rbtn" onclick="openRecordPaymentModal('dues','${m.id}','${m.name.replace(/'/g,"\\'")}\\'s dues')">Record Payment</button>` : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderCtNotifications(notifications) {
+  const tbody = document.getElementById('ct-notifications-table-body');
+  if (!notifications.length) { tbody.innerHTML = '<tr><td colspan="3" class="no-data">No notifications sent yet.</td></tr>'; return; }
+  tbody.innerHTML = notifications.map(n => `
+    <tr>
+      <td style="font-weight:600">${n.title}</td>
+      <td>${n.target_type === 'broadcast' ? 'Everyone' : (n.target_member?.name || 'One member')}</td>
+      <td>${new Date(n.created_at).toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+function renderCtSettlement(society) {
+  const el = document.getElementById('ct-settlement-status');
+  if (society.flutterwave_subaccount_id) {
+    el.innerHTML = `
+      <div style="background:var(--gl);border-radius:10px;padding:14px;color:var(--g);font-weight:600">
+        &#x2713; Configured — ${society.settlement_account_number || ''} (${society.settlement_account_name || society.settlement_bank_code || ''})
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div style="background:var(--al);border-radius:10px;padding:14px;color:var(--am);font-weight:600;margin-bottom:12px">
+        Not configured — this society's payments currently settle entirely to Zillion's main account.
+      </div>
+      <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openProvisionSettlementModal()">Configure Now</button>`;
+  }
+}
+
+// -- Activate Member --
+function openActivateMemberModal() {
+  document.getElementById('tam-phone').value = '';
+  document.getElementById('tam-name').value = '';
+  document.getElementById('tam-error').style.display = 'none';
+  document.getElementById('activate-member-modal').style.display = 'flex';
+}
+function closeActivateMemberModal() { document.getElementById('activate-member-modal').style.display = 'none'; }
+
+async function submitActivateMember() {
+  const errEl = document.getElementById('tam-error');
+  errEl.style.display = 'none';
+  const phone = document.getElementById('tam-phone').value.trim();
+  const name = document.getElementById('tam-name').value.trim();
+  if (!phone || !name) { errEl.textContent = 'Phone and name are required.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/coop-activate-member`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, phone, name }),
+    });
+    const data = await res.json();
+    if (!res.ok && !data.member) { errEl.textContent = data.error || 'Failed to activate member.'; errEl.style.display = 'block'; return; }
+    closeActivateMemberModal();
+    notify(res.ok ? 'Member activated' : 'Member already existed — refreshed');
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+function openBulkImportModal() {
+  document.getElementById('bi-csv-text').value = '';
+  document.getElementById('bi-error').style.display = 'none';
+  document.getElementById('bi-results').style.display = 'none';
+  document.getElementById('bi-submit-btn').style.display = '';
+  document.getElementById('bi-submit-btn').disabled = false;
+  document.getElementById('bi-submit-btn').textContent = 'Import';
+  document.getElementById('bulk-import-modal').style.display = 'flex';
+}
+function closeBulkImportModal() {
+  document.getElementById('bulk-import-modal').style.display = 'none';
+  // Refresh the members list in case an import happened before closing
+  if (ctCurrentCoopId) openSocietyDetail(ctCurrentCoopId);
+}
+
+async function submitBulkImport() {
+  const errEl = document.getElementById('bi-error');
+  errEl.style.display = 'none';
+  const csvText = document.getElementById('bi-csv-text').value.trim();
+  if (!csvText) { errEl.textContent = 'Paste a CSV first.'; errEl.style.display = 'block'; return; }
+
+  const submitBtn = document.getElementById('bi-submit-btn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Importing...';
+
+  try {
+    const res = await fetch(`${API}/admin-coop-bulk-import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, csv_text: csvText }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Import failed.'; errEl.style.display = 'block';
+      submitBtn.disabled = false; submitBtn.textContent = 'Import';
+      return;
+    }
+
+    const s = data.summary;
+    document.getElementById('bi-summary').innerHTML =
+      `${s.total} rows · <span style="color:var(--g)">${s.created} activated</span> · <span style="color:var(--tx3)">${s.already_existed} already existed</span>` +
+      (s.failed > 0 ? ` · <span style="color:#e74c3c">${s.failed} failed</span>` : '');
+
+    const statusColor = st => ({ created: 'var(--g)', already_existed: 'var(--tx3)', failed: '#e74c3c' }[st]);
+    document.getElementById('bi-results-body').innerHTML = data.results.map(r => `
+      <tr>
+        <td>${r.line}</td>
+        <td>${r.phone || '—'}</td>
+        <td>${r.name || '—'}</td>
+        <td style="color:${statusColor(r.status)};font-weight:600">${r.status === 'failed' ? (r.error || 'failed') : r.status.replace(/_/g,' ')}</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('bi-results').style.display = '';
+    submitBtn.style.display = 'none'; // import is one-shot per paste — re-running would re-process already-handled rows
+    notify(`Import complete: ${s.created} activated, ${s.already_existed} already existed, ${s.failed} failed`);
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    submitBtn.disabled = false; submitBtn.textContent = 'Import';
+  }
+}
+
+// -- Create Savings Plan --
+function openCreateSavingsPlanModal() {
+  const sel = document.getElementById('csp-member');
+  const members = (ctCurrentDetail?.members || []).filter(m => m.status === 'ACTIVE');
+  sel.innerHTML = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${m.name} (${m.phone_normalized})</option>`).join('');
+  document.getElementById('csp-target').value = '';
+  document.getElementById('csp-monthly').value = '';
+  document.getElementById('csp-duration').value = '12';
+  document.getElementById('csp-error').style.display = 'none';
+  document.getElementById('create-savings-plan-modal').style.display = 'flex';
+}
+function closeCreateSavingsPlanModal() { document.getElementById('create-savings-plan-modal').style.display = 'none'; }
+
+async function submitCreateSavingsPlan() {
+  const errEl = document.getElementById('csp-error');
+  errEl.style.display = 'none';
+  const memberId = document.getElementById('csp-member').value;
+  const target = Math.round(parseFloat(document.getElementById('csp-target').value || 0) * 100);
+  const monthly = Math.round(parseFloat(document.getElementById('csp-monthly').value || 0) * 100);
+  const duration = parseInt(document.getElementById('csp-duration').value || 0);
+  if (!memberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  if (!target || !monthly || !duration) { errEl.textContent = 'Fill in all amounts.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/coop-savings-plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, member_id: memberId, target_amount_kobo: target, monthly_contribution_kobo: monthly, duration_months: duration }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create plan.'; errEl.style.display = 'block'; return; }
+    closeCreateSavingsPlanModal();
+    notify('Savings plan created');
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+// -- Configure Dues --
+function openConfigureDuesModal() {
+  const society = ctCurrentDetail?.society;
+  document.getElementById('cd-amount').value = society?.dues_amount_kobo ? (society.dues_amount_kobo / 100) : '';
+  document.getElementById('cd-frequency').value = society?.dues_frequency || 'monthly';
+  document.getElementById('cd-enforce').checked = !!society?.dues_enforcement_enabled;
+  document.getElementById('cd-error').style.display = 'none';
+  document.getElementById('configure-dues-modal').style.display = 'flex';
+}
+function closeConfigureDuesModal() { document.getElementById('configure-dues-modal').style.display = 'none'; }
+
+async function submitConfigureDues() {
+  const errEl = document.getElementById('cd-error');
+  errEl.style.display = 'none';
+  const amount = Math.round(parseFloat(document.getElementById('cd-amount').value || 0) * 100);
+  const frequency = document.getElementById('cd-frequency').value;
+  const enforce = document.getElementById('cd-enforce').checked;
+  if (!amount) { errEl.textContent = 'Enter a dues amount.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/coop-configure-dues`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, dues_amount_kobo: amount, dues_frequency: frequency, dues_enforcement_enabled: enforce, dues_enforcement_rules: { block_loan_application: enforce } }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to configure dues.'; errEl.style.display = 'block'; return; }
+    closeConfigureDuesModal();
+    notify('Dues configured');
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+// -- Send Notification --
+function openSendNotificationModal() {
+  const sel = document.getElementById('sn-member');
+  const members = (ctCurrentDetail?.members || []).filter(m => m.status === 'ACTIVE');
+  sel.innerHTML = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  document.getElementById('sn-target-type').value = 'broadcast';
+  document.getElementById('sn-member-row').style.display = 'none';
+  document.getElementById('sn-title').value = '';
+  document.getElementById('sn-body').value = '';
+  document.getElementById('sn-error').style.display = 'none';
+  document.getElementById('send-notification-modal').style.display = 'flex';
+}
+function closeSendNotificationModal() { document.getElementById('send-notification-modal').style.display = 'none'; }
+function onSnTargetTypeChange() {
+  document.getElementById('sn-member-row').style.display = document.getElementById('sn-target-type').value === 'individual' ? '' : 'none';
+}
+
+async function submitSendNotification() {
+  const errEl = document.getElementById('sn-error');
+  errEl.style.display = 'none';
+  const targetType = document.getElementById('sn-target-type').value;
+  const targetMemberId = document.getElementById('sn-member').value;
+  const title = document.getElementById('sn-title').value.trim();
+  const body = document.getElementById('sn-body').value.trim();
+  if (!title || !body) { errEl.textContent = 'Title and message are required.'; errEl.style.display = 'block'; return; }
+  if (targetType === 'individual' && !targetMemberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/coop-send-notification`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, title, body, target_type: targetType, target_member_id: targetMemberId || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send.'; errEl.style.display = 'block'; return; }
+    closeSendNotificationModal();
+    notify('Notification sent');
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+// -- Settlement --
+let ctBankListCache = null;
+
+function openProvisionSettlementModal() {
+  document.getElementById('ps-bank-code').innerHTML = '<option value="">Loading banks…</option>';
+  document.getElementById('ps-account-number').value = '';
+  document.getElementById('ps-business-email').value = '';
+  document.getElementById('ps-error').style.display = 'none';
+  document.getElementById('provision-settlement-modal').style.display = 'flex';
+  loadBankListIntoSelect();
+}
+
+async function loadBankListIntoSelect() {
+  const selectEl = document.getElementById('ps-bank-code');
+  if (ctBankListCache) {
+    selectEl.innerHTML = '<option value="">Select a bank…</option>' + ctBankListCache.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/flutterwave-bank-list`);
+    const data = await res.json();
+    if (!res.ok || !data.banks) { selectEl.innerHTML = '<option value="">Could not load bank list</option>'; return; }
+    ctBankListCache = data.banks;
+    selectEl.innerHTML = '<option value="">Select a bank…</option>' + data.banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+  } catch (e) {
+    selectEl.innerHTML = '<option value="">Could not load bank list</option>';
+  }
+}
+function closeProvisionSettlementModal() { document.getElementById('provision-settlement-modal').style.display = 'none'; }
+
+async function submitProvisionSettlement() {
+  const errEl = document.getElementById('ps-error');
+  errEl.style.display = 'none';
+  const bankCode = document.getElementById('ps-bank-code').value.trim();
+  const accountNumber = document.getElementById('ps-account-number').value.trim();
+  const businessEmail = document.getElementById('ps-business-email').value.trim();
+  if (!bankCode || !accountNumber || !businessEmail) { errEl.textContent = 'Bank, account number, and business email are all required.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/admin-create-coop-subaccount`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, account_bank_code: bankCode, account_number: accountNumber, business_email: businessEmail }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to configure settlement.'; errEl.style.display = 'block'; return; }
+    closeProvisionSettlementModal();
+    notify(data.message || 'Settlement configured');
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+// -- Record Payment (generic — savings, dues, or loan repayment) --
+function openRecordPaymentModal(type, targetId, label) {
+  ctRecordPaymentContext = { type, targetId };
+  document.getElementById('rp-title').textContent = 'Record Payment';
+  document.getElementById('rp-subtitle').textContent = label || '';
+  document.getElementById('rp-amount').value = '';
+  document.getElementById('rp-source').value = 'bank_transfer_manual';
+  document.getElementById('rp-reference').value = '';
+  onRpSourceChange();
+  document.getElementById('rp-error').style.display = 'none';
+  document.getElementById('record-payment-modal').style.display = 'flex';
+}
+function closeRecordPaymentModal() { document.getElementById('record-payment-modal').style.display = 'none'; }
+function onRpSourceChange() {
+  const isCash = document.getElementById('rp-source').value === 'cash_in_person';
+  document.getElementById('rp-reference-label').textContent = isCash ? 'Reference (required — receipt number, witness name, etc.)' : 'Reference (optional)';
+}
+
+async function submitRecordPayment() {
+  const errEl = document.getElementById('rp-error');
+  errEl.style.display = 'none';
+  const ctx = ctRecordPaymentContext;
+  if (!ctx) return;
+  const amount = Math.round(parseFloat(document.getElementById('rp-amount').value || 0) * 100);
+  const source = document.getElementById('rp-source').value;
+  const reference = document.getElementById('rp-reference').value.trim();
+  if (!amount) { errEl.textContent = 'Enter an amount.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const ENDPOINTS = { savings: 'coop-record-savings-payment', dues: 'coop-record-dues-payment', loan: 'coop-record-loan-repayment' };
+  const idFields = { savings: 'savings_plan_id', dues: 'member_id', loan: 'loan_id' };
+  const body = { [idFields[ctx.type]]: ctx.targetId, amount_kobo: amount, source, reference: reference || undefined };
+
+  try {
+    const res = await fetch(`${API}/${ENDPOINTS[ctx.type]}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record payment.'; errEl.style.display = 'block'; return; }
+    closeRecordPaymentModal();
+    notify('Payment recorded');
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
 
 // ── Identity Lookup ──────────────────────────────────────────────────────

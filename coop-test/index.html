@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zillion — Coop Module Test Harness</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; background: #0A1F14; color: #E8F5EE; margin: 0; padding: 20px; }
+  h1 { color: #00C896; font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #7FA894; font-size: 13px; margin-bottom: 24px; }
+  .step { background: #0F2B1D; border: 1px solid #1A4030; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .step-title { font-weight: 700; font-size: 14px; color: #00C896; margin-bottom: 4px; }
+  .step-desc { font-size: 12px; color: #7FA894; margin-bottom: 10px; }
+  label { display: block; font-size: 11px; color: #9CC4B0; margin: 8px 0 3px; }
+  input, select { width: 100%; padding: 9px 10px; background: #081A11; border: 1px solid #234A38; border-radius: 8px; color: #E8F5EE; font-size: 13px; font-family: inherit; }
+  button { margin-top: 12px; padding: 10px 16px; background: #00C896; color: #05140D; border: none; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
+  button:hover { background: #00E0AC; }
+  button:disabled { background: #234A38; color: #7FA894; cursor: not-allowed; }
+  .out { margin-top: 10px; background: #081A11; border-radius: 8px; padding: 10px; font-family: 'Consolas', monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; color: #A8E8CC; }
+  .out.err { color: #FF8A8A; }
+  .status-ok { color: #00E0AC; font-size: 11px; margin-top: 6px; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<h1>🌾 Coop Module Test Harness</h1>
+<div class="subtitle">Staging only — walks through the full savings + loan lifecycle by clicking buttons, not curl. Values auto-fill between steps where possible.</div>
+
+<!-- STEP 0: Admin Login -->
+<div class="step">
+  <div class="step-title">1. Admin Login</div>
+  <div class="step-desc">Your normal SUPER_ADMIN username + password + authenticator code.</div>
+  <label>Username</label><input id="admin-username" placeholder="e.g. david">
+  <label>Password</label><input id="admin-password" type="password">
+  <button onclick="adminLoginStep1()">Sign In</button>
+  <div id="admin-totp-box" style="display:none">
+    <label>Authenticator Code</label><input id="admin-totp" placeholder="6-digit code">
+    <button onclick="adminLoginStep2()">Verify Code</button>
+  </div>
+  <div id="admin-status" class="status-ok"></div>
+  <div id="admin-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Get member tokens -->
+<div class="step">
+  <div class="step-title">2. Log In Two Test Members (Borrower + Guarantor)</div>
+  <div class="step-desc">Uses your DEMO_OTP code — same one used for any test login. Any phone number works.</div>
+  <div class="row">
+    <div>
+      <label>Borrower phone</label><input id="borrower-phone" value="08011111111">
+      <label>Borrower name</label><input id="borrower-name" value="Amina Bello">
+    </div>
+    <div>
+      <label>Guarantor phone</label><input id="guarantor-phone" value="08022222222">
+      <label>Guarantor name</label><input id="guarantor-name" value="Musa Ibrahim">
+    </div>
+  </div>
+  <label>DEMO_OTP code</label><input id="demo-otp" placeholder="whatever your DEMO_OTP env var is set to">
+  <button onclick="loginBothMembers()">Log In Both</button>
+  <div id="members-status" class="status-ok"></div>
+  <div id="members-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Activate members into coop -->
+<div class="step">
+  <div class="step-title">3. Activate Both as Cooperative Members</div>
+  <div class="step-desc">Admin action — pre-provisions them into the test society.</div>
+  <label>Coop ID</label><input id="coop-id" value="COOPSOC-F74A7093">
+  <button onclick="activateBothMembers()">Activate Both</button>
+  <div id="activate-status" class="status-ok"></div>
+  <div id="activate-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Configure dues -->
+<div class="step">
+  <div class="step-title">4. Configure Society Dues</div>
+  <div class="step-desc">Society-level, not per-member — sets what everyone owes and how often. Without this, the dues section stays correctly hidden (nothing to show).</div>
+  <div class="row">
+    <div><label>Amount (₦)</label><input id="dues-amount" value="1500"></div>
+    <div><label>Frequency</label><select id="dues-frequency"><option value="monthly">monthly</option><option value="annual">annual</option></select></div>
+  </div>
+  <label><input type="checkbox" id="dues-enforce"> Block loan applications if dues are owing</label>
+  <button onclick="configureDues()">Configure Dues</button>
+  <div id="dues-config-status" class="status-ok"></div>
+  <div id="dues-config-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Savings plan -->
+<div class="step">
+  <div class="step-title">5. Create a Savings Plan for the Borrower</div>
+  <div class="row">
+    <div><label>Target (₦)</label><input id="plan-target" value="60000"></div>
+    <div><label>Monthly (₦)</label><input id="plan-monthly" value="5000"></div>
+    <div><label>Duration (months)</label><input id="plan-duration" value="12"></div>
+  </div>
+  <button onclick="createSavingsPlan()">Create Plan</button>
+  <div id="plan-status" class="status-ok"></div>
+  <div id="plan-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Provision Flutterwave account -->
+<div class="step">
+  <div class="step-title">6. Provision a Real Flutterwave Account (optional, needs real keys)</div>
+  <div class="step-desc">Tests authentication + the provisioning endpoint against Flutterwave's real sandbox. Uses a test BVN — Flutterwave docs suggest any 11-digit value works in test mode, but this hasn't been confirmed against your specific account yet.</div>
+  <label>BVN or NIN (test value)</label><input id="flw-bvn" value="12345678901">
+  <button onclick="provisionFlutterwaveAccount()">Provision Account</button>
+  <div id="flw-status" class="status-ok"></div>
+  <div id="flw-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Simulate webhook -->
+<div class="step" style="border-color:#7AB8F5;background:#081420">
+  <div class="step-title" style="color:#7AB8F5">5b. Simulate a Payment (tests the webhook end-to-end)</div>
+  <div class="step-desc">⚠ Needs a FRESH plan — if you already used step 5 on the current plan, click "Create Plan" (step 4) again first. Simulation always creates a new account, and can't reuse one that's already real. Requires your Flutterwave webhook URL to be saved in their dashboard (Settings → Webhooks) — no simulation reaches us without that.</div>
+  <label>BVN or NIN (test value)</label><input id="sim-bvn" value="12345678901">
+  <label>Amount (₦)</label><input id="sim-amount" value="5000">
+  <label>Scenario</label>
+  <select id="sim-scenario"><option value="approved">approved (success)</option><option value="failed">failed</option></select>
+  <button onclick="simulateFlutterwavePayment()">Simulate Payment</button>
+  <div id="sim-status" class="status-ok"></div>
+  <div id="sim-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Record savings payment -->
+<div class="step">
+  <div class="step-title">7. Admin Records a Savings Payment (manual path — always works)</div>
+  <div class="step-desc">The real, correct flow: this stands in for a member paying into their own bank virtual account, with admin confirming the transfer landed — same interim step as the original manual process, no Zil/wallet involved at all.</div>
+  <label>Amount (₦)</label><input id="savings-amount" value="5000">
+  <label>Reference (optional)</label><input id="savings-ref" value="BANKTXN-TEST-001">
+  <button onclick="recordSavingsPayment()">Record Payment</button>
+  <div id="savings-status" class="status-ok"></div>
+  <div id="savings-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Loan apply -->
+<div class="step">
+  <div class="step-title">8. Borrower Applies for a Loan</div>
+  <div class="row">
+    <div><label>Principal (₦)</label><input id="loan-principal" value="30000"></div>
+    <div><label>Repayment (months)</label><input id="loan-months" value="6"></div>
+  </div>
+  <button onclick="applyForLoan()">Apply</button>
+  <div id="loan-apply-status" class="status-ok"></div>
+  <div id="loan-apply-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Guarantor responds -->
+<div class="step">
+  <div class="step-title">9. Guarantor Confirms</div>
+  <button onclick="guarantorRespond()">Approve as Guarantor</button>
+  <div id="guarantor-status" class="status-ok"></div>
+  <div id="guarantor-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Admin approve + disburse -->
+<div class="step">
+  <div class="step-title">10. Admin Reviews, Approves, Disburses</div>
+  <button onclick="adminApproveLoan()">Approve</button>
+  <button onclick="adminDisburseLoan()">Mark Disbursed</button>
+  <div id="admin-loan-status" class="status-ok"></div>
+  <div id="admin-loan-out" class="out" style="display:none"></div>
+</div>
+
+<!-- STEP: Member status -->
+<div class="step">
+  <div class="step-title">11. Check Borrower's Own Status View</div>
+  <div class="step-desc">This is exactly what the wallet's Thrift &amp; Loan section will show once built.</div>
+  <button onclick="checkMemberStatus()">Check Status</button>
+  <div id="status-out" class="out" style="display:none"></div>
+</div>
+
+<script>
+const API = '/api/v1';
+let adminToken = null, sessionToken = null;
+let borrowerToken = null, guarantorToken = null;
+let borrowerMemberId = null, guarantorMemberId = null;
+let currentLoanId = null;
+let currentSavingsPlanId = null;
+
+function showOut(elId, data, isErr) {
+  const el = document.getElementById(elId);
+  el.style.display = 'block';
+  el.className = 'out' + (isErr ? ' err' : '');
+  el.textContent = JSON.stringify(data, null, 2);
+}
+function setStatus(elId, msg) { document.getElementById(elId).textContent = msg; }
+
+async function call(path, opts) {
+  const res = await fetch(API + path, opts);
+  let data;
+  try { data = await res.json(); } catch { data = { error: 'Non-JSON response (status ' + res.status + ')' }; }
+  return { ok: res.ok, data };
+}
+
+async function adminLoginStep1() {
+  const username = document.getElementById('admin-username').value.trim();
+  const password = document.getElementById('admin-password').value;
+  const { ok, data } = await call('/admin-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+  showOut('admin-out', data, !ok);
+  if (!ok) { setStatus('admin-status', '❌ Login failed'); return; }
+  if (data.step === 'totp') {
+    sessionToken = data.session_token;
+    document.getElementById('admin-totp-box').style.display = 'block';
+    setStatus('admin-status', '→ Enter your authenticator code');
+  } else if (data.token) {
+    adminToken = data.token;
+    setStatus('admin-status', '✓ Logged in (no TOTP required)');
+  }
+}
+async function adminLoginStep2() {
+  const totp_code = document.getElementById('admin-totp').value.trim();
+  const { ok, data } = await call('/admin-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_token: sessionToken, totp_code }) });
+  showOut('admin-out', data, !ok);
+  if (ok && data.token) { adminToken = data.token; setStatus('admin-status', '✓ Admin logged in'); }
+  else setStatus('admin-status', '❌ Code rejected');
+}
+
+async function loginBothMembers() {
+  const otp = document.getElementById('demo-otp').value.trim();
+  const bPhone = document.getElementById('borrower-phone').value.trim();
+  const gPhone = document.getElementById('guarantor-phone').value.trim();
+  const b = await call('/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: bPhone, otp }) });
+  const g = await call('/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: gPhone, otp }) });
+  showOut('members-out', { borrower: b.data, guarantor: g.data }, !b.ok || !g.ok);
+  if (b.ok) borrowerToken = b.data.token;
+  if (g.ok) guarantorToken = g.data.token;
+  setStatus('members-status', (borrowerToken && guarantorToken) ? '✓ Both logged in' : '❌ One or both failed');
+}
+
+async function activateBothMembers() {
+  if (!adminToken) { setStatus('activate-status', '❌ Log in as admin first'); return; }
+  const coopId = document.getElementById('coop-id').value.trim();
+  const bPhone = document.getElementById('borrower-phone').value.trim();
+  const bName = document.getElementById('borrower-name').value.trim();
+  const gPhone = document.getElementById('guarantor-phone').value.trim();
+  const gName = document.getElementById('guarantor-name').value.trim();
+  const hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken };
+  const b = await call('/coop-activate-member', { method: 'POST', headers: hdr, body: JSON.stringify({ coop_id: coopId, phone: bPhone, name: bName }) });
+  const g = await call('/coop-activate-member', { method: 'POST', headers: hdr, body: JSON.stringify({ coop_id: coopId, phone: gPhone, name: gName }) });
+  showOut('activate-out', { borrower: b.data, guarantor: g.data }, false);
+  // Either a fresh activation (b.data.member) or "already exists" (b.data.member from the 409) — both give us the ID we need.
+  borrowerMemberId  = (b.data.member && b.data.member.id) || null;
+  guarantorMemberId = (g.data.member && g.data.member.id) || null;
+  const bNote = b.ok ? 'activated' : (b.data.member ? 'already existed' : 'FAILED');
+  const gNote = g.ok ? 'activated' : (g.data.member ? 'already existed' : 'FAILED');
+  setStatus('activate-status', (borrowerMemberId && guarantorMemberId)
+    ? `✓ Borrower ${bNote}, guarantor ${gNote} — ready for next step`
+    : '❌ Could not get a member ID for one or both — check response below');
+}
+
+async function configureDues() {
+  if (!adminToken) { setStatus('dues-config-status', '❌ Log in as admin first'); return; }
+  const coopId = document.getElementById('coop-id').value.trim();
+  const amountKobo = Math.round(parseFloat(document.getElementById('dues-amount').value) * 100);
+  const frequency = document.getElementById('dues-frequency').value;
+  const enforce = document.getElementById('dues-enforce').checked;
+  const { ok, data } = await call('/coop-configure-dues', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({
+      coop_id: coopId, dues_amount_kobo: amountKobo, dues_frequency: frequency,
+      dues_enforcement_enabled: enforce, dues_enforcement_rules: { block_loan_application: enforce },
+    }),
+  });
+  showOut('dues-config-out', data, !ok);
+  setStatus('dues-config-status', ok ? '✓ Dues configured — Thrift & Loan screen will now show it' : '❌ Failed');
+}
+
+async function createSavingsPlan() {
+  if (!adminToken || !borrowerMemberId) { setStatus('plan-status', '❌ Complete steps 1 and 3 first'); return; }
+  const coopId = document.getElementById('coop-id').value.trim();
+  const target = Math.round(parseFloat(document.getElementById('plan-target').value) * 100);
+  const monthly = Math.round(parseFloat(document.getElementById('plan-monthly').value) * 100);
+  const duration = parseInt(document.getElementById('plan-duration').value);
+  const { ok, data } = await call('/coop-savings-plan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ coop_id: coopId, member_id: borrowerMemberId, target_amount_kobo: target, monthly_contribution_kobo: monthly, duration_months: duration }),
+  });
+  showOut('plan-out', data, !ok);
+  if (ok) { currentSavingsPlanId = data.plan.id; setStatus('plan-status', '✓ Plan created — plan_id captured'); }
+  else setStatus('plan-status', '❌ Failed');
+}
+
+async function provisionFlutterwaveAccount() {
+  if (!adminToken || !currentSavingsPlanId) { setStatus('flw-status', '❌ Complete step 4 first'); return; }
+  const bvn = document.getElementById('flw-bvn').value.trim();
+  const { ok, data } = await call('/coop-provision-flutterwave-account', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ savings_plan_id: currentSavingsPlanId, bvn_or_nin: bvn }),
+  });
+  showOut('flw-out', data, !ok);
+  setStatus('flw-status', ok ? `✓ Real account: ${data.plan.flutterwave_account_number} (${data.plan.flutterwave_bank_name})` : '❌ Failed — see response below');
+}
+
+async function simulateFlutterwavePayment() {
+  if (!adminToken || !currentSavingsPlanId) { setStatus('sim-status', '❌ Complete step 4 first'); return; }
+  const bvn = document.getElementById('sim-bvn').value.trim();
+  const amountKobo = Math.round(parseFloat(document.getElementById('sim-amount').value) * 100);
+  const scenario = document.getElementById('sim-scenario').value;
+  setStatus('sim-status', '⏳ Sending simulation request...');
+  const { ok, data } = await call('/coop-simulate-flutterwave-payment', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ savings_plan_id: currentSavingsPlanId, bvn_or_nin: bvn, amount_kobo: amountKobo, scenario }),
+  });
+  showOut('sim-out', data, !ok);
+  setStatus('sim-status', ok ? '✓ Simulation sent — now check step 10 to see if the webhook credited it' : '❌ Failed — see response below');
+}
+
+async function recordSavingsPayment() {
+  if (!adminToken || !currentSavingsPlanId) { setStatus('savings-status', '❌ Complete step 4 first'); return; }
+  const amountKobo = Math.round(parseFloat(document.getElementById('savings-amount').value) * 100);
+  const reference = document.getElementById('savings-ref').value.trim();
+  const { ok, data } = await call('/coop-record-savings-payment', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ savings_plan_id: currentSavingsPlanId, amount_kobo: amountKobo, reference }),
+  });
+  showOut('savings-out', data, !ok);
+  setStatus('savings-status', ok ? '✓ Payment recorded' : '❌ Failed');
+}
+
+async function applyForLoan() {
+  if (!borrowerToken) { setStatus('loan-apply-status', '❌ Complete step 2 first'); return; }
+  const principal = Math.round(parseFloat(document.getElementById('loan-principal').value) * 100);
+  const months = parseInt(document.getElementById('loan-months').value);
+  const gPhone = document.getElementById('guarantor-phone').value.trim();
+  const { ok, data } = await call('/coop-loan-apply', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + borrowerToken },
+    body: JSON.stringify({ principal_kobo: principal, repayment_months: months, guarantor_phone: gPhone }),
+  });
+  showOut('loan-apply-out', data, !ok);
+  if (ok) { currentLoanId = data.loan.id; setStatus('loan-apply-status', '✓ Applied — loan_id captured'); }
+  else setStatus('loan-apply-status', '❌ Failed');
+}
+
+async function guarantorRespond() {
+  if (!guarantorToken || !currentLoanId) { setStatus('guarantor-status', '❌ Complete step 5 first'); return; }
+  const { ok, data } = await call('/coop-loan-guarantor-respond', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + guarantorToken },
+    body: JSON.stringify({ loan_id: currentLoanId, decision: 'APPROVED' }),
+  });
+  showOut('guarantor-out', data, !ok);
+  setStatus('guarantor-status', ok ? '✓ Guarantor confirmed' : '❌ Failed');
+}
+
+async function adminApproveLoan() {
+  if (!adminToken || !currentLoanId) { setStatus('admin-loan-status', '❌ Complete step 6 first'); return; }
+  const { ok, data } = await call('/coop-loans-admin', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ loan_id: currentLoanId, action: 'approve' }),
+  });
+  showOut('admin-loan-out', data, !ok);
+  setStatus('admin-loan-status', ok ? '✓ Approved' : '❌ Failed');
+}
+async function adminDisburseLoan() {
+  if (!adminToken || !currentLoanId) { setStatus('admin-loan-status', '❌ Approve first'); return; }
+  const { ok, data } = await call('/coop-loans-admin', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ loan_id: currentLoanId, action: 'disburse' }),
+  });
+  showOut('admin-loan-out', data, !ok);
+  setStatus('admin-loan-status', ok ? '✓ Disbursed' : '❌ Failed');
+}
+
+async function checkMemberStatus() {
+  if (!borrowerToken) { showOut('status-out', { error: 'Complete step 2 first' }, true); return; }
+  const { ok, data } = await call('/coop-member-status', { headers: { 'Authorization': 'Bearer ' + borrowerToken } });
+  showOut('status-out', data, !ok);
+}
+</script>
+</body>
+</html>

@@ -7,15 +7,23 @@
  * coins table for every holder, and writes any drift to system_alerts
  * so it surfaces in the admin dashboard's System Health panel.
  *
- * Read-only against financial data — never modifies coins or balances,
- * only ever writes to system_alerts. Also checks a couple of other
- * cheap, useful signals: open fraud events, and old pending agent MFB
- * change requests nobody's actioned.
+ * Read-only against financial/coin data — never modifies coins or
+ * balances, only ever writes to system_alerts. Also checks a couple of
+ * other cheap, useful signals: open fraud events, and old pending
+ * agent MFB change requests nobody's actioned. One exception: the
+ * subscription grace-period check below DOES modify
+ * coop_societies.subscription_status — a real, deliberate departure
+ * from "read-only," since suspending access for an overdue
+ * subscription is an operational action, not a financial-balance one,
+ * and this is where the grace period (no immediate suspension on one
+ * failed renewal charge) actually gets enforced.
  */
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
 const { logAlert } = require('../../lib/alerts');
+const { recordDuesAccrual } = require('../../lib/coopDuesAccounting');
+const { sendEmail } = require('../../lib/resendEmail');
 
 exports.handler = async () => {
   const db = getServiceClient();
@@ -101,6 +109,172 @@ exports.handler = async () => {
     }
   } catch (e) {
     // Table may not exist in all environments — non-fatal
+  }
+
+  // ── 4. Subscription grace-period suspension ──────────────────────────────
+  // Societies whose subscription_paid_until is more than 7 days in the
+  // past get suspended here — not immediately on a failed renewal charge
+  // (handled in the webhook), giving real time before anything happens
+  // to their access.
+  try {
+    const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
+    const { data: activeSocieties } = await db.from('coop_societies')
+      .select('coop_id, name, subscription_status, subscription_paid_until, subscription_email')
+      .not('subscription_paid_until', 'is', null)
+      .eq('subscription_status', 'active');
+
+    const now = new Date();
+    for (const society of (activeSocieties || [])) {
+      if (isPastGrace(society.subscription_paid_until, now)) {
+        await db.from('coop_societies').update({ subscription_status: 'suspended', status: 'SUSPENDED' }).eq('coop_id', society.coop_id);
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'WARNING',
+          source:   SOURCE,
+          message:  `${society.name} suspended — subscription unpaid past the 7-day grace period`,
+          context:  { coop_id: society.coop_id, subscription_paid_until: society.subscription_paid_until },
+        });
+        if (society.subscription_email) {
+          await sendEmail({
+            to: society.subscription_email,
+            subject: `${society.name}'s Zillion Coop access has been suspended`,
+            htmlContent: `<p>Hi,</p><p>${society.name}'s Zillion Coop subscription is unpaid past the grace period, so access is now suspended. Pay now to restore it immediately.</p>`,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] subscription grace-period check failed:', e.message);
+  }
+
+  // ── 5. Trial expiry (no automated reminder yet — see note) ──────────────
+  // Trial reminder — 3 days before expiry, exactly once per society
+  // (trial_reminder_sent_at is the guard; without it, this would fire
+  // on every 4-hourly run for 3 days straight). This is the automated
+  // reminder the comment below used to explicitly say didn't exist —
+  // now that Brevo is configured, it does. Silently does nothing for
+  // any society without a subscription_email or before BREVO_API_KEY
+  // is set — sendEmail() itself handles that gracefully.
+  try {
+    const { data: reminderDue } = await db.from('coop_societies')
+      .select('coop_id, name, trial_ends_at, subscription_email')
+      .eq('subscription_status', 'trial')
+      .is('trial_reminder_sent_at', null)
+      .not('trial_ends_at', 'is', null);
+
+    const now3 = new Date();
+    for (const society of (reminderDue || [])) {
+      const daysLeft = (new Date(society.trial_ends_at) - now3) / 86400000;
+      if (daysLeft <= 3 && daysLeft > 0 && society.subscription_email) {
+        await sendEmail({
+          to: society.subscription_email,
+          subject: `${society.name}'s Zillion Coop trial ends soon`,
+          htmlContent: `<p>Hi,</p><p>${society.name}'s free trial on Zillion Coop ends on ${new Date(society.trial_ends_at).toDateString()}. Pay before then to keep your society's records, savings, and loans running without interruption.</p>`,
+        });
+        await db.from('coop_societies').update({ trial_reminder_sent_at: now3.toISOString() }).eq('coop_id', society.coop_id);
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] trial reminder check failed:', e.message);
+  }
+
+  // Self-service trials run 14 days with zero payment collected
+  // (Flutterwave has no delayed-first-charge mechanism, so this is the
+  // only honest way to offer a real trial). This flags trials that have
+  // run out without ever getting a real payment, flips them to
+  // 'trial_expired' so admin sees it, and raises one alert — naturally
+  // non-repeating, since the status change away from 'trial' means this
+  // query no longer matches that society on the next run.
+  //
+  // The "your trial ends soon" reminder now happens above (Brevo email,
+  // 3 days out) — this alert stays as the internal admin-facing signal
+  // for the moment it actually expires, on top of that.
+  try {
+    const { data: trialSocieties } = await db.from('coop_societies')
+      .select('coop_id, name, trial_ends_at, subscription_paid_until, subscription_email')
+      .eq('subscription_status', 'trial')
+      .not('trial_ends_at', 'is', null);
+
+    const now = new Date();
+    for (const society of (trialSocieties || [])) {
+      const expired = new Date(society.trial_ends_at) < now;
+      if (expired && !society.subscription_paid_until) {
+        await db.from('coop_societies').update({ subscription_status: 'trial_expired' }).eq('coop_id', society.coop_id);
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'WARNING',
+          source:   SOURCE,
+          message:  `${society.name}'s free trial has ended with no payment — worth a follow-up call`,
+          context:  { coop_id: society.coop_id, trial_ends_at: society.trial_ends_at },
+        });
+        if (society.subscription_email) {
+          await sendEmail({
+            to: society.subscription_email,
+            subject: `${society.name}'s Zillion Coop trial has ended`,
+            htmlContent: `<p>Hi,</p><p>${society.name}'s free trial on Zillion Coop has ended. Pay now to restore full access for your society.</p>`,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] trial expiry check failed:', e.message);
+  }
+
+  // ── 6. Repricing grace period (upgrade/add-on unpaid) ────────────────────
+  // David's explicit instruction: a society that falls to
+  // pending_verification because of a plan/add-on change (not a fresh
+  // signup) gets a 7-day grace period. If they haven't paid the new
+  // total by then — via the payment link now emailed automatically
+  // below, or shared manually by admin from the society's detail view
+  // as a backup — operations pause entirely (status → SUSPENDED, which
+  // coopPortalAuth.js already blocks at the portal for).
+  // repricing_pending_since is cleared on real payment (checkout-
+  // verify.js) or if this section suspends the society, so this only
+  // ever fires once per unpaid repricing event.
+  try {
+    const { data: repricingPending } = await db.from('coop_societies')
+      .select('coop_id, name, status, repricing_pending_since, subscription_email')
+      .not('repricing_pending_since', 'is', null)
+      .neq('status', 'SUSPENDED');
+
+    const now = new Date();
+    for (const society of (repricingPending || [])) {
+      const daysSince = (now - new Date(society.repricing_pending_since)) / 86400000;
+      if (daysSince >= 7) {
+        await db.from('coop_societies').update({ status: 'SUSPENDED' }).eq('coop_id', society.coop_id);
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'CRITICAL',
+          source:   SOURCE,
+          message:  `${society.name} operations paused — 7-day grace period expired with no payment for their updated plan`,
+          context:  { coop_id: society.coop_id, repricing_pending_since: society.repricing_pending_since },
+        });
+        if (society.subscription_email) {
+          await sendEmail({
+            to: society.subscription_email,
+            subject: `${society.name}'s Zillion Coop operations are paused`,
+            htmlContent: `<p>Hi,</p><p>${society.name}'s plan changed recently and the updated total hasn't been paid within the 7-day grace period, so operations are now paused. Pay now to restore access.</p>`,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] repricing grace-period check failed:', e.message);
+  }
+
+  // ── 7. Dues income accrual (accrual-basis accounting) ────────────────────
+  // For every society, recognizes dues income as it accrues — not only
+  // once collected. Silent no-op for any society without the Accounting
+  // add-on or without opening balances set (recordDuesAccrual handles
+  // that check internally); never fails this whole cron run if one
+  // society's accrual has an issue.
+  try {
+    const { data: allSocieties } = await db.from('coop_societies').select('coop_id');
+    for (const society of (allSocieties || [])) {
+      await recordDuesAccrual(db, society.coop_id);
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] dues accrual pass failed:', e.message);
   }
 
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);

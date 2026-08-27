@@ -99,22 +99,29 @@ exports.handler = async (event) => {
 
   // Insert coins to Supabase
   if (coins.length > 0) {
-    try {
-      await db.from('coins').insert(coins.map(c => ({
-        coin_id:          c.coin_id,
-        amount:           c.amount,
-        currency:         c.currency || 'NGN',
-        status:           'ISSUED',
-        issuer_id:        agent_id,
-        holder_hash:      agent_id,
-        owner_hash:       agent_id,
-        mfb_id:           agent.mfb_id,
-        issued_at:        c.issued_at,
-        expires_at:       c.expires_at,
-        signature:        c.signature,
-        payload_hash:     c.payload_hash,
-      })));
-    } catch(e) { console.warn('[bank-fund-float] Coin insert warn:', e.message); }
+    const { error: insertErr } = await db.from('coins').insert(coins.map(c => ({
+      coin_id:          c.coin_id,
+      amount:           c.amount,
+      currency:         c.currency || 'NGN',
+      status:           'ISSUED',
+      issuer_id:        agent_id,
+      holder_hash:      agent_id,
+      mfb_id:           agent.mfb_id,
+      issued_at:        c.issued_at,
+      expires_at:       c.expires_at,
+      mint_sig:         c.signature,
+    })));
+    // FIX: Supabase's client returns database-level errors as {data,
+    // error} on the resolved value — it does NOT throw for these, so a
+    // try/catch alone never caught this. Worse than the customer-wallet
+    // version of this bug: the old code just warned and CONTINUED,
+    // meaning the agent's float_balance_kobo number below would still
+    // get incremented even though no real coins were ever created to
+    // back it — a phantom balance. Now stops here instead.
+    if (insertErr) {
+      console.error('[bank-fund-float] Coin insert failed:', insertErr.message);
+      return err(500, `Mint succeeded but storage failed: ${insertErr.message}. Contact Zillion support with bank_ref ${bank_ref} before retrying — the agent's float balance was NOT updated.`);
+    }
   }
 
   // Update agent float

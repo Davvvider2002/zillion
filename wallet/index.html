@@ -661,18 +661,18 @@ body{height:100%;height:100dvh;overflow:hidden;}
 <div id="screen-splash" class="screen">
   <div class="splash-body">
     <div class="splash-brand">
-      <div class="splash-logo">ZILLION</div>
-      <div class="splash-tagline">Offline-First Digital Cash</div>
+      <div class="splash-logo" id="splash-logo-text">ZILLION</div>
+      <div class="splash-tagline" id="splash-tagline">Offline-First Digital Cash</div>
     </div>
 
     <div class="splash-icon-wrap">
       <div class="splash-icon-ring" style="width:130px;height:130px;opacity:.08"></div>
       <div class="splash-icon-ring" style="width:100px;height:100px;opacity:.14"></div>
       <div class="splash-icon-ring" style="width:70px;height:70px;opacity:.22"></div>
-      <div class="splash-naira">₦</div>
+      <div class="splash-naira" id="splash-icon">₦</div>
     </div>
 
-    <div class="splash-props">
+    <div class="splash-props" id="splash-props-default">
       <div class="splash-prop">
         <div class="splash-prop-dot">⚡</div>
         <div class="splash-prop-text">No internet needed to transfer</div>
@@ -684,6 +684,26 @@ body{height:100%;height:100dvh;overflow:hidden;}
       <div class="splash-prop">
         <div class="splash-prop-dot">🔒</div>
         <div class="splash-prop-text">Secured with Ed25519 cryptography</div>
+      </div>
+    </div>
+
+    <!-- Coop-flavor equivalent — shown instead of the props above when
+         IS_COOP is true. "No bank account required" would actively
+         confuse a coop member, whose savings specifically depend on
+         having one, so this isn't a copy of the default props with
+         different wording — it's a genuinely different pitch. -->
+    <div class="splash-props" id="splash-props-coop" style="display:none">
+      <div class="splash-prop">
+        <div class="splash-prop-dot">💰</div>
+        <div class="splash-prop-text">Track your savings in real time</div>
+      </div>
+      <div class="splash-prop">
+        <div class="splash-prop-dot">🤝</div>
+        <div class="splash-prop-text">Apply for loans with a guarantor</div>
+      </div>
+      <div class="splash-prop">
+        <div class="splash-prop-dot">🔒</div>
+        <div class="splash-prop-text">Every payment cryptographically confirmed</div>
       </div>
     </div>
 
@@ -706,6 +726,19 @@ body{height:100%;height:100dvh;overflow:hidden;}
     var b2=document.getElementById('btn-restore');
     if(b1)b1.onclick=function(){if(typeof goTo==='function')goTo('screen-phone');};
     if(b2)b2.onclick=function(){if(typeof tryRestoreSession==='function')tryRestoreSession();};
+    // Coop-flavor splash content — IS_COOP is declared later in the
+    // main script, but this inline block runs after it on DOMContentLoaded,
+    // so it's already defined by the time this executes.
+    if (typeof IS_COOP !== 'undefined' && IS_COOP) {
+      var tagline = document.getElementById('splash-tagline');
+      var icon = document.getElementById('splash-icon');
+      var propsDefault = document.getElementById('splash-props-default');
+      var propsCoop = document.getElementById('splash-props-coop');
+      if (tagline) tagline.textContent = 'Your Cooperative Savings & Loans';
+      if (icon) { icon.textContent = ''; icon.innerHTML = '🤝'; icon.style.fontSize = '48px'; }
+      if (propsDefault) propsDefault.style.display = 'none';
+      if (propsCoop) propsCoop.style.display = '';
+    }
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',bind);}
   else{bind();}
@@ -742,9 +775,9 @@ function triggerPWAInstall() {
     <div style="width:40px"></div>
   </div>
   <div class="ob-body">
-    <div class="ob-step-label">Step 1 of 4</div>
+    <div class="ob-step-label" id="phone-step-label">Step 1 of 4</div>
     <div class="ob-title">Verify your phone</div>
-    <div class="ob-sub">We'll send a one-time code via SMS. No email or bank account needed.</div>
+    <div class="ob-sub">We'll send a one-time code via SMS or email — your choice. No bank account needed.</div>
 
     <div class="field-group">
       <label class="field-label">Phone Number</label>
@@ -753,6 +786,17 @@ function triggerPWAInstall() {
         <input class="phone-number-input" type="tel" id="phone-input"
           placeholder="801 234 5678" maxlength="11"
           oninput="onPhoneInput(this)" inputmode="numeric">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <div style="display:flex;gap:8px;margin-bottom:8px" id="otp-channel-toggle">
+        <button type="button" class="btn btn-outline" id="channel-btn-sms" style="flex:1;padding:9px;font-size:13px;background:var(--g);color:#fff" onclick="setOtpChannel('sms')">📱 SMS</button>
+        <button type="button" class="btn btn-outline" id="channel-btn-email" style="flex:1;padding:9px;font-size:13px" onclick="setOtpChannel('email')">✉️ Email</button>
+      </div>
+      <div id="otp-email-wrap" style="display:none">
+        <label class="field-label">Email Address</label>
+        <input class="field-input" type="email" id="otp-email-input" placeholder="you@example.com" style="width:100%;box-sizing:border-box">
       </div>
     </div>
 
@@ -795,7 +839,7 @@ function triggerPWAInstall() {
     <div style="width:40px"></div>
   </div>
   <div class="ob-body" style="display:flex;flex-direction:column">
-    <div class="ob-step-label">Step 2 of 4</div>
+    <div class="ob-step-label" id="pin-step-label">Step 2 of 4</div>
     <div class="ob-title" id="pin-title">Create 6-digit PIN</div>
     <div class="ob-sub" id="pin-sub">Encrypts your coin vault. Never stored — only you know it.</div>
 
@@ -823,6 +867,7 @@ function triggerPWAInstall() {
       <button class="numpad-key" onclick="pinKey('0')">0</button>
       <button class="numpad-key action" onclick="pinKey('del')">⌫</button>
     </div>
+    <button class="btn btn-ghost" id="pin-forgot-btn" style="display:none;margin-top:14px" onclick="forgotPin()">Log in with phone number instead</button>
   </div>
 </div>
 
@@ -891,8 +936,12 @@ function triggerPWAInstall() {
 <div id="screen-home" class="screen hidden">
   <div class="sb"></div>
   <div class="hdr">
-    <div class="hdr-logo">ZILLION</div>
+    <div class="hdr-logo" id="home-hdr-logo">ZILLION</div>
     <div class="hdr-right">
+      <button onclick="goTo('screen-messages')" style="position:relative;background:none;border:none;cursor:pointer;padding:4px;margin-right:8px">
+        <span style="font-size:18px">🔔</span>
+        <span id="home-notif-badge" style="display:none;position:absolute;top:0;right:0;background:#FF8A8A;color:#05140D;font-size:9px;font-weight:800;border-radius:8px;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px">0</span>
+      </button>
       <span id="sync-status-hdr" class="hdr-sub">
         <span class="hdr-dot" id="sync-dot"></span>
         <span id="sync-text">Live</span>
@@ -904,71 +953,128 @@ function triggerPWAInstall() {
   </div>
   <div class="scroll-body">
     <div id="home-stuck-banner" onclick="zilRestoreAllStuckCoins({})" style="display:none;cursor:pointer;background:#7C2D12;color:#fff;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:10px;text-align:center"></div>
-    <!-- Balance card -->
-    <div class="balance-card">
-      <div class="bal-label">Available Balance</div>
-      <div class="bal-amount" id="home-balance">₦0.00</div>
-      <div id="home-book-balance" style="display:none;font-size:12px;color:var(--gm);margin-top:2px;font-weight:500"></div>
-      <div class="bal-sub">
-        <span id="home-coin-count">0 coins</span>
-        <span id="home-sent-label" style="display:none;font-size:11px;color:var(--am);margin-left:4px"></span>
-        <span>·</span>
-        <span class="bal-sync" id="home-sync-label">Up to date</span>
+
+    <!-- Everything Zil-specific lives in here — hidden entirely for the
+         coop-flavor app, where Zil concepts (Send/Request/Receive/Vault/
+         Top Up) are irrelevant. A coop member's savings come via bank
+         transfer, not Zil transfer, so leading with a Zil balance and
+         Zil actions is actively confusing for that audience. -->
+    <div id="home-zil-section">
+      <!-- Balance card -->
+      <div class="balance-card">
+        <div class="bal-label">Available Balance</div>
+        <div class="bal-amount" id="home-balance">₦0.00</div>
+        <div id="home-book-balance" style="display:none;font-size:12px;color:var(--gm);margin-top:2px;font-weight:500"></div>
+        <div class="bal-sub">
+          <span id="home-coin-count">0 coins</span>
+          <span id="home-sent-label" style="display:none;font-size:11px;color:var(--am);margin-left:4px"></span>
+          <span>·</span>
+          <span class="bal-sync" id="home-sync-label">Up to date</span>
+        </div>
+      </div>
+
+      <!-- Thrift & Loan summary — for the REGULAR Zillion app, where
+           someone might be both a wallet holder AND a coop member.
+           The coop-flavor app shows a bigger, primary version of this
+           instead (below), not this smaller secondary card. -->
+      <div class="balance-card" id="home-coop-card" style="display:none;margin-top:14px;cursor:pointer;border-color:#00C896" onclick="goTo('screen-coop')">
+        <div class="bal-label" id="home-coop-society-name">Thrift &amp; Loan</div>
+        <div class="bal-amount" style="font-size:22px" id="home-coop-saved">₦0.00</div>
+        <div class="bal-sub">
+          <span id="home-coop-loan-label">No active loan</span>
+          <span>·</span>
+          <span style="color:#00C896">View details →</span>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="actions-grid">
+        <button class="action-btn primary-action" onclick="goTo('screen-send')">
+          <span class="action-icon">↑</span>
+          <div class="action-label">Send Zil</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-request')">
+          <span class="action-icon">💰</span>
+          <div class="action-label">Request</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
+          <span class="action-icon">↓</span>
+          <div class="action-label">Receive</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-vault')">
+          <span class="action-icon">⬡</span>
+          <div class="action-label">My Vault</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-topup')" style="border-color:#14532D;background:#052e16">
+          <span class="action-icon" style="color:#4ADE80">⬆</span>
+          <div class="action-label" style="color:#4ADE80">Top Up</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-history')">
+          <span class="action-icon">≡</span>
+          <div class="action-label">History</div>
+        </button>
+      </div>
+
+      <!-- Recent -->
+      <div class="section-header">
+        <div class="section-title">Recent Transactions</div>
+        <div class="section-link" onclick="goTo('screen-history')">See all</div>
+      </div>
+      <div class="tx-card" id="home-tx-list">
+        <div class="empty-state">
+          <span class="empty-icon">🪙</span>
+          <div class="empty-title">No transactions yet</div>
+          <div class="empty-sub">Visit a Zillion agent to cash in your first Zil coins, or ask a friend to send you Zil via WhatsApp.</div>
+        </div>
       </div>
     </div>
 
-    <!-- Quick actions -->
-    <div class="actions-grid">
-      <button class="action-btn primary-action" onclick="goTo('screen-send')">
-        <span class="action-icon">↑</span>
-        <div class="action-label">Send Zil</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-request')">
-        <span class="action-icon">💰</span>
-        <div class="action-label">Request</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-receive');setTimeout(()=>switchRecvTab('qr'),50)">
-        <span class="action-icon">↓</span>
-        <div class="action-label">Receive</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-vault')">
-        <span class="action-icon">⬡</span>
-        <div class="action-label">My Vault</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-topup')" style="border-color:#14532D;background:#052e16">
-        <span class="action-icon" style="color:#4ADE80">⬆</span>
-        <div class="action-label" style="color:#4ADE80">Top Up</div>
-      </button>
-      <button class="action-btn" onclick="goTo('screen-history')">
-        <span class="action-icon">≡</span>
-        <div class="action-label">History</div>
-      </button>
-    </div>
+    <!-- Coop-flavor home content — the primary view for the "Zillion
+         Coop" app. Genuinely coop-first: no Zil balance, no Send/
+         Receive/Vault/Top Up. Just savings progress, loan status, and
+         the two actions a member actually needs. -->
+    <div id="home-coop-hero-section" style="display:none">
+      <div class="balance-card" style="border-color:#00C896;background:linear-gradient(135deg,#052e16,#0F2B1D)">
+        <div class="bal-label" id="home-coop-hero-society" style="color:#9CC4B0">Thrift &amp; Loan</div>
+        <div class="bal-amount" style="color:#fff;font-weight:800" id="home-coop-hero-saved">₦0.00</div>
+        <div class="bal-sub" style="color:#9CC4B0">
+          <span id="home-coop-hero-target">Target ₦0</span>
+        </div>
+        <div style="background:#081A11;border-radius:6px;height:8px;overflow:hidden;margin-top:10px">
+          <div id="home-coop-hero-bar" style="background:#00C896;height:100%;width:0%"></div>
+        </div>
+      </div>
 
-    <!-- Recent -->
-    <div class="section-header">
-      <div class="section-title">Recent Transactions</div>
-      <div class="section-link" onclick="goTo('screen-history')">See all</div>
-    </div>
-    <div class="tx-card" id="home-tx-list">
-      <div class="empty-state">
-        <span class="empty-icon">🪙</span>
-        <div class="empty-title">No transactions yet</div>
-        <div class="empty-sub">Visit a Zillion agent to cash in your first Zil coins, or ask a friend to send you Zil via WhatsApp.</div>
+      <div class="balance-card" id="home-coop-hero-loan" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
+        <div class="bal-label">Loan</div>
+        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-loan-status">No active loan</div>
+        <div class="bal-sub"><span style="color:#00C896">View details →</span></div>
+      </div>
+
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr">
+        <button class="action-btn primary-action" onclick="goTo('screen-coop');setTimeout(()=>coopShowApplyForm(),100)">
+          <span class="action-icon">🤝</span>
+          <div class="action-label">Apply for Loan</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-coop')">
+          <span class="action-icon">💰</span>
+          <div class="action-label">My Savings</div>
+        </button>
+      </div>
+
+      <div id="home-coop-hero-guarantor-banner" onclick="goTo('screen-coop')" style="display:none;cursor:pointer;background:#1A1408;border:1px solid #F5B87A;color:#F5B87A;font-size:13px;font-weight:600;padding:12px 14px;border-radius:12px;margin-top:14px;text-align:center">
+        ⚠ You have a guarantor request waiting — tap to respond
       </div>
     </div>
+
     <div style="height:24px"></div>
   </div>
   <div class="bnav">
     <button class="bnav-item active" onclick="goTo('screen-home')">
       <span class="bnav-icon">⌂</span><span class="bnav-label">Home</span>
     </button>
-    <button class="bnav-item" onclick="goTo('screen-vault')">
-      <span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span>
-    </button>
-    <button class="bnav-item" onclick="goTo('screen-send')">
-      <span class="bnav-icon">⇅</span><span class="bnav-label">Send</span>
-    </button>
+    <button class="bnav-item" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item" onclick="goTo('screen-history')">
       <span class="bnav-icon">≡</span><span class="bnav-label">History</span>
     </button>
@@ -1004,10 +1110,88 @@ function triggerPWAInstall() {
   </div>
   <div class="bnav">
     <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item active" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item active" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
     <button class="bnav-item" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN — THRIFT & LOAN
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-coop" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="back-btn" onclick="goBack()">‹</button>
+    <div class="hdr-title" id="coop-hdr-title">Thrift &amp; Loan</div>
+  </div>
+  <div class="scroll-body" style="padding:16px">
+
+    <div class="section-header"><div class="section-title">Savings</div></div>
+    <div id="coop-plans-list"></div>
+
+    <div id="coop-dues-section" style="display:none">
+      <div class="section-header"><div class="section-title">Membership Dues</div></div>
+      <div id="coop-dues-card"></div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Loans</div>
+      <div class="section-link" onclick="coopShowApplyForm()">+ Apply</div>
+    </div>
+    <div id="coop-loans-list"></div>
+
+    <div id="coop-guarantor-section" style="display:none">
+      <div class="section-header"><div class="section-title">⚠ Guarantor Requests</div></div>
+      <div id="coop-guarantor-list"></div>
+    </div>
+
+    <div style="height:24px"></div>
+  </div>
+</div>
+
+<!-- Apply for Loan modal -->
+<div id="coop-apply-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:14px;color:#E8F5EE">Apply for a Loan</div>
+    <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Amount (₦)</div>
+    <input id="coop-loan-amount" type="number" placeholder="30000" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
+    <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Repayment period (months)</div>
+    <input id="coop-loan-months" type="number" value="6" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
+    <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Guarantor's phone number</div>
+    <input id="coop-loan-guarantor-phone" type="tel" placeholder="08012345678" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:16px">
+    <div id="coop-apply-error" style="color:#FF8A8A;font-size:12px;margin-bottom:10px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="coopCloseApplyModal()" style="flex:1;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>
+      <button onclick="coopSubmitLoanApplication()" style="flex:1;padding:12px;background:#00C896;color:#05140D;border:none;border-radius:10px;font-weight:700;cursor:pointer">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pay Now modal — reusable for both savings and dues. Shows the real
+     account once provisioned, or an honest "not set up yet" state. -->
+<div id="coop-paynow-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:6px;color:#E8F5EE" id="coop-paynow-title">Pay Now</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="coop-paynow-subtitle"></div>
+    <div id="coop-paynow-body"></div>
+    <button onclick="coopClosePayNowModal()" style="width:100%;margin-top:16px;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Close</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN — MESSAGES (one-way, admin → member)
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-messages" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="back-btn" onclick="goBack()">‹</button>
+    <div class="hdr-title">Messages</div>
+  </div>
+  <div class="scroll-body" style="padding:16px">
+    <div id="messages-list"></div>
+    <div style="height:24px"></div>
   </div>
 </div>
 
@@ -1458,8 +1642,8 @@ function triggerPWAInstall() {
   </div>
   <div class="bnav">
     <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item active" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
     <button class="bnav-item" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
   </div>
@@ -1580,7 +1764,7 @@ function triggerPWAInstall() {
         </div>
       </div>
 
-      <div class="settings-group">
+      <div class="settings-group" id="zil-wallet-group">
         <div class="settings-group-label">Wallet</div>
         <div class="settings-row" onclick="exportVaultBackup()">
           <span class="settings-label">Export Backup</span>
@@ -1589,6 +1773,18 @@ function triggerPWAInstall() {
         <div class="settings-row">
           <span class="settings-label">Vault Version</span>
           <span class="settings-value">v1.0.4</span>
+        </div>
+      </div>
+
+      <div class="settings-group" id="coop-membership-group" style="display:none">
+        <div class="settings-group-label">Cooperative</div>
+        <div class="settings-row">
+          <span class="settings-label">Society</span>
+          <span class="settings-value" id="coop-profile-society">—</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Member since</span>
+          <span class="settings-value" id="coop-profile-since">—</span>
         </div>
       </div>
 
@@ -1629,7 +1825,7 @@ function triggerPWAInstall() {
           <span class="settings-label">App Version</span>
           <span class="settings-value">PWA v1.0.5</span>
         </div>
-                <div class="settings-row" style="padding:16px 0">
+                <div class="settings-row" id="zil-recover-row" style="padding:16px 0">
           <button onclick="manualWalletRecover()" style="
             width:100%;padding:14px;background:#00C896;color:#0A1F14;
             border:none;border-radius:10px;font-weight:700;font-size:15px;
@@ -1643,7 +1839,7 @@ function triggerPWAInstall() {
         </div>
       </div>
 
-      <div style="margin-top:8px">
+      <div style="margin-top:8px" id="zil-restore-card">
         <div style="background:rgba(217,119,6,.08);border:2px dashed #D97706;border-radius:12px;padding:14px;margin-bottom:12px">
           <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Restore Coins from Server</div>
           <div style="font-size:11px;color:var(--gr);margin-bottom:10px;line-height:1.5">Re-installed or new phone? Pull your coins back from Zillion servers.</div>
@@ -1651,17 +1847,23 @@ function triggerPWAInstall() {
             Restore My Coins
           </button>
         </div>
-        <button class="btn btn-outline" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
+        <button class="btn btn-outline" id="zil-reset-wallet-btn" style="color:var(--r);border-color:var(--r);margin-bottom:10px"
           onclick="resetWallet()">Reset Wallet</button>
-        <button class="btn btn-ghost" onclick="logout()">Log Out</button>
       </div>
+      <!-- Log Out lives outside zil-restore-card on purpose — it's a
+           universal action every user needs regardless of flavor, and
+           previously being nested inside that wrapper meant hiding
+           Zil-specific content for coop silently took Log Out down
+           with it. Real bug David found — someone genuinely had no
+           way to log out of the coop app at all. -->
+      <button class="btn btn-ghost" onclick="logout()">Log Out</button>
       <div style="height:20px"></div>
     </div>
   </div>
   <div class="bnav">
     <button class="bnav-item" onclick="goTo('screen-home')"><span class="bnav-icon">⌂</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-item" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
-    <button class="bnav-item" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
+    <button class="bnav-item" data-bnav-role="vault" onclick="goTo('screen-vault')"><span class="bnav-icon">⬡</span><span class="bnav-label">Vault</span></button>
+    <button class="bnav-item" data-bnav-role="send" onclick="goTo('screen-send')"><span class="bnav-icon">⇅</span><span class="bnav-label">Send</span></button>
     <button class="bnav-item" onclick="goTo('screen-history')"><span class="bnav-icon">≡</span><span class="bnav-label">History</span></button>
     <button class="bnav-item active" onclick="goTo('screen-profile')"><span class="bnav-icon">○</span><span class="bnav-label">Profile</span></button>
   </div>
@@ -1704,6 +1906,81 @@ function loadHistory() {
   } catch { return []; }
 }
 const MINT_PUBLIC_KEY = null; // loaded from env on first sync
+
+// -- Coop flavor detection ---------------------------------------
+// Set by the native Android "Zillion Coop" build's WALLET_URL, which
+// includes ?app=coop — every install of that flavor is, by definition,
+// a cooperative member, so this app skips the generic offline-cash
+// pitch and the Customer/Merchant/Agent role picker entirely (there's
+// only one role in this build). Persisted to localStorage as a
+// fallback in case any in-SPA navigation ever drops the query string —
+// the native shell always launches with it, but this is a cheap safety
+// net against that one edge case.
+//
+// IMPORTANT: this URL/localStorage check is a FAST PATH, not the only
+// source of truth. It fails completely for a real coop member on a
+// brand-new browser/device who never happened to land on a ?app=coop
+// URL first — they'd see the full regular Zillion experience (Send
+// Zil, role picker, the works), which is exactly the gap David found
+// testing on a fresh Android session. `let`, not `const`, because
+// verifyOtp() below corrects it server-side the moment a JWT exists —
+// by checking whether THIS PHONE is already a known coop member,
+// regardless of what the URL or localStorage say. That happens before
+// the role picker or home screen are ever shown, so the correction is
+// invisible in the common case.
+let IS_COOP = (() => {
+  const fromUrl = new URLSearchParams(location.search).get('app') === 'coop';
+  if (fromUrl) { try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {} }
+  try { return fromUrl || localStorage.getItem('zillion_is_coop_flavor') === '1'; }
+  catch { return fromUrl; }
+})();
+
+// Bottom nav: repurpose Vault→Thrift and hide Send, across all 4 copies
+// of the nav bar (one per screen — not a shared component in this app).
+// Non-destructive for the regular Zillion app: data-bnav-role tags were
+// added to the original Vault/Send buttons without changing their
+// default behavior at all, so this only ever runs for the coop flavor.
+// Wrapped in a function (not just run inline) so verifyOtp() can
+// re-apply it after a server-side correction, not only at initial load.
+function applyCoopFlavorUI() {
+  document.querySelectorAll('[data-bnav-role="vault"]').forEach(btn => {
+    btn.querySelector('.bnav-icon').textContent = '🤝';
+    btn.querySelector('.bnav-label').textContent = 'Thrift';
+    btn.setAttribute('onclick', "goTo('screen-coop')");
+  });
+  document.querySelectorAll('[data-bnav-role="send"]').forEach(btn => {
+    btn.style.display = 'none';
+  });
+
+  // FIX: this used to live inside zilRenderCoopSummary(), gated behind
+  // an `await` for a network call to /coop-member-status — meaning
+  // there was a real window (network round-trip time) where the
+  // regular Zil UI was visible before being hidden, causing a visible
+  // flash of the wrong screen on every load. Moved here so it's
+  // synchronous and has zero network dependency — the structural
+  // hide/show now happens instantly; zilRenderCoopSummary() still
+  // handles populating the actual numbers once data arrives, but no
+  // longer controls whether the sections are even visible.
+  const zilSectionEarly = document.getElementById('home-zil-section');
+  const heroSectionEarly = document.getElementById('home-coop-hero-section');
+  const hdrLogoEarly = document.getElementById('home-hdr-logo');
+  if (zilSectionEarly) zilSectionEarly.style.display = 'none';
+  if (heroSectionEarly) heroSectionEarly.style.display = '';
+  if (hdrLogoEarly) hdrLogoEarly.textContent = 'ZILLION COOP';
+
+  // Onboarding for coop skips role selection entirely (see the PIN-
+  // completion handler below), so it's really a 2-step flow, not the
+  // 4-step regular signup — "Step 1 of 4" would be actively wrong.
+  // Also swaps "coin vault" phrasing on the PIN screen, since a coop
+  // member has never heard of a vault or coins at this point.
+  const phoneStepEarly = document.getElementById('phone-step-label');
+  const pinStepEarly = document.getElementById('pin-step-label');
+  const pinSubEarly = document.getElementById('pin-sub');
+  if (phoneStepEarly) phoneStepEarly.textContent = 'Step 1 of 2';
+  if (pinStepEarly) pinStepEarly.textContent = 'Step 2 of 2';
+  if (pinSubEarly) pinSubEarly.textContent = 'Secures your account. Never stored — only you know it.';
+}
+if (IS_COOP) applyCoopFlavorUI();
 
 // -- State -----------------------------------------------------
 let STATE = {
@@ -1807,6 +2084,8 @@ function onScreenEnter(id) {
     if (id === 'screen-vault')   refreshVault();
     if (id === 'screen-history') refreshHistory();
     if (id === 'screen-profile') refreshProfile();
+    if (id === 'screen-coop')    refreshCoopScreen();
+    if (id === 'screen-messages') refreshMessagesScreen();
   } catch(e) { console.warn('[onScreenEnter]', id, e.message); }
 }
 
@@ -1826,6 +2105,18 @@ function hideLoader() { document.getElementById('loader').classList.remove('show
 
 // -- Phone OTP --------------------------------------------------
 let otpTimer = null;
+let STATE_otpChannel = 'sms';
+function setOtpChannel(channel) {
+  STATE_otpChannel = channel;
+  const smsBtn = document.getElementById('channel-btn-sms');
+  const emailBtn = document.getElementById('channel-btn-email');
+  smsBtn.style.background = channel === 'sms' ? 'var(--g)' : 'transparent';
+  smsBtn.style.color = channel === 'sms' ? '#fff' : 'var(--g)';
+  emailBtn.style.background = channel === 'email' ? 'var(--g)' : 'transparent';
+  emailBtn.style.color = channel === 'email' ? '#fff' : 'var(--g)';
+  document.getElementById('otp-email-wrap').style.display = channel === 'email' ? '' : 'none';
+  document.getElementById('phone-error').style.display = 'none';
+}
 function onPhoneInput(el) {
   el.value = el.value.replace(/\D/g,'');
   document.getElementById('phone-error').style.display = 'none';
@@ -1847,12 +2138,22 @@ async function submitPhone() {
   else if (!phone.startsWith('+')) phone = '+234' + phone;
   STATE._pendingPhone = phone;
 
+  let email = '';
+  if (STATE_otpChannel === 'email') {
+    email = document.getElementById('otp-email-input').value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errEl.textContent = 'Please enter a valid email address.';
+      errEl.style.display = 'block';
+      return;
+    }
+  }
+
   showLoader('Sending code...');
   try {
     const res  = await fetch('/api/v1/send-otp', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phone }),
+      body:    JSON.stringify({ phone, channel: STATE_otpChannel, email: email || undefined }),
     });
     const data = await res.json();
     hideLoader();
@@ -1875,7 +2176,7 @@ async function submitPhone() {
       return;
     }
 
-    // Real SMS error
+    // Real delivery error (SMS or email)
     if (!res.ok) {
       let msg = data.error || 'SMS delivery failed.';
       if (data.detail) msg += ' - ' + data.detail;
@@ -1885,9 +2186,9 @@ async function submitPhone() {
       return;
     }
 
-    // Real SMS success
+    // Real success
     showOtpSection();
-    toast('✅ Code sent to ' + phone.slice(0,7) + '****' + phone.slice(-2));
+    toast('✅ ' + (data.message || 'Code sent'));
 
   } catch (e) {
     hideLoader();
@@ -1974,6 +2275,43 @@ async function verifyOtp() {
     STATE._verifiedPhone = STATE._pendingPhone;
     STATE._verifiedToken = data.token || '';   // save JWT for sync
     clearInterval(otpTimer);
+
+    // Membership check — runs whenever a JWT exists, regardless of
+    // IS_COOP's starting value. Two directions:
+    //  1. Self-heal: a known coop member landed here without ?app=coop
+    //     (a fresh device/browser never carrying that param) — correct
+    //     the flavor rather than showing them the wrong app.
+    //  2. Block: the app IS coop-flavored, but this phone isn't a real,
+    //     activated member of any society — signup must not complete.
+    //     Real gap found: this branch never existed before, so any
+    //     phone number could complete a full coop-branded signup with
+    //     zero membership at all. Fails closed on a network error too
+    //     (asks to retry) rather than silently letting an unverified
+    //     phone through, since fail-open would defeat the point.
+    if (STATE._verifiedToken) {
+      try {
+        const coopCheck = await fetch(`${API}/coop-member-status`, { headers: { Authorization: 'Bearer ' + STATE._verifiedToken } });
+        const coopData = await coopCheck.json();
+        if (!IS_COOP && coopData.is_coop_member) {
+          IS_COOP = true;
+          try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {}
+          applyCoopFlavorUI();
+        } else if (IS_COOP && !coopData.is_coop_member) {
+          hideLoader();
+          errEl.textContent = "⚠️ This phone number isn't registered with any cooperative society yet. Ask your society admin to add you as a member first.";
+          errEl.style.display = 'block';
+          return;
+        }
+      } catch (e) {
+        if (IS_COOP) {
+          hideLoader();
+          errEl.textContent = '⚠️ Could not verify your membership — check your connection and try again.';
+          errEl.style.display = 'block';
+          return;
+        }
+      }
+    }
+
     goTo('screen-pin');
 
   } catch(e) {
@@ -1984,6 +2322,11 @@ async function verifyOtp() {
 }
 
 // -- PIN flow ---------------------------------------------------
+async function hashPin(pin) {
+  const enc = new TextEncoder().encode(pin);
+  const hashBuf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
 let pinBuffer = '';
 let pinFirst  = '';
 STATE.pinState = 'create';
@@ -2003,7 +2346,8 @@ function pinKey(k) {
     setTimeout(() => processPinComplete(), 180);
   }
 }
-function processPinComplete() {
+let unlockAttempts = 0;
+async function processPinComplete() {
   if (STATE.pinState === 'create') {
     pinFirst = pinBuffer; pinBuffer = '';
     STATE.pinState = 'confirm';
@@ -2018,13 +2362,57 @@ function processPinComplete() {
       setTimeout(() => {
         pinBuffer=''; pinFirst=''; STATE.pinState='create';
         document.getElementById('pin-title').textContent='Create 6-digit PIN';
-        document.getElementById('pin-sub').textContent='Encrypts your coin vault. Never stored - only you know it.';
+        document.getElementById('pin-sub').textContent = (typeof IS_COOP !== 'undefined' && IS_COOP)
+          ? 'Secures your account. Never stored — only you know it.'
+          : 'Encrypts your coin vault. Never stored - only you know it.';
         updatePinDots('');
       }, 600);
     } else {
       STATE.pin = pinBuffer;
+      STATE.settings.pinHash = await hashPin(pinBuffer);
       pinBuffer=''; pinFirst='';
-      goTo('screen-role');
+      // Coop-flavor users skip role selection entirely — every install
+      // of this app is, by definition, a Customer (there's only one
+      // role in this build). selectedRole already defaults to
+      // 'customer', so completeOnboarding() needs no other changes.
+      if (typeof IS_COOP !== 'undefined' && IS_COOP) {
+        completeOnboarding();
+      } else {
+        goTo('screen-role');
+      }
+    }
+  } else if (STATE.pinState === 'unlock') {
+    // Verifies against the hash stored at PIN creation — the vault
+    // data itself (STATE.user, STATE.vault) was already loaded from
+    // localStorage before this screen ever showed, untouched by
+    // logout. This only gates WHETHER that already-loaded data gets
+    // displayed, never re-creates or wipes it.
+    const enteredHash = await hashPin(pinBuffer);
+    if (enteredHash === STATE.settings.pinHash) {
+      unlockAttempts = 0;
+      localStorage.removeItem('zillion_locked');
+      pinBuffer = '';
+      goTo('screen-home');
+      refreshHome();
+      refreshProfile();
+      setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+    } else {
+      unlockAttempts++;
+      for (let i=0;i<6;i++) document.getElementById('pd'+i).className='pin-dot error';
+      const remaining = 5 - unlockAttempts;
+      toast(remaining > 0 ? `Incorrect PIN — ${remaining} attempts left` : 'Incorrect PIN', true);
+      setTimeout(() => {
+        pinBuffer = '';
+        updatePinDots('');
+        if (unlockAttempts >= 5) {
+          // Not a hard lockout — forgetting a PIN shouldn't strand
+          // someone out of their own account. Offers phone+OTP as a
+          // clear way back in instead of a dead end.
+          document.getElementById('pin-sub').textContent = 'Forgot your PIN? Log in again with your phone number instead.';
+          const forgotBtn = document.getElementById('pin-forgot-btn');
+          if (forgotBtn) forgotBtn.style.display = '';
+        }
+      }, 500);
     }
   }
 }
@@ -2049,13 +2437,26 @@ async function completeOnboarding() {
     agentToken = document.getElementById('agent-token-input').value.trim();
     if (!agentId || !agentToken) { toast('Enter Agent ID and token', true); return; }
   }
+  // Preserve any existing vault/coins already on this device (e.g. the
+  // "forgot PIN, log in with phone again" fallback re-runs this same
+  // path) — without this, save() below would overwrite real coin data
+  // with an empty vault the moment onboarding completes again on a
+  // device that already had some.
+  try {
+    const existingRaw = localStorage.getItem(DB_KEY);
+    if (existingRaw) {
+      const existingData = JSON.parse(existingRaw);
+      if (existingData.vault) STATE.vault = existingData.vault;
+      if (existingData.settings) STATE.settings = { ...existingData.settings, ...STATE.settings };
+    }
+  } catch (e) { /* corrupt/unreadable — proceed with a fresh vault rather than crash */ }
   // Check if this phone previously had data (re-registration after clear)
   const existingHistory = loadHistory();
   if (existingHistory.length > 0) {
     STATE.history = existingHistory; // restore history from permanent key
     toast('Welcome back! Your transaction history has been restored. 🎉');
   } else {
-    toast('Welcome to Zillion! 🎉');
+    toast((typeof IS_COOP !== 'undefined' && IS_COOP) ? 'Welcome! Your cooperative membership is ready. 🎉' : 'Welcome to Zillion! 🎉');
   }
 
   STATE.user = {
@@ -2086,8 +2487,30 @@ async function completeOnboarding() {
 }
 
 // -- Session restore --------------------------------------------
+function routeAfterSessionLoad() {
+  const locked = localStorage.getItem('zillion_locked') === '1';
+  if (!locked) return false;
+  if (STATE.settings && STATE.settings.pinHash) {
+    STATE.pinState = 'unlock';
+    pinBuffer = ''; unlockAttempts = 0;
+    document.getElementById('pin-title').textContent = 'Enter your PIN';
+    document.getElementById('pin-sub').textContent = 'Unlock your account to continue.';
+    document.getElementById('pin-step-label').textContent = '';
+    const backBtn = document.querySelector('#screen-pin .hdr-back');
+    if (backBtn) backBtn.style.visibility = 'hidden';
+    document.getElementById('pin-forgot-btn').style.display = 'none';
+    updatePinDots('');
+    goTo('screen-pin');
+    return true;
+  }
+  // Locked flag set but no pinHash exists on this device — predates
+  // this fix, nothing to safely check an unlock attempt against.
+  localStorage.removeItem('zillion_locked');
+  return false;
+}
 function tryRestoreSession() {
   if (load() && STATE.user) {
+    if (routeAfterSessionLoad()) return;
     goTo('screen-home');
     refreshHome();
     refreshProfile();
@@ -2188,6 +2611,432 @@ function refreshHome() {
   } else {
     listEl.innerHTML = recent.map(txRow).join('');
   }
+
+  zilRenderCoopSummary();
+}
+
+// -- Thrift & Loan ------------------------------------------------
+// Cached so the home card and the full screen don't each fire their
+// own separate network call when navigating between them.
+let _coopStatusCache = null;
+
+async function zilCoopFetchStatus(force) {
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  if (!token || !STATE.isOnline) return _coopStatusCache;
+  const now = Date.now();
+  if (!force && _coopStatusCache && (now - (window._lastCoopCheckAt || 0)) < 60000) {
+    return _coopStatusCache;
+  }
+  window._lastCoopCheckAt = now;
+  try {
+    const res = await fetch(`${API}/coop-member-status`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (res.ok) _coopStatusCache = data;
+    return _coopStatusCache;
+  } catch (e) {
+    console.warn('[coop] status fetch failed:', e.message);
+    return _coopStatusCache;
+  }
+}
+
+function _coopUpdateNotifBell(data) {
+  const btn = document.getElementById('home-notif-badge')?.parentElement;
+  const badge = document.getElementById('home-notif-badge');
+  if (!btn || !badge) return;
+  if (!data || !data.is_coop_member) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  const count = data.unread_notification_count || 0;
+  badge.style.display = count > 0 ? '' : 'none';
+  badge.textContent = count > 99 ? '99+' : String(count);
+}
+
+async function zilRenderCoopSummary() {
+  const data = await zilCoopFetchStatus(false);
+
+  // Defensive backup for the same correction verifyOtp() does — this
+  // runs on every home-screen load (fresh signup AND returning
+  // session restore), so it also catches a returning user whose saved
+  // session predates them becoming a coop member, or predates this
+  // flavor-detection logic existing at all. Idempotent — a no-op if
+  // IS_COOP is already correct.
+  if (!IS_COOP && data && data.is_coop_member) {
+    IS_COOP = true;
+    try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {}
+    applyCoopFlavorUI();
+  }
+
+  _coopUpdateNotifBell(data);
+
+  if (typeof IS_COOP !== 'undefined' && IS_COOP) {
+    if (!data || !data.is_coop_member) return; // shouldn't happen for this flavor, but don't crash if it does
+
+    const plans = data.savings_plans || [];
+    const totalSaved  = plans.reduce((s, p) => s + (p.saved_kobo || 0), 0);
+    const totalTarget = plans.reduce((s, p) => s + (p.target_amount_kobo || 0), 0);
+    const pct = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
+
+    document.getElementById('home-coop-hero-society').textContent = data.society.name;
+    document.getElementById('home-coop-hero-saved').textContent = fmtNaira(totalSaved);
+    document.getElementById('home-coop-hero-target').textContent = `Target ${fmtNaira(totalTarget)} · ${pct}%`;
+    document.getElementById('home-coop-hero-bar').style.width = pct + '%';
+
+    const loanEl = document.getElementById('home-coop-hero-loan-status');
+    const activeLoans = (data.loans || []).filter(l => ['DISBURSED', 'REPAYING'].includes(l.status));
+    if (activeLoans.length === 0) {
+      loanEl.textContent = 'No active loan';
+    } else if (data.total_outstanding_loan_kobo > 0) {
+      loanEl.textContent = `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`;
+    } else {
+      // A real, disbursed loan exists but nothing is due yet under its
+      // schedule — "No active loan" here would say the same thing as
+      // genuinely having zero loans, which is exactly the confusion
+      // David ran into. This is distinct from that case.
+      loanEl.textContent = 'Active — up to date';
+    }
+
+    const guarantorBanner = document.getElementById('home-coop-hero-guarantor-banner');
+    if (guarantorBanner) guarantorBanner.style.display = (data.guarantor_requests_pending || []).length ? '' : 'none';
+    return;
+  }
+
+  // Regular Zillion app: small secondary card, unchanged from before.
+  const card = document.getElementById('home-coop-card');
+  if (!card) return;
+  if (!data || !data.is_coop_member) { card.style.display = 'none'; return; }
+
+  const totalSaved = (data.savings_plans || []).reduce((s, p) => s + (p.saved_kobo || 0), 0);
+  document.getElementById('home-coop-society-name').textContent = data.society.name;
+  document.getElementById('home-coop-saved').textContent = fmtNaira(totalSaved);
+  const loanLabel = document.getElementById('home-coop-loan-label');
+  loanLabel.textContent = data.total_outstanding_loan_kobo > 0
+    ? `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`
+    : 'No active loan';
+  card.style.display = '';
+}
+
+let _coopLatestStatus = null;
+
+async function refreshCoopScreen() {
+  const data = await zilCoopFetchStatus(true);
+  _coopLatestStatus = data;
+  if (!data || !data.is_coop_member) {
+    document.getElementById('coop-plans-list').innerHTML = '<div class="empty-state"><div class="empty-title">Not a cooperative member</div></div>';
+    document.getElementById('coop-loans-list').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('coop-hdr-title').textContent = data.society.name;
+
+  const plansEl = document.getElementById('coop-plans-list');
+  plansEl.innerHTML = (data.savings_plans || []).length ? data.savings_plans.map(p => `
+    <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px">
+        <span style="color:#9CC4B0">Target ${fmtNaira(p.target_amount_kobo)}</span>
+        <span style="font-weight:700;color:#00E0AC">${p.progress_pct}%</span>
+      </div>
+      <div style="background:#081A11;border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px">
+        <div style="background:#00C896;height:100%;width:${Math.min(100, p.progress_pct)}%"></div>
+      </div>
+      <div style="font-size:13px;color:#E8F5EE">${fmtNaira(p.saved_kobo)} saved · ${fmtNaira(p.monthly_contribution_kobo)}/month for ${p.duration_months} months</div>
+      <button onclick="coopShowPayNowModal('savings','${p.id}')" style="width:100%;margin-top:10px;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Pay Now</button>
+    </div>
+  `).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No savings plan yet — ask your society admin to set one up.</div></div>';
+
+  const duesSection = document.getElementById('coop-dues-section');
+  const duesCard = document.getElementById('coop-dues-card');
+  if (data.dues) {
+    duesSection.style.display = '';
+    const owing = data.dues.owing_kobo;
+    duesCard.innerHTML = `
+      <div style="background:#0F2B1D;border:1px solid ${owing > 0 ? '#F5B87A' : '#1A4030'};border-radius:12px;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;color:#9CC4B0">${fmtNaira(data.dues.amount_kobo)} / ${data.dues.frequency}</div>
+            <div style="font-size:16px;font-weight:700;margin-top:2px;color:${owing > 0 ? '#F5B87A' : '#00E0AC'}">${owing > 0 ? fmtNaira(owing) + ' owing' : 'Up to date'}</div>
+          </div>
+          <button onclick="coopShowPayNowModal('dues')" style="padding:9px 16px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${owing > 0 ? 'Pay Now' : 'Pay Ahead'}</button>
+        </div>
+      </div>`;
+  } else {
+    duesSection.style.display = 'none';
+  }
+
+  const statusColor = s => ({ PENDING_GUARANTOR: '#F5B87A', PENDING_APPROVAL: '#F5B87A', APPROVED: '#7AB8F5', DISBURSED: '#00E0AC', REPAYING: '#00E0AC', COMPLETED: '#7FA894', REJECTED: '#FF8A8A', DEFAULTED: '#FF8A8A' }[s] || '#9CC4B0');
+  const loansEl = document.getElementById('coop-loans-list');
+  loansEl.innerHTML = (data.loans || []).length ? data.loans.map(l => `
+    <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-weight:700;font-size:14px">${fmtNaira(l.principal_kobo)}</span>
+        <span style="font-size:12px;font-weight:700;color:${statusColor(l.status)}">${l.status.replace(/_/g,' ')}</span>
+      </div>
+      <div style="font-size:12px;color:#9CC4B0;margin-top:4px">${fmtNaira(l.monthly_repayment_kobo)}/month for ${l.repayment_months} months · Guarantor: ${l.guarantor?.name || '—'}</div>
+      ${l.rejection_reason ? `<div style="font-size:11px;color:#FF8A8A;margin-top:4px">${l.rejection_reason}</div>` : ''}
+    </div>
+  `).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No loans yet.</div></div>';
+
+  const guarantorSection = document.getElementById('coop-guarantor-section');
+  const guarantorList = document.getElementById('coop-guarantor-list');
+  const pending = data.guarantor_requests_pending || [];
+  if (pending.length) {
+    guarantorSection.style.display = '';
+    guarantorList.innerHTML = pending.map(r => `
+      <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:13px;color:#E8F5EE">${r.borrower?.name || r.borrower?.phone_normalized} wants to borrow ${fmtNaira(r.principal_kobo)}</div>
+        <div style="font-size:11px;color:#9CC4B0;margin:4px 0 10px">${fmtNaira(r.monthly_repayment_kobo)}/month for ${r.repayment_months} months — you'd be their guarantor</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="coopGuarantorRespond('${r.id}','DECLINED')" style="flex:1;padding:9px;background:#1A4030;color:#E8F5EE;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Decline</button>
+          <button onclick="coopGuarantorRespond('${r.id}','APPROVED')" style="flex:1;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Approve</button>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    guarantorSection.style.display = 'none';
+  }
+}
+
+function coopShowApplyForm() {
+  document.getElementById('coop-loan-amount').value = '';
+  document.getElementById('coop-loan-months').value = '6';
+  document.getElementById('coop-loan-guarantor-phone').value = '';
+  document.getElementById('coop-apply-error').style.display = 'none';
+  document.getElementById('coop-apply-modal').style.display = 'flex';
+}
+function coopCloseApplyModal() {
+  document.getElementById('coop-apply-modal').style.display = 'none';
+}
+async function coopSubmitLoanApplication() {
+  const errEl = document.getElementById('coop-apply-error');
+  errEl.style.display = 'none';
+  const amountNaira = parseFloat(document.getElementById('coop-loan-amount').value);
+  const months = parseInt(document.getElementById('coop-loan-months').value);
+  const guarantorPhone = document.getElementById('coop-loan-guarantor-phone').value.trim();
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (!months || months <= 0) { errEl.textContent = 'Enter a valid repayment period.'; errEl.style.display = 'block'; return; }
+  if (!guarantorPhone) { errEl.textContent = "Enter your guarantor's phone number."; errEl.style.display = 'block'; return; }
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-loan-apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ principal_kobo: Math.round(amountNaira * 100), repayment_months: months, guarantor_phone: guarantorPhone }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Application failed.'; errEl.style.display = 'block'; return; }
+    coopCloseApplyModal();
+    toast(data.message || 'Loan application submitted');
+    refreshCoopScreen();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function coopGuarantorRespond(loanId, decision) {
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-loan-guarantor-respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ loan_id: loanId, decision }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || 'Failed to respond', true); return; }
+    toast(data.message || 'Response recorded');
+    refreshCoopScreen();
+  } catch (e) {
+    toast('Network error: ' + e.message, true);
+  }
+}
+
+// Reusable for both savings (per-plan) and dues (per-member) — looks up
+// account details from the already-fetched status cache rather than a
+// fresh network call, since refreshCoopScreen() just populated it.
+function coopShowPayNowModal(type, planId) {
+  const title = document.getElementById('coop-paynow-title');
+  const subtitle = document.getElementById('coop-paynow-subtitle');
+  const bodyEl = document.getElementById('coop-paynow-body');
+
+  let accountNumber, bankName, defaultAmountKobo;
+  if (type === 'savings') {
+    const plan = (_coopLatestStatus?.savings_plans || []).find(p => p.id === planId);
+    title.textContent = 'Pay Your Savings';
+    subtitle.textContent = plan ? `${fmtNaira(plan.monthly_contribution_kobo)} / month` : '';
+    accountNumber = plan?.flutterwave_account_number;
+    bankName = plan?.flutterwave_bank_name;
+    defaultAmountKobo = plan?.monthly_contribution_kobo || 0;
+  } else {
+    const dues = _coopLatestStatus?.dues;
+    title.textContent = 'Pay Your Dues';
+    subtitle.textContent = dues ? `${fmtNaira(dues.owing_kobo)} owing` : '';
+    accountNumber = dues?.flutterwave_dues_account_number;
+    bankName = dues?.flutterwave_dues_bank_name;
+    defaultAmountKobo = dues?.owing_kobo > 0 ? dues.owing_kobo : (dues?.amount_kobo || 0);
+  }
+
+  let html = '';
+  if (accountNumber) {
+    html += `
+      <div style="background:#081A11;border:1px solid #234A38;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:11px;color:#9CC4B0;margin-bottom:6px">Transfer to</div>
+        <div style="font-size:24px;font-weight:800;color:#00E0AC;letter-spacing:1px" id="coop-paynow-acct">${accountNumber}</div>
+        <div style="font-size:13px;color:#E8F5EE;margin-top:4px">${bankName || 'Bank transfer'}</div>
+        <button onclick="coopCopyPayNowAccount()" style="margin-top:12px;padding:8px 16px;background:#1A4030;color:#00E0AC;border:none;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer">Copy Account Number</button>
+      </div>
+      <div style="font-size:11px;color:#7FA894;margin-top:10px;text-align:center">Send from any Nigerian bank — your payment is detected and credited automatically.</div>
+      <div style="text-align:center;margin:14px 0;color:#5A8069;font-size:11px">— OR —</div>`;
+  } else {
+    html += `
+      <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
+        <div style="font-size:13px;color:#F5B87A">No dedicated account set up yet</div>
+        <div style="font-size:12px;color:#9CC4B0;margin-top:6px">Ask your society admin, or pay right now below instead.</div>
+      </div>`;
+  }
+
+  html += `
+    <div style="background:#081A11;border:1px solid #234A38;border-radius:12px;padding:16px">
+      <div style="font-size:11px;color:#9CC4B0;margin-bottom:6px">Pay now — card, bank transfer, or USSD</div>
+      <input id="coop-checkout-amount" type="number" value="${(defaultAmountKobo/100).toFixed(0)}" style="width:100%;padding:10px;background:#0F2B1D;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;text-align:center;margin-bottom:10px">
+      <button onclick="coopStartHostedCheckout('${type}', '${planId||''}')" style="width:100%;padding:12px;background:#00C896;color:#05140D;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer">Pay Now</button>
+      <div id="coop-checkout-error" style="color:#FF8A8A;font-size:11px;margin-top:8px;text-align:center;display:none"></div>
+    </div>`;
+
+  bodyEl.innerHTML = html;
+
+  document.getElementById('coop-paynow-modal').style.display = 'flex';
+}
+function coopClosePayNowModal() {
+  document.getElementById('coop-paynow-modal').style.display = 'none';
+}
+async function coopStartHostedCheckout(type, planId) {
+  const errEl = document.getElementById('coop-checkout-error');
+  errEl.style.display = 'none';
+  const amountNaira = parseFloat(document.getElementById('coop-checkout-amount').value);
+  if (!amountNaira || amountNaira <= 0) {
+    errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return;
+  }
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-flutterwave-checkout-init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({
+        type,
+        savings_plan_id: planId || undefined,
+        amount_kobo: Math.round(amountNaira * 100),
+        return_url: (() => {
+          const base = window.location.href.split('?')[0];
+          return (typeof IS_COOP !== 'undefined' && IS_COOP) ? `${base}?app=coop` : base;
+        })(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.checkout_url) {
+      errEl.textContent = data.error || 'Could not start checkout.'; errEl.style.display = 'block'; return;
+    }
+    // Whole flow stays inside this same WebView — navigate to
+    // Flutterwave's hosted page, which redirects back to this exact
+    // wallet URL (with checkout_return=1) once payment completes.
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+// Called once on app load — checks whether this load is the member
+// returning from Flutterwave's hosted checkout page. Cleans the URL
+// immediately so a page refresh afterward can't re-trigger this.
+async function coopCheckForCheckoutReturn() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('checkout_return') !== '1') return;
+
+  const status = params.get('status');
+  const txRef = params.get('tx_ref');
+  const transactionId = params.get('transaction_id');
+
+  try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
+
+  if (status === 'cancelled') {
+    toast('Payment cancelled.', true);
+    return;
+  }
+  if (!txRef || !transactionId) return; // not a real checkout return, nothing to verify
+
+  toast('Verifying your payment…');
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-flutterwave-checkout-verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ tx_ref: txRef, transaction_id: transactionId }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      toast(data.message || 'Payment confirmed!', false, 5000);
+      zilRenderCoopSummary(); // refresh balances immediately, don't wait for the next poll
+    } else {
+      toast(data.message || data.error || 'Payment could not be confirmed.', true, 5000);
+    }
+  } catch (e) {
+    toast('Could not verify payment: ' + e.message, true, 5000);
+  }
+}
+
+function coopCopyPayNowAccount() {
+  const text = document.getElementById('coop-paynow-acct')?.textContent;
+  if (!text) return;
+  navigator.clipboard?.writeText(text).then(() => toast('Account number copied')).catch(() => toast('Could not copy — copy it manually', true));
+}
+
+async function refreshMessagesScreen() {
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  const listEl = document.getElementById('messages-list');
+  if (!token) { listEl.innerHTML = '<div class="empty-state"><div class="empty-title">Not logged in</div></div>'; return; }
+
+  try {
+    const res = await fetch(`${API}/coop-notifications`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok || !data.is_coop_member) {
+      listEl.innerHTML = '<div class="empty-state"><div class="empty-title">No messages</div></div>';
+      return;
+    }
+    const notifs = data.notifications || [];
+    if (!notifs.length) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-icon">💬</span><div class="empty-title">No messages yet</div><div class="empty-sub">Announcements from your cooperative society will show up here.</div></div>';
+      return;
+    }
+    listEl.innerHTML = notifs.map(n => `
+      <div onclick="coopMarkMessageRead('${n.id}', this)" data-notif-id="${n.id}"
+        style="background:${n.is_read ? '#0F2B1D' : '#0A2318'};border:1px solid ${n.is_read ? '#1A4030' : '#00C896'};border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <div style="font-weight:700;font-size:14px;color:#E8F5EE">${n.title}${!n.is_read ? ' <span style="color:#00E0AC;font-size:10px">● NEW</span>' : ''}</div>
+        </div>
+        <div style="font-size:13px;color:#9CC4B0;margin-top:6px;line-height:1.5">${n.body}</div>
+        <div style="font-size:10px;color:#5A8069;margin-top:8px">${new Date(n.created_at).toLocaleString()}${n.target_type === 'broadcast' ? ' · To all members' : ''}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty-state"><div class="empty-title">Could not load messages</div><div class="empty-sub">${e.message}</div></div>`;
+  }
+}
+
+async function coopMarkMessageRead(notificationId, el) {
+  if (el.dataset.markedRead) return; // avoid a redundant call on repeated taps
+  el.dataset.markedRead = '1';
+  el.style.background = '#0F2B1D';
+  el.style.borderColor = '#1A4030';
+  const newBadge = el.querySelector('span');
+  if (newBadge) newBadge.remove();
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    await fetch(`${API}/coop-notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ notification_id: notificationId }),
+    });
+    zilRenderCoopSummary(); // refresh the header badge count
+  } catch (e) { /* non-fatal — the tap already updated the UI locally */ }
 }
 
 // -- Vault ------------------------------------------------------
@@ -2669,6 +3518,7 @@ function filterHistory(f, el) {
   refreshHistory();
 }
 function refreshHistory() {
+  if (typeof IS_COOP !== 'undefined' && IS_COOP) { refreshCoopHistory(); return; }
   // Merge localStorage history in case STATE was populated before history loaded
   try {
     var stored = loadHistory();
@@ -2714,6 +3564,44 @@ function txRow(tx) {
   </div>`;
 }
 
+// -- Coop thrift activity (used in place of Zil tx history for the coop flavor) --
+async function refreshCoopHistory() {
+  const filterTabs = document.querySelector('#screen-history .filter-tabs');
+  if (filterTabs) filterTabs.style.display = 'none';
+
+  const el = document.getElementById('history-list');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state"><span class="empty-icon">⏳</span><div class="empty-title">Loading…</div></div>`;
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  if (!token) { el.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No activity yet</div></div>`; return; }
+
+  try {
+    const res = await fetch(`${API}/coop-member-activity`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const activity = data.activity || [];
+    if (!activity.length) {
+      el.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No activity yet</div><div class="empty-sub">Your savings and dues payments will appear here.</div></div>`;
+      return;
+    }
+    const rows = activity.map(a => {
+      const label = a.type === 'savings' ? 'Savings payment' : 'Dues payment';
+      const sourceLabel = a.source === 'cash_in_person' ? 'Cash' : (a.source === 'bank_transfer_manual' ? 'Bank transfer' : 'Payment');
+      return `<div class="tx-row">
+        <div class="tx-dot in">↓</div>
+        <div class="tx-info">
+          <div class="tx-name">${label}</div>
+          <div class="tx-meta">${fmtTime(a.ts)}  ·  <span style="color:var(--g);font-weight:600">${sourceLabel}</span></div>
+        </div>
+        <div class="tx-amount in">+${fmtNaira(a.amount_kobo)}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = '<div class="tx-card">' + rows + '</div>';
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-icon">⚠️</span><div class="empty-title">Could not load activity</div></div>`;
+  }
+}
+
 // -- Profile ----------------------------------------------------
 function refreshProfile() {
   const u = STATE.user;
@@ -2733,8 +3621,25 @@ function refreshProfile() {
   } else {
     document.getElementById('settings-last-sync').textContent = hasToken2 ? 'Never synced' : 'Re-login to enable sync';
   }
-  zilLoadMfb();
-  zilRenderBalanceByBank();
+  const isCoop = typeof IS_COOP !== 'undefined' && IS_COOP;
+
+  ['zil-mfb-group', 'zil-balance-by-bank-group', 'zil-role-switch-group', 'zil-wallet-group', 'zil-recover-row', 'zil-restore-card', 'zil-reset-wallet-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isCoop ? 'none' : (id === 'zil-role-switch-group' ? el.style.display : '');
+  });
+
+  if (isCoop) {
+    document.getElementById('coop-membership-group').style.display = '';
+    zilCoopFetchStatus(false).then(data => {
+      if (!data || !data.is_coop_member) return;
+      document.getElementById('coop-profile-society').textContent = data.society?.name || '—';
+      const since = data.member?.activated_at ? new Date(data.member.activated_at) : null;
+      document.getElementById('coop-profile-since').textContent = since ? since.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+    });
+  } else {
+    zilLoadMfb();
+    zilRenderBalanceByBank();
+  }
 }
 function toggleSetting(el) { el.classList.toggle('on'); }
 // ── Preferred Bank (MFB) ────────────────────────────────────────────────
@@ -2843,9 +3748,23 @@ function forceSync() {
 }
 function logout() {
   if (!confirm('Log out? Your vault data stays on this device.')) return;
+  localStorage.setItem('zillion_locked', '1');
   STATE.user=null; STATE.pin=null;
   if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   goTo('screen-splash');
+}
+function forgotPin() {
+  localStorage.removeItem('zillion_locked');
+  unlockAttempts = 0;
+  STATE.pinState = 'create';
+  document.getElementById('pin-title').textContent = 'Create 6-digit PIN';
+  document.getElementById('pin-sub').textContent = (typeof IS_COOP !== 'undefined' && IS_COOP)
+    ? 'Secures your account. Never stored — only you know it.'
+    : 'Encrypts your coin vault. Never stored - only you know it.';
+  const backBtn = document.querySelector('#screen-pin .hdr-back');
+  if (backBtn) backBtn.style.visibility = '';
+  document.getElementById('pin-forgot-btn').style.display = 'none';
+  goTo('screen-phone');
 }
 function resetWallet() {
   if (!confirm('Reset wallet? This deletes all coins and history on this device. Only do this if you have a backup.')) return;
@@ -4055,6 +4974,9 @@ window.addEventListener('DOMContentLoaded', () => {
   updateConnBadge(navigator.onLine);
   if (!navigator.onLine) updateSyncStatus('Offline - changes saved locally');
   if (load() && STATE.user) {
+    if (routeAfterSessionLoad()) {
+      // Unlock screen shown instead — skip auto-restoring home.
+    } else {
     document.getElementById('screen-splash').classList.add('hidden');
     document.getElementById('screen-home').classList.remove('hidden');
     STATE.screen = 'screen-home';
@@ -4062,6 +4984,12 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => trySync(), 1500);
     // Check for QR claim in URL (customer scanned QR from WhatsApp link)
     setTimeout(() => checkClaimParam(), 800);
+    // Coming back from Flutterwave's hosted checkout page — verify and
+    // credit server-side before showing any result. Only meaningful
+    // once STATE.user is confirmed restored, since verification needs
+    // a valid auth token.
+    coopCheckForCheckoutReturn();
+    }
   } else {
     // Check claim param - store for after onboarding
     const params = new URLSearchParams(location.search);
@@ -5659,9 +6587,11 @@ document.addEventListener('DOMContentLoaded', function() {
         window._nfcAvailable = caps.nfc || false;
       } catch(e) { window._sppAvailable = true; }
       // Switch Role only makes sense inside the installed app — the browser
-      // PWA version has no native bridge to switch portals with.
+      // PWA version has no native bridge to switch portals with. Never
+      // shown for the coop flavor at all — a cooperative member is never
+      // also an agent or merchant in the same identity.
       var roleGroup = document.getElementById('zil-role-switch-group');
-      if (roleGroup) roleGroup.style.display = '';
+      if (roleGroup && !(typeof IS_COOP !== 'undefined' && IS_COOP)) roleGroup.style.display = '';
     }
   }, 600);
 });

@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Zillion Coop — Society Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0A2E1A;--amber:#F59E0B;--amber-d:#D97706;
+  --cream:#F7F3EC;--muted:#C8BFA8;
+  --green-mid:#1A5C32;--green-lt:#2D8A4E;
+  --card:#0F3A22;--line:rgba(247,243,236,0.14);
+  --red:#E85D5D;--redl:rgba(232,93,93,.14);
+  --greenl:rgba(45,138,78,.16);
+}
+body{font-family:'Inter',sans-serif;background:var(--ink);color:var(--cream);min-height:100vh;line-height:1.5}
+h1,h2,h3,.serif{font-family:'Fraunces',serif}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;border:none;transition:transform .15s,opacity .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-primary{background:var(--amber);color:var(--ink)}
+.btn-primary:hover{background:#FFB020}
+.btn-ghost{background:transparent;color:var(--cream);border:1.5px solid var(--line)}
+.btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+.btn-danger{background:var(--redl);color:var(--red)}
+.btn-sm{padding:7px 14px;font-size:12.5px}
+input[type=text],input[type=tel],input[type=password],input[type=number]{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px}
+label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+.field{margin-bottom:14px}
+
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-box{max-width:380px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:36px 30px}
+.login-logo{display:flex;align-items:center;gap:9px;font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin-bottom:6px}
+.login-logo-mark{width:28px;height:28px;border-radius:7px;background:var(--amber);display:flex;align-items:center;justify-content:center;color:var(--ink);font-weight:900;font-size:13px}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:26px}
+#login-error{display:none;background:var(--redl);color:var(--red);font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
+
+/* APP SHELL */
+#app-shell{display:none}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(10,46,26,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar-logo{font-family:'Fraunces',serif;font-weight:900;font-size:17px;display:flex;align-items:center;gap:8px}
+.topbar-logo-mark{width:24px;height:24px;border-radius:6px;background:var(--amber);display:flex;align-items:center;justify-content:center;color:var(--ink);font-weight:900;font-size:11px}
+.society-name{font-size:13px;color:var(--muted);padding-left:14px;border-left:1px solid var(--line)}
+.trial-badge{background:var(--greenl);color:var(--green-lt);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.trial-badge.warn{background:rgba(245,158,11,.15);color:var(--amber)}
+.tabs{display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{padding:14px 16px;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
+.tab:hover{color:var(--cream)}
+.view{max-width:1100px;margin:0 auto;padding:28px 24px 60px;display:none}
+.view.active{display:block}
+
+/* CARDS / METRICS */
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.metric-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.metric-card .val{font-family:'Fraunces',serif;font-size:26px;font-weight:700;color:var(--amber)}
+.metric-card .lbl{font-size:12px;color:var(--muted);margin-top:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+.card-title{font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.card-sub{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+
+/* TABLES */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;border-bottom:1px solid var(--line)}
+td{padding:12px;border-bottom:1px solid rgba(247,243,236,.06)}
+tr:last-child td{border-bottom:none}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.pill-green{background:var(--greenl);color:var(--green-lt)}
+.pill-amber{background:rgba(245,158,11,.15);color:var(--amber)}
+.pill-red{background:var(--redl);color:var(--red)}
+.pill-muted{background:var(--line);color:var(--muted)}
+.no-data{text-align:center;color:var(--muted);padding:30px;font-size:13px}
+.loading-row{text-align:center;color:var(--muted);padding:30px}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:'Fraunces',serif;font-size:19px;font-weight:700;margin-bottom:18px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;font-size:13.5px;z-index:1001;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.toast.error{border-color:var(--red);color:var(--red)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo"><span class="login-logo-mark">Z</span>Zillion Coop</div>
+    <div class="login-sub">Society Portal — sign in with the phone and password you used to register.</div>
+    <div id="login-error"></div>
+    <div class="field">
+      <label>Phone number</label>
+      <input type="tel" id="li-phone" placeholder="08012345678">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="li-password" placeholder="Your password">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="doLogin()" id="li-btn">Sign in →</button>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app-shell">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo"><span class="topbar-logo-mark">Z</span>Coop Portal</div>
+      <div class="society-name" id="tb-society-name">—</div>
+      <span class="trial-badge" id="tb-status-badge" style="display:none"></span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()">Sign out</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</div>
+    <div class="tab" data-view="members" onclick="switchView('members')">Members</div>
+    <div class="tab" data-view="savings" onclick="switchView('savings')">Savings</div>
+    <div class="tab" data-view="loans" onclick="switchView('loans')">Loans</div>
+    <div class="tab" data-view="dues" onclick="switchView('dues')">Dues</div>
+    <div class="tab" data-view="addons" onclick="switchView('addons')">Add-ons</div>
+    <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
+    <div class="tab" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
+    <div class="tab" data-view="billing" onclick="switchView('billing')">Billing</div>
+  </div>
+
+  <div class="view active" id="view-dashboard"></div>
+  <div class="view" id="view-members"></div>
+  <div class="view" id="view-savings"></div>
+  <div class="view" id="view-loans"></div>
+  <div class="view" id="view-dues"></div>
+  <div class="view" id="view-addons"></div>
+  <div class="view" id="view-notifications"></div>
+  <div class="view" id="view-accounting"></div>
+  <div class="view" id="view-billing"></div>
+</div>
+
+<!-- ACTIVATE MEMBER MODAL -->
+<div class="modal-overlay" id="modal-activate">
+  <div class="modal-box">
+    <div class="modal-title">Activate a member</div>
+    <div class="field"><label>Phone number</label><input type="tel" id="am-phone" placeholder="08012345678"></div>
+    <div class="field"><label>Full name</label><input type="text" id="am-name" placeholder="e.g. Amina Bello"></div>
+    <div class="field"><label>Opening balance (₦, optional)</label><input type="number" id="am-opening" placeholder="0"></div>
+    <div id="am-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitActivateMember()" id="am-btn">Activate member</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-activate')">Cancel</button>
+  </div>
+</div>
+
+<!-- RECORD SAVINGS PAYMENT MODAL -->
+<div class="modal-overlay" id="modal-savings-payment">
+  <div class="modal-box">
+    <div class="modal-title">Record a savings payment</div>
+    <div id="sp-plan-label" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="sp-amount" placeholder="0"></div>
+    <div class="field">
+      <label>How was this paid?</label>
+      <select id="sp-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('sp-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
+        <option value="bank_transfer_manual">Bank transfer</option>
+        <option value="cash_in_person">Cash</option>
+      </select>
+    </div>
+    <div class="field" id="sp-ref-field" style="display:none"><label>Reference (receipt no., etc.)</label><input type="text" id="sp-reference"></div>
+    <div id="sp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitSavingsPayment()" id="sp-btn">Record payment</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-savings-payment')">Cancel</button>
+  </div>
+</div>
+
+<!-- NEW SAVINGS PLAN MODAL -->
+<div class="modal-overlay" id="modal-new-savings-plan">
+  <div class="modal-box">
+    <div class="modal-title">New savings plan</div>
+    <div class="field">
+      <label>Member</label>
+      <select id="nsp-member-id" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></select>
+    </div>
+    <div class="field"><label>Target amount (₦)</label><input type="number" id="nsp-target" placeholder="0"></div>
+    <div class="field"><label>Monthly contribution (₦)</label><input type="number" id="nsp-monthly" placeholder="0"></div>
+    <div class="field"><label>Duration (months)</label><input type="number" id="nsp-duration" placeholder="12"></div>
+    <div id="nsp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNewSavingsPlan()" id="nsp-btn">Create plan</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-savings-plan')">Cancel</button>
+  </div>
+</div>
+
+<!-- CONFIGURE DUES MODAL -->
+<div class="modal-overlay" id="modal-configure-dues">
+  <div class="modal-box">
+    <div class="modal-title">Configure dues</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Members owe from their join month through December of that year, then a full January–December every year after.</div>
+    <div class="field">
+      <label>I'm entering</label>
+      <select id="cd-input-mode" onchange="onDuesInputModeChange()" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <option value="monthly">A monthly amount</option>
+        <option value="annual">A total for the year (split into 12)</option>
+      </select>
+    </div>
+    <div class="field"><label id="cd-amount-label">Monthly amount (₦)</label><input type="number" id="cd-amount" placeholder="0" oninput="updateDuesMonthlyPreview()"></div>
+    <div id="cd-monthly-preview" style="font-size:12px;color:var(--amber);margin:-10px 0 14px;display:none"></div>
+    <div class="field">
+      <label>Frequency</label>
+      <select id="cd-frequency" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <option value="monthly">Monthly</option>
+        <option value="annual">Annual</option>
+      </select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Just a payment-cadence preference for display — accrual is always calculated in months.</div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px;cursor:pointer;text-transform:none;letter-spacing:normal;color:var(--cream);font-weight:400">
+      <input type="checkbox" id="cd-enforce"> Block loan applications for members with unpaid dues
+    </label>
+    <div id="cd-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureDues()" id="cd-btn">Save</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-dues')">Cancel</button>
+  </div>
+</div>
+
+<!-- REJECT LOAN MODAL -->
+<div class="modal-overlay" id="modal-reject-loan">
+  <div class="modal-box">
+    <div class="modal-title">Reject this loan</div>
+    <div class="field"><label>Reason (optional)</label><input type="text" id="rl-reason" placeholder="e.g. Insufficient savings history"></div>
+    <button class="btn btn-danger" style="width:100%" onclick="submitRejectLoan()" id="rl-btn">Reject loan</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-reject-loan')">Cancel</button>
+  </div>
+</div>
+
+<!-- CSV IMPORT MODAL -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Import members from CSV</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">First row must be a header with a <code>phone</code> column. Optional: <code>name</code>, <code>opening_balance</code> (in ₦).</div>
+    <div class="field"><label>Paste CSV</label><textarea id="im-csv" rows="8" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px;font-family:monospace" placeholder="phone,name,opening_balance&#10;08012345678,Amina Bello,5000"></textarea></div>
+    <div id="im-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <div id="im-results" style="display:none;max-height:200px;overflow-y:auto;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitBulkImport()" id="im-btn">Import</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-import')">Close</button>
+  </div>
+</div>
+
+<!-- RECORD DUES PAYMENT MODAL -->
+<div class="modal-overlay" id="modal-dues-payment">
+  <div class="modal-box">
+    <div class="modal-title">Record a dues payment</div>
+    <div id="dp-member-label" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="dp-amount" placeholder="0"></div>
+    <div class="field">
+      <label>How was this paid?</label>
+      <select id="dp-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('dp-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
+        <option value="bank_transfer_manual">Bank transfer</option>
+        <option value="cash_in_person">Cash</option>
+      </select>
+    </div>
+    <div class="field" id="dp-ref-field" style="display:none"><label>Reference</label><input type="text" id="dp-reference"></div>
+    <div id="dp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitDuesPayment()" id="dp-btn">Record payment</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-dues-payment')">Cancel</button>
+  </div>
+</div>
+
+<!-- COMPOSE NOTIFICATION MODAL -->
+<div class="modal-overlay" id="modal-notify">
+  <div class="modal-box">
+    <div class="modal-title">Send a notification</div>
+    <div class="field">
+      <label>Send to</label>
+      <select id="nt-target" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('nt-member-field').style.display = this.value==='individual' ? '' : 'none'">
+        <option value="broadcast">Everyone</option>
+        <option value="individual">One member</option>
+      </select>
+    </div>
+    <div class="field" id="nt-member-field" style="display:none">
+      <label>Member</label>
+      <select id="nt-member-id" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></select>
+    </div>
+    <div class="field"><label>Title</label><input type="text" id="nt-title" placeholder="e.g. Meeting reminder"></div>
+    <div class="field"><label>Message</label><textarea id="nt-body" rows="4" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></textarea></div>
+    <div id="nt-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNotification()" id="nt-btn">Send</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-notify')">Cancel</button>
+  </div>
+</div>
+
+<!-- NEW ACCOUNT MODAL -->
+<div class="modal-overlay" id="modal-new-account">
+  <div class="modal-box">
+    <div class="modal-title">New account</div>
+    <div class="field"><label>Account code</label><input type="text" id="na-code" placeholder="e.g. 5300"></div>
+    <div class="field"><label>Account name</label><input type="text" id="na-name" placeholder="e.g. Rent Expense"></div>
+    <div class="field">
+      <label>Type</label>
+      <select id="na-type" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <option value="ASSET">Asset</option>
+        <option value="LIABILITY">Liability</option>
+        <option value="EQUITY">Equity</option>
+        <option value="INCOME">Income</option>
+        <option value="EXPENSE">Expense</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Currency</label>
+      <input type="text" id="na-currency" placeholder="NGN" style="text-transform:uppercase">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave as your base currency unless this account holds a different one (e.g. a USD bank account).</div>
+    </div>
+    <div id="na-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNewAccount()" id="na-btn">Create account</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-account')">Cancel</button>
+  </div>
+</div>
+
+<!-- NEW JOURNAL ENTRY MODAL -->
+<div class="modal-overlay" id="modal-new-journal-entry">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-title">New journal entry</div>
+    <div class="field"><label>Date</label><input type="date" id="je-date"></div>
+    <div class="field"><label>Description</label><input type="text" id="je-description" placeholder="e.g. Office rent for August"></div>
+    <div id="je-lines"></div>
+    <button class="btn btn-ghost btn-sm" style="margin:6px 0 14px" onclick="addJournalLine()">＋ Add line</button>
+    <div id="je-balance-display" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
+    <div id="je-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitJournalEntry()" id="je-btn">Save entry</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-journal-entry')">Cancel</button>
+  </div>
+</div>
+
+<!-- OPENING BALANCE WIZARD MODAL -->
+<div class="modal-overlay" id="modal-opening-balance">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Opening balance wizard</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">Enter what each account currently holds — leave blank to skip. Anything that doesn't naturally balance is absorbed into Opening Balance Equity automatically, so you don't need to work out the double-entry yourself. This can only be run once.</div>
+    <div class="field"><label>As of date</label><input type="date" id="ob-date"></div>
+    <div id="ob-accounts-list" style="max-height:320px;overflow-y:auto;margin-bottom:14px"></div>
+    <div id="ob-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitOpeningBalances()" id="ob-btn">Save opening balances</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-opening-balance')">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/v1';
+let portalToken = localStorage.getItem('coop_portal_token') || '';
+let portalData = null;
+let currentView = 'dashboard';
+
+function fmtNaira(kobo) { return '₦' + Math.round((kobo || 0) / 100).toLocaleString(); }
+function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }
+
+function notify(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── AUTH ──────────────────────────────────────────────────────────────
+async function doLogin() {
+  const phone = document.getElementById('li-phone').value.trim();
+  const password = document.getElementById('li-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!phone || !password) { errEl.textContent = 'Enter your phone and password.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('li-btn');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  try {
+    const res = await fetch(`${API}/merchant-login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, password }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.token) {
+      errEl.textContent = data.error || 'Sign in failed.'; errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Sign in →';
+      return;
+    }
+    portalToken = data.token;
+    localStorage.setItem('coop_portal_token', portalToken);
+    await enterApp();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign in →';
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('coop_portal_token');
+  portalToken = '';
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+async function enterApp() {
+  const loaded = await loadPortalData();
+  if (!loaded) return; // loadPortalData already shows the login screen + error on failure
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'block';
+  switchView('dashboard');
+}
+
+async function loadPortalData() {
+  try {
+    const res = await fetch(`${API}/coop-portal-society`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) {
+      const errEl = document.getElementById('login-error');
+      errEl.textContent = data.error || 'Could not load your society — please sign in again.';
+      errEl.style.display = 'block';
+      doLogout();
+      return false;
+    }
+    portalData = data;
+    document.getElementById('tb-society-name').textContent = data.society.name;
+    const badge = document.getElementById('tb-status-badge');
+    const st = data.society.subscription_status;
+    if (st === 'trial') {
+      const days = data.society.trial_ends_at ? Math.max(0, Math.ceil((new Date(data.society.trial_ends_at) - new Date()) / 86400000)) : null;
+      badge.textContent = days != null ? `Trial · ${days}d left` : 'Trial';
+      badge.className = 'trial-badge' + (days != null && days <= 5 ? ' warn' : '');
+      badge.style.display = '';
+    } else if (st === 'trial_expired') {
+      badge.textContent = 'Trial ended'; badge.className = 'trial-badge warn'; badge.style.display = '';
+    } else if (st === 'active') {
+      badge.textContent = 'Active'; badge.className = 'trial-badge'; badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+    return true;
+  } catch (e) {
+    notify('Failed to load: ' + e.message, true);
+    return false;
+  }
+}
+
+// ── VIEW SWITCHING ───────────────────────────────────────────────────
+function switchView(name) {
+  currentView = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'members') renderMembers();
+  if (name === 'savings') renderSavings();
+  if (name === 'loans') renderLoans();
+  if (name === 'dues') renderDues();
+  if (name === 'addons') renderAddons();
+  if (name === 'notifications') renderNotifications();
+  if (name === 'accounting') renderAccounting();
+  if (name === 'billing') renderBilling();
+}
+
+async function refreshAndRender() {
+  await loadPortalData();
+  switchView(currentView);
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────
+function renderDashboard() {
+  const d = portalData;
+  const el = document.getElementById('view-dashboard');
+  const pendingLoans = d.loans.filter(l => l.status === 'PENDING_APPROVAL').length;
+  const totalDuesOwing = d.members.reduce((s, m) => s + (m.dues?.owing_kobo || 0), 0);
+  el.innerHTML = `
+    <div class="metrics-row">
+      <div class="metric-card"><div class="val">${d.metrics.active_members}</div><div class="lbl">Active members</div></div>
+      <div class="metric-card"><div class="val">${fmtNaira(d.metrics.total_saved_kobo)}</div><div class="lbl">Total saved</div></div>
+      <div class="metric-card"><div class="val">${fmtNaira(d.metrics.active_loans_kobo)}</div><div class="lbl">Outstanding on loans</div></div>
+      <div class="metric-card"><div class="val">${fmtNaira(totalDuesOwing)}</div><div class="lbl">Dues owing</div></div>
+    </div>
+    ${pendingLoans > 0 ? `
+    <div class="card" style="border-color:var(--amber)">
+      <div class="card-title">⏳ ${pendingLoans} loan${pendingLoans === 1 ? '' : 's'} waiting for your review</div>
+      <div class="card-sub">Members have applied for loans that need approval.</div>
+      <button class="btn btn-primary btn-sm" onclick="switchView('loans')">Review loans →</button>
+    </div>` : ''}
+    <div class="card">
+      <div class="card-title">Recent members</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th></tr></thead>
+        <tbody>${d.members.slice(0, 5).map(m => `
+          <tr><td>${m.name || '—'}</td><td>${m.phone_normalized}</td><td>${fmtDate(m.activated_at)}</td></tr>
+        `).join('') || '<tr><td colspan="3" class="no-data">No members yet</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+// ── MEMBERS ───────────────────────────────────────────────────────────
+function renderMembers() {
+  const d = portalData;
+  const el = document.getElementById('view-members');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Members
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>
+          <button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>
+        </div>
+      </div>
+      <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Status</th></tr></thead>
+        <tbody>${d.members.map(m => `
+          <tr>
+            <td>${m.name || '—'}</td>
+            <td>${m.phone_normalized}</td>
+            <td>${fmtDate(m.activated_at)}</td>
+            <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
+            <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
+          </tr>
+        `).join('') || '<tr><td colspan="5" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+async function submitActivateMember() {
+  const errEl = document.getElementById('am-error');
+  errEl.style.display = 'none';
+  const phone = document.getElementById('am-phone').value.trim();
+  const name = document.getElementById('am-name').value.trim();
+  const opening = parseInt(document.getElementById('am-opening').value) || 0;
+  if (!phone) { errEl.textContent = 'Phone number is required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('am-btn');
+  btn.disabled = true; btn.textContent = 'Activating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-activate-member`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ phone, name, opening_balance_kobo: opening * 100 }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to activate member.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Activate member'; return; }
+    notify(data.message || 'Member activated');
+    closeModal('modal-activate');
+    document.getElementById('am-phone').value = ''; document.getElementById('am-name').value = ''; document.getElementById('am-opening').value = '';
+    btn.disabled = false; btn.textContent = 'Activate member';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Activate member';
+  }
+}
+
+async function submitBulkImport() {
+  const errEl = document.getElementById('im-error');
+  const resultsEl = document.getElementById('im-results');
+  errEl.style.display = 'none'; resultsEl.style.display = 'none';
+  const csvText = document.getElementById('im-csv').value.trim();
+  if (!csvText) { errEl.textContent = 'Paste some CSV first.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('im-btn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  try {
+    const res = await fetch(`${API}/coop-portal-bulk-import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ csv_text: csvText }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Import failed.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Import'; return; }
+
+    const s = data.summary;
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = `<div style="margin-bottom:6px;font-weight:600">${s.created} created · ${s.already_existed} already existed · ${s.failed} failed</div>` +
+      data.results.filter(r => r.status === 'failed').map(r => `<div style="color:#FF8A8A">Line ${r.line}: ${r.error}</div>`).join('');
+    notify(`Import complete — ${s.created} member(s) added`);
+    btn.disabled = false; btn.textContent = 'Import';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Import';
+  }
+}
+
+// ── SAVINGS ───────────────────────────────────────────────────────────
+let pendingSavingsPlanId = null;
+
+function renderSavings() {
+  const d = portalData;
+  const el = document.getElementById('view-savings');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Savings plans
+        <button class="btn btn-primary btn-sm" onclick="openNewSavingsPlanModal()">＋ New savings plan</button>
+      </div>
+      <div class="card-sub">Progress toward each member's savings target.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Member</th><th>Target</th><th>Saved</th><th>Progress</th><th></th></tr></thead>
+        <tbody>${d.savings_plans.map(p => `
+          <tr>
+            <td>${p.coop_members?.name || p.coop_members?.phone_normalized || '—'}</td>
+            <td>${fmtNaira(p.target_amount_kobo)}</td>
+            <td>${fmtNaira(p.saved_kobo)}</td>
+            <td>${p.progress_pct}%</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openSavingsPaymentModal('${p.id}','${(p.coop_members?.name || p.coop_members?.phone_normalized || '').replace(/'/g,"\\'")}')">Record payment</button></td>
+          </tr>
+        `).join('') || '<tr><td colspan="5" class="no-data">No savings plans yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openSavingsPaymentModal(planId, memberLabel) {
+  pendingSavingsPlanId = planId;
+  document.getElementById('sp-plan-label').textContent = `For: ${memberLabel}`;
+  document.getElementById('sp-amount').value = '';
+  document.getElementById('sp-reference').value = '';
+  document.getElementById('sp-error').style.display = 'none';
+  openModal('modal-savings-payment');
+}
+
+async function submitSavingsPayment() {
+  const errEl = document.getElementById('sp-error');
+  errEl.style.display = 'none';
+  const amount = parseInt(document.getElementById('sp-amount').value) || 0;
+  const source = document.getElementById('sp-source').value;
+  const reference = document.getElementById('sp-reference').value.trim();
+  if (amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('sp-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-savings-payment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ savings_plan_id: pendingSavingsPlanId, amount_kobo: amount * 100, source, reference }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record payment.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Record payment'; return; }
+    notify('Payment recorded');
+    closeModal('modal-savings-payment');
+    btn.disabled = false; btn.textContent = 'Record payment';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Record payment';
+  }
+}
+
+function openNewSavingsPlanModal() {
+  const sel = document.getElementById('nsp-member-id');
+  sel.innerHTML = portalData.members.filter(m => m.status === 'ACTIVE').map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('') || '<option value="">No active members yet</option>';
+  document.getElementById('nsp-target').value = '';
+  document.getElementById('nsp-monthly').value = '';
+  document.getElementById('nsp-duration').value = '';
+  document.getElementById('nsp-error').style.display = 'none';
+  openModal('modal-new-savings-plan');
+}
+
+async function submitNewSavingsPlan() {
+  const errEl = document.getElementById('nsp-error');
+  errEl.style.display = 'none';
+  const memberId = document.getElementById('nsp-member-id').value;
+  const target = parseInt(document.getElementById('nsp-target').value) || 0;
+  const monthly = parseInt(document.getElementById('nsp-monthly').value) || 0;
+  const duration = parseInt(document.getElementById('nsp-duration').value) || 0;
+  if (!memberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  if (target <= 0) { errEl.textContent = 'Enter a valid target amount.'; errEl.style.display = 'block'; return; }
+  if (monthly <= 0) { errEl.textContent = 'Enter a valid monthly contribution.'; errEl.style.display = 'block'; return; }
+  if (duration <= 0) { errEl.textContent = 'Enter a valid duration in months.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('nsp-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-create-savings-plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: memberId, target_amount_kobo: target * 100, monthly_contribution_kobo: monthly * 100, duration_months: duration }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create plan.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create plan'; return; }
+    notify('Savings plan created');
+    closeModal('modal-new-savings-plan');
+    btn.disabled = false; btn.textContent = 'Create plan';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Create plan';
+  }
+}
+
+// ── LOANS ─────────────────────────────────────────────────────────────
+let pendingLoanId = null;
+
+function loanStatusPill(status) {
+  const map = { PENDING_APPROVAL: 'pill-amber', APPROVED: 'pill-green', DISBURSED: 'pill-green', REPAYING: 'pill-green', COMPLETED: 'pill-muted', REJECTED: 'pill-red' };
+  return `<span class="pill ${map[status] || 'pill-muted'}">${status.replace(/_/g, ' ')}</span>`;
+}
+
+let loansViewMode = 'active';
+let loanHistoryData = null;
+
+function renderLoans() {
+  const d = portalData;
+  const el = document.getElementById('view-loans');
+
+  if (loansViewMode === 'history') {
+    renderLoanHistoryReport(el);
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Loans
+        <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
+      </div>
+      <div class="card-sub">Applications, approvals, and repayment status.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Borrower</th><th>Amount</th><th>Guarantor</th><th>Status</th><th>Outstanding</th><th></th></tr></thead>
+        <tbody>${d.loans.map(l => `
+          <tr>
+            <td>${l.borrower?.name || l.borrower?.phone_normalized || '—'}</td>
+            <td>${fmtNaira(l.principal_kobo)}</td>
+            <td>${l.guarantor?.name || '—'}</td>
+            <td>${loanStatusPill(l.status)}</td>
+            <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
+            <td>${loanActionButtons(l)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="6" class="no-data">No loan applications yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function switchLoansView(mode) {
+  loansViewMode = mode;
+  renderLoans();
+}
+
+async function renderLoanHistoryReport(el) {
+  el.innerHTML = `<div class="card"><div class="card-title">Loan History<button class="btn btn-ghost btn-sm" onclick="switchLoansView('active')">Back to Active Loans</button></div><div class="card-sub">Loading…</div></div>`;
+
+  if (!loanHistoryData) {
+    try {
+      const res = await fetch(`${API}/coop-portal-loan-history-report`, { headers: { Authorization: 'Bearer ' + portalToken } });
+      loanHistoryData = await res.json();
+    } catch (e) {
+      el.innerHTML = `<div class="card"><div class="card-title">Loan History</div><div class="card-sub">Failed to load: ${e.message}</div></div>`;
+      return;
+    }
+  }
+
+  const members = loanHistoryData.members || [];
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Loan History
+        <button class="btn btn-ghost btn-sm" onclick="switchLoansView('active')">Back to Active Loans</button>
+      </div>
+      <div class="card-sub">Full loan and repayment trail, member by member.</div>
+      ${members.length ? members.map(m => `
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px">${m.member_name} <span style="font-weight:400;color:var(--muted);font-size:12px">(${m.phone_normalized})</span></div>
+          ${m.loans.map(l => `
+            <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span>${fmtNaira(l.principal_kobo)} · ${l.repayment_months}mo${l.guarantor_name ? ` · guarantor: ${l.guarantor_name}` : ''}</span>
+                ${loanStatusPill(l.status)}
+              </div>
+              <div style="font-size:12px;color:var(--muted)">
+                Requested ${fmtDate(l.requested_at)}${l.disbursed_at ? ` · Disbursed ${fmtDate(l.disbursed_at)}` : ''}
+                ${['DISBURSED','REPAYING','COMPLETED'].includes(l.status) ? ` · Paid ${fmtNaira(l.total_paid_kobo)} · Outstanding ${fmtNaira(l.outstanding_kobo)}${l.is_overdue ? ' <span style="color:#F5B87A">(overdue)</span>' : ''}` : ''}
+              </div>
+              ${l.repayments.length ? `
+                <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+                  ${l.repayments.map(r => `${fmtDate(r.recorded_at)} — ${fmtNaira(r.amount_kobo)} (${r.source})`).join('<br>')}
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `).join('') : '<div class="no-data" style="margin-top:14px">No loan history yet.</div>'}
+    </div>
+  `;
+}
+
+function loanActionButtons(l) {
+  if (l.status === 'PENDING_APPROVAL') {
+    return `<button class="btn btn-primary btn-sm" onclick="doLoanAction('${l.id}','approve')">Approve</button>
+            <button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="openRejectLoanModal('${l.id}')">Reject</button>`;
+  }
+  if (l.status === 'APPROVED') {
+    return `<button class="btn btn-primary btn-sm" onclick="doLoanAction('${l.id}','disburse')">Mark disbursed</button>`;
+  }
+  return '';
+}
+
+async function doLoanAction(loanId, action, reason) {
+  try {
+    const res = await fetch(`${API}/coop-portal-loan-action`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ loan_id: loanId, action, reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Action failed', true); return; }
+    notify(`Loan ${action}d`);
+    await refreshAndRender();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+
+function openRejectLoanModal(loanId) {
+  pendingLoanId = loanId;
+  document.getElementById('rl-reason').value = '';
+  openModal('modal-reject-loan');
+}
+
+async function submitRejectLoan() {
+  const reason = document.getElementById('rl-reason').value.trim();
+  closeModal('modal-reject-loan');
+  await doLoanAction(pendingLoanId, 'reject', reason);
+}
+
+// ── DUES ──────────────────────────────────────────────────────────────
+let pendingDuesMemberId = null;
+let selectedDuesYear = null;
+
+function renderDues() {
+  const d = portalData;
+  const el = document.getElementById('view-dues');
+  const withDues = d.members.filter(m => m.dues);
+
+  const allYears = [...new Set(withDues.flatMap(m => (m.dues.by_year || []).map(y => y.year)))].sort((a, b) => b - a);
+  if (selectedDuesYear === null || !allYears.includes(selectedDuesYear)) selectedDuesYear = allYears[0] || new Date().getFullYear();
+
+  const rows = withDues.map(m => {
+    const yearData = (m.dues.by_year || []).find(y => y.year === selectedDuesYear);
+    if (!yearData) return `<tr><td>${m.name || m.phone_normalized}</td><td colspan="3" style="color:var(--muted)">Not yet a member in ${selectedDuesYear}</td><td></td></tr>`;
+    return `
+      <tr>
+        <td>${m.name || m.phone_normalized}</td>
+        <td>${fmtNaira(yearData.accrued_kobo)}</td>
+        <td>${fmtNaira(yearData.paid_kobo)}</td>
+        <td>${yearData.owing_kobo > 0 ? `<span class="pill pill-amber">${fmtNaira(yearData.owing_kobo)}</span>` : `<span class="pill pill-green">Clear</span>`}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="openDuesPaymentModal('${m.id}','${(m.name || m.phone_normalized).replace(/'/g,"\\'")}')">Record payment</button></td>
+      </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Dues
+        <div style="display:flex;gap:8px;align-items:center">
+          ${allYears.length ? `<select onchange="selectedDuesYear=parseInt(this.value);renderDues()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">${allYears.map(y => `<option value="${y}" ${y === selectedDuesYear ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openConfigureDuesModal()">${d.society.dues_amount_kobo ? 'Edit' : 'Configure'} dues</button>
+        </div>
+      </div>
+      <div class="card-sub">${d.society.dues_amount_kobo ? `₦${(d.society.dues_amount_kobo/100).toLocaleString()}/month per member — owed from each member's join month through December, then a full year every year after. Payments apply to the oldest owing year first.` : 'Dues are not configured for this society yet.'}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Member</th><th>Accrued (${selectedDuesYear || '—'})</th><th>Paid</th><th>Owing</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" class="no-data">No dues to show yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openConfigureDuesModal() {
+  const s = portalData.society;
+  document.getElementById('cd-input-mode').value = 'monthly';
+  document.getElementById('cd-amount').value = s.dues_amount_kobo ? s.dues_amount_kobo / 100 : '';
+  document.getElementById('cd-frequency').value = s.dues_frequency || 'monthly';
+  document.getElementById('cd-enforce').checked = !!s.dues_enforcement_enabled;
+  document.getElementById('cd-error').style.display = 'none';
+  onDuesInputModeChange();
+  openModal('modal-configure-dues');
+}
+
+function onDuesInputModeChange() {
+  const mode = document.getElementById('cd-input-mode').value;
+  document.getElementById('cd-amount-label').textContent = mode === 'annual' ? 'Total for the year (₦)' : 'Monthly amount (₦)';
+  document.getElementById('cd-amount').placeholder = mode === 'annual' ? 'e.g. 12000' : '0';
+  updateDuesMonthlyPreview();
+}
+
+function updateDuesMonthlyPreview() {
+  const mode = document.getElementById('cd-input-mode').value;
+  const preview = document.getElementById('cd-monthly-preview');
+  if (mode !== 'annual') { preview.style.display = 'none'; return; }
+  const total = parseFloat(document.getElementById('cd-amount').value) || 0;
+  if (total <= 0) { preview.style.display = 'none'; return; }
+  preview.style.display = '';
+  preview.textContent = `= ₦${(total / 12).toLocaleString(undefined, { maximumFractionDigits: 2 })}/month`;
+}
+
+async function submitConfigureDues() {
+  const errEl = document.getElementById('cd-error');
+  errEl.style.display = 'none';
+  const mode = document.getElementById('cd-input-mode').value;
+  const entered = parseFloat(document.getElementById('cd-amount').value) || 0;
+  const monthlyAmount = mode === 'annual' ? entered / 12 : entered;
+  const amount = Math.round(monthlyAmount);
+  const frequency = document.getElementById('cd-frequency').value;
+  const enforce = document.getElementById('cd-enforce').checked;
+  if (amount <= 0) { errEl.textContent = 'Enter a valid dues amount.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('cd-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-configure-dues`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({
+        dues_amount_kobo: amount * 100, dues_frequency: frequency,
+        dues_enforcement_enabled: enforce, dues_enforcement_rules: { block_loan_application: enforce },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
+    notify('Dues configured');
+    closeModal('modal-configure-dues');
+    btn.disabled = false; btn.textContent = 'Save';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+function openDuesPaymentModal(memberId, memberLabel) {
+  pendingDuesMemberId = memberId;
+  document.getElementById('dp-member-label').textContent = `For: ${memberLabel}`;
+  document.getElementById('dp-amount').value = '';
+  document.getElementById('dp-reference').value = '';
+  document.getElementById('dp-error').style.display = 'none';
+  openModal('modal-dues-payment');
+}
+
+async function submitDuesPayment() {
+  const errEl = document.getElementById('dp-error');
+  errEl.style.display = 'none';
+  const amount = parseInt(document.getElementById('dp-amount').value) || 0;
+  const source = document.getElementById('dp-source').value;
+  const reference = document.getElementById('dp-reference').value.trim();
+  if (amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('dp-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-dues-payment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: pendingDuesMemberId, amount_kobo: amount * 100, source, reference }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record payment.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Record payment'; return; }
+    notify('Dues payment recorded');
+    closeModal('modal-dues-payment');
+    btn.disabled = false; btn.textContent = 'Record payment';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Record payment';
+  }
+}
+
+// ── ADD-ONS ───────────────────────────────────────────────────────────
+let availableAddonsCache = null;
+async function renderAddons() {
+  const d = portalData;
+  const el = document.getElementById('view-addons');
+  const purchased = d.addons || [];
+  const purchasedKeys = new Set(purchased.map(a => a.addon_key));
+
+  if (!availableAddonsCache) {
+    try {
+      const res = await fetch(`${API}/public-coop-addon-modules`);
+      const data = await res.json();
+      availableAddonsCache = data.addons || [];
+    } catch (e) { availableAddonsCache = []; }
+  }
+  const addable = availableAddonsCache.filter(a => !purchasedKeys.has(a.key));
+
+  const needsPayment = d.society.subscription_plan && d.society.subscription_status !== 'active';
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Your add-ons</div>
+      <div class="card-sub">Modules included with your subscription.</div>
+      ${purchased.length ? purchased.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
+          <div>
+            <div style="font-weight:600;font-size:14px">${a.coop_addon_modules?.name || a.addon_key}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.coop_addon_modules?.description || ''}</div>
+          </div>
+          <span class="pill pill-amber">Launching soon</span>
+        </div>
+      `).join('') : `<div class="no-data">No add-on modules on your current plan.</div>`}
+    </div>
+    ${addable.length ? `
+    <div class="card">
+      <div class="card-title">Add a module</div>
+      <div class="card-sub">Didn't select these at signup? Add them anytime — the extra cost is added to your total.</div>
+      ${addable.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
+          <div>
+            <div style="font-weight:600;font-size:14px">${a.name}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.description || ''} — ${fmtNaira(a.price_kobo)}/mo</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>
+        </div>
+      `).join('')}
+    </div>` : ''}
+    ${needsPayment ? `
+    <div class="card" style="border-color:var(--amber)">
+      <div class="card-title">Payment needed</div>
+      <div class="card-sub">Your subscription total has changed — pay the new total to keep your account active without interruption.</div>
+      <button class="btn btn-primary btn-sm" onclick="payNowFromPortal()" id="portal-paynow-btn">Pay now →</button>
+    </div>` : ''}
+  `;
+}
+
+async function addAddonNow(addonKey) {
+  try {
+    const res = await fetch(`${API}/coop-portal-add-addon`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ addon_key: addonKey }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to add module', true); return; }
+    notify(data.message || 'Module added');
+    availableAddonsCache = null;
+    await refreshAndRender();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+
+async function payNowFromPortal() {
+  const btn = document.getElementById('portal-paynow-btn');
+  btn.disabled = true; btn.textContent = 'Redirecting...';
+  try {
+    const res = await fetch(`${API}/public-coop-subscription-checkout-init`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coop_id: portalData.society.coop_id, return_url: `${window.location.origin}/coop?resume=${encodeURIComponent(portalData.society.coop_id)}` }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.checkout_url) { notify(data.error || 'Could not start payment', true); btn.disabled = false; btn.textContent = 'Pay now →'; return; }
+    window.location.href = data.checkout_url;
+  } catch (e) { notify('Network error: ' + e.message, true); btn.disabled = false; btn.textContent = 'Pay now →'; }
+}
+
+// ── BILLING ───────────────────────────────────────────────────────────
+function renderBilling() {
+  const s = portalData.society;
+  const payments = portalData.subscription_payments || [];
+  const el = document.getElementById('view-billing');
+
+  const needsPayment = s.subscription_status === 'pending_verification' || s.subscription_status === 'trial_expired' || s.status === 'SUSPENDED';
+  const isTrial = s.subscription_status === 'trial';
+
+  let statusLine;
+  if (s.status === 'SUSPENDED') statusLine = `<span class="pill pill-red">Suspended</span> — pay to restore access`;
+  else if (isTrial) statusLine = `<span class="pill pill-amber">Free trial</span> — ends ${fmtDate(s.trial_ends_at)}`;
+  else if (needsPayment) statusLine = `<span class="pill pill-amber">Payment needed</span>`;
+  else if (s.subscription_paid_until) statusLine = `<span class="pill pill-green">Active</span> — renews ${fmtDate(s.subscription_paid_until)}`;
+  else statusLine = `<span class="pill">No active subscription</span>`;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Subscription</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <div>
+          <div style="font-size:15px;font-weight:700;text-transform:capitalize">${s.subscription_plan || '—'} ${s.subscription_cycle ? `· ${s.subscription_cycle}` : ''}</div>
+          <div style="font-size:13px;margin-top:4px">${statusLine}</div>
+        </div>
+        ${needsPayment || isTrial ? `<button class="btn btn-primary" id="portal-paynow-btn" onclick="payNowFromPortal()">Pay now →</button>` : ''}
+      </div>
+      ${s.repricing_pending_since ? `<div class="card-sub" style="margin-top:10px;color:var(--amber)">Your plan changed and needs a fresh payment — grace period active since ${fmtDate(s.repricing_pending_since)}.</div>` : ''}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Payment History</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>${payments.map(p => `
+          <tr>
+            <td>${fmtDate(p.paid_at)}</td>
+            <td style="text-transform:capitalize">${(p.type || '').replace(/_/g, ' ')}</td>
+            <td>${fmtNaira(p.amount_kobo)}</td>
+            <td>${p.status === 'successful' ? '<span class="pill pill-green">Paid</span>' : `<span class="pill">${p.status}</span>`}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="4" class="no-data">No payments recorded yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+
+function renderNotifications() {
+  const d = portalData;
+  const el = document.getElementById('view-notifications');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Notifications
+        <button class="btn btn-primary btn-sm" onclick="openNotifyModal()">✎ New message</button>
+      </div>
+      <div class="card-sub">One-way messages to your members — broadcasts or individual notes.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Title</th><th>To</th><th>Sent</th></tr></thead>
+        <tbody>${d.notifications.map(n => `
+          <tr>
+            <td>${n.title}</td>
+            <td>${n.target_type === 'individual' ? (n.target_member?.name || 'One member') : '<span class="pill pill-muted">Everyone</span>'}</td>
+            <td>${fmtDate(n.created_at)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="3" class="no-data">No notifications sent yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openNotifyModal() {
+  document.getElementById('nt-target').value = 'broadcast';
+  document.getElementById('nt-member-field').style.display = 'none';
+  document.getElementById('nt-title').value = '';
+  document.getElementById('nt-body').value = '';
+  document.getElementById('nt-error').style.display = 'none';
+  const sel = document.getElementById('nt-member-id');
+  sel.innerHTML = portalData.members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  openModal('modal-notify');
+}
+
+async function submitNotification() {
+  const errEl = document.getElementById('nt-error');
+  errEl.style.display = 'none';
+  const targetType = document.getElementById('nt-target').value;
+  const targetMemberId = document.getElementById('nt-member-id').value;
+  const title = document.getElementById('nt-title').value.trim();
+  const bodyText = document.getElementById('nt-body').value.trim();
+  if (!title || !bodyText) { errEl.textContent = 'Title and message are both required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('nt-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(`${API}/coop-portal-send-notification`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ title, body: bodyText, target_type: targetType, target_member_id: targetType === 'individual' ? targetMemberId : null }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Send'; return; }
+    notify('Notification sent');
+    closeModal('modal-notify');
+    btn.disabled = false; btn.textContent = 'Send';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Send';
+  }
+}
+
+// ── ACCOUNTING ────────────────────────────────────────────────────────
+let accountingAccounts = null;
+let accountingEntries = null;
+let accountingOpeningDone = false;
+let journalLineCount = 0;
+
+async function renderAccounting() {
+  const el = document.getElementById('view-accounting');
+  const hasAccounting = (portalData.addons || []).some(a => a.addon_key === 'accounting');
+
+  if (!hasAccounting) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Accounting &amp; Finance</div>
+        <div class="card-sub">Full manual bookkeeping — chart of accounts, journal entries, opening balances, multi-currency support. Not on your current plan.</div>
+        <button class="btn btn-primary btn-sm" onclick="switchView('addons')">View add-ons →</button>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="no-data">Loading...</div>`;
+  await Promise.all([fetchChartOfAccounts(), fetchJournalEntries()]);
+  renderAccountingContent();
+  if (accountingOpeningDone) loadFinancialReport();
+}
+
+async function fetchChartOfAccounts() {
+  try {
+    const res = await fetch(`${API}/coop-portal-chart-of-accounts`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    accountingAccounts = data.accounts || [];
+  } catch (e) { accountingAccounts = []; }
+}
+
+async function fetchJournalEntries() {
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-entry`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    accountingEntries = data.entries || [];
+    accountingOpeningDone = accountingEntries.some(e => e.entry_type === 'opening_balance');
+  } catch (e) { accountingEntries = []; }
+}
+
+function renderAccountingContent() {
+  const el = document.getElementById('view-accounting');
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  el.innerHTML = `
+    ${!accountingOpeningDone ? `
+    <div class="card" style="border-color:var(--amber)">
+      <div class="card-title">Set your opening balances</div>
+      <div class="card-sub">Before recording new activity, tell us what each account currently holds. One-time setup.</div>
+      <button class="btn btn-primary btn-sm" onclick="openOpeningBalanceModal()">Start wizard →</button>
+    </div>` : ''}
+    <div class="card">
+      <div class="card-title">Reports
+        <select id="report-type-select" onchange="loadFinancialReport()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">
+          <option value="trial_balance">Trial Balance</option>
+          <option value="income_expenditure">Income &amp; Expenditure</option>
+          <option value="balance_sheet">Balance Sheet</option>
+        </select>
+      </div>
+      <div class="card-sub">Computed live from your journal entries — always current.</div>
+      <div id="report-content">${accountingOpeningDone ? '<div class="no-data">Select a report above.</div>' : '<div class="no-data">Set opening balances first.</div>'}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Chart of accounts
+        <button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button>
+      </div>
+      <div class="card-sub">Base currency: ${baseCurrency}. Accounts in another currency show their own totals converted at the rate you enter per transaction.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Currency</th></tr></thead>
+        <tbody>${accountingAccounts.map(a => `
+          <tr><td>${a.account_code}</td><td>${a.account_name}${a.is_system ? ' <span class="pill pill-muted">system</span>' : ''}</td><td>${a.account_type}</td><td>${a.currency}</td></tr>
+        `).join('') || '<tr><td colspan="4" class="no-data">No accounts yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Journal entries
+        <button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>＋ New entry</button>
+      </div>
+      <div class="card-sub">All entries post immediately — there's no draft stage in this version.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Lines</th></tr></thead>
+        <tbody>${accountingEntries.map(e => `
+          <tr>
+            <td>${e.entry_number}</td><td>${e.entry_date}</td><td>${e.description}${e.entry_type === 'opening_balance' ? ' <span class="pill pill-amber">opening</span>' : ''}</td>
+            <td>${(e.coop_journal_entry_lines || []).map(l => `${l.coop_chart_of_accounts?.account_name || '—'}: ${l.line_type === 'debit' ? 'Dr' : 'Cr'} ${fmtNaira(l.base_amount)}`).join('; ')}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="4" class="no-data">No journal entries yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function openNewAccountModal() {
+  document.getElementById('na-code').value = '';
+  document.getElementById('na-name').value = '';
+  document.getElementById('na-type').value = 'ASSET';
+  document.getElementById('na-currency').value = portalData.society.base_currency || 'NGN';
+  document.getElementById('na-error').style.display = 'none';
+  openModal('modal-new-account');
+}
+
+async function submitNewAccount() {
+  const errEl = document.getElementById('na-error');
+  errEl.style.display = 'none';
+  const code = document.getElementById('na-code').value.trim();
+  const name = document.getElementById('na-name').value.trim();
+  const type = document.getElementById('na-type').value;
+  const currency = document.getElementById('na-currency').value.trim().toUpperCase();
+  if (!code || !name) { errEl.textContent = 'Code and name are both required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('na-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-chart-of-accounts`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ account_code: code, account_name: name, account_type: type, currency }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create account.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create account'; return; }
+    notify('Account created');
+    closeModal('modal-new-account');
+    btn.disabled = false; btn.textContent = 'Create account';
+    await fetchChartOfAccounts();
+    renderAccountingContent();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+}
+
+function accountOptionsHtml() {
+  return accountingAccounts.map(a => `<option value="${a.id}" data-currency="${a.currency}">${a.account_code} — ${a.account_name} (${a.currency})</option>`).join('');
+}
+
+function openNewJournalEntryModal() {
+  document.getElementById('je-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('je-description').value = '';
+  document.getElementById('je-lines').innerHTML = '';
+  document.getElementById('je-error').style.display = 'none';
+  journalLineCount = 0;
+  addJournalLine(); addJournalLine();
+  openModal('modal-new-journal-entry');
+}
+
+function addJournalLine() {
+  const id = journalLineCount++;
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const row = document.createElement('div');
+  row.id = `je-line-${id}`;
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 90px 1fr 80px 24px;gap:6px;margin-bottom:8px;align-items:center';
+  row.innerHTML = `
+    <select class="je-line-account" onchange="onJournalAccountChange(${id})" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">${accountOptionsHtml()}</select>
+    <select class="je-line-type" onchange="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+      <option value="debit">Debit</option><option value="credit">Credit</option>
+    </select>
+    <input class="je-line-amount" type="number" placeholder="Amount" oninput="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+    <input class="je-line-rate" type="number" placeholder="Rate" step="0.0001" oninput="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px;display:none">
+    <button onclick="document.getElementById('je-line-${id}').remove();updateJournalBalance()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">×</button>
+  `;
+  document.getElementById('je-lines').appendChild(row);
+  onJournalAccountChange(id);
+}
+
+function onJournalAccountChange(id) {
+  const row = document.getElementById(`je-line-${id}`);
+  if (!row) return;
+  const select = row.querySelector('.je-line-account');
+  const currency = select.selectedOptions[0]?.dataset.currency;
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const rateInput = row.querySelector('.je-line-rate');
+  rateInput.style.display = currency === baseCurrency ? 'none' : '';
+  if (currency === baseCurrency) rateInput.value = '';
+  updateJournalBalance();
+}
+
+function updateJournalBalance() {
+  let totalDebit = 0, totalCredit = 0;
+  document.querySelectorAll('#je-lines > div').forEach(row => {
+    const amount = parseFloat(row.querySelector('.je-line-amount')?.value) || 0;
+    const rateField = row.querySelector('.je-line-rate');
+    const rate = rateField.style.display === 'none' ? 1 : (parseFloat(rateField.value) || 0);
+    const type = row.querySelector('.je-line-type')?.value;
+    const baseAmount = amount * rate;
+    if (type === 'debit') totalDebit += baseAmount; else totalCredit += baseAmount;
+  });
+  const display = document.getElementById('je-balance-display');
+  const balanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
+  display.style.color = balanced ? 'var(--green-lt)' : 'var(--amber)';
+  display.textContent = `Debit: ${fmtNaira(totalDebit*100)} · Credit: ${fmtNaira(totalCredit*100)} ${balanced ? '✓ balanced' : '— not balanced yet'}`;
+}
+
+async function submitJournalEntry() {
+  const errEl = document.getElementById('je-error');
+  errEl.style.display = 'none';
+  const entryDate = document.getElementById('je-date').value;
+  const description = document.getElementById('je-description').value.trim();
+  if (!entryDate || !description) { errEl.textContent = 'Date and description are required.'; errEl.style.display = 'block'; return; }
+
+  const lines = [];
+  let valid = true;
+  document.querySelectorAll('#je-lines > div').forEach(row => {
+    const accountId = row.querySelector('.je-line-account')?.value;
+    const lineType = row.querySelector('.je-line-type')?.value;
+    const amountNaira = parseFloat(row.querySelector('.je-line-amount')?.value);
+    const rateField = row.querySelector('.je-line-rate');
+    const rate = rateField.style.display === 'none' ? 1 : parseFloat(rateField.value);
+    if (!accountId || !amountNaira || amountNaira <= 0) { valid = false; return; }
+    if (rateField.style.display !== 'none' && (!rate || rate <= 0)) { valid = false; return; }
+    lines.push({ account_id: accountId, line_type: lineType, amount: Math.round(amountNaira * 100), exchange_rate: rate });
+  });
+  if (!valid || lines.length < 2) { errEl.textContent = 'Every line needs an account and a valid amount (and exchange rate, for non-base-currency accounts).'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('je-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-entry`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ entry_date: entryDate, description, lines }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save entry.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save entry'; return; }
+    notify(`Entry #${data.entry_number} saved`);
+    closeModal('modal-new-journal-entry');
+    btn.disabled = false; btn.textContent = 'Save entry';
+    await fetchJournalEntries();
+    renderAccountingContent();
+    if (accountingOpeningDone) loadFinancialReport();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save entry';
+  }
+}
+
+function openOpeningBalanceModal() {
+  document.getElementById('ob-date').value = new Date().toISOString().slice(0, 10);
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const nonSystem = accountingAccounts.filter(a => !a.is_system);
+  document.getElementById('ob-accounts-list').innerHTML = nonSystem.map(a => `
+    <div style="display:grid;grid-template-columns:2fr 1fr ${a.currency !== baseCurrency ? '80px' : ''};gap:6px;margin-bottom:8px;align-items:center">
+      <div style="font-size:12.5px">${a.account_code} — ${a.account_name} <span style="color:var(--muted)">(${a.currency})</span></div>
+      <input type="number" placeholder="Amount" data-account-id="${a.id}" class="ob-amount" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+      ${a.currency !== baseCurrency ? `<input type="number" placeholder="Rate" step="0.0001" data-account-id="${a.id}" class="ob-rate" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">` : ''}
+    </div>
+  `).join('');
+  document.getElementById('ob-error').style.display = 'none';
+  openModal('modal-opening-balance');
+}
+
+async function submitOpeningBalances() {
+  const errEl = document.getElementById('ob-error');
+  errEl.style.display = 'none';
+  const openingDate = document.getElementById('ob-date').value;
+  if (!openingDate) { errEl.textContent = 'Opening date is required.'; errEl.style.display = 'block'; return; }
+
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  const balances = [];
+  let valid = true;
+  document.querySelectorAll('.ob-amount').forEach(input => {
+    const amountNaira = parseFloat(input.value);
+    if (!amountNaira || amountNaira <= 0) return;
+    const accountId = input.dataset.accountId;
+    const rateInput = document.querySelector(`.ob-rate[data-account-id="${accountId}"]`);
+    const rate = rateInput ? parseFloat(rateInput.value) : 1;
+    if (rateInput && (!rate || rate <= 0)) { valid = false; return; }
+    balances.push({ account_id: accountId, amount: Math.round(amountNaira * 100), exchange_rate: rate || 1 });
+  });
+  if (!valid) { errEl.textContent = 'Enter a valid exchange rate for every non-base-currency balance you entered.'; errEl.style.display = 'block'; return; }
+  if (!balances.length) { errEl.textContent = 'Enter at least one balance.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ob-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-opening-balance-wizard`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ opening_date: openingDate, balances }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save opening balances'; return; }
+    notify('Opening balances set');
+    closeModal('modal-opening-balance');
+    btn.disabled = false; btn.textContent = 'Save opening balances';
+    await fetchJournalEntries();
+    renderAccountingContent();
+    if (accountingOpeningDone) loadFinancialReport();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save opening balances';
+  }
+}
+
+async function loadFinancialReport() {
+  const contentEl = document.getElementById('report-content');
+  if (!accountingOpeningDone) { contentEl.innerHTML = '<div class="no-data">Set opening balances first.</div>'; return; }
+  const reportType = document.getElementById('report-type-select').value;
+  contentEl.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-financial-reports?report=${reportType}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { contentEl.innerHTML = `<div class="no-data">${data.error || 'Failed to load report'}</div>`; return; }
+    if (reportType === 'trial_balance') renderTrialBalance(data);
+    if (reportType === 'income_expenditure') renderIncomeExpenditure(data);
+    if (reportType === 'balance_sheet') renderBalanceSheet(data);
+  } catch (e) {
+    contentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function renderTrialBalance(data) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Code</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+      <tbody>${data.accounts.filter(a => a.total_debit || a.total_credit).map(a => `
+        <tr><td>${a.account_code}</td><td>${a.account_name}</td>
+        <td>${a.total_debit ? fmtNaira(a.total_debit) : ''}</td><td>${a.total_credit ? fmtNaira(a.total_credit) : ''}</td></tr>
+      `).join('') || '<tr><td colspan="4" class="no-data">No activity yet.</td></tr>'}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Total</td><td>${fmtNaira(data.total_debit)}</td><td>${fmtNaira(data.total_credit)}</td></tr></tfoot>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${data.balanced ? 'var(--green-lt)' : '#e74c3c'}">${data.balanced ? '✓ Balanced' : '⚠ Not balanced — contact support'}</div>
+  `;
+}
+
+function renderIncomeExpenditure(data) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Income</td></tr>
+        ${data.income.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Expense</td></tr>
+        ${data.expense.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+      </tbody>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${data.net >= 0 ? 'var(--green-lt)' : '#e74c3c'}">Net ${data.net >= 0 ? 'surplus' : 'deficit'}: ${fmtNaira(Math.abs(data.net))}</div>
+  `;
+}
+
+function renderBalanceSheet(data) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = `
+    <div class="table-wrap"><table>
+      <tbody>
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Assets</td></tr>
+        ${data.assets.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Assets</td><td>${fmtNaira(data.total_assets)}</td></tr>
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Liabilities</td></tr>
+        ${data.liabilities.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Equity</td></tr>
+        ${data.equity.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('')}
+        <tr><td>Net income (this period)</td><td>${fmtNaira(data.net_income)}</td></tr>
+        <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Liabilities + Equity</td><td>${fmtNaira(data.total_liabilities + data.total_equity)}</td></tr>
+      </tbody>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${data.balanced ? 'var(--green-lt)' : '#e74c3c'}">${data.balanced ? '✓ Balanced' : '⚠ Not balanced — contact support'}</div>
+  `;
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────
+(async function boot() {
+  if (portalToken) {
+    document.getElementById('login-screen').style.display = 'none';
+    const loaded = await loadPortalData();
+    if (loaded) {
+      document.getElementById('app-shell').style.display = 'block';
+      switchView('dashboard');
+    } else {
+      document.getElementById('login-screen').style.display = 'flex';
+    }
+  }
+})();
+</script>
+</body>
+</html>

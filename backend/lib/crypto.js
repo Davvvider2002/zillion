@@ -92,8 +92,24 @@ function verifyTransferEnvelope(envelope, devicePublicKey) {
   return verify(envelope.envelope_hash, envelope.env_sig, devicePublicKey);
 }
 
+// ── Wallet device identity ──────────────────────────────────────────────────
+// The canonical formula for a wallet user's devices.device_hash, matching
+// exactly what verify-otp.js computes on a real login. Any function that
+// pre-provisions a wallet identity BEFORE someone's first login (bank
+// activation, cooperative member activation, etc.) must use this exact
+// formula — otherwise the pre-provisioned row and the real login row won't
+// match, and whatever was set up ahead of time (KYC tier, daily limit) gets
+// silently orphaned the moment the person actually opens the app.
+function computeWalletDeviceHash(phoneNormalised, serviceKey) {
+  return createHash('sha256')
+    .update(phoneNormalised + serviceKey)
+    .digest('hex')
+    .slice(0, 16);
+}
+
 module.exports = {
   generateMintKeyPair, generateDeviceKeyPair, sign, verify,
   sha256, computePayloadHash, computeOwnerHash,
   generateNonce, generateCoinId, buildTransferEnvelope, verifyTransferEnvelope,
+  computeWalletDeviceHash,
 };

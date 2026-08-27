@@ -124,6 +124,41 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-activate-member"
+  to   = "/.netlify/functions/coop-activate-member"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-savings-plan"
+  to   = "/.netlify/functions/coop-savings-plan"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-loan-apply"
+  to   = "/.netlify/functions/coop-loan-apply"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-loan-guarantor-respond"
+  to   = "/.netlify/functions/coop-loan-guarantor-respond"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-loans-admin"
+  to   = "/.netlify/functions/coop-loans-admin"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-status"
+  to   = "/.netlify/functions/coop-member-status"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-record-savings-payment"
+  to   = "/.netlify/functions/coop-record-savings-payment"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-zillion-identity"
   to   = "/.netlify/functions/admin-zillion-identity"
   status = 200
@@ -304,6 +339,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/flutterwave-bank-list"
+  to   = "/.netlify/functions/flutterwave-bank-list"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/wallet-set-mfb"
   to   = "/.netlify/functions/wallet-set-mfb"
   status = 200
@@ -472,4 +512,239 @@
 [[redirects]]
   from   = "/api/v1/fetch-claim-offline-pin"
   to     = "/.netlify/functions/fetch-claim-offline-pin"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-flutterwave-webhook"
+  to   = "/.netlify/functions/coop-flutterwave-webhook"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-provision-flutterwave-account"
+  to   = "/.netlify/functions/coop-provision-flutterwave-account"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-simulate-flutterwave-payment"
+  to   = "/.netlify/functions/coop-simulate-flutterwave-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-record-dues-payment"
+  to   = "/.netlify/functions/coop-record-dues-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-configure-dues"
+  to   = "/.netlify/functions/coop-configure-dues"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-send-notification"
+  to   = "/.netlify/functions/coop-send-notification"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-notifications"
+  to   = "/.netlify/functions/coop-notifications"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-provision-flutterwave-dues-account"
+  to   = "/.netlify/functions/coop-provision-flutterwave-dues-account"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-flutterwave-checkout-init"
+  to   = "/.netlify/functions/coop-flutterwave-checkout-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-flutterwave-checkout-verify"
+  to   = "/.netlify/functions/coop-flutterwave-checkout-verify"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-create-coop-society"
+  to   = "/.netlify/functions/admin-create-coop-society"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-create-coop-subaccount"
+  to   = "/.netlify/functions/admin-create-coop-subaccount"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-list-flutterwave-subaccounts"
+  to   = "/.netlify/functions/admin-list-flutterwave-subaccounts"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-record-loan-repayment"
+  to   = "/.netlify/functions/coop-record-loan-repayment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-repay-loan-from-savings"
+  to   = "/.netlify/functions/coop-repay-loan-from-savings"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-repay-loan-offline"
+  to   = "/.netlify/functions/coop-repay-loan-offline"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-societies"
+  to   = "/.netlify/functions/admin-coop-societies"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-bulk-import"
+  to   = "/.netlify/functions/admin-coop-bulk-import"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-setup-subscription-plans"
+  to   = "/.netlify/functions/admin-setup-subscription-plans"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-signup"
+  to   = "/.netlify/functions/public-coop-signup"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-subscription-checkout-init"
+  to   = "/.netlify/functions/public-coop-subscription-checkout-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-subscription-checkout-verify"
+  to   = "/.netlify/functions/public-coop-subscription-checkout-verify"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-activate-coop-subscription"
+  to   = "/.netlify/functions/admin-activate-coop-subscription"
+  status = 200
+
+[[redirects]]
+  from = "/coop"
+  to   = "/coop/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-trial-info"
+  to   = "/.netlify/functions/public-coop-trial-info"
+  status = 200
+
+[[redirects]]
+  from = "/coop-admin"
+  to   = "/coop-admin/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-society"
+  to   = "/.netlify/functions/coop-portal-society"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-activate-member"
+  to   = "/.netlify/functions/coop-portal-activate-member"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-record-savings-payment"
+  to   = "/.netlify/functions/coop-portal-record-savings-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-loan-action"
+  to   = "/.netlify/functions/coop-portal-loan-action"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-bulk-import"
+  to   = "/.netlify/functions/coop-portal-bulk-import"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-record-dues-payment"
+  to   = "/.netlify/functions/coop-portal-record-dues-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-send-notification"
+  to   = "/.netlify/functions/coop-portal-send-notification"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-addon-modules"
+  to   = "/.netlify/functions/admin-addon-modules"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-addon-modules"
+  to   = "/.netlify/functions/public-coop-addon-modules"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-create-savings-plan"
+  to   = "/.netlify/functions/coop-portal-create-savings-plan"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-configure-dues"
+  to   = "/.netlify/functions/coop-portal-configure-dues"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-change-coop-plan"
+  to   = "/.netlify/functions/admin-change-coop-plan"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-add-addon"
+  to   = "/.netlify/functions/coop-portal-add-addon"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-chart-of-accounts"
+  to   = "/.netlify/functions/coop-portal-chart-of-accounts"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-journal-entry"
+  to   = "/.netlify/functions/coop-portal-journal-entry"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-opening-balance-wizard"
+  to   = "/.netlify/functions/coop-portal-opening-balance-wizard"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-financial-reports"
+  to   = "/.netlify/functions/coop-portal-financial-reports"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-loan-history-report"
+  to   = "/.netlify/functions/coop-portal-loan-history-report"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-ecosystem-finance"
+  to   = "/.netlify/functions/admin-coop-ecosystem-finance"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-flutterwave-settlements"
+  to   = "/.netlify/functions/admin-flutterwave-settlements"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-activity"
+  to   = "/.netlify/functions/coop-member-activity"
   status = 200

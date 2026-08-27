@@ -8,6 +8,7 @@
 
 const { createHmac, randomInt } = require('crypto');
 const { createClient }          = require('@supabase/supabase-js');
+const { sendEmail }             = require('../../lib/resendEmail');
 
 // ── Helpers ───────────────────────────────────────────────────
 function generateOtp() { return String(randomInt(100000, 999999)); }
@@ -45,7 +46,7 @@ async function sendTermii(phone, otp) {
       const res  = await fetch(url, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ api_key:apiKey, to, from:process.env.TERMII_SENDER_ID||'N-Alert',
-          sms:`Your Zillion code: ${otp}\nDo not share. Valid 10 mins.`, type:'plain', channel:'generic' }),
+          sms:`Your Zillion code: ${otp}\nDo not share. Valid 10 mins.`, type:'plain', channel:'dnd' }),
       });
       const data = await res.json();
       if (data.code==='ok'||data.message_id||data.pinId)
@@ -96,6 +97,16 @@ async function sendTwilio(phone, otp) {
   throw new Error(`Twilio: ${data.message||data.status}`);
 }
 
+async function sendOtpEmail(email, otp) {
+  const result = await sendEmail({
+    to: email,
+    subject: 'Your Zillion verification code',
+    htmlContent: `<p>Your Zillion verification code is:</p><h2 style="letter-spacing:4px">${otp}</h2><p>Do not share this code. Valid for 10 minutes.</p>`,
+  });
+  if (!result.sent) throw new Error(result.reason === 'not_configured' ? 'Email OTP is not configured (BREVO_API_KEY/BREVO_SENDER_EMAIL missing)' : `Email send failed: ${result.reason}`);
+  return { provider: 'email', message_id: result.messageId };
+}
+
 // ── Handler ───────────────────────────────────────────────────
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -120,6 +131,16 @@ exports.handler = async (event) => {
   if (!/^\+\d{10,15}$/.test(phone))
     return err(400,`Invalid phone number: "${phone}"`,
       { detail:'Expected: 08012345678 or +2348012345678' });
+
+  // ── Delivery channel — phone stays the account identifier either
+  // way (the OTP is still generated/stored/verified keyed by phone
+  // below); this only changes where the code is actually delivered.
+  const channel = (body.channel || 'sms').trim().toLowerCase();
+  const email = (body.email || '').trim();
+  if (channel === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return err(400, 'Valid email is required when channel is "email"');
+  if (!['sms', 'email'].includes(channel))
+    return err(400, `Unknown channel "${channel}". Use: sms, email`);
 
   // ── Rate limit via Supabase (survives cold-start) ──────────
   let db;
@@ -161,9 +182,17 @@ exports.handler = async (event) => {
 
   console.log(`[OTP] Generated for ${phone}, expires ${expiresAt}`);
 
-  // ── Demo bypass ── set DEMO_OTP in Netlify env vars to skip SMS ──────────
-  if ((process.env.DEMO_OTP || '').trim()) {
-    console.log(`[send-otp] DEMO mode — skipping SMS for ${phone}`);
+  // ── Demo bypass — set DEMO_OTP + DEMO_OTP_PHONES in Netlify env vars ────
+  // Restricted to a specific allowlist of test phone numbers, not "any
+  // phone" — a blanket bypass would mean every real pilot member's
+  // account is one API call away from takeover by anyone who knows (or
+  // even just guesses) their phone number, since this same response
+  // hands the bypass code straight back. This is scoped so David's own
+  // team can keep testing without SMS while it's genuinely safe to
+  // onboard real members whose numbers aren't on the list.
+  const demoOtpPhones = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
+  if ((process.env.DEMO_OTP || '').trim() && demoOtpPhones.includes(phone)) {
+    console.log(`[send-otp] DEMO mode — skipping SMS for allowlisted ${phone}`);
     return ok({
       success:  true,
       demo:     true,
@@ -172,6 +201,19 @@ exports.handler = async (event) => {
     });
   }
   // ── End demo bypass ──────────────────────────────────────────────────────
+
+  if (channel === 'email') {
+    try {
+      const result = await sendOtpEmail(email, otp);
+      console.log(`[OTP] ✅ Sent via email to ${email}`);
+      return ok({ success:true, provider:result.provider, message_id:result.message_id,
+        expires_in:600, message:`Code sent to ${email.slice(0,3)}****@${email.split('@')[1]||''}` });
+    } catch(e) {
+      console.error(`[OTP] ❌ email failed for ${phone}: ${e.message}`);
+      await db.from('otp_requests').delete().eq('phone',phone).eq('hashed_otp',hashedOtp);
+      return err(502,'Email delivery failed',{ detail:e.message });
+    }
+  }
 
   const provider = (process.env.SMS_PROVIDER||'').trim().toLowerCase();
   if (!provider) return err(503,'SMS_PROVIDER not configured',
