@@ -35,7 +35,7 @@ exports.handler = async (event) => {
   if (!requireRole(auth, ['SUPER_ADMIN', 'OPERATIONS']))
     return err(403, 'SUPER_ADMIN or OPERATIONS role required to configure settlement');
 
-  const secretKey = process.env.FLW_V3_SECRET_KEY;
+  const secretKey = (process.env.FLW_V3_SECRET_KEY || '').trim();
   if (!secretKey) return err(500, 'FLW_V3_SECRET_KEY not configured');
 
   let body;
