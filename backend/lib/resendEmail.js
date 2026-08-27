@@ -24,8 +24,8 @@
 'use strict';
 
 async function sendEmail({ to, toName, subject, htmlContent }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const senderEmail = process.env.RESEND_SENDER_EMAIL;
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  const senderEmail = (process.env.RESEND_SENDER_EMAIL || '').trim();
   if (!apiKey || !senderEmail) {
     console.warn('[resendEmail] RESEND_API_KEY or RESEND_SENDER_EMAIL not configured — skipping email send');
     return { sent: false, reason: 'not_configured' };
