@@ -131,6 +131,7 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-view="addons" onclick="switchView('addons')">Add-ons</div>
     <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
     <div class="tab" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
+    <div class="tab" data-view="billing" onclick="switchView('billing')">Billing</div>
   </div>
 
   <div class="view active" id="view-dashboard"></div>
@@ -141,6 +142,7 @@ tr:last-child td{border-bottom:none}
   <div class="view" id="view-addons"></div>
   <div class="view" id="view-notifications"></div>
   <div class="view" id="view-accounting"></div>
+  <div class="view" id="view-billing"></div>
 </div>
 
 <!-- ACTIVATE MEMBER MODAL -->
@@ -461,6 +463,7 @@ function switchView(name) {
   if (name === 'addons') renderAddons();
   if (name === 'notifications') renderNotifications();
   if (name === 'accounting') renderAccounting();
+  if (name === 'billing') renderBilling();
 }
 
 async function refreshAndRender() {
@@ -1046,7 +1049,53 @@ async function payNowFromPortal() {
   } catch (e) { notify('Network error: ' + e.message, true); btn.disabled = false; btn.textContent = 'Pay now →'; }
 }
 
-// ── NOTIFICATIONS ────────────────────────────────────────────────────
+// ── BILLING ───────────────────────────────────────────────────────────
+function renderBilling() {
+  const s = portalData.society;
+  const payments = portalData.subscription_payments || [];
+  const el = document.getElementById('view-billing');
+
+  const needsPayment = s.subscription_status === 'pending_verification' || s.subscription_status === 'trial_expired' || s.status === 'SUSPENDED';
+  const isTrial = s.subscription_status === 'trial';
+
+  let statusLine;
+  if (s.status === 'SUSPENDED') statusLine = `<span class="pill pill-red">Suspended</span> — pay to restore access`;
+  else if (isTrial) statusLine = `<span class="pill pill-amber">Free trial</span> — ends ${fmtDate(s.trial_ends_at)}`;
+  else if (needsPayment) statusLine = `<span class="pill pill-amber">Payment needed</span>`;
+  else if (s.subscription_paid_until) statusLine = `<span class="pill pill-green">Active</span> — renews ${fmtDate(s.subscription_paid_until)}`;
+  else statusLine = `<span class="pill">No active subscription</span>`;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Subscription</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <div>
+          <div style="font-size:15px;font-weight:700;text-transform:capitalize">${s.subscription_plan || '—'} ${s.subscription_cycle ? `· ${s.subscription_cycle}` : ''}</div>
+          <div style="font-size:13px;margin-top:4px">${statusLine}</div>
+        </div>
+        ${needsPayment || isTrial ? `<button class="btn btn-primary" id="portal-paynow-btn" onclick="payNowFromPortal()">Pay now →</button>` : ''}
+      </div>
+      ${s.repricing_pending_since ? `<div class="card-sub" style="margin-top:10px;color:var(--amber)">Your plan changed and needs a fresh payment — grace period active since ${fmtDate(s.repricing_pending_since)}.</div>` : ''}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Payment History</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>${payments.map(p => `
+          <tr>
+            <td>${fmtDate(p.paid_at)}</td>
+            <td style="text-transform:capitalize">${(p.type || '').replace(/_/g, ' ')}</td>
+            <td>${fmtNaira(p.amount_kobo)}</td>
+            <td>${p.status === 'successful' ? '<span class="pill pill-green">Paid</span>' : `<span class="pill">${p.status}</span>`}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="4" class="no-data">No payments recorded yet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+
 function renderNotifications() {
   const d = portalData;
   const el = document.getElementById('view-notifications');
