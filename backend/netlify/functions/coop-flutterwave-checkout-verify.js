@@ -37,7 +37,7 @@ exports.handler = async (event) => {
   const zillionId = auth.payload.zillion_id;
   if (!zillionId) return err(400, 'This wallet has no linked Zillion identity yet');
 
-  const secretKey = process.env.FLW_V3_SECRET_KEY;
+  const secretKey = (process.env.FLW_V3_SECRET_KEY || '').trim();
   if (!secretKey) return err(500, 'FLW_V3_SECRET_KEY not configured');
 
   let body;
