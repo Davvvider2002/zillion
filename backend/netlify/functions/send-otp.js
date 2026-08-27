@@ -161,9 +161,17 @@ exports.handler = async (event) => {
 
   console.log(`[OTP] Generated for ${phone}, expires ${expiresAt}`);
 
-  // ── Demo bypass ── set DEMO_OTP in Netlify env vars to skip SMS ──────────
-  if ((process.env.DEMO_OTP || '').trim()) {
-    console.log(`[send-otp] DEMO mode — skipping SMS for ${phone}`);
+  // ── Demo bypass — set DEMO_OTP + DEMO_OTP_PHONES in Netlify env vars ────
+  // Restricted to a specific allowlist of test phone numbers, not "any
+  // phone" — a blanket bypass would mean every real pilot member's
+  // account is one API call away from takeover by anyone who knows (or
+  // even just guesses) their phone number, since this same response
+  // hands the bypass code straight back. This is scoped so David's own
+  // team can keep testing without SMS while it's genuinely safe to
+  // onboard real members whose numbers aren't on the list.
+  const demoOtpPhones = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
+  if ((process.env.DEMO_OTP || '').trim() && demoOtpPhones.includes(phone)) {
+    console.log(`[send-otp] DEMO mode — skipping SMS for allowlisted ${phone}`);
     return ok({
       success:  true,
       demo:     true,
