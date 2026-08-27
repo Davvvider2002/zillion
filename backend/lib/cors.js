@@ -16,6 +16,7 @@ const ALLOWED_ORIGINS = [
   'https://zillion.ng',
   'https://www.zillion.ng',
   'https://app.zillion.ng',
+  'https://zillionstaging.netlify.app', // staging - was missing entirely, silently blocking every cross-origin call from staging to any of the 13 functions sharing this helper
   'https://zillion-mvp.netlify.app', // legacy — remove once domain migration is fully complete
 ];
 
