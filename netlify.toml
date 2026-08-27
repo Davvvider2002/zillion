@@ -575,6 +575,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-list-flutterwave-subaccounts"
+  to   = "/.netlify/functions/admin-list-flutterwave-subaccounts"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-record-loan-repayment"
   to   = "/.netlify/functions/coop-record-loan-repayment"
   status = 200
