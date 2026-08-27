@@ -23,7 +23,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { logAlert } = require('../../lib/alerts');
 const { recordDuesAccrual } = require('../../lib/coopDuesAccounting');
-const { sendEmail } = require('../../lib/brevoEmail');
+const { sendEmail } = require('../../lib/resendEmail');
 
 exports.handler = async () => {
   const db = getServiceClient();
