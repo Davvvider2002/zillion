@@ -29,6 +29,7 @@ const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 const { computeSubscriptionTotal } = require('../../lib/coopPricing');
+const { recordTermsAcceptance, getClientIp } = require('../../lib/coopTermsAcceptance');
 
 function mustEnv(name) {
   const v = process.env[name];
@@ -66,6 +67,7 @@ exports.handler = async (event) => {
   const plan                       = VALID_PLANS.includes(body.plan) ? body.plan : null;
   const cycle                         = VALID_CYCLES.includes(body.cycle) ? body.cycle : null;
   const addonKeys                        = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
+  const termsAccepted = body.terms_accepted === true;
 
   if (!name)      return err(400, 'society_name is required');
   if (!rawPhone)   return err(400, 'phone is required');
@@ -73,6 +75,7 @@ exports.handler = async (event) => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err(400, 'A valid email is required — recurring billing is tied to this address');
   if (!password || password.length < 6) return err(400, 'password must be at least 6 characters');
   if (!plan)  return err(400, 'plan must be one of: launch, growth, scale');
+  if (!termsAccepted) return err(400, 'You must agree to the Terms & Conditions and Privacy Policy to register a society');
   if (!cycle)  return err(400, 'cycle must be one of: monthly, yearly');
 
   const phone = normalisePhone(rawPhone);
@@ -128,6 +131,13 @@ exports.handler = async (event) => {
     await db.from('merchants').delete().eq('merchant_id', merchantId);
     return err(500, `Failed to register society: ${societyErr.message}`);
   }
+
+  await recordTermsAcceptance(db, {
+    acceptedByType: 'society_admin',
+    acceptedById: merchantId,
+    coopId: society.coop_id,
+    ipAddress: getClientIp(event),
+  });
 
   if (pricing.addons.length) {
     const { error: addonErr } = await db.from('coop_society_addons').insert(
