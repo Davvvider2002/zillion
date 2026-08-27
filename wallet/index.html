@@ -2276,24 +2276,40 @@ async function verifyOtp() {
     STATE._verifiedToken = data.token || '';   // save JWT for sync
     clearInterval(otpTimer);
 
-    // Real gap David found testing fresh on Android: IS_COOP relies on
-    // a URL param or localStorage, which a brand-new browser/device
-    // simply doesn't have — even for someone who's a genuine, already-
-    // activated coop member. Now that a JWT exists, ask the server
-    // directly rather than trust only the client-side signal. Runs
-    // before screen-pin, so if this corrects IS_COOP, the role picker
-    // and home screen never get a chance to render with the wrong
-    // flavor in the first place — no flash, no stale UI.
-    if (!IS_COOP && STATE._verifiedToken) {
+    // Membership check — runs whenever a JWT exists, regardless of
+    // IS_COOP's starting value. Two directions:
+    //  1. Self-heal: a known coop member landed here without ?app=coop
+    //     (a fresh device/browser never carrying that param) — correct
+    //     the flavor rather than showing them the wrong app.
+    //  2. Block: the app IS coop-flavored, but this phone isn't a real,
+    //     activated member of any society — signup must not complete.
+    //     Real gap found: this branch never existed before, so any
+    //     phone number could complete a full coop-branded signup with
+    //     zero membership at all. Fails closed on a network error too
+    //     (asks to retry) rather than silently letting an unverified
+    //     phone through, since fail-open would defeat the point.
+    if (STATE._verifiedToken) {
       try {
         const coopCheck = await fetch(`${API}/coop-member-status`, { headers: { Authorization: 'Bearer ' + STATE._verifiedToken } });
         const coopData = await coopCheck.json();
-        if (coopData.is_coop_member) {
+        if (!IS_COOP && coopData.is_coop_member) {
           IS_COOP = true;
           try { localStorage.setItem('zillion_is_coop_flavor', '1'); } catch {}
           applyCoopFlavorUI();
+        } else if (IS_COOP && !coopData.is_coop_member) {
+          hideLoader();
+          errEl.textContent = "⚠️ This phone number isn't registered with any cooperative society yet. Ask your society admin to add you as a member first.";
+          errEl.style.display = 'block';
+          return;
         }
-      } catch (e) { /* non-fatal — worst case, falls back to the existing URL/localStorage behavior */ }
+      } catch (e) {
+        if (IS_COOP) {
+          hideLoader();
+          errEl.textContent = '⚠️ Could not verify your membership — check your connection and try again.';
+          errEl.style.display = 'block';
+          return;
+        }
+      }
     }
 
     goTo('screen-pin');
