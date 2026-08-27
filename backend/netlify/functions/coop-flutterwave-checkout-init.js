@@ -82,7 +82,7 @@ exports.handler = async (event) => {
   const { data: society } = await db.from('coop_societies')
     .select('flutterwave_subaccount_id').eq('coop_id', member.coop_id).single();
 
-  const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, totalKobo } = calculateFees(amountKobo);
+  const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, stampDutyKobo, totalKobo } = calculateFees(amountKobo);
 
   const txRef = `ZILCHK-${type.toUpperCase()}-${member.id.slice(0, 8)}-${Date.now()}`;
   const separator = returnUrl.includes('?') ? '&' : '?';
@@ -145,6 +145,6 @@ exports.handler = async (event) => {
     success: true,
     checkout_url: flwResponse.data.link,
     tx_ref: txRef,
-    fee_breakdown: { base_kobo: baseKobo, flutterwave_fee_kobo: flutterwaveFeeKobo, zillion_fee_kobo: zillionFeeKobo, total_kobo: totalKobo },
+    fee_breakdown: { base_kobo: baseKobo, flutterwave_fee_kobo: flutterwaveFeeKobo, zillion_fee_kobo: zillionFeeKobo, stamp_duty_kobo: stampDutyKobo, total_kobo: totalKobo },
   });
 };
