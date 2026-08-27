@@ -3,15 +3,23 @@
  * Diagnostic endpoint — tests SMS configuration without sending.
  * Returns exactly what env vars are set and tests API connectivity.
  * Admin auth required.
+ *
+ * Fixed a real gap found during Termii setup: the previous check only
+ * looked for the literal string "Bearer " anywhere in the header, or
+ * a bare ?admin= query param with any value — neither actually
+ * validated a real token, so this was effectively unauthenticated
+ * despite looking gated. It reveals partial API key info and a live
+ * Termii account balance, so it needs real auth.
  */
 'use strict';
 
+const { verifyJWT, requireRole } = require('../../lib/validators');
+
 exports.handler = async (event) => {
-  // Basic auth check
-  const auth = event.headers.authorization || '';
-  if (!auth.includes('Bearer ') && !event.queryStringParameters?.admin) {
-    return { statusCode:401, body:JSON.stringify({error:'Auth required'}) };
-  }
+  const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
+  if (!auth.valid) return { statusCode: 401, body: JSON.stringify({ error: 'Authentication required' }) };
+  if (!requireRole(auth, ['SUPER_ADMIN', 'OPERATIONS']))
+    return { statusCode: 403, body: JSON.stringify({ error: 'SUPER_ADMIN or OPERATIONS role required' }) };
 
   const provider    = process.env.SMS_PROVIDER || '';
   const termiiKey   = process.env.TERMII_API_KEY || '';
