@@ -92,10 +92,12 @@ exports.handler = async (event) => {
     }
   }
 
-  // ── Demo bypass — set DEMO_OTP env var in Netlify to enable ──────────────
-  // Remove this block before going live. Any phone + DEMO_OTP code = instant login.
+  // ── Demo bypass — set DEMO_OTP + DEMO_OTP_PHONES env vars in Netlify ─────
+  // Restricted to the same allowlist send-otp.js uses — the code itself
+  // is only useful against a phone it's actually valid for.
   const DEMO_OTP = (process.env.DEMO_OTP || '').trim();
-  if (DEMO_OTP && otpStr === DEMO_OTP) {
+  const demoOtpPhonesVerify = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
+  if (DEMO_OTP && otpStr === DEMO_OTP && demoOtpPhonesVerify.includes(phone)) {
     const deviceId = createHash('sha256')
       .update(phone + (mustEnv('SUPABASE_SERVICE_KEY')))
       .digest('hex').slice(0, 16);
