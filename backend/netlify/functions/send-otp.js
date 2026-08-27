@@ -8,6 +8,7 @@
 
 const { createHmac, randomInt } = require('crypto');
 const { createClient }          = require('@supabase/supabase-js');
+const { sendEmail }             = require('../../lib/brevoEmail');
 
 // ── Helpers ───────────────────────────────────────────────────
 function generateOtp() { return String(randomInt(100000, 999999)); }
@@ -96,6 +97,16 @@ async function sendTwilio(phone, otp) {
   throw new Error(`Twilio: ${data.message||data.status}`);
 }
 
+async function sendOtpEmail(email, otp) {
+  const result = await sendEmail({
+    to: email,
+    subject: 'Your Zillion verification code',
+    htmlContent: `<p>Your Zillion verification code is:</p><h2 style="letter-spacing:4px">${otp}</h2><p>Do not share this code. Valid for 10 minutes.</p>`,
+  });
+  if (!result.sent) throw new Error(result.reason === 'not_configured' ? 'Email OTP is not configured (BREVO_API_KEY/BREVO_SENDER_EMAIL missing)' : `Email send failed: ${result.reason}`);
+  return { provider: 'email', message_id: result.messageId };
+}
+
 // ── Handler ───────────────────────────────────────────────────
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -120,6 +131,16 @@ exports.handler = async (event) => {
   if (!/^\+\d{10,15}$/.test(phone))
     return err(400,`Invalid phone number: "${phone}"`,
       { detail:'Expected: 08012345678 or +2348012345678' });
+
+  // ── Delivery channel — phone stays the account identifier either
+  // way (the OTP is still generated/stored/verified keyed by phone
+  // below); this only changes where the code is actually delivered.
+  const channel = (body.channel || 'sms').trim().toLowerCase();
+  const email = (body.email || '').trim();
+  if (channel === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return err(400, 'Valid email is required when channel is "email"');
+  if (!['sms', 'email'].includes(channel))
+    return err(400, `Unknown channel "${channel}". Use: sms, email`);
 
   // ── Rate limit via Supabase (survives cold-start) ──────────
   let db;
@@ -180,6 +201,19 @@ exports.handler = async (event) => {
     });
   }
   // ── End demo bypass ──────────────────────────────────────────────────────
+
+  if (channel === 'email') {
+    try {
+      const result = await sendOtpEmail(email, otp);
+      console.log(`[OTP] ✅ Sent via email to ${email}`);
+      return ok({ success:true, provider:result.provider, message_id:result.message_id,
+        expires_in:600, message:`Code sent to ${email.slice(0,3)}****@${email.split('@')[1]||''}` });
+    } catch(e) {
+      console.error(`[OTP] ❌ email failed for ${phone}: ${e.message}`);
+      await db.from('otp_requests').delete().eq('phone',phone).eq('hashed_otp',hashedOtp);
+      return err(502,'Email delivery failed',{ detail:e.message });
+    }
+  }
 
   const provider = (process.env.SMS_PROVIDER||'').trim().toLowerCase();
   if (!provider) return err(503,'SMS_PROVIDER not configured',
