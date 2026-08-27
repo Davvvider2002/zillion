@@ -2253,15 +2253,6 @@ async function verifyOtp() {
     hideLoader();
 
     if (!res.ok || !data.verified) {
-      // Dev bypass: if server lost OTP (cold start), still allow if code looks valid
-      if (data.error && data.error.includes('expired or not found') && code.length === 6) {
-        // Accept in dev mode - OTP store was cleared by serverless cold start
-        console.warn('[Dev] OTP store cleared by cold start - accepting locally');
-        STATE._verifiedPhone = STATE._pendingPhone;
-        clearInterval(otpTimer);
-        goTo('screen-pin');
-        return;
-      }
       errEl.textContent = '⚠️ ' + (data.error || 'Incorrect code. Try again.');
       errEl.style.display = 'block';
       [0,1,2,3,4,5].forEach(i => {
