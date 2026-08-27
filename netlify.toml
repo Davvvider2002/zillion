@@ -164,6 +164,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-record-terms-acceptance"
+  to   = "/.netlify/functions/coop-portal-record-terms-acceptance"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-zillion-identity"
   to   = "/.netlify/functions/admin-zillion-identity"
   status = 200
