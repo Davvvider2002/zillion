@@ -68,6 +68,7 @@
 /api/v1/coop-member-status           /.netlify/functions/coop-member-status           200
 /api/v1/coop-record-savings-payment  /.netlify/functions/coop-record-savings-payment  200
 /api/v1/coop-record-terms-acceptance  /.netlify/functions/coop-record-terms-acceptance  200
+/api/v1/coop-portal-record-terms-acceptance  /.netlify/functions/coop-portal-record-terms-acceptance  200
 /api/v1/admin-zillion-identity       /.netlify/functions/admin-zillion-identity       200
 /api/v1/admin-cooperative-members    /.netlify/functions/admin-cooperative-members    200
 /api/v1/admin-cooperative-stats      /.netlify/functions/admin-cooperative-stats      200
