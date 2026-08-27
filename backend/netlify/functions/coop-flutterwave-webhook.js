@@ -99,7 +99,7 @@ exports.handler = async (event) => {
     const { data: existingPayment } = await db.from('coop_subscription_payments').select('id').eq('tx_ref', renewalTxRef).maybeSingle();
     if (existingPayment) return ok({ success: true, idempotent: true });
 
-    const secretKeyV3 = process.env.FLW_V3_SECRET_KEY;
+    const secretKeyV3 = (process.env.FLW_V3_SECRET_KEY || '').trim();
     let verifiedOk = false;
     if (secretKeyV3) {
       try {
