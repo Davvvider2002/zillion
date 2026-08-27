@@ -135,7 +135,15 @@ exports.handler = async (event) => {
     }
 
     const paidUntil = extendSubscription(society.subscription_paid_until, society.subscription_cycle);
-    await db.from('coop_societies').update({ subscription_paid_until: paidUntil.toISOString() }).eq('coop_id', society.coop_id);
+    // Safe to unconditionally restore both fields here — as of this
+    // fix, status='SUSPENDED' is only ever set by the two automatic
+    // grace-period paths in scheduled-reconcile.js, never for a
+    // separate reason like a manual admin suspension (no such feature
+    // exists yet). If one gets built later, this needs revisiting so
+    // a routine renewal payment can't silently override it.
+    await db.from('coop_societies')
+      .update({ subscription_paid_until: paidUntil.toISOString(), subscription_status: 'active', status: 'ACTIVE' })
+      .eq('coop_id', society.coop_id);
 
     console.log(`[coop-flutterwave-webhook] ✅ Subscription renewed for ${society.coop_id}, paid until ${paidUntil.toISOString()}`);
     return ok({ success: true, renewed: true });
