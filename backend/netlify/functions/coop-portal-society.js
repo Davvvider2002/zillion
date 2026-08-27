@@ -90,6 +90,13 @@ exports.handler = async (event) => {
 
   const addons = await listAddons(db, coopId);
 
+  // Payment history was entirely absent from this endpoint before —
+  // society already carries all subscription/plan/renewal fields via
+  // its existing select('*') above, so only history needed adding.
+  const { data: payments } = await db.from('coop_subscription_payments')
+    .select('id, amount_kobo, type, status, tx_ref, paid_at')
+    .eq('coop_id', coopId).order('paid_at', { ascending: false }).limit(50);
+
   const totalSavedKobo = plans.reduce((s, p) => s + p.saved_kobo, 0);
   const activeLoansKobo = loans.filter(l => ['DISBURSED', 'REPAYING'].includes(l.status))
     .reduce((s, l) => s + (l.repayment?.outstanding_kobo ?? l.principal_kobo ?? 0), 0);
@@ -101,6 +108,7 @@ exports.handler = async (event) => {
     loans,
     notifications: notifications || [],
     addons,
+    subscription_payments: payments || [],
     metrics: {
       active_members: members.filter(m => m.status === 'ACTIVE').length,
       total_saved_kobo: totalSavedKobo,
