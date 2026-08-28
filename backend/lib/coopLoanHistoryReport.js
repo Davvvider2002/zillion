@@ -27,7 +27,7 @@ async function computeLoanHistoryReport(db, coopId) {
 
   const { data: loans } = await db.from('coop_loans')
     .select(`
-      id, member_id, principal_kobo, repayment_months, monthly_repayment_kobo, status,
+      id, member_id, principal_kobo, interest_rate_percent, interest_kobo, total_repayable_kobo, repayment_months, monthly_repayment_kobo, status,
       requested_at, approved_at, disbursed_at, rejection_reason,
       guarantor:coop_members!coop_loans_guarantor_member_id_fkey(name, phone_normalized),
       borrower:coop_members!coop_loans_member_id_fkey(id, name, phone_normalized)
@@ -39,7 +39,7 @@ async function computeLoanHistoryReport(db, coopId) {
     let repayment = null;
     let repayments = [];
     if (['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) {
-      repayment = await computeLoanRepaymentStatus(db, l.id, society, l.principal_kobo);
+      repayment = await computeLoanRepaymentStatus(db, l.id, society, l.total_repayable_kobo);
       const { data: repaymentRows } = await db.from('coop_loan_repayments')
         .select('amount_kobo, source, reference, recorded_by, recorded_at').eq('loan_id', l.id).order('recorded_at', { ascending: true });
       repayments = repaymentRows || [];
@@ -48,6 +48,9 @@ async function computeLoanHistoryReport(db, coopId) {
       loan_id: l.id,
       status: l.status,
       principal_kobo: l.principal_kobo,
+      interest_rate_percent: l.interest_rate_percent,
+      interest_kobo: l.interest_kobo,
+      total_repayable_kobo: l.total_repayable_kobo,
       repayment_months: l.repayment_months,
       guarantor_name: l.guarantor?.name || null,
       requested_at: l.requested_at,
@@ -55,7 +58,7 @@ async function computeLoanHistoryReport(db, coopId) {
       disbursed_at: l.disbursed_at,
       rejection_reason: l.rejection_reason,
       total_paid_kobo: repayment?.paid_kobo ?? 0,
-      outstanding_kobo: repayment?.outstanding_kobo ?? (['DISBURSED', 'REPAYING'].includes(l.status) ? l.principal_kobo : 0),
+      outstanding_kobo: repayment?.outstanding_kobo ?? (['DISBURSED', 'REPAYING'].includes(l.status) ? l.total_repayable_kobo : 0),
       is_overdue: repayment?.is_overdue ?? false,
       schedule: repayment?.schedule ?? [],
       repayments,
