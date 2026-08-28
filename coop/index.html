@@ -129,6 +129,14 @@ a{color:inherit;text-decoration:none}
 .addon-card p{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:14px}
 .addon-card .price{font-size:14px;font-weight:700;color:var(--amber)}
 .addons-note{text-align:center;font-size:12.5px;color:var(--muted);margin-top:28px}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-question{width:100%;text-align:left;background:none;border:none;padding:20px 4px;display:flex;justify-content:space-between;align-items:center;gap:16px;cursor:pointer;color:var(--cream);font-family:'Inter',sans-serif;font-size:16px;font-weight:600}
+.faq-question:hover{color:var(--amber)}
+.faq-icon{flex-shrink:0;font-size:20px;color:var(--amber);transition:transform .2s}
+.faq-item.open .faq-icon{transform:rotate(45deg)}
+.faq-answer{max-height:0;overflow:hidden;transition:max-height .25s ease}
+.faq-answer-inner{padding:0 4px 20px;color:var(--muted);font-size:14.5px;line-height:1.65}
+.faq-item.open .faq-answer{max-height:400px}
 </style>
 </head>
 <body>
@@ -138,6 +146,7 @@ a{color:inherit;text-decoration:none}
   <div class="nav-links">
     <a href="#how-it-works">How it works</a>
     <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
     <a href="https://zillion.ng">Zillion for individuals</a>
   </div>
   <div class="nav-cta">
@@ -244,6 +253,14 @@ a{color:inherit;text-decoration:none}
     </div>
     <div class="addons-grid" id="addons-grid-public"><!-- populated by JS --></div>
     <div class="addons-note">Prices shown are monthly — yearly billing gets the same 15% discount as your plan.</div>
+  </div>
+</section>
+
+<section class="faq-section" id="faq" style="padding:90px 24px 100px;border-top:1px solid var(--line)">
+  <div class="wrap" style="max-width:760px">
+    <div class="eyebrow" style="text-align:center;display:block">Questions</div>
+    <h2 style="font-family:'Fraunces',serif;font-size:clamp(26px,4vw,36px);text-align:center;margin:10px 0 46px">Frequently asked questions</h2>
+    <div id="faq-list"></div>
   </div>
 </section>
 
@@ -694,8 +711,60 @@ async function checkForResumeLink() {
   }
 }
 
+const FAQ_ITEMS = [
+  {
+    q: 'How does the 14-day free trial work?',
+    a: 'Register your society and start using every feature immediately — no card required. If you haven\'t added payment by day 14, operations pause until you do, but nothing is ever deleted while paused.',
+  },
+  {
+    q: 'Is Zillion Coop a bank?',
+    a: 'No. Zillion Coop is software your society uses to keep accurate digital records of savings, dues, and loans — your society (not Zillion) still holds and manages the actual funds through your own bank arrangements.',
+  },
+  {
+    q: 'How do members pay their dues and savings?',
+    a: 'Members can pay by card, bank transfer, or USSD through a secure payment page, or your society can record cash and manual bank payments directly in the portal. A small payment processing fee applies to online payments, shown on the payment page before you complete it.',
+  },
+  {
+    q: 'Do members need a smartphone?',
+    a: 'No. Login codes can be sent by SMS to any phone, or by email if that\'s more convenient — whichever works best for your members.',
+  },
+  {
+    q: 'What if a member forgets their PIN?',
+    a: 'They can always log back in with their phone number and a fresh verification code — no need to contact support just to regain access.',
+  },
+  {
+    q: 'Can we change our plan later?',
+    a: 'Yes — upgrade, downgrade, or add extra modules like Accounting or Payroll at any time from the portal. Changes take effect on your next billing cycle.',
+  },
+  {
+    q: 'Is our data secure?',
+    a: 'Yes. Records are access-controlled per society, PINs are never stored, and personal data is handled in line with Nigeria\'s Data Protection Act. See our <a href="/coop/privacy.html">Privacy Policy</a> for the full details.',
+  },
+  {
+    q: 'How do I get help if something goes wrong?',
+    a: 'Reach us anytime at <a href="mailto:support@zillion.ng">support@zillion.ng</a>.',
+  },
+];
+
+function renderFaq() {
+  const el = document.getElementById('faq-list');
+  el.innerHTML = FAQ_ITEMS.map((item, i) => `
+    <div class="faq-item" id="faq-item-${i}">
+      <button class="faq-question" onclick="toggleFaq(${i})">
+        <span>${item.q}</span>
+        <span class="faq-icon">+</span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">${item.a}</div></div>
+    </div>
+  `).join('');
+}
+function toggleFaq(i) {
+  document.getElementById(`faq-item-${i}`).classList.toggle('open');
+}
+
 renderTiers();
 fetchAddonModules();
+renderFaq();
 checkForCheckoutReturn();
 checkForResumeLink();
 </script>
