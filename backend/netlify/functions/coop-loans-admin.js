@@ -94,7 +94,7 @@ exports.handler = async (event) => {
     // without this, there'd be a real disbursed loan with no way to
     // ever track it being paid back.
     if (action === 'disburse') {
-      const schedule = generateRepaymentSchedule(loan.principal_kobo, loan.repayment_months, now);
+      const schedule = generateRepaymentSchedule(loan.total_repayable_kobo, loan.repayment_months, now);
       const { error: scheduleErr } = await db.from('coop_loan_repayment_schedule').insert(
         schedule.map(p => ({ loan_id: loanId, ...p }))
       );
@@ -105,7 +105,7 @@ exports.handler = async (event) => {
       // insert error would be worse than a loan that needs its
       // schedule regenerated manually.
 
-      await recordLoanDisbursementJournalEntry(db, loan.coop_id, loan.principal_kobo, `admin:${adminName}`);
+      await recordLoanDisbursementJournalEntry(db, loan.coop_id, loan.principal_kobo, `admin:${adminName}`, loan.interest_kobo);
     }
 
     await auditLog(db, {
