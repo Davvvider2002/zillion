@@ -89,7 +89,7 @@ exports.handler = async (event) => {
     .eq('coop_id', coopId).order('requested_at', { ascending: false });
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
     if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return l;
-    const repayment = await computeLoanRepaymentStatus(db, l.id, society, l.principal_kobo);
+    const repayment = await computeLoanRepaymentStatus(db, l.id, society, l.total_repayable_kobo);
     return { ...l, repayment };
   }));
 
