@@ -39,6 +39,7 @@ const { hasAddon } = require('./coopEntitlements');
 const CASH_ACCOUNT_CODE = '1000';
 const BANK_ACCOUNT_CODE = '1010';
 const LOANS_RECEIVABLE_ACCOUNT_CODE = '1100';
+const INTEREST_INCOME_ACCOUNT_CODE = '4150';
 const MEMBER_SAVINGS_PAYABLE_ACCOUNT_CODE = '2000';
 
 async function accountingIsReady(db, coopId) {
@@ -80,9 +81,52 @@ async function postEntry(db, coopId, description, createdBy, debitAccount, credi
   return { booked: true, entry_id: entry.id };
 }
 
-async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, createdBy) {
+/**
+ * General-purpose multi-line poster — needed for the interest-bearing
+ * disbursement entry (three lines: Debit Receivable for the total,
+ * Credit Bank for principal, Credit Interest Income for the interest
+ * portion), which the two-line postEntry() above can't express.
+ * @param {Array<{account: object, type: 'debit'|'credit', amountKobo: number}>} lines
+ */
+async function postEntryLines(db, coopId, description, createdBy, lines) {
+  const nextNumber = await nextEntryNumber(db, coopId);
+  const { data: entry, error: entryErr } = await db.from('coop_journal_entries').insert({
+    coop_id: coopId, entry_number: nextNumber, entry_date: new Date().toISOString().slice(0, 10),
+    description, entry_type: 'manual', created_by: createdBy,
+  }).select().single();
+  if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
+
+  const rows = lines.map(l => ({
+    journal_entry_id: entry.id, coop_id: coopId, account_id: l.account.id, line_type: l.type,
+    amount: l.amountKobo, currency: l.account.currency, exchange_rate: 1, base_amount: l.amountKobo, memo: description,
+  }));
+  const { error: linesErr } = await db.from('coop_journal_entry_lines').insert(rows);
+  if (linesErr) {
+    await db.from('coop_journal_entries').delete().eq('id', entry.id);
+    return { booked: false, reason: 'lines_insert_failed' };
+  }
+  return { booked: true, entry_id: entry.id };
+}
+
+async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, createdBy, interestKobo = 0) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
+
+    if (interestKobo > 0) {
+      const accounts = await getAccounts(db, coopId, [LOANS_RECEIVABLE_ACCOUNT_CODE, BANK_ACCOUNT_CODE, INTEREST_INCOME_ACCOUNT_CODE]);
+      const receivable = accounts[LOANS_RECEIVABLE_ACCOUNT_CODE];
+      const bank = accounts[BANK_ACCOUNT_CODE];
+      const interestIncome = accounts[INTEREST_INCOME_ACCOUNT_CODE];
+      if (!receivable || !bank || !interestIncome) return { booked: false, reason: 'accounts_missing' };
+
+      const totalKobo = principalKobo + interestKobo;
+      return await postEntryLines(db, coopId, 'Loan disbursed (principal + interest)', createdBy, [
+        { account: receivable, type: 'debit', amountKobo: totalKobo },
+        { account: bank, type: 'credit', amountKobo: principalKobo },
+        { account: interestIncome, type: 'credit', amountKobo: interestKobo },
+      ]);
+    }
+
     const accounts = await getAccounts(db, coopId, [LOANS_RECEIVABLE_ACCOUNT_CODE, BANK_ACCOUNT_CODE]);
     const receivable = accounts[LOANS_RECEIVABLE_ACCOUNT_CODE];
     const bank = accounts[BANK_ACCOUNT_CODE];
