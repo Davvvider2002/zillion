@@ -710,6 +710,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-configure-loan-interest"
+  to   = "/.netlify/functions/coop-portal-configure-loan-interest"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-change-coop-plan"
   to   = "/.netlify/functions/admin-change-coop-plan"
   status = 200
