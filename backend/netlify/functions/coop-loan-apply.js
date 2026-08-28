@@ -13,17 +13,18 @@
  *
  * Body: { savings_plan_id, principal_kobo, repayment_months, guarantor_phone }
  *
- * NOTE on repayment amount: this pilot computes a flat principal-only
- * split (principal / repayment_months) — no interest calculation.
- * Whether/how interest applies is still an open decision for each
- * society (flagged in the module plan); this endpoint deliberately
- * doesn't invent an answer to that.
+ * Interest: flat rate on principal, per-society opt-in
+ * (loan_interest_enabled + loan_interest_rate_percent). Off by
+ * default — a society that hasn't explicitly turned this on gets the
+ * exact same principal-only behavior as before. See
+ * coopLoanInterest.js for the calculation itself.
  */
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { computeDuesOwing } = require('../../lib/coopDues');
+const { calculateLoanInterest } = require('../../lib/coopLoanInterest');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -69,7 +70,7 @@ exports.handler = async (event) => {
   // is just the first condition it supports). Societies that haven't
   // enabled this, or don't charge dues at all, are unaffected.
   const { data: society } = await db.from('coop_societies')
-    .select('dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules')
+    .select('dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules, loan_interest_enabled, loan_interest_rate_percent')
     .eq('coop_id', member.coop_id).single();
   if (society?.dues_enforcement_enabled && society.dues_enforcement_rules?.block_loan_application) {
     const dues = await computeDuesOwing(db, member, society);
@@ -90,13 +91,17 @@ exports.handler = async (event) => {
   if (!guarantor) return err(400, 'Guarantor must be an existing member of your cooperative society');
   if (guarantor.id === member.id) return err(400, 'You cannot guarantee your own loan');
 
-  const monthlyRepaymentKobo = Math.ceil(principalKobo / repaymentMonths);
+  const { interestRatePercent, interestKobo, totalRepayableKobo } = calculateLoanInterest(principalKobo, society);
+  const monthlyRepaymentKobo = Math.ceil(totalRepayableKobo / repaymentMonths);
 
   const { data: created, error: insertErr } = await db.from('coop_loans').insert({
     coop_id:                member.coop_id,
     member_id:               member.id,
     savings_plan_id:          savingsPlanId,
     principal_kobo:            principalKobo,
+    interest_rate_percent:      interestRatePercent,
+    interest_kobo:                interestKobo,
+    total_repayable_kobo:          totalRepayableKobo,
     repayment_months:          repaymentMonths,
     monthly_repayment_kobo:    monthlyRepaymentKobo,
     guarantor_member_id:       guarantor.id,
@@ -107,6 +112,8 @@ exports.handler = async (event) => {
   return ok({
     success: true,
     loan:    created,
-    message: `Loan application submitted. Waiting for ${guarantor.name || 'your guarantor'} to confirm before it goes to admin review.`,
+    message: interestKobo > 0
+      ? `Loan application submitted for ₦${(principalKobo/100).toLocaleString()} + ${interestRatePercent}% interest (₦${(totalRepayableKobo/100).toLocaleString()} total repayable). Waiting for ${guarantor.name || 'your guarantor'} to confirm before it goes to admin review.`
+      : `Loan application submitted. Waiting for ${guarantor.name || 'your guarantor'} to confirm before it goes to admin review.`,
   });
 };
