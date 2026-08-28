@@ -745,6 +745,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-reconcile-bank-statement"
+  to   = "/.netlify/functions/coop-portal-reconcile-bank-statement"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-bank-reconciliation-history"
+  to   = "/.netlify/functions/coop-portal-bank-reconciliation-history"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-loan-history-report"
   to   = "/.netlify/functions/coop-portal-loan-history-report"
   status = 200
