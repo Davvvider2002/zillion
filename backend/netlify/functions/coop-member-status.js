@@ -45,7 +45,7 @@ exports.handler = async (event) => {
   if (!member) return ok({ is_coop_member: false });
 
   const { data: society } = await db.from('coop_societies')
-    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled, late_fee_type, late_fee_value')
+    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled, late_fee_type, late_fee_value, loan_interest_enabled, loan_interest_rate_percent')
     .eq('coop_id', member.coop_id).single();
 
   // Dues — same "never a stored figure that could drift" philosophy as
@@ -93,7 +93,7 @@ exports.handler = async (event) => {
 
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
     if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return l;
-    const repaymentStatus = await computeLoanRepaymentStatus(db, l.id, society, l.principal_kobo);
+    const repaymentStatus = await computeLoanRepaymentStatus(db, l.id, society, l.total_repayable_kobo);
     return { ...l, repayment: repaymentStatus };
   }));
 
@@ -110,7 +110,7 @@ exports.handler = async (event) => {
 
   return ok({
     is_coop_member:     true,
-    society:            { name: society.name },
+    society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent },
     member:             { name: member.name, status: member.status, activated_at: member.activated_at },
     savings_plans:      plansWithProgress,
     loans:               loans || [],
