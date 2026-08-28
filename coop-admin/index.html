@@ -148,6 +148,7 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-view="addons" onclick="switchView('addons')">Add-ons</div>
     <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
     <div class="tab" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
+    <div class="tab" data-view="reconciliation" onclick="switchView('reconciliation')">Bank Reconciliation</div>
     <div class="tab" data-view="billing" onclick="switchView('billing')">Billing</div>
   </div>
 
@@ -159,6 +160,7 @@ tr:last-child td{border-bottom:none}
   <div class="view" id="view-addons"></div>
   <div class="view" id="view-notifications"></div>
   <div class="view" id="view-accounting"></div>
+  <div class="view" id="view-reconciliation"></div>
   <div class="view" id="view-billing"></div>
 </div>
 
@@ -524,6 +526,7 @@ function switchView(name) {
   if (name === 'addons') renderAddons();
   if (name === 'notifications') renderNotifications();
   if (name === 'accounting') renderAccounting();
+  if (name === 'reconciliation') renderReconciliation();
   if (name === 'billing') renderBilling();
 }
 
@@ -1279,6 +1282,157 @@ let accountingAccounts = null;
 let accountingEntries = null;
 let accountingOpeningDone = false;
 let journalLineCount = 0;
+
+// ── BANK RECONCILIATION ─────────────────────────────────────────────
+async function renderReconciliation() {
+  const el = document.getElementById('view-reconciliation');
+  const hasRecon = (portalData.addons || []).some(a => a.addon_key === 'bank_reconciliation');
+
+  if (!hasRecon) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Bank Reconciliation</div>
+        <div class="card-sub">Upload your real bank statement and automatically cross-check it against recorded loan disbursements and repayments to catch discrepancies. Not on your current plan.</div>
+        <button class="btn btn-primary btn-sm" onclick="switchView('addons')">View add-ons →</button>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Upload bank statement</div>
+      <div class="card-sub">CSV with three columns: Date (YYYY-MM-DD), Amount (in Naira, e.g. 30000), Description. First row is treated as a header and skipped.</div>
+      <input type="file" id="recon-file-input" accept=".csv" style="margin:10px 0" onchange="handleReconFileSelect(event)">
+      <div id="recon-upload-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:10px"></div>
+      <div id="recon-upload-status" style="font-size:13px;color:var(--muted)"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Past reconciliations</div>
+      <div id="recon-history-list"><div class="no-data">Loading...</div></div>
+    </div>
+    <div id="recon-detail-card"></div>
+  `;
+  await loadReconciliationHistory();
+}
+
+async function loadReconciliationHistory() {
+  const listEl = document.getElementById('recon-history-list');
+  try {
+    const res = await fetch(`${API}/coop-portal-bank-reconciliation-history`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    const batches = data.batches || [];
+    listEl.innerHTML = batches.length ? `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Uploaded</th><th>File</th><th>Lines</th><th>Matched</th><th></th></tr></thead>
+        <tbody>${batches.map(b => `
+          <tr>
+            <td>${fmtDate(b.uploaded_at)}</td>
+            <td>${b.filename || '—'}</td>
+            <td>${b.total_lines}</td>
+            <td>${b.matched_lines} / ${b.total_lines}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="viewReconciliationBatch('${b.id}')">View</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>
+    ` : '<div class="no-data">No reconciliations uploaded yet.</div>';
+  } catch (e) {
+    listEl.innerHTML = `<div class="no-data">Failed to load: ${e.message}</div>`;
+  }
+}
+
+async function viewReconciliationBatch(batchId) {
+  const detailEl = document.getElementById('recon-detail-card');
+  detailEl.innerHTML = `<div class="card"><div class="card-title">Reconciliation detail</div><div class="no-data">Loading...</div></div>`;
+  try {
+    const res = await fetch(`${API}/coop-portal-bank-reconciliation-history?batch_id=${batchId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { detailEl.innerHTML = `<div class="card"><div class="no-data">${data.error}</div></div>`; return; }
+    detailEl.innerHTML = `
+      <div class="card">
+        <div class="card-title">Reconciliation detail — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}</div>
+        <div class="card-sub">${data.batch.matched_lines} of ${data.batch.total_lines} statement lines matched automatically.</div>
+        <div style="font-weight:700;font-size:13px;margin:14px 0 8px">Statement lines</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody>${data.lines.map(l => `
+            <tr>
+              <td>${fmtDate(l.statement_date)}</td>
+              <td>${l.description || '—'}</td>
+              <td>${fmtNaira(l.amount_kobo)}</td>
+              <td>${l.match_status === 'matched' ? '<span class="pill pill-green">Matched</span>' : '<span class="pill pill-red">Unmatched</span>'}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="4" class="no-data">No lines.</td></tr>'}</tbody>
+        </table></div>
+        ${data.unmatched_records.length ? `
+          <div style="font-weight:700;font-size:13px;margin:18px 0 8px;color:#FF8A8A">Recorded but not found in bank statement</div>
+          <div class="card-sub" style="margin-bottom:8px">These are recorded in Zillion but never appeared in the uploaded statement — worth checking directly.</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th></tr></thead>
+            <tbody>${data.unmatched_records.map(r => `
+              <tr>
+                <td>${fmtDate(r.record_date)}</td>
+                <td style="text-transform:capitalize">${r.record_type.replace(/_/g, ' ')}</td>
+                <td>${r.description || '—'}</td>
+                <td>${fmtNaira(r.amount_kobo)}</td>
+              </tr>
+            `).join('')}</tbody>
+          </table></div>
+        ` : ''}
+      </div>
+    `;
+  } catch (e) {
+    detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${e.message}</div></div>`;
+  }
+}
+
+function handleReconFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const errEl = document.getElementById('recon-upload-error');
+  const statusEl = document.getElementById('recon-upload-status');
+  errEl.style.display = 'none';
+  statusEl.textContent = 'Reading file...';
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const lines = parseReconCsv(e.target.result);
+      if (!lines.length) { errEl.textContent = 'No valid rows found in this file.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
+      statusEl.textContent = `Uploading and matching ${lines.length} lines...`;
+      const res = await fetch(`${API}/coop-portal-reconcile-bank-statement`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+        body: JSON.stringify({ filename: file.name, lines }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error || 'Failed to reconcile.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
+      statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.`;
+      document.getElementById('recon-file-input').value = '';
+      await loadReconciliationHistory();
+      await viewReconciliationBatch(data.batch_id);
+    } catch (err) {
+      errEl.textContent = 'Error processing file: ' + err.message; errEl.style.display = 'block'; statusEl.textContent = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+// Deliberately simple, documented format (Date, Amount, Description) rather
+// than trying to auto-detect arbitrary bank export formats, which vary
+// wildly and would be fragile to guess at.
+function parseReconCsv(text) {
+  const rows = text.split(/\r?\n/).filter(r => r.trim());
+  const lines = [];
+  for (let i = 1; i < rows.length; i++) { // skip header row
+    const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    if (cols.length < 2) continue;
+    const date = cols[0];
+    const amountNaira = parseFloat(cols[1]);
+    const description = cols[2] || '';
+    if (!date || !Number.isFinite(amountNaira) || amountNaira <= 0) continue;
+    lines.push({ date, amount_kobo: Math.round(amountNaira * 100), description });
+  }
+  return lines;
+}
 
 async function renderAccounting() {
   const el = document.getElementById('view-accounting');
