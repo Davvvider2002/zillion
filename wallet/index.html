@@ -1160,7 +1160,8 @@ function triggerPWAInstall() {
   <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
     <div style="font-weight:700;font-size:16px;margin-bottom:14px;color:#E8F5EE">Apply for a Loan</div>
     <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Amount (₦)</div>
-    <input id="coop-loan-amount" type="number" placeholder="30000" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
+    <input id="coop-loan-amount" type="number" placeholder="30000" oninput="coopUpdateLoanInterestPreview()" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
+    <div id="coop-loan-interest-preview" style="font-size:11px;color:#F5B87A;margin:-8px 0 12px;display:none"></div>
     <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Repayment period (months)</div>
     <input id="coop-loan-months" type="number" value="6" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
     <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Guarantor's phone number</div>
@@ -2814,6 +2815,19 @@ function coopShowApplyForm() {
   document.getElementById('coop-loan-guarantor-phone').value = '';
   document.getElementById('coop-apply-error').style.display = 'none';
   document.getElementById('coop-apply-modal').style.display = 'flex';
+  coopUpdateLoanInterestPreview();
+}
+function coopUpdateLoanInterestPreview() {
+  const previewEl = document.getElementById('coop-loan-interest-preview');
+  const society = _coopStatusCache?.society;
+  const amountNaira = parseFloat(document.getElementById('coop-loan-amount').value) || 0;
+  if (!society?.loan_interest_enabled || !society.loan_interest_rate_percent || amountNaira <= 0) {
+    previewEl.style.display = 'none';
+    return;
+  }
+  const interest = amountNaira * (society.loan_interest_rate_percent / 100);
+  previewEl.style.display = '';
+  previewEl.textContent = `+ ${society.loan_interest_rate_percent}% interest (₦${interest.toLocaleString(undefined,{maximumFractionDigits:0})}) = ₦${(amountNaira + interest).toLocaleString(undefined,{maximumFractionDigits:0})} total repayable`;
 }
 function coopCloseApplyModal() {
   document.getElementById('coop-apply-modal').style.display = 'none';
