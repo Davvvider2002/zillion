@@ -243,6 +243,24 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-configure-loan-interest">
+  <div class="modal-box">
+    <div class="modal-title">Loan interest</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Applies to new loan applications only — existing loans are never changed retroactively. Calculated as a flat rate on the principal, added once (not compounding).</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;cursor:pointer;text-transform:none;letter-spacing:normal;color:var(--cream);font-weight:400">
+      <input type="checkbox" id="li-enabled" onchange="onLoanInterestToggle()"> Charge interest on loans
+    </label>
+    <div class="field" id="li-rate-row" style="display:none">
+      <label>Interest rate (%)</label>
+      <input type="number" id="li-rate" placeholder="e.g. 10" step="0.5" min="0" max="100" oninput="updateLoanInterestExample()">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="li-example"></div>
+    </div>
+    <div id="li-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureLoanInterest()" id="li-btn">Save</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-loan-interest')">Cancel</button>
+  </div>
+</div>
+
 <!-- REJECT LOAN MODAL -->
 <div class="modal-overlay" id="modal-reject-loan">
   <div class="modal-box">
@@ -761,7 +779,10 @@ function renderLoans() {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Loans
-        <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
+        </div>
       </div>
       <div class="card-sub">Applications, approvals, and repayment status.</div>
       <div class="table-wrap"><table>
@@ -769,7 +790,7 @@ function renderLoans() {
         <tbody>${d.loans.map(l => `
           <tr>
             <td>${l.borrower?.name || l.borrower?.phone_normalized || '—'}</td>
-            <td>${fmtNaira(l.principal_kobo)}</td>
+            <td>${l.interest_kobo > 0 ? `${fmtNaira(l.principal_kobo)} <span style="color:var(--amber);font-size:12px">+${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)</span>` : fmtNaira(l.principal_kobo)}</td>
             <td>${l.guarantor?.name || '—'}</td>
             <td>${loanStatusPill(l.status)}</td>
             <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
@@ -812,7 +833,7 @@ async function renderLoanHistoryReport(el) {
           ${m.loans.map(l => `
             <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <span>${fmtNaira(l.principal_kobo)} · ${l.repayment_months}mo${l.guarantor_name ? ` · guarantor: ${l.guarantor_name}` : ''}</span>
+                <span>${fmtNaira(l.principal_kobo)}${l.interest_kobo > 0 ? ` +${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)` : ''} · ${l.repayment_months}mo${l.guarantor_name ? ` · guarantor: ${l.guarantor_name}` : ''}</span>
                 ${loanStatusPill(l.status)}
               </div>
               <div style="font-size:12px;color:var(--muted)">
@@ -970,6 +991,58 @@ async function submitConfigureDues() {
     btn.disabled = false; btn.textContent = 'Save';
   }
 }
+
+function openConfigureLoanInterestModal() {
+  const s = portalData.society;
+  document.getElementById('li-enabled').checked = !!s.loan_interest_enabled;
+  document.getElementById('li-rate').value = s.loan_interest_rate_percent || '';
+  document.getElementById('li-error').style.display = 'none';
+  onLoanInterestToggle();
+  openModal('modal-configure-loan-interest');
+}
+
+function onLoanInterestToggle() {
+  const enabled = document.getElementById('li-enabled').checked;
+  document.getElementById('li-rate-row').style.display = enabled ? '' : 'none';
+  updateLoanInterestExample();
+}
+
+function updateLoanInterestExample() {
+  const rate = parseFloat(document.getElementById('li-rate').value) || 0;
+  const exampleEl = document.getElementById('li-example');
+  if (rate <= 0) { exampleEl.textContent = ''; return; }
+  const interest = 100000 * (rate / 100);
+  exampleEl.textContent = `On a ₦100,000 loan: ₦${interest.toLocaleString()} interest, ₦${(100000 + interest).toLocaleString()} total repayable`;
+}
+
+async function submitConfigureLoanInterest() {
+  const errEl = document.getElementById('li-error');
+  errEl.style.display = 'none';
+  const enabled = document.getElementById('li-enabled').checked;
+  const rate = parseFloat(document.getElementById('li-rate').value) || 0;
+  if (enabled && (rate <= 0 || rate > 100)) {
+    errEl.textContent = 'Enter a valid interest rate between 0 and 100.'; errEl.style.display = 'block'; return;
+  }
+
+  const btn = document.getElementById('li-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-configure-loan-interest`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ loan_interest_enabled: enabled, loan_interest_rate_percent: rate }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
+    notify('Loan interest settings saved');
+    closeModal('modal-configure-loan-interest');
+    btn.disabled = false; btn.textContent = 'Save';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
 
 function openDuesPaymentModal(memberId, memberLabel) {
   pendingDuesMemberId = memberId;
