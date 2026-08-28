@@ -77,13 +77,13 @@ exports.handler = async (event) => {
   if (updateErr) return err(500, `Failed to update loan: ${updateErr.message}`);
 
   if (action === 'disburse') {
-    const schedule = generateRepaymentSchedule(loan.principal_kobo, loan.repayment_months, now);
+    const schedule = generateRepaymentSchedule(loan.total_repayable_kobo, loan.repayment_months, now);
     const { error: scheduleErr } = await db.from('coop_loan_repayment_schedule').insert(
       schedule.map(p => ({ loan_id: loanId, ...p }))
     );
     if (scheduleErr) console.error('[coop-portal-loan-action] Schedule generation failed:', scheduleErr.message);
 
-    await recordLoanDisbursementJournalEntry(db, coopId, loan.principal_kobo, actorName);
+    await recordLoanDisbursementJournalEntry(db, coopId, loan.principal_kobo, actorName, loan.interest_kobo);
   }
 
   await auditLog(db, {
