@@ -15,9 +15,9 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
-const { computeTrialBalance, computeIncomeExpenditure, computeBalanceSheet } = require('../../lib/coopFinancialReports');
+const { computeTrialBalance, computeIncomeExpenditure, computeBalanceSheet, computeAccountLedger } = require('../../lib/coopFinancialReports');
 
-const VALID_REPORTS = ['trial_balance', 'income_expenditure', 'balance_sheet'];
+const VALID_REPORTS = ['trial_balance', 'income_expenditure', 'balance_sheet', 'ledger'];
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -44,6 +44,12 @@ exports.handler = async (event) => {
   if (report === 'trial_balance') data = await computeTrialBalance(db, coopId, asOf);
   if (report === 'income_expenditure') data = await computeIncomeExpenditure(db, coopId, asOf);
   if (report === 'balance_sheet') data = await computeBalanceSheet(db, coopId, asOf);
+  if (report === 'ledger') {
+    const accountId = event.queryStringParameters?.account_id;
+    if (!accountId) return err(400, 'account_id is required for the ledger report');
+    data = await computeAccountLedger(db, coopId, accountId, asOf);
+    if (!data) return err(404, 'Account not found');
+  }
 
   return ok({ report, as_of: asOf, base_currency: resolved.society.base_currency || 'NGN', ...data });
 };
