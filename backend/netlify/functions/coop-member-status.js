@@ -39,7 +39,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, name, phone_normalized, opening_balance_kobo, status, activated_at, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)')
+    .select('id, coop_id, name, email, phone_normalized, opening_balance_kobo, status, activated_at, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)')
     .eq('zillion_id', zillionId).maybeSingle();
 
   if (!member) return ok({ is_coop_member: false });
@@ -111,7 +111,7 @@ exports.handler = async (event) => {
   return ok({
     is_coop_member:     true,
     society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent },
-    member:             { name: member.name, status: member.status, activated_at: member.activated_at },
+    member:             { name: member.name, email: member.email, status: member.status, activated_at: member.activated_at },
     savings_plans:      plansWithProgress,
     loans:               loans || [],
     total_outstanding_loan_kobo: totalOutstandingLoanKobo,
