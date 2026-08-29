@@ -1049,21 +1049,19 @@ function triggerPWAInstall() {
         </div>
       </div>
 
-      <div class="actions-grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
-        <div class="balance-card" id="home-coop-hero-loan" style="cursor:pointer;padding:14px;margin:0" onclick="goTo('screen-coop')">
-          <div class="bal-label" style="font-size:11px">Loan</div>
-          <div class="bal-amount" style="font-size:15px;margin-top:4px;line-height:1.3" id="home-coop-hero-loan-status">No active loan</div>
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:14px;gap:8px">
+        <div class="balance-card" id="home-coop-hero-loan" style="cursor:pointer;padding:12px 10px;margin:0" onclick="goTo('screen-coop')">
+          <div class="bal-label" style="font-size:10px">Loan</div>
+          <div class="bal-amount" style="font-size:13px;margin-top:4px;line-height:1.25" id="home-coop-hero-loan-status">No active loan</div>
         </div>
-        <div class="balance-card" id="home-coop-hero-dues" style="cursor:pointer;padding:14px;margin:0" onclick="goTo('screen-coop')">
-          <div class="bal-label" style="font-size:11px">Dues</div>
-          <div class="bal-amount" style="font-size:15px;margin-top:4px;line-height:1.3" id="home-coop-hero-dues-status">Up to date</div>
+        <div class="balance-card" id="home-coop-hero-dues" style="cursor:pointer;padding:12px 10px;margin:0;background:linear-gradient(135deg,#7A4A1A,#4A2C0F);border-color:#7A4A1A" onclick="goTo('screen-coop')">
+          <div class="bal-label" style="font-size:10px;color:#F5C98A">Dues</div>
+          <div class="bal-amount" style="font-size:13px;margin-top:4px;line-height:1.25;color:#fff" id="home-coop-hero-dues-status">Up to date</div>
         </div>
-      </div>
-
-      <div class="balance-card" id="home-coop-hero-dividend" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
-        <div class="bal-label">Latest Dividend</div>
-        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-dividend-status">No dividends yet</div>
-        <div class="bal-sub"><span style="color:#00C896" id="home-coop-hero-dividend-sub">Check back after your society's next financial year closes</span></div>
+        <div class="balance-card" id="home-coop-hero-dividend" style="cursor:pointer;padding:12px 10px;margin:0;background:linear-gradient(135deg,#5C3F94,#332156);border-color:#5C3F94" onclick="goTo('screen-coop')">
+          <div class="bal-label" style="font-size:10px;color:#D4C4F5">Dividend</div>
+          <div class="bal-amount" style="font-size:13px;margin-top:4px;line-height:1.25;color:#fff" id="home-coop-hero-dividend-status">No dividends yet</div>
+        </div>
       </div>
 
       <div class="actions-grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
@@ -1071,9 +1069,9 @@ function triggerPWAInstall() {
           <span class="action-icon">🤝</span>
           <div class="action-label">Apply for Loan</div>
         </button>
-        <button class="action-btn" onclick="goTo('screen-coop')">
+        <button class="action-btn" style="background:linear-gradient(135deg,#1D6E7A,#0F3E45);border-color:#1D6E7A" onclick="goTo('screen-coop')">
           <span class="action-icon">💰</span>
-          <div class="action-label">My Savings</div>
+          <div class="action-label" style="color:#fff">My Savings</div>
         </button>
         <button class="action-btn" onclick="goTo('screen-coop');setTimeout(()=>coopShowPayNowModal('dues'),100)">
           <span class="action-icon">🧾</span>
@@ -2766,15 +2764,8 @@ async function zilRenderCoopSummary() {
     }
 
     const dividendStatusEl = document.getElementById('home-coop-hero-dividend-status');
-    const dividendSubEl = document.getElementById('home-coop-hero-dividend-sub');
     if (dividendStatusEl) {
-      if (data.latest_dividend) {
-        dividendStatusEl.textContent = fmtNaira(data.latest_dividend.entitlement_kobo);
-        dividendSubEl.textContent = `${data.latest_dividend.year_label} · View details →`;
-      } else {
-        dividendStatusEl.textContent = 'No dividends yet';
-        dividendSubEl.textContent = "Check back after your society's next financial year closes";
-      }
+      dividendStatusEl.textContent = data.latest_dividend ? fmtNaira(data.latest_dividend.entitlement_kobo) : 'No dividends yet';
     }
 
     loadCoopHomeActivityPreview();
