@@ -48,7 +48,7 @@ exports.handler = async (event) => {
     if (!fy) return err(404, 'Financial year not found');
 
     const { data: allocations } = await db.from('coop_surplus_allocations')
-      .select('id, category, amount_kobo').eq('financial_year_id', financialYearId).order('created_at');
+      .select('id, category, amount_kobo, is_member_distribution').eq('financial_year_id', financialYearId).order('created_at');
 
     const allocatedTotal = (allocations || []).reduce((s, a) => s + a.amount_kobo, 0);
     return ok({ financial_year: fy, allocations: allocations || [], allocated_total_kobo: allocatedTotal, unallocated_kobo: fy.net_surplus_kobo - allocatedTotal });
@@ -75,7 +75,7 @@ exports.handler = async (event) => {
     if (!category) return err(400, 'Every allocation line needs a category name');
     if (!Number.isFinite(amountKobo) || amountKobo <= 0) return err(400, `Invalid amount for "${category}"`);
     total += amountKobo;
-    cleanAllocations.push({ financial_year_id: financialYearId, coop_id: coopId, category, amount_kobo: amountKobo });
+    cleanAllocations.push({ financial_year_id: financialYearId, coop_id: coopId, category, amount_kobo: amountKobo, is_member_distribution: a.is_member_distribution === true });
   }
 
   if (total > fy.net_surplus_kobo) {
