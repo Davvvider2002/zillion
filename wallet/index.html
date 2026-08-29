@@ -1151,6 +1151,14 @@ function triggerPWAInstall() {
       <div id="coop-guarantor-list"></div>
     </div>
 
+    <div class="section-header"><div class="section-title">Loan Statement</div></div>
+    <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px">
+      <div style="font-size:12px;color:#9CC4B0;margin-bottom:8px">Get a PDF of your loan activity, sent by email.</div>
+      <input id="coop-statement-email" type="email" placeholder="your@email.com" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <div id="coop-statement-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:8px"></div>
+      <button class="btn" style="width:100%;padding:10px;background:#00C896;color:#052e16;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="coopRequestLoanStatement()" id="coop-statement-btn">Send my statement</button>
+    </div>
+
     <div style="height:24px"></div>
   </div>
 </div>
@@ -2742,6 +2750,9 @@ async function refreshCoopScreen() {
 
   document.getElementById('coop-hdr-title').textContent = data.society.name;
 
+  const statementEmailInput = document.getElementById('coop-statement-email');
+  if (statementEmailInput && !statementEmailInput.value && data.member.email) statementEmailInput.value = data.member.email;
+
   const plansEl = document.getElementById('coop-plans-list');
   plansEl.innerHTML = (data.savings_plans || []).length ? data.savings_plans.map(p => `
     <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
@@ -2806,6 +2817,43 @@ async function refreshCoopScreen() {
     `).join('');
   } else {
     guarantorSection.style.display = 'none';
+  }
+}
+
+async function coopRequestLoanStatement() {
+  const emailInput = document.getElementById('coop-statement-email');
+  const errEl = document.getElementById('coop-statement-error');
+  const btn = document.getElementById('coop-statement-btn');
+  errEl.style.display = 'none';
+
+  const email = emailInput.value.trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Please enter a valid email address.'; errEl.style.display = 'block'; return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    // Save the email first (covers both "first time setting it" and
+    // "changed it since last time") before requesting the statement,
+    // since the send endpoint reads whatever's already on file.
+    const currentEmail = _coopLatestStatus?.member?.email;
+    if (email !== currentEmail) {
+      await fetch(`${API}/coop-update-member-email`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + STATE.user.token },
+        body: JSON.stringify({ email }),
+      });
+    }
+
+    const res = await fetch(`${API}/coop-send-loan-statement`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + STATE.user.token },
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send statement.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Send my statement'; return; }
+    toast('✅ Statement sent to ' + data.sent_to);
+    btn.disabled = false; btn.textContent = 'Send my statement';
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Send my statement';
   }
 }
 
