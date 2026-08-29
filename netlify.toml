@@ -194,6 +194,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-coop-analytics"
+  to   = "/.netlify/functions/admin-coop-analytics"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-create-agent"
   to   = "/.netlify/functions/admin-create-agent"
   status = 200
