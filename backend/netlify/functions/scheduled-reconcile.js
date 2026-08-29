@@ -23,6 +23,8 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { logAlert } = require('../../lib/alerts');
 const { recordDuesAccrual } = require('../../lib/coopDuesAccounting');
+const { computeMemberLoanStatement } = require('../../lib/coopLoanStatement');
+const { generateLoanStatementPdf } = require('../../lib/coopLoanStatementPdf');
 const { sendEmail } = require('../../lib/resendEmail');
 
 exports.handler = async () => {
@@ -275,6 +277,53 @@ exports.handler = async () => {
     }
   } catch (e) {
     console.error('[scheduled-reconcile] dues accrual pass failed:', e.message);
+  }
+
+  // ── 8. Monthly loan statements ────────────────────────────────────────
+  // Runs every 4h like everything else here, but only actually sends
+  // once per member per calendar month — checked by comparing the
+  // month of last_loan_statement_sent_at against the current month,
+  // rather than "today is the 1st", so a missed cron run just catches
+  // up on the next one instead of costing a whole month's delay.
+  // Silent no-op for any member with no email on file, or no loan
+  // activity at all - both are expected, not errors.
+  try {
+    const now8 = new Date();
+    const currentMonthKey = `${now8.getFullYear()}-${now8.getMonth()}`;
+
+    const { data: candidateMembers } = await db.from('coop_members')
+      .select('id, email, last_loan_statement_sent_at')
+      .eq('status', 'ACTIVE')
+      .not('email', 'is', null);
+
+    for (const member of (candidateMembers || [])) {
+      const lastSentMonthKey = member.last_loan_statement_sent_at
+        ? (() => { const d = new Date(member.last_loan_statement_sent_at); return `${d.getFullYear()}-${d.getMonth()}`; })()
+        : null;
+      if (lastSentMonthKey === currentMonthKey) continue;
+
+      const statementData = await computeMemberLoanStatement(db, member.id);
+      const hasActivity = statementData?.loans?.some(l => l.transactions?.length);
+      if (!hasActivity) continue;
+
+      try {
+        const pdfBuffer = await generateLoanStatementPdf(statementData);
+        const result = await sendEmail({
+          to: statementData.member.email,
+          toName: statementData.member.name,
+          subject: `Your Zillion Coop loan statement — ${statementData.member.society_name}`,
+          htmlContent: `<p>Hi ${statementData.member.name},</p><p>Your monthly loan statement is attached.</p>`,
+          attachments: [{ filename: 'loan-statement.pdf', content: pdfBuffer.toString('base64') }],
+        });
+        if (result.sent) {
+          await db.from('coop_members').update({ last_loan_statement_sent_at: now8.toISOString() }).eq('id', member.id);
+        }
+      } catch (e) {
+        console.error(`[scheduled-reconcile] statement send failed for member ${member.id}:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] monthly loan statements pass failed:', e.message);
   }
 
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
