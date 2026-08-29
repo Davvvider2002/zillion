@@ -173,6 +173,7 @@
 /api/v1/coop-portal-reconcile-bank-statement           /.netlify/functions/coop-portal-reconcile-bank-statement           200
 /api/v1/coop-portal-close-financial-year               /.netlify/functions/coop-portal-close-financial-year               200
 /api/v1/coop-portal-surplus-allocation                 /.netlify/functions/coop-portal-surplus-allocation                 200
+/api/v1/coop-portal-run-dividend                       /.netlify/functions/coop-portal-run-dividend                       200
 /api/v1/coop-portal-bank-reconciliation-history        /.netlify/functions/coop-portal-bank-reconciliation-history        200
 /api/v1/coop-portal-loan-history-report               /.netlify/functions/coop-portal-loan-history-report               200
 /api/v1/admin-coop-ecosystem-finance                  /.netlify/functions/admin-coop-ecosystem-finance                  200
