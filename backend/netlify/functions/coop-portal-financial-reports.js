@@ -38,18 +38,20 @@ exports.handler = async (event) => {
 
   const report = event.queryStringParameters?.report;
   const asOf = event.queryStringParameters?.as_of || null;
+  const startDate = event.queryStringParameters?.start_date || null;
   if (!VALID_REPORTS.includes(report)) return err(400, `report must be one of: ${VALID_REPORTS.join(', ')}`);
+  if (startDate && asOf && startDate > asOf) return err(400, 'start_date must be before as_of');
 
   let data;
-  if (report === 'trial_balance') data = await computeTrialBalance(db, coopId, asOf);
-  if (report === 'income_expenditure') data = await computeIncomeExpenditure(db, coopId, asOf);
-  if (report === 'balance_sheet') data = await computeBalanceSheet(db, coopId, asOf);
+  if (report === 'trial_balance') data = await computeTrialBalance(db, coopId, asOf, startDate);
+  if (report === 'income_expenditure') data = await computeIncomeExpenditure(db, coopId, asOf, startDate);
+  if (report === 'balance_sheet') data = await computeBalanceSheet(db, coopId, asOf, startDate);
   if (report === 'ledger') {
     const accountId = event.queryStringParameters?.account_id;
     if (!accountId) return err(400, 'account_id is required for the ledger report');
-    data = await computeAccountLedger(db, coopId, accountId, asOf);
+    data = await computeAccountLedger(db, coopId, accountId, asOf, startDate);
     if (!data) return err(404, 'Account not found');
   }
 
-  return ok({ report, as_of: asOf, base_currency: resolved.society.base_currency || 'NGN', ...data });
+  return ok({ report, as_of: asOf, start_date: startDate, base_currency: resolved.society.base_currency || 'NGN', ...data });
 };
