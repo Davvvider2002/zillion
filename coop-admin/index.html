@@ -185,6 +185,23 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Full name</label><input type="text" id="em-name" placeholder="e.g. Amina Bello"></div>
     <div class="field"><label>Email</label><input type="email" id="em-email" placeholder="member@email.com"></div>
     <div class="field"><label>Address</label><input type="text" id="em-address" placeholder="e.g. 12 Allen Avenue, Ikeja, Lagos"></div>
+    <div class="field">
+      <label>Occupation</label>
+      <select id="em-occupation">
+        <option value="">Not set</option>
+        <option>Trader/Business Owner</option>
+        <option>Farmer</option>
+        <option>Civil Servant</option>
+        <option>Artisan/Skilled Worker</option>
+        <option>Teacher/Educator</option>
+        <option>Healthcare Worker</option>
+        <option>Driver/Transport Worker</option>
+        <option>Student</option>
+        <option>Salaried Employee (Private Sector)</option>
+        <option>Unemployed</option>
+        <option>Other</option>
+      </select>
+    </div>
     <div id="em-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitEditMember()" id="em-btn">Save changes</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-edit-member')">Cancel</button>
@@ -713,6 +730,7 @@ function openEditMemberModal(memberId) {
   document.getElementById('em-name').value = m.name || '';
   document.getElementById('em-email').value = m.email || '';
   document.getElementById('em-address').value = m.address || '';
+  document.getElementById('em-occupation').value = m.occupation || '';
   document.getElementById('em-error').style.display = 'none';
   openModal('modal-edit-member');
 }
@@ -724,6 +742,7 @@ async function submitEditMember() {
   const name = document.getElementById('em-name').value.trim();
   const email = document.getElementById('em-email').value.trim();
   const address = document.getElementById('em-address').value.trim();
+  const occupation = document.getElementById('em-occupation').value;
 
   if (!name) { errEl.textContent = 'Name cannot be empty.'; errEl.style.display = 'block'; return; }
 
@@ -732,7 +751,7 @@ async function submitEditMember() {
   try {
     const res = await fetch(`${API}/coop-portal-update-member`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ member_id: memberId, name, email, address }),
+      body: JSON.stringify({ member_id: memberId, name, email, address, occupation }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save changes'; return; }
