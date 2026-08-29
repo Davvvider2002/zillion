@@ -23,7 +23,7 @@
  */
 'use strict';
 
-async function sendEmail({ to, toName, subject, htmlContent }) {
+async function sendEmail({ to, toName, subject, htmlContent, attachments }) {
   const apiKey = (process.env.RESEND_API_KEY || '').trim();
   const senderEmail = (process.env.RESEND_SENDER_EMAIL || '').trim();
   if (!apiKey || !senderEmail) {
@@ -32,15 +32,21 @@ async function sendEmail({ to, toName, subject, htmlContent }) {
   }
 
   try {
+    const payload = {
+      from: `Zillion Coop <${senderEmail}>`,
+      to: [toName ? `${toName} <${to}>` : to],
+      subject,
+      html: htmlContent,
+    };
+    // attachments: [{ filename, content }] — content is base64, matching
+    // Resend's confirmed attachment format (verified against their docs
+    // before this was added, not assumed).
+    if (attachments && attachments.length) payload.attachments = attachments;
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: `Zillion Coop <${senderEmail}>`,
-        to: [toName ? `${toName} <${to}>` : to],
-        subject,
-        html: htmlContent,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) {
