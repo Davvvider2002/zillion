@@ -149,6 +149,7 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
     <div class="tab" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
     <div class="tab" data-view="reconciliation" onclick="switchView('reconciliation')">Bank Reconciliation</div>
+    <div class="tab" data-view="surplus" onclick="switchView('surplus')">Surplus &amp; Dividends</div>
     <div class="tab" data-view="billing" onclick="switchView('billing')">Billing</div>
   </div>
 
@@ -161,6 +162,7 @@ tr:last-child td{border-bottom:none}
   <div class="view" id="view-notifications"></div>
   <div class="view" id="view-accounting"></div>
   <div class="view" id="view-reconciliation"></div>
+  <div class="view" id="view-surplus"></div>
   <div class="view" id="view-billing"></div>
 </div>
 
@@ -627,6 +629,7 @@ function switchView(name) {
   if (name === 'notifications') renderNotifications();
   if (name === 'accounting') renderAccounting();
   if (name === 'reconciliation') renderReconciliation();
+  if (name === 'surplus') renderSurplus();
   if (name === 'billing') renderBilling();
 }
 
@@ -1636,6 +1639,177 @@ let accountingOpeningDone = false;
 let journalLineCount = 0;
 
 // ── BANK RECONCILIATION ─────────────────────────────────────────────
+// ── SURPLUS & DIVIDENDS ─────────────────────────────────────────────
+async function renderSurplus() {
+  const el = document.getElementById('view-surplus');
+  const hasSurplus = (portalData.addons || []).some(a => a.addon_key === 'surplus_dividends');
+
+  if (!hasSurplus) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Surplus &amp; Dividends</div>
+        <div class="card-sub">Close a financial year, calculate the society's surplus, and allocate it - reserves, development fund, member distribution. Not on your current plan.</div>
+        <button class="btn btn-primary btn-sm" onclick="switchView('addons')">View add-ons →</button>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Close a financial year</div>
+      <div class="card-sub">Calculates income minus expense for the exact date range you set. Once allocated, a year can't be recalculated without first removing its allocation.</div>
+      <div class="field"><label>Year label</label><input type="text" id="fy-label" placeholder="e.g. 2026"></div>
+      <div class="field"><label>Start date</label><input type="date" id="fy-start"></div>
+      <div class="field"><label>End date</label><input type="date" id="fy-end"></div>
+      <div id="fy-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary btn-sm" onclick="submitCloseFinancialYear()" id="fy-submit-btn">Close year</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Financial years
+        <button class="rbtn" onclick="loadFinancialYears()">&#x21BB;</button>
+      </div>
+      <div id="fy-list"><div class="no-data">Loading...</div></div>
+    </div>
+    <div id="fy-detail-card"></div>
+  `;
+  await loadFinancialYears();
+}
+
+async function loadFinancialYears() {
+  const listEl = document.getElementById('fy-list');
+  try {
+    const res = await fetch(`${API}/coop-portal-close-financial-year`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    const years = data.financial_years || [];
+    listEl.innerHTML = years.length ? `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Year</th><th>Period</th><th>Income</th><th>Expense</th><th>Net surplus</th><th></th></tr></thead>
+        <tbody>${years.map(y => `
+          <tr>
+            <td>${y.year_label}</td>
+            <td>${fmtDate(y.start_date)} – ${fmtDate(y.end_date)}</td>
+            <td>${fmtNaira(y.total_income_kobo)}</td>
+            <td>${fmtNaira(y.total_expense_kobo)}</td>
+            <td style="font-weight:700">${fmtNaira(y.net_surplus_kobo)}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openAllocationEditor('${y.id}')">Allocate</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>
+    ` : '<div class="no-data">No financial years closed yet.</div>';
+  } catch (e) {
+    listEl.innerHTML = `<div class="no-data">Failed to load: ${e.message}</div>`;
+  }
+}
+
+async function submitCloseFinancialYear() {
+  const errEl = document.getElementById('fy-error');
+  errEl.style.display = 'none';
+  const yearLabel = document.getElementById('fy-label').value.trim();
+  const startDate = document.getElementById('fy-start').value;
+  const endDate = document.getElementById('fy-end').value;
+
+  if (!yearLabel) { errEl.textContent = 'Year label is required.'; errEl.style.display = 'block'; return; }
+  if (!startDate || !endDate) { errEl.textContent = 'Both start and end dates are required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('fy-submit-btn');
+  btn.disabled = true; btn.textContent = 'Closing...';
+  try {
+    const res = await fetch(`${API}/coop-portal-close-financial-year`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ year_label: yearLabel, start_date: startDate, end_date: endDate }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to close year.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Close year'; return; }
+    notify(`${yearLabel} closed — net surplus ${fmtNaira(data.financial_year.net_surplus_kobo)}`);
+    btn.disabled = false; btn.textContent = 'Close year';
+    await loadFinancialYears();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Close year';
+  }
+}
+
+let currentAllocationYearId = null;
+
+async function openAllocationEditor(financialYearId) {
+  currentAllocationYearId = financialYearId;
+  const detailEl = document.getElementById('fy-detail-card');
+  detailEl.innerHTML = `<div class="card"><div class="card-title">Allocate surplus</div><div class="no-data">Loading...</div></div>`;
+  try {
+    const res = await fetch(`${API}/coop-portal-surplus-allocation?financial_year_id=${financialYearId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { detailEl.innerHTML = `<div class="card"><div class="no-data">${data.error}</div></div>`; return; }
+    renderAllocationEditor(data);
+  } catch (e) {
+    detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${e.message}</div></div>`;
+  }
+}
+
+function renderAllocationEditor(data) {
+  const detailEl = document.getElementById('fy-detail-card');
+  const rows = data.allocations.length ? data.allocations : [{ category: '', amount_kobo: '' }];
+  detailEl.innerHTML = `
+    <div class="card">
+      <div class="card-title">Allocate surplus — ${data.financial_year.year_label}</div>
+      <div class="card-sub">Net surplus: ${fmtNaira(data.financial_year.net_surplus_kobo)}. Categories are entirely up to your society's own bye-laws — reserve fund, development fund, member distribution, whatever applies.</div>
+      <div id="alloc-rows">${rows.map(renderAllocationRow).join('')}</div>
+      <button class="btn btn-ghost btn-sm" style="margin:10px 0" onclick="addAllocationRow()">+ Add category</button>
+      <div id="alloc-total" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
+      <div id="alloc-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" onclick="submitAllocation(${data.financial_year.net_surplus_kobo})" id="alloc-submit-btn">Save allocation</button>
+    </div>
+  `;
+}
+
+function renderAllocationRow(a) {
+  return `
+    <div style="display:flex;gap:8px;margin-bottom:8px" class="alloc-row">
+      <input type="text" class="alloc-category" placeholder="e.g. Statutory Reserve Fund" value="${a.category || ''}" style="flex:2">
+      <input type="number" class="alloc-amount" placeholder="Amount (₦)" value="${a.amount_kobo ? a.amount_kobo/100 : ''}" style="flex:1">
+      <button class="btn btn-ghost btn-sm" onclick="this.closest('.alloc-row').remove()">Remove</button>
+    </div>
+  `;
+}
+
+function addAllocationRow() {
+  document.getElementById('alloc-rows').insertAdjacentHTML('beforeend', renderAllocationRow({}));
+}
+
+async function submitAllocation(netSurplusKobo) {
+  const errEl = document.getElementById('alloc-error');
+  errEl.style.display = 'none';
+
+  const rows = Array.from(document.querySelectorAll('.alloc-row'));
+  const allocations = rows.map(row => ({
+    category: row.querySelector('.alloc-category').value.trim(),
+    amount_kobo: Math.round(parseFloat(row.querySelector('.alloc-amount').value || 0) * 100),
+  })).filter(a => a.category && a.amount_kobo > 0);
+
+  const total = allocations.reduce((s, a) => s + a.amount_kobo, 0);
+  if (total > netSurplusKobo) {
+    errEl.textContent = `Total allocation (${fmtNaira(total)}) exceeds the net surplus (${fmtNaira(netSurplusKobo)}).`;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('alloc-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-surplus-allocation`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ financial_year_id: currentAllocationYearId, allocations }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save allocation'; return; }
+    notify(`Allocation saved — ${fmtNaira(data.allocated_total_kobo)} allocated, ${fmtNaira(data.unallocated_kobo)} unallocated`);
+    btn.disabled = false; btn.textContent = 'Save allocation';
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save allocation';
+  }
+}
+
+
 async function renderReconciliation() {
   const el = document.getElementById('view-reconciliation');
   const hasRecon = (portalData.addons || []).some(a => a.addon_key === 'bank_reconciliation');
