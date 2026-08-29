@@ -77,6 +77,8 @@ exports.handler = async (event) => {
   const cycle                         = VALID_CYCLES.includes(body.cycle) ? body.cycle : null;
   const addonKeys                        = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
   const primaryIndustry = VALID_INDUSTRIES.includes(body.primary_industry) ? body.primary_industry : null;
+  const fyStartMonth = Number.isInteger(body.financial_year_start_month) && body.financial_year_start_month >= 1 && body.financial_year_start_month <= 12
+    ? body.financial_year_start_month : 1; // defaults to January, matching the column's own DB default
   const termsAccepted = body.terms_accepted === true;
 
   if (!name)      return err(400, 'society_name is required');
@@ -129,6 +131,7 @@ exports.handler = async (event) => {
     phone,
     owner_name:                  ownerName,
     primary_industry:               primaryIndustry,
+    financial_year_start_month:        fyStartMonth,
     subscription_status:            'trial',
     subscription_plan:                 plan,
     subscription_cycle:                   cycle,
