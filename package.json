@@ -14,7 +14,8 @@
     "@supabase/supabase-js": "^2.39.0",
     "qrcode": "^1.5.3",
     "tweetnacl": "^1.0.3",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "pdfkit": "^0.20.1"
   },
   "engines": {
     "node": ">=18.0.0"
