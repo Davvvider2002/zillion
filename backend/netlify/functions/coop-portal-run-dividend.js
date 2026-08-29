@@ -4,12 +4,19 @@
  * GET  /api/v1/coop-portal-run-dividend?financial_year_id=X
  * POST /api/v1/coop-portal-run-dividend   { financial_year_id }
  *
- * POST runs (or re-runs) the patronage-based dividend calculation for
- * a financial year - requires at least one allocation line flagged
- * is_member_distribution, and calculates against the sum of those
- * lines. Re-running replaces the previous draft run entirely (delete
- * + recreate), since this is draft-stage only - no approval or
- * payout has happened yet in this phase.
+ * POST { financial_year_id } runs (or re-runs) the calculation - but
+ * only while the current run is still 'draft'. Once approved, it's
+ * locked: re-running is rejected outright rather than silently
+ * overwriting an approved figure.
+ *
+ * POST { financial_year_id, action: 'approve' } locks the current
+ * draft run. This is a simplified single checkpoint, not a full
+ * multi-stage board/AGM workflow - the portal has no per-role logins
+ * within a society, so it can't enforce a real multi-person approval
+ * chain. Approving here represents that the society's own external
+ * approval process (however their bye-laws define it) has already
+ * happened - the system just records that it's locked in, not that
+ * the approval itself occurred through Zillion.
  *
  * GET returns the most recent run and its full entitlement breakdown.
  *
@@ -65,6 +72,24 @@ exports.handler = async (event) => {
   const { data: fy } = await db.from('coop_financial_years').select('*').eq('id', financialYearId).eq('coop_id', coopId).maybeSingle();
   if (!fy) return err(404, 'Financial year not found');
 
+  if (body.action === 'approve') {
+    const { data: existingRun } = await db.from('coop_dividend_runs').select('*').eq('financial_year_id', financialYearId).eq('coop_id', coopId).maybeSingle();
+    if (!existingRun) return err(404, 'No dividend calculation exists for this year yet — run one first.');
+    if (existingRun.status === 'approved') return err(400, 'This dividend run is already approved.');
+
+    const { data: approved, error: approveErr } = await db.from('coop_dividend_runs')
+      .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: resolved.society.merchant_id })
+      .eq('id', existingRun.id).select().single();
+    if (approveErr) return err(500, `Failed to approve: ${approveErr.message}`);
+
+    return ok({ success: true, run: approved });
+  }
+
+  const { data: existingRun } = await db.from('coop_dividend_runs').select('*').eq('financial_year_id', financialYearId).eq('coop_id', coopId).maybeSingle();
+  if (existingRun && existingRun.status === 'approved') {
+    return err(400, 'This dividend run is already approved and locked — it cannot be recalculated. Contact support if it genuinely needs to be reopened.');
+  }
+
   const { data: distributionLines } = await db.from('coop_surplus_allocations')
     .select('amount_kobo').eq('financial_year_id', financialYearId).eq('is_member_distribution', true);
   const totalDistributableKobo = (distributionLines || []).reduce((s, l) => s + l.amount_kobo, 0);
@@ -79,8 +104,7 @@ exports.handler = async (event) => {
     return err(400, 'No members have any qualifying patronage (savings, dues, or loan interest paid) in this period — nothing to distribute.');
   }
 
-  // Re-running replaces the previous draft entirely.
-  const { data: existingRun } = await db.from('coop_dividend_runs').select('id').eq('financial_year_id', financialYearId).eq('coop_id', coopId).maybeSingle();
+  // Re-running (draft only, checked above) replaces the previous draft entirely.
   if (existingRun) await db.from('coop_dividend_runs').delete().eq('id', existingRun.id); // cascades to entitlements
 
   const { data: run, error: runErr } = await db.from('coop_dividend_runs').insert({
