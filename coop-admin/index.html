@@ -1873,8 +1873,16 @@ async function submitRunDividend(financialYearId) {
 
 function renderDividendResults(run, entitlements) {
   const resultsEl = document.getElementById('div-run-results');
+  const isApproved = run.status === 'approved';
+  const runBtn = document.getElementById('div-run-btn');
+  if (runBtn) { runBtn.disabled = isApproved; runBtn.textContent = isApproved ? 'Locked (approved)' : 'Run calculation'; }
+
   resultsEl.innerHTML = `
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Pool: ${fmtNaira(run.total_distributable_kobo)} · Total patronage: ${fmtNaira(run.total_patronage_kobo)} · Calculated ${fmtDate(run.calculated_at)}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span class="pill ${isApproved ? 'pill-green' : 'pill-muted'}">${isApproved ? 'Approved' : 'Draft'}</span>
+      ${!isApproved ? `<button class="btn btn-primary btn-sm" onclick="submitApproveDividend('${run.financial_year_id}')" id="div-approve-btn">Approve &amp; lock</button>` : ''}
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Pool: ${fmtNaira(run.total_distributable_kobo)} · Total patronage: ${fmtNaira(run.total_patronage_kobo)} · Calculated ${fmtDate(run.calculated_at)}${isApproved ? ` · Approved ${fmtDate(run.approved_at)}` : ''}</div>
     <div class="table-wrap"><table>
       <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Patronage %</th><th>Entitlement</th></tr></thead>
       <tbody>${entitlements.map(e => `
@@ -1890,6 +1898,24 @@ function renderDividendResults(run, entitlements) {
     </table></div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">*Loan interest paid is prorated from each loan's fixed interest ratio, not an exact per-payment figure.</div>
   `;
+}
+
+async function submitApproveDividend(financialYearId) {
+  const btn = document.getElementById('div-approve-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Approving...'; }
+  try {
+    const res = await fetch(`${API}/coop-portal-run-dividend`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ financial_year_id: financialYearId, action: 'approve' }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to approve', true); if (btn) { btn.disabled = false; btn.textContent = 'Approve & lock'; } return; }
+    notify('Dividend run approved and locked');
+    await loadExistingDividendRun(financialYearId);
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+    if (btn) { btn.disabled = false; btn.textContent = 'Approve & lock'; }
+  }
 }
 
 async function renderReconciliation() {
