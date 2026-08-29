@@ -14,7 +14,8 @@
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "uuid": "^9.0.1",
-    "@aws-sdk/client-kms": "^3.600.0"
+    "@aws-sdk/client-kms": "^3.600.0",
+    "pdfkit": "^0.20.1"
   },
   "engines": {
     "node": ">=18.0.0"
