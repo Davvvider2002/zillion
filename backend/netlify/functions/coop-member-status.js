@@ -112,6 +112,15 @@ exports.handler = async (event) => {
     .select('id, name, calculation_type, multiplier_value, flat_max_kobo, default_repayment_months')
     .eq('coop_id', member.coop_id).eq('active', true).order('created_at', { ascending: true });
 
+  // Just the single most recent approved dividend, for the Home
+  // screen's summary card — the full history lives on the dedicated
+  // coop-member-dividends endpoint, this avoids duplicating that logic.
+  const { data: recentDividends } = await db.from('coop_dividend_entitlements')
+    .select('entitlement_kobo, coop_dividend_runs!inner(status, approved_at, coop_financial_years!inner(year_label))')
+    .eq('member_id', member.id).eq('coop_dividend_runs.status', 'approved');
+  const latestDividend = (recentDividends || [])
+    .sort((a, b) => new Date(b.coop_dividend_runs.approved_at) - new Date(a.coop_dividend_runs.approved_at))[0];
+
   return ok({
     is_coop_member:     true,
     society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent },
@@ -122,6 +131,7 @@ exports.handler = async (event) => {
     total_outstanding_loan_kobo: totalOutstandingLoanKobo,
     guarantor_requests_pending:  guarantorRequests || [],
     dues,
+    latest_dividend: latestDividend ? { year_label: latestDividend.coop_dividend_runs.coop_financial_years.year_label, entitlement_kobo: latestDividend.entitlement_kobo } : null,
     unread_notification_count: unreadNotifCount,
   });
 };
