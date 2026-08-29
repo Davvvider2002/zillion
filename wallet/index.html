@@ -1055,7 +1055,19 @@ function triggerPWAInstall() {
         <div class="bal-sub"><span style="color:#00C896">View details →</span></div>
       </div>
 
-      <div class="actions-grid" style="grid-template-columns:1fr 1fr">
+      <div class="balance-card" id="home-coop-hero-dues" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
+        <div class="bal-label">Dues</div>
+        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-dues-status">Up to date</div>
+        <div class="bal-sub"><span style="color:#00C896" id="home-coop-hero-dues-action">View details →</span></div>
+      </div>
+
+      <div class="balance-card" id="home-coop-hero-dividend" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
+        <div class="bal-label">Latest Dividend</div>
+        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-dividend-status">No dividends yet</div>
+        <div class="bal-sub"><span style="color:#00C896" id="home-coop-hero-dividend-sub">Check back after your society's next financial year closes</span></div>
+      </div>
+
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
         <button class="action-btn primary-action" onclick="goTo('screen-coop');setTimeout(()=>coopShowApplyForm(),100)">
           <span class="action-icon">🤝</span>
           <div class="action-label">Apply for Loan</div>
@@ -1064,10 +1076,28 @@ function triggerPWAInstall() {
           <span class="action-icon">💰</span>
           <div class="action-label">My Savings</div>
         </button>
+        <button class="action-btn" onclick="goTo('screen-coop');setTimeout(()=>coopShowPayNowModal('dues'),100)">
+          <span class="action-icon">🧾</span>
+          <div class="action-label">Pay Dues</div>
+        </button>
+        <button class="action-btn" onclick="coopRequestLoanStatement()">
+          <span class="action-icon">📄</span>
+          <div class="action-label">Loan Statement</div>
+        </button>
       </div>
 
       <div id="home-coop-hero-guarantor-banner" onclick="goTo('screen-coop')" style="display:none;cursor:pointer;background:#1A1408;border:1px solid #F5B87A;color:#F5B87A;font-size:13px;font-weight:600;padding:12px 14px;border-radius:12px;margin-top:14px;text-align:center">
         ⚠ You have a guarantor request waiting — tap to respond
+      </div>
+
+      <div class="section-header" style="margin-top:20px">
+        <div class="section-title">Recent Activity</div>
+        <div class="section-link" onclick="goTo('screen-history')">See all</div>
+      </div>
+      <div id="home-coop-activity-preview">
+        <div class="empty-state" style="padding:16px">
+          <div class="empty-sub">Your savings, dues, loans, and dividends will appear here.</div>
+        </div>
       </div>
     </div>
 
@@ -2728,6 +2758,29 @@ async function zilRenderCoopSummary() {
 
     const guarantorBanner = document.getElementById('home-coop-hero-guarantor-banner');
     if (guarantorBanner) guarantorBanner.style.display = (data.guarantor_requests_pending || []).length ? '' : 'none';
+
+    const duesStatusEl = document.getElementById('home-coop-hero-dues-status');
+    const duesActionEl = document.getElementById('home-coop-hero-dues-action');
+    if (duesStatusEl && data.dues) {
+      const owing = data.dues.owing_kobo;
+      duesStatusEl.textContent = owing > 0 ? `${fmtNaira(owing)} owing` : 'Up to date';
+      duesStatusEl.style.color = owing > 0 ? '#F5B87A' : '#fff';
+      duesActionEl.textContent = owing > 0 ? 'Pay now →' : 'View details →';
+    }
+
+    const dividendStatusEl = document.getElementById('home-coop-hero-dividend-status');
+    const dividendSubEl = document.getElementById('home-coop-hero-dividend-sub');
+    if (dividendStatusEl) {
+      if (data.latest_dividend) {
+        dividendStatusEl.textContent = fmtNaira(data.latest_dividend.entitlement_kobo);
+        dividendSubEl.textContent = `${data.latest_dividend.year_label} · View details →`;
+      } else {
+        dividendStatusEl.textContent = 'No dividends yet';
+        dividendSubEl.textContent = "Check back after your society's next financial year closes";
+      }
+    }
+
+    loadCoopHomeActivityPreview();
     return;
   }
 
@@ -2744,6 +2797,31 @@ async function zilRenderCoopSummary() {
     ? `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`
     : 'No active loan';
   card.style.display = '';
+}
+
+async function loadCoopHomeActivityPreview() {
+  const el = document.getElementById('home-coop-activity-preview');
+  if (!el) return;
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-member-activity`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const activity = (data.activity || []).slice(0, 3);
+    if (!activity.length) return; // leave the existing empty state in place
+
+    const labels = { savings: 'Savings payment', dues: 'Dues payment', loan_disbursed: 'Loan disbursed', loan_repayment: 'Loan repayment', dividend: 'Dividend' };
+    el.innerHTML = '<div class="tx-card">' + activity.map(a => {
+      const isOut = a.type === 'loan_repayment';
+      return `<div class="tx-row">
+        <div class="tx-dot ${isOut ? 'out' : 'in'}">${isOut ? '↑' : '↓'}</div>
+        <div class="tx-info">
+          <div class="tx-name">${labels[a.type] || 'Activity'}</div>
+          <div class="tx-meta">${fmtTime(a.ts)}</div>
+        </div>
+        <div class="tx-amount ${isOut ? 'out' : 'in'}">${isOut ? '\u2212' : '+'}${fmtNaira(a.amount_kobo)}</div>
+      </div>`;
+    }).join('') + '</div>';
+  } catch (e) { /* non-fatal — the existing empty state stays in place */ }
 }
 
 let _coopLatestStatus = null;
