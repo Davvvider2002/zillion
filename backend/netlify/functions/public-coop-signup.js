@@ -46,6 +46,15 @@ function normalisePhone(raw) {
 
 const VALID_PLANS = ['launch', 'growth', 'scale'];
 const VALID_CYCLES = ['monthly', 'yearly'];
+// Controlled list rather than free text, so analytics can actually
+// aggregate by category instead of fragmenting into endless variants
+// ("Agriculture" vs "Farming" vs "Agric").
+const VALID_INDUSTRIES = [
+  'Agriculture & Farming', 'Trading & Commerce', 'Transportation & Logistics',
+  'Manufacturing & Production', 'Education', 'Healthcare',
+  'Civil Service & Government', 'Artisan & Skilled Trade', 'Financial Services',
+  'Real Estate & Construction', 'Hospitality & Food Service', 'Other',
+];
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -67,6 +76,7 @@ exports.handler = async (event) => {
   const plan                       = VALID_PLANS.includes(body.plan) ? body.plan : null;
   const cycle                         = VALID_CYCLES.includes(body.cycle) ? body.cycle : null;
   const addonKeys                        = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
+  const primaryIndustry = VALID_INDUSTRIES.includes(body.primary_industry) ? body.primary_industry : null;
   const termsAccepted = body.terms_accepted === true;
 
   if (!name)      return err(400, 'society_name is required');
@@ -118,6 +128,7 @@ exports.handler = async (event) => {
     name,
     phone,
     owner_name:                  ownerName,
+    primary_industry:               primaryIndustry,
     subscription_status:            'trial',
     subscription_plan:                 plan,
     subscription_cycle:                   cycle,
