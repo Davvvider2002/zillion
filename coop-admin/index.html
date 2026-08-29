@@ -177,6 +177,20 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-edit-member">
+  <div class="modal-box">
+    <div class="modal-title">Edit member</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Phone number can't be changed here — it's how this member logs in and can't be edited without risking their access. Contact support if a phone number genuinely needs to change.</div>
+    <input type="hidden" id="em-member-id" value="">
+    <div class="field"><label>Full name</label><input type="text" id="em-name" placeholder="e.g. Amina Bello"></div>
+    <div class="field"><label>Email</label><input type="email" id="em-email" placeholder="member@email.com"></div>
+    <div class="field"><label>Address</label><input type="text" id="em-address" placeholder="e.g. 12 Allen Avenue, Ikeja, Lagos"></div>
+    <div id="em-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitEditMember()" id="em-btn">Save changes</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-edit-member')">Cancel</button>
+  </div>
+</div>
+
 <!-- RECORD SAVINGS PAYMENT MODAL -->
 <div class="modal-overlay" id="modal-savings-payment">
   <div class="modal-box">
@@ -299,6 +313,36 @@ tr:last-child td{border-bottom:none}
       <button class="btn btn-ghost" style="width:100%;margin-top:8px;display:none" id="lp-cancel-edit-btn" onclick="resetLoanPackageForm()">Cancel edit</button>
     </div>
     <button class="btn btn-ghost" style="width:100%;margin-top:14px" onclick="closeModal('modal-loan-packages')">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-create-loan">
+  <div class="modal-box">
+    <div class="modal-title">Create loan</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">For a loan requested in person or by phone. The guarantor still has to confirm before this goes to admin review — same as a member applying directly.</div>
+    <div class="field">
+      <label>Borrower</label>
+      <select id="cl-member"><option value="">Select a member...</option></select>
+    </div>
+    <div class="field">
+      <label>Guarantor</label>
+      <select id="cl-guarantor"><option value="">Select a member...</option></select>
+    </div>
+    <div class="field" id="cl-package-row" style="display:none">
+      <label>Loan package</label>
+      <select id="cl-package"><option value="">Select a package...</option></select>
+    </div>
+    <div class="field">
+      <label>Amount (₦)</label>
+      <input type="number" id="cl-amount" placeholder="e.g. 50000">
+    </div>
+    <div class="field">
+      <label>Repayment period (months)</label>
+      <input type="number" id="cl-months" placeholder="e.g. 6" value="6">
+    </div>
+    <div id="cl-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitCreateLoan()" id="cl-submit-btn">Create loan</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-create-loan')">Cancel</button>
   </div>
 </div>
 
@@ -627,7 +671,12 @@ function renderMembers() {
             <td>${fmtDate(m.activated_at)}</td>
             <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
             <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
-            <td><button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button></td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button>
+              </div>
+            </td>
           </tr>
         `).join('') || '<tr><td colspan="6" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
       </table></div>
@@ -654,6 +703,46 @@ async function sendMemberLoanStatement(memberId, btn) {
   } catch (e) {
     notify('Network error: ' + e.message, true);
     btn.disabled = false; btn.textContent = originalText;
+  }
+}
+
+function openEditMemberModal(memberId) {
+  const m = (portalData.members || []).find(x => x.id === memberId);
+  if (!m) return;
+  document.getElementById('em-member-id').value = m.id;
+  document.getElementById('em-name').value = m.name || '';
+  document.getElementById('em-email').value = m.email || '';
+  document.getElementById('em-address').value = m.address || '';
+  document.getElementById('em-error').style.display = 'none';
+  openModal('modal-edit-member');
+}
+
+async function submitEditMember() {
+  const errEl = document.getElementById('em-error');
+  errEl.style.display = 'none';
+  const memberId = document.getElementById('em-member-id').value;
+  const name = document.getElementById('em-name').value.trim();
+  const email = document.getElementById('em-email').value.trim();
+  const address = document.getElementById('em-address').value.trim();
+
+  if (!name) { errEl.textContent = 'Name cannot be empty.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('em-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-update-member`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: memberId, name, email, address }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save changes'; return; }
+    closeModal('modal-edit-member');
+    notify('Member updated');
+    btn.disabled = false; btn.textContent = 'Save changes';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save changes';
   }
 }
 
@@ -846,6 +935,7 @@ function renderLoans() {
       <div class="card-title">Loans
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>
+          <button class="btn btn-primary btn-sm" onclick="openCreateLoanModal()">+ Create loan</button>
           <button class="btn btn-ghost btn-sm" onclick="openLoanPackagesModal()">Loan packages</button>
           <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
         </div>
@@ -1059,6 +1149,71 @@ async function submitConfigureDues() {
 }
 
 let loanPackagesCache = [];
+
+async function openCreateLoanModal() {
+  document.getElementById('cl-error').style.display = 'none';
+  document.getElementById('cl-amount').value = '';
+  document.getElementById('cl-months').value = '6';
+
+  const members = (portalData.members || []).filter(m => m.status === 'ACTIVE');
+  const memberOptions = members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  document.getElementById('cl-member').innerHTML = '<option value="">Select a member...</option>' + memberOptions;
+  document.getElementById('cl-guarantor').innerHTML = '<option value="">Select a member...</option>' + memberOptions;
+
+  try {
+    const res = await fetch(`${API}/coop-portal-loan-packages`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    const packages = (data.packages || []).filter(p => p.active);
+    const pkgRow = document.getElementById('cl-package-row');
+    if (packages.length) {
+      pkgRow.style.display = '';
+      document.getElementById('cl-package').innerHTML = '<option value="">Select a package...</option>' + packages.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    } else {
+      pkgRow.style.display = 'none';
+    }
+  } catch (e) { /* non-fatal — package selection just won't show if this fails */ }
+
+  openModal('modal-create-loan');
+}
+
+async function submitCreateLoan() {
+  const errEl = document.getElementById('cl-error');
+  errEl.style.display = 'none';
+
+  const memberId = document.getElementById('cl-member').value;
+  const guarantorId = document.getElementById('cl-guarantor').value;
+  const packageId = document.getElementById('cl-package').value;
+  const amountNaira = parseFloat(document.getElementById('cl-amount').value);
+  const months = parseInt(document.getElementById('cl-months').value);
+
+  if (!memberId) { errEl.textContent = 'Select a borrower.'; errEl.style.display = 'block'; return; }
+  if (!guarantorId) { errEl.textContent = 'Select a guarantor.'; errEl.style.display = 'block'; return; }
+  if (memberId === guarantorId) { errEl.textContent = 'The borrower and guarantor cannot be the same person.'; errEl.style.display = 'block'; return; }
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (!months || months <= 0) { errEl.textContent = 'Enter a valid repayment period.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('cl-submit-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-create-loan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({
+        member_id: memberId, guarantor_member_id: guarantorId,
+        principal_kobo: Math.round(amountNaira * 100), repayment_months: months,
+        loan_package_id: packageId || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create loan.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create loan'; return; }
+    closeModal('modal-create-loan');
+    notify(data.message || 'Loan created');
+    btn.disabled = false; btn.textContent = 'Create loan';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Create loan';
+  }
+}
 
 async function openLoanPackagesModal() {
   document.getElementById('lp-error').style.display = 'none';
