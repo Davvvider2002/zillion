@@ -169,6 +169,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-member-dividends"
+  to   = "/.netlify/functions/coop-member-dividends"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-update-member-email"
   to   = "/.netlify/functions/coop-update-member-email"
   status = 200
