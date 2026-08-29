@@ -334,6 +334,22 @@ a{color:inherit;text-decoration:none}
         <option>Other</option>
       </select>
 
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Financial year starts in</label>
+      <select id="su-fy-month" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+        <option value="1" selected>January (calendar year)</option>
+        <option value="2">February</option>
+        <option value="3">March</option>
+        <option value="4">April</option>
+        <option value="5">May</option>
+        <option value="6">June</option>
+        <option value="7">July</option>
+        <option value="8">August</option>
+        <option value="9">September</option>
+        <option value="10">October</option>
+        <option value="11">November</option>
+        <option value="12">December</option>
+      </select>
+
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Password</label>
       <input id="su-password" type="password" placeholder="At least 6 characters" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
 
@@ -540,6 +556,7 @@ async function submitSignup() {
     addon_keys: Array.from(document.querySelectorAll('.su-addon-checkbox:checked')).map(cb => cb.value),
     terms_accepted: document.getElementById('su-terms-accept').checked,
     primary_industry: document.getElementById('su-industry').value || undefined,
+    financial_year_start_month: parseInt(document.getElementById('su-fy-month').value),
   };
   if (!body.society_name || !body.phone || !body.owner_name || !body.email || !body.password) {
     errEl.textContent = 'Please fill in all required fields.'; errEl.style.display = 'block'; return;
