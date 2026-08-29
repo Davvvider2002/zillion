@@ -15,14 +15,20 @@
 const NORMAL_DEBIT_TYPES = new Set(['ASSET', 'EXPENSE']);
 
 /**
- * Returns every account with its net balance in base currency, as of
- * an optional cutoff date. Positive balance always means "on the
- * account's normal side" — a debit-normal account (ASSET/EXPENSE)
- * with a positive balance genuinely holds that much; a credit-normal
- * account (LIABILITY/EQUITY/INCOME) with a positive balance owes or
- * has earned that much.
+ * Returns every account with its net balance in base currency, over
+ * an optional date range. With only asOfDate (the existing, default
+ * behavior), this is cumulative since inception - the right meaning
+ * for a Trial Balance or Balance Sheet, which are "as of a point in
+ * time" by definition. Passing startDate too restricts to activity
+ * within that window only - the right meaning for a specific
+ * financial year's Income & Expenditure or a period-bounded Ledger.
+ * Positive balance always means "on the account's normal side" — a
+ * debit-normal account (ASSET/EXPENSE) with a positive balance
+ * genuinely holds that much; a credit-normal account
+ * (LIABILITY/EQUITY/INCOME) with a positive balance owes or has
+ * earned that much.
  */
-async function computeAccountBalances(db, coopId, asOfDate = null) {
+async function computeAccountBalances(db, coopId, asOfDate = null, startDate = null) {
   const { data: accounts } = await db.from('coop_chart_of_accounts')
     .select('id, account_code, account_name, account_type, currency, is_system')
     .eq('coop_id', coopId).eq('active', true).order('account_code');
@@ -32,6 +38,7 @@ async function computeAccountBalances(db, coopId, asOfDate = null) {
     .select('account_id, line_type, base_amount, coop_journal_entries!inner(entry_date)')
     .eq('coop_id', coopId);
   if (asOfDate) lineQuery = lineQuery.lte('coop_journal_entries.entry_date', asOfDate);
+  if (startDate) lineQuery = lineQuery.gte('coop_journal_entries.entry_date', startDate);
   const { data: lines } = await lineQuery;
 
   const totals = new Map(); // account_id -> { debit, credit }
@@ -50,16 +57,16 @@ async function computeAccountBalances(db, coopId, asOfDate = null) {
 }
 
 /** Every account and its balance — the rawest report, and the check that the whole ledger is internally consistent. */
-async function computeTrialBalance(db, coopId, asOfDate = null) {
-  const balances = await computeAccountBalances(db, coopId, asOfDate);
+async function computeTrialBalance(db, coopId, asOfDate = null, startDate = null) {
+  const balances = await computeAccountBalances(db, coopId, asOfDate, startDate);
   const totalDebit = balances.reduce((s, a) => s + a.total_debit, 0);
   const totalCredit = balances.reduce((s, a) => s + a.total_credit, 0);
   return { accounts: balances, total_debit: totalDebit, total_credit: totalCredit, balanced: totalDebit === totalCredit };
 }
 
 /** Income minus expense for the period — the society's surplus or deficit. */
-async function computeIncomeExpenditure(db, coopId, asOfDate = null) {
-  const balances = await computeAccountBalances(db, coopId, asOfDate);
+async function computeIncomeExpenditure(db, coopId, asOfDate = null, startDate = null) {
+  const balances = await computeAccountBalances(db, coopId, asOfDate, startDate);
   const income = balances.filter(a => a.account_type === 'INCOME');
   const expense = balances.filter(a => a.account_type === 'EXPENSE');
   const totalIncome = income.reduce((s, a) => s + a.balance, 0);
@@ -68,12 +75,12 @@ async function computeIncomeExpenditure(db, coopId, asOfDate = null) {
 }
 
 /** Assets vs liabilities + equity (with the period's net income folded into equity) — must always balance. */
-async function computeBalanceSheet(db, coopId, asOfDate = null) {
-  const balances = await computeAccountBalances(db, coopId, asOfDate);
+async function computeBalanceSheet(db, coopId, asOfDate = null, startDate = null) {
+  const balances = await computeAccountBalances(db, coopId, asOfDate, startDate);
   const assets = balances.filter(a => a.account_type === 'ASSET');
   const liabilities = balances.filter(a => a.account_type === 'LIABILITY');
   const equity = balances.filter(a => a.account_type === 'EQUITY');
-  const { net: netIncome } = await computeIncomeExpenditure(db, coopId, asOfDate);
+  const { net: netIncome } = await computeIncomeExpenditure(db, coopId, asOfDate, startDate);
 
   const totalAssets = assets.reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = liabilities.reduce((s, a) => s + a.balance, 0);
@@ -91,9 +98,13 @@ async function computeBalanceSheet(db, coopId, asOfDate = null) {
  * a running balance after each line — the detail behind a single row
  * of the trial balance. Same normal-debit-side logic as
  * computeAccountBalances, applied incrementally as it walks through
- * the lines rather than just summed once.
+ * the lines rather than just summed once. With startDate, the
+ * running balance starts from 0 at the period start rather than from
+ * the account's true opening balance — this shows period activity,
+ * not a true running account balance, and is labelled that way by
+ * callers when startDate is used.
  */
-async function computeAccountLedger(db, coopId, accountId, asOfDate = null) {
+async function computeAccountLedger(db, coopId, accountId, asOfDate = null, startDate = null) {
   const { data: account } = await db.from('coop_chart_of_accounts')
     .select('id, account_code, account_name, account_type, currency')
     .eq('coop_id', coopId).eq('id', accountId).maybeSingle();
@@ -103,6 +114,7 @@ async function computeAccountLedger(db, coopId, accountId, asOfDate = null) {
     .select('base_amount, line_type, coop_journal_entries!inner(entry_date, entry_number, description)')
     .eq('coop_id', coopId).eq('account_id', accountId);
   if (asOfDate) lineQuery = lineQuery.lte('coop_journal_entries.entry_date', asOfDate);
+  if (startDate) lineQuery = lineQuery.gte('coop_journal_entries.entry_date', startDate);
   const { data: lines } = await lineQuery;
 
   const isDebitNormal = NORMAL_DEBIT_TYPES.has(account.account_type);
