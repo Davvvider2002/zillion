@@ -11,7 +11,7 @@
 
 [functions]
   node_bundler          = "esbuild"
-  external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms"]
+  external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms", "pdfkit"]
 
 # Runs automatically every 4 hours — writes findings to system_alerts,
 # surfaced in the admin dashboard's System Health panel. Read-only
