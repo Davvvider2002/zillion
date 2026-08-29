@@ -1772,21 +1772,32 @@ function renderAllocationEditor(data) {
   detailEl.innerHTML = `
     <div class="card">
       <div class="card-title">Allocate surplus — ${data.financial_year.year_label}</div>
-      <div class="card-sub">Net surplus: ${fmtNaira(data.financial_year.net_surplus_kobo)}. Categories are entirely up to your society's own bye-laws — reserve fund, development fund, member distribution, whatever applies.</div>
+      <div class="card-sub">Net surplus: ${fmtNaira(data.financial_year.net_surplus_kobo)}. Categories are entirely up to your society's own bye-laws — reserve fund, development fund, member distribution, whatever applies. Check "Member pool" on whichever line is meant to be shared out to members.</div>
       <div id="alloc-rows">${rows.map(renderAllocationRow).join('')}</div>
       <button class="btn btn-ghost btn-sm" style="margin:10px 0" onclick="addAllocationRow()">+ Add category</button>
       <div id="alloc-total" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
       <div id="alloc-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
       <button class="btn btn-primary" onclick="submitAllocation(${data.financial_year.net_surplus_kobo})" id="alloc-submit-btn">Save allocation</button>
     </div>
+    <div class="card">
+      <div class="card-title">Dividend calculation</div>
+      <div class="card-sub">Patronage-based: each member's share of savings, dues, and loan interest paid during this year, applied against the member-distribution pool above. Loan interest paid is an approximation, prorated from each loan's own fixed interest ratio — not an exact per-payment figure.</div>
+      <button class="btn btn-primary btn-sm" onclick="submitRunDividend('${data.financial_year.id}')" id="div-run-btn">Run calculation</button>
+      <div id="div-run-error" style="display:none;color:#FF8A8A;font-size:13px;margin:10px 0"></div>
+      <div id="div-run-results" style="margin-top:14px"></div>
+    </div>
   `;
+  loadExistingDividendRun(data.financial_year.id);
 }
 
 function renderAllocationRow(a) {
   return `
-    <div style="display:flex;gap:8px;margin-bottom:8px" class="alloc-row">
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center" class="alloc-row">
       <input type="text" class="alloc-category" placeholder="e.g. Statutory Reserve Fund" value="${a.category || ''}" style="flex:2">
       <input type="number" class="alloc-amount" placeholder="Amount (₦)" value="${a.amount_kobo ? a.amount_kobo/100 : ''}" style="flex:1">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;text-transform:none;letter-spacing:normal">
+        <input type="checkbox" class="alloc-is-member-dist" ${a.is_member_distribution ? 'checked' : ''}> Member pool
+      </label>
       <button class="btn btn-ghost btn-sm" onclick="this.closest('.alloc-row').remove()">Remove</button>
     </div>
   `;
@@ -1804,6 +1815,7 @@ async function submitAllocation(netSurplusKobo) {
   const allocations = rows.map(row => ({
     category: row.querySelector('.alloc-category').value.trim(),
     amount_kobo: Math.round(parseFloat(row.querySelector('.alloc-amount').value || 0) * 100),
+    is_member_distribution: row.querySelector('.alloc-is-member-dist').checked,
   })).filter(a => a.category && a.amount_kobo > 0);
 
   const total = allocations.reduce((s, a) => s + a.amount_kobo, 0);
@@ -1830,6 +1842,55 @@ async function submitAllocation(netSurplusKobo) {
   }
 }
 
+async function loadExistingDividendRun(financialYearId) {
+  try {
+    const res = await fetch(`${API}/coop-portal-run-dividend?financial_year_id=${financialYearId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (data.run) renderDividendResults(data.run, data.entitlements);
+  } catch (e) { /* non-fatal — the "Run calculation" button remains available regardless */ }
+}
+
+async function submitRunDividend(financialYearId) {
+  const errEl = document.getElementById('div-run-error');
+  errEl.style.display = 'none';
+  const btn = document.getElementById('div-run-btn');
+  btn.disabled = true; btn.textContent = 'Calculating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-run-dividend`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ financial_year_id: financialYearId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to calculate.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Run calculation'; return; }
+    notify(`Dividend calculated for ${data.entitlement_count} member(s)`);
+    btn.disabled = false; btn.textContent = 'Run calculation';
+    await loadExistingDividendRun(financialYearId);
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Run calculation';
+  }
+}
+
+function renderDividendResults(run, entitlements) {
+  const resultsEl = document.getElementById('div-run-results');
+  resultsEl.innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Pool: ${fmtNaira(run.total_distributable_kobo)} · Total patronage: ${fmtNaira(run.total_patronage_kobo)} · Calculated ${fmtDate(run.calculated_at)}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Patronage %</th><th>Entitlement</th></tr></thead>
+      <tbody>${entitlements.map(e => `
+        <tr>
+          <td>${e.coop_members?.name || e.coop_members?.phone_normalized || '—'}</td>
+          <td>${fmtNaira(e.patronage_savings_kobo)}</td>
+          <td>${fmtNaira(e.patronage_dues_kobo)}</td>
+          <td>${fmtNaira(e.patronage_loan_interest_kobo)}</td>
+          <td>${(e.patronage_percent * 100).toFixed(2)}%</td>
+          <td style="font-weight:700">${fmtNaira(e.entitlement_kobo)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="6" class="no-data">No entitlements yet.</td></tr>'}</tbody>
+    </table></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">*Loan interest paid is prorated from each loan's fixed interest ratio, not an exact per-payment figure.</div>
+  `;
+}
 
 async function renderReconciliation() {
   const el = document.getElementById('view-reconciliation');
