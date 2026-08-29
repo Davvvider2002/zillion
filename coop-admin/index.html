@@ -263,6 +263,45 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-loan-packages">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-title">Loan packages</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Members choose a package when applying. Once you have at least one active package, applying without one is no longer allowed.</div>
+    <div id="lp-list" style="margin-bottom:16px"></div>
+    <div style="border-top:1px solid var(--line);padding-top:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="lp-form-title">Add a package</div>
+      <input type="hidden" id="lp-editing-id" value="">
+      <div class="field">
+        <label>Package name</label>
+        <input type="text" id="lp-name" placeholder="e.g. Bulk loan, Short loan, Emergency loan">
+      </div>
+      <div class="field">
+        <label>How the maximum is calculated</label>
+        <select id="lp-calc-type" onchange="onLoanPackageCalcTypeChange()">
+          <option value="multiplier_of_savings">Multiple of member's total savings</option>
+          <option value="flat_max">Fixed maximum for everyone</option>
+        </select>
+      </div>
+      <div class="field" id="lp-multiplier-row">
+        <label>Multiplier (e.g. 2 = double savings)</label>
+        <input type="number" id="lp-multiplier" placeholder="e.g. 2" step="0.5" min="0.5">
+      </div>
+      <div class="field" id="lp-flatmax-row" style="display:none">
+        <label>Maximum amount (₦)</label>
+        <input type="number" id="lp-flatmax" placeholder="e.g. 50000" step="1000" min="1">
+      </div>
+      <div class="field">
+        <label>Default repayment period (months)</label>
+        <input type="number" id="lp-months" placeholder="e.g. 6" step="1" min="1" value="6">
+      </div>
+      <div id="lp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitLoanPackage()" id="lp-submit-btn">Add package</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px;display:none" id="lp-cancel-edit-btn" onclick="resetLoanPackageForm()">Cancel edit</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:14px" onclick="closeModal('modal-loan-packages')">Close</button>
+  </div>
+</div>
+
 <!-- REJECT LOAN MODAL -->
 <div class="modal-overlay" id="modal-reject-loan">
   <div class="modal-box">
@@ -807,6 +846,7 @@ function renderLoans() {
       <div class="card-title">Loans
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="openLoanPackagesModal()">Loan packages</button>
           <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
         </div>
       </div>
@@ -1015,6 +1055,121 @@ async function submitConfigureDues() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+let loanPackagesCache = [];
+
+async function openLoanPackagesModal() {
+  document.getElementById('lp-error').style.display = 'none';
+  resetLoanPackageForm();
+  openModal('modal-loan-packages');
+  await loadLoanPackages();
+}
+
+async function loadLoanPackages() {
+  const listEl = document.getElementById('lp-list');
+  listEl.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-loan-packages`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    loanPackagesCache = data.packages || [];
+    listEl.innerHTML = loanPackagesCache.length ? loanPackagesCache.map(p => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div>
+          <div style="font-size:13px;font-weight:600">${p.name} ${p.active ? '' : '<span class="pill pill-muted" style="margin-left:6px">Inactive</span>'}</div>
+          <div style="font-size:11px;color:var(--muted)">${p.calculation_type === 'flat_max' ? `Up to ${fmtNaira(p.flat_max_kobo)} for everyone` : `${p.multiplier_value}x member's total savings`} · ${p.default_repayment_months}mo</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="editLoanPackage('${p.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleLoanPackageActive('${p.id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+        </div>
+      </div>
+    `).join('') : '<div class="no-data">No packages yet — add one below.</div>';
+  } catch (e) {
+    listEl.innerHTML = `<div class="no-data">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function onLoanPackageCalcTypeChange() {
+  const isFlat = document.getElementById('lp-calc-type').value === 'flat_max';
+  document.getElementById('lp-multiplier-row').style.display = isFlat ? 'none' : '';
+  document.getElementById('lp-flatmax-row').style.display = isFlat ? '' : 'none';
+}
+
+function editLoanPackage(packageId) {
+  const pkg = loanPackagesCache.find(p => p.id === packageId);
+  if (!pkg) return;
+  document.getElementById('lp-editing-id').value = pkg.id;
+  document.getElementById('lp-name').value = pkg.name;
+  document.getElementById('lp-calc-type').value = pkg.calculation_type;
+  document.getElementById('lp-multiplier').value = pkg.multiplier_value || '';
+  document.getElementById('lp-flatmax').value = pkg.flat_max_kobo ? pkg.flat_max_kobo / 100 : '';
+  document.getElementById('lp-months').value = pkg.default_repayment_months;
+  onLoanPackageCalcTypeChange();
+  document.getElementById('lp-form-title').textContent = `Editing "${pkg.name}"`;
+  document.getElementById('lp-submit-btn').textContent = 'Save changes';
+  document.getElementById('lp-cancel-edit-btn').style.display = '';
+}
+
+function resetLoanPackageForm() {
+  document.getElementById('lp-editing-id').value = '';
+  document.getElementById('lp-name').value = '';
+  document.getElementById('lp-calc-type').value = 'multiplier_of_savings';
+  document.getElementById('lp-multiplier').value = '';
+  document.getElementById('lp-flatmax').value = '';
+  document.getElementById('lp-months').value = '6';
+  onLoanPackageCalcTypeChange();
+  document.getElementById('lp-form-title').textContent = 'Add a package';
+  document.getElementById('lp-submit-btn').textContent = 'Add package';
+  document.getElementById('lp-cancel-edit-btn').style.display = 'none';
+  document.getElementById('lp-error').style.display = 'none';
+}
+
+async function submitLoanPackage() {
+  const errEl = document.getElementById('lp-error');
+  errEl.style.display = 'none';
+
+  const editingId = document.getElementById('lp-editing-id').value;
+  const calcType = document.getElementById('lp-calc-type').value;
+  const payload = {
+    action: editingId ? 'update' : 'create',
+    package_id: editingId || undefined,
+    name: document.getElementById('lp-name').value.trim(),
+    calculation_type: calcType,
+    multiplier_value: calcType === 'multiplier_of_savings' ? parseFloat(document.getElementById('lp-multiplier').value) : undefined,
+    flat_max_kobo: calcType === 'flat_max' ? Math.round(parseFloat(document.getElementById('lp-flatmax').value) * 100) : undefined,
+    default_repayment_months: parseInt(document.getElementById('lp-months').value),
+  };
+
+  if (!payload.name) { errEl.textContent = 'Package name is required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('lp-submit-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/coop-portal-loan-packages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save package.'; errEl.style.display = 'block'; btn.disabled = false; return; }
+    resetLoanPackageForm();
+    await loadLoanPackages();
+    btn.disabled = false;
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; btn.disabled = false;
+  }
+}
+
+async function toggleLoanPackageActive(packageId, makeActive) {
+  try {
+    await fetch(`${API}/coop-portal-loan-packages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: makeActive ? 'activate' : 'deactivate', package_id: packageId }),
+    });
+    await loadLoanPackages();
+  } catch (e) {
+    notify('Failed to update package: ' + e.message, true);
   }
 }
 
