@@ -164,6 +164,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-send-loan-statement"
+  to   = "/.netlify/functions/coop-send-loan-statement"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-update-member-email"
+  to   = "/.netlify/functions/coop-update-member-email"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-record-terms-acceptance"
   to   = "/.netlify/functions/coop-portal-record-terms-acceptance"
   status = 200
