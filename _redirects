@@ -161,6 +161,8 @@
 /api/v1/coop-portal-configure-dues                    /.netlify/functions/coop-portal-configure-dues                    200
 /api/v1/coop-portal-configure-loan-interest            /.netlify/functions/coop-portal-configure-loan-interest            200
 /api/v1/coop-portal-loan-packages                       /.netlify/functions/coop-portal-loan-packages                       200
+/api/v1/coop-portal-update-member                       /.netlify/functions/coop-portal-update-member                       200
+/api/v1/coop-portal-create-loan                         /.netlify/functions/coop-portal-create-loan                         200
 /api/v1/admin-change-coop-plan                        /.netlify/functions/admin-change-coop-plan                        200
 /api/v1/coop-portal-add-addon                         /.netlify/functions/coop-portal-add-addon                         200
 /api/v1/coop-portal-chart-of-accounts                 /.netlify/functions/coop-portal-chart-of-accounts                 200
