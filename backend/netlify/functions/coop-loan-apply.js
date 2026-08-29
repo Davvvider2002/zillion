@@ -25,6 +25,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { computeDuesOwing } = require('../../lib/coopDues');
 const { calculateLoanInterest } = require('../../lib/coopLoanInterest');
+const { computeMaxLoanAmount } = require('../../lib/coopLoanPackages');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -50,6 +51,7 @@ exports.handler = async (event) => {
   catch { return err(400, 'Invalid JSON'); }
 
   const savingsPlanId    = (body.savings_plan_id || '').trim() || null;
+  const loanPackageId    = (body.loan_package_id || '').trim() || null;
   const principalKobo    = Number.isInteger(body.principal_kobo) ? body.principal_kobo : 0;
   const repaymentMonths  = Number.isInteger(body.repayment_months) ? body.repayment_months : 0;
   const guarantorPhoneRaw = (body.guarantor_phone || '').trim();
@@ -91,6 +93,28 @@ exports.handler = async (event) => {
   if (!guarantor) return err(400, 'Guarantor must be an existing member of your cooperative society');
   if (guarantor.id === member.id) return err(400, 'You cannot guarantee your own loan');
 
+  // Loan packages: if this society has defined any active package,
+  // applying now requires picking one, and the requested amount is
+  // capped at what that package allows for this specific member. A
+  // society with no packages defined yet keeps the exact same
+  // package-free flow as before this feature existed.
+  const { data: activePackages } = await db.from('coop_loan_packages')
+    .select('id').eq('coop_id', member.coop_id).eq('active', true).limit(1);
+
+  let selectedPackage = null;
+  if (activePackages && activePackages.length) {
+    if (!loanPackageId) return err(400, 'This society requires selecting a loan package before applying');
+    const { data: pkg } = await db.from('coop_loan_packages')
+      .select('*').eq('id', loanPackageId).eq('coop_id', member.coop_id).eq('active', true).maybeSingle();
+    if (!pkg) return err(400, 'That loan package is not available for your society');
+    selectedPackage = pkg;
+
+    const maxAllowedKobo = await computeMaxLoanAmount(db, pkg, member.id);
+    if (principalKobo > maxAllowedKobo) {
+      return err(400, `The maximum for "${pkg.name}" is ₦${(maxAllowedKobo / 100).toLocaleString()} for your account — you requested ₦${(principalKobo / 100).toLocaleString()}.`);
+    }
+  }
+
   const { interestRatePercent, interestKobo, totalRepayableKobo } = calculateLoanInterest(principalKobo, society);
   const monthlyRepaymentKobo = Math.ceil(totalRepayableKobo / repaymentMonths);
 
@@ -98,6 +122,7 @@ exports.handler = async (event) => {
     coop_id:                member.coop_id,
     member_id:               member.id,
     savings_plan_id:          savingsPlanId,
+    loan_package_id:            loanPackageId,
     principal_kobo:            principalKobo,
     interest_rate_percent:      interestRatePercent,
     interest_kobo:                interestKobo,
