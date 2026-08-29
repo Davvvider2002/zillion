@@ -790,6 +790,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-run-dividend"
+  to   = "/.netlify/functions/coop-portal-run-dividend"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-bank-reconciliation-history"
   to   = "/.netlify/functions/coop-portal-bank-reconciliation-history"
   status = 200
