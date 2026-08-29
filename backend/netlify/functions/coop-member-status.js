@@ -108,11 +108,16 @@ exports.handler = async (event) => {
     .filter(l => ['DISBURSED', 'REPAYING'].includes(l.status))
     .reduce((s, l) => s + (l.repayment?.outstanding_kobo ?? l.principal_kobo ?? 0), 0);
 
+  const { data: activeLoanPackages } = await db.from('coop_loan_packages')
+    .select('id, name, calculation_type, multiplier_value, flat_max_kobo, default_repayment_months')
+    .eq('coop_id', member.coop_id).eq('active', true).order('created_at', { ascending: true });
+
   return ok({
     is_coop_member:     true,
     society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent },
     member:             { name: member.name, email: member.email, status: member.status, activated_at: member.activated_at },
     savings_plans:      plansWithProgress,
+    loan_packages:      activeLoanPackages || [],
     loans:               loans || [],
     total_outstanding_loan_kobo: totalOutstandingLoanKobo,
     guarantor_requests_pending:  guarantorRequests || [],
