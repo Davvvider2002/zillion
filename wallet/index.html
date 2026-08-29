@@ -1049,16 +1049,15 @@ function triggerPWAInstall() {
         </div>
       </div>
 
-      <div class="balance-card" id="home-coop-hero-loan" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
-        <div class="bal-label">Loan</div>
-        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-loan-status">No active loan</div>
-        <div class="bal-sub"><span style="color:#00C896">View details →</span></div>
-      </div>
-
-      <div class="balance-card" id="home-coop-hero-dues" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
-        <div class="bal-label">Dues</div>
-        <div class="bal-amount" style="font-size:20px" id="home-coop-hero-dues-status">Up to date</div>
-        <div class="bal-sub"><span style="color:#00C896" id="home-coop-hero-dues-action">View details →</span></div>
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+        <div class="balance-card" id="home-coop-hero-loan" style="cursor:pointer;padding:14px;margin:0" onclick="goTo('screen-coop')">
+          <div class="bal-label" style="font-size:11px">Loan</div>
+          <div class="bal-amount" style="font-size:15px;margin-top:4px;line-height:1.3" id="home-coop-hero-loan-status">No active loan</div>
+        </div>
+        <div class="balance-card" id="home-coop-hero-dues" style="cursor:pointer;padding:14px;margin:0" onclick="goTo('screen-coop')">
+          <div class="bal-label" style="font-size:11px">Dues</div>
+          <div class="bal-amount" style="font-size:15px;margin-top:4px;line-height:1.3" id="home-coop-hero-dues-status">Up to date</div>
+        </div>
       </div>
 
       <div class="balance-card" id="home-coop-hero-dividend" style="margin-top:14px;cursor:pointer" onclick="goTo('screen-coop')">
@@ -2760,12 +2759,10 @@ async function zilRenderCoopSummary() {
     if (guarantorBanner) guarantorBanner.style.display = (data.guarantor_requests_pending || []).length ? '' : 'none';
 
     const duesStatusEl = document.getElementById('home-coop-hero-dues-status');
-    const duesActionEl = document.getElementById('home-coop-hero-dues-action');
     if (duesStatusEl && data.dues) {
       const owing = data.dues.owing_kobo;
       duesStatusEl.textContent = owing > 0 ? `${fmtNaira(owing)} owing` : 'Up to date';
       duesStatusEl.style.color = owing > 0 ? '#F5B87A' : '#fff';
-      duesActionEl.textContent = owing > 0 ? 'Pay now →' : 'View details →';
     }
 
     const dividendStatusEl = document.getElementById('home-coop-hero-dividend-status');
