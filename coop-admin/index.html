@@ -580,7 +580,7 @@ function renderMembers() {
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Status</th></tr></thead>
+        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Status</th><th></th></tr></thead>
         <tbody>${d.members.map(m => `
           <tr>
             <td>${m.name || '—'}</td>
@@ -588,11 +588,34 @@ function renderMembers() {
             <td>${fmtDate(m.activated_at)}</td>
             <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
             <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
+            <td><button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button></td>
           </tr>
-        `).join('') || '<tr><td colspan="5" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
+        `).join('') || '<tr><td colspan="6" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
+}
+
+async function sendMemberLoanStatement(memberId, btn) {
+  const originalText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(`${API}/coop-send-loan-statement`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: memberId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      notify(data.error || 'Failed to send statement', true);
+      btn.disabled = false; btn.textContent = originalText;
+      return;
+    }
+    notify('Statement sent to ' + data.sent_to);
+    btn.disabled = false; btn.textContent = originalText;
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+    btn.disabled = false; btn.textContent = originalText;
+  }
 }
 
 async function submitActivateMember() {
