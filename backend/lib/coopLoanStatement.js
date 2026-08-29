@@ -24,7 +24,7 @@ const { computeLoanRepaymentStatus } = require('./coopLoanRepaymentStatus');
  */
 async function computeMemberLoanStatement(db, memberId) {
   const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, name, phone_normalized, coop_societies(name)')
+    .select('id, coop_id, name, email, phone_normalized, coop_societies(name)')
     .eq('id', memberId).maybeSingle();
   if (!member) return null;
 
@@ -76,7 +76,7 @@ async function computeMemberLoanStatement(db, memberId) {
   }));
 
   return {
-    member: { id: member.id, name: member.name, phone: member.phone_normalized, society_name: member.coop_societies?.name || '' },
+    member: { id: member.id, name: member.name, email: member.email, phone: member.phone_normalized, society_name: member.coop_societies?.name || '' },
     loans: loansWithTransactions,
   };
 }
