@@ -1672,7 +1672,28 @@ async function renderSurplus() {
     </div>
     <div id="fy-detail-card"></div>
   `;
+  suggestCurrentFinancialYearDates();
   await loadFinancialYears();
+}
+
+// Suggests the current financial year's start/end dates based on the
+// society's own configured financial_year_start_month (set at signup,
+// defaults to January = calendar year). Purely a starting suggestion
+// the admin can freely overwrite - not enforced server-side.
+function suggestCurrentFinancialYearDates() {
+  const startMonth = portalData.society?.financial_year_start_month || 1;
+  const today = new Date();
+  const todayMonth = today.getMonth() + 1; // 1-12
+  let fyStartYear = today.getFullYear();
+  if (todayMonth < startMonth) fyStartYear -= 1; // still within the FY that started last calendar year
+
+  const startDate = new Date(fyStartYear, startMonth - 1, 1);
+  const endDate = new Date(fyStartYear + 1, startMonth - 1, 0); // day 0 of next start month = last day of the month before
+
+  const toISO = d => d.toISOString().slice(0, 10);
+  document.getElementById('fy-start').value = toISO(startDate);
+  document.getElementById('fy-end').value = toISO(endDate);
+  document.getElementById('fy-label').value = startMonth === 1 ? String(fyStartYear) : `${fyStartYear}/${fyStartYear + 1}`;
 }
 
 async function loadFinancialYears() {
@@ -2022,6 +2043,13 @@ function renderAccountingContent() {
         </div>
       </div>
       <div class="card-sub">Computed live from your journal entries — always current.</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:12px;cursor:pointer;text-transform:none;letter-spacing:normal">
+        <input type="checkbox" id="report-period-toggle" onchange="onReportPeriodToggle()"> Custom period (instead of cumulative to date)
+      </label>
+      <div id="report-period-inputs" style="display:none;gap:8px;margin-bottom:14px">
+        <div class="field" style="flex:1;margin-bottom:0"><label>From</label><input type="date" id="report-start-date" onchange="loadFinancialReport()"></div>
+        <div class="field" style="flex:1;margin-bottom:0"><label>To</label><input type="date" id="report-end-date" onchange="loadFinancialReport()"></div>
+      </div>
       <div id="report-content">${accountingOpeningDone ? '<div class="no-data">Select a report above.</div>' : '<div class="no-data">Set opening balances first.</div>'}</div>
     </div>
     <div class="card">
@@ -2252,6 +2280,12 @@ async function submitOpeningBalances() {
   }
 }
 
+function onReportPeriodToggle() {
+  const active = document.getElementById('report-period-toggle').checked;
+  document.getElementById('report-period-inputs').style.display = active ? 'flex' : 'none';
+  loadFinancialReport();
+}
+
 async function loadFinancialReport() {
   const contentEl = document.getElementById('report-content');
   if (!accountingOpeningDone) { contentEl.innerHTML = '<div class="no-data">Set opening balances first.</div>'; return; }
@@ -2260,10 +2294,20 @@ async function loadFinancialReport() {
   accountSelect.style.display = reportType === 'ledger' ? '' : 'none';
   if (reportType === 'ledger' && !accountSelect.value) { contentEl.innerHTML = '<div class="no-data">No accounts yet.</div>'; return; }
 
+  const periodActive = document.getElementById('report-period-toggle').checked;
+  let periodParams = '';
+  if (periodActive) {
+    const startDate = document.getElementById('report-start-date').value;
+    const endDate = document.getElementById('report-end-date').value;
+    if (!startDate || !endDate) { contentEl.innerHTML = '<div class="no-data">Select both a start and end date for a custom period.</div>'; return; }
+    if (startDate > endDate) { contentEl.innerHTML = '<div class="no-data">Start date must be before end date.</div>'; return; }
+    periodParams = `&start_date=${startDate}&as_of=${endDate}`;
+  }
+
   contentEl.innerHTML = '<div class="no-data">Loading...</div>';
   try {
     const accountParam = reportType === 'ledger' ? `&account_id=${accountSelect.value}` : '';
-    const res = await fetch(`${API}/coop-portal-financial-reports?report=${reportType}${accountParam}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const res = await fetch(`${API}/coop-portal-financial-reports?report=${reportType}${accountParam}${periodParams}`, { headers: { Authorization: 'Bearer ' + portalToken } });
     const data = await res.json();
     if (!res.ok) { contentEl.innerHTML = `<div class="no-data">${data.error || 'Failed to load report'}</div>`; return; }
     if (reportType === 'trial_balance') renderTrialBalance(data);
