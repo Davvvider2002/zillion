@@ -2763,19 +2763,24 @@ async function refreshCoopScreen() {
   if (statementEmailInput && !statementEmailInput.value && data.member.email) statementEmailInput.value = data.member.email;
 
   const plansEl = document.getElementById('coop-plans-list');
-  plansEl.innerHTML = (data.savings_plans || []).length ? data.savings_plans.map(p => `
+  plansEl.innerHTML = (data.savings_plans || []).length ? data.savings_plans.map(p => {
+    const pct = p.progress_pct;
+    const milestone = pct >= 100 ? '🎉 Goal reached!' : pct >= 75 ? '🔥 Almost there!' : pct >= 50 ? '💪 Halfway there!' : pct >= 25 ? '🌱 Off to a good start!' : null;
+    return `
     <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px">
         <span style="color:#9CC4B0">Target ${fmtNaira(p.target_amount_kobo)}</span>
-        <span style="font-weight:700;color:#00E0AC">${p.progress_pct}%</span>
+        <span style="font-weight:700;color:#00E0AC">${pct}%</span>
       </div>
       <div style="background:#081A11;border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px">
-        <div style="background:#00C896;height:100%;width:${Math.min(100, p.progress_pct)}%"></div>
+        <div style="background:#00C896;height:100%;width:${Math.min(100, pct)}%"></div>
       </div>
+      ${milestone ? `<div style="font-size:12px;color:#F5B87A;margin-bottom:8px;font-weight:600">${milestone}</div>` : ''}
       <div style="font-size:13px;color:#E8F5EE">${fmtNaira(p.saved_kobo)} saved · ${fmtNaira(p.monthly_contribution_kobo)}/month for ${p.duration_months} months</div>
       <button onclick="coopShowPayNowModal('savings','${p.id}')" style="width:100%;margin-top:10px;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Pay Now</button>
     </div>
-  `).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No savings plan yet — ask your society admin to set one up.</div></div>';
+  `;
+  }).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No savings plan yet — ask your society admin to set one up.</div></div>';
 
   const duesSection = document.getElementById('coop-dues-section');
   const duesCard = document.getElementById('coop-dues-card');
@@ -3740,19 +3745,20 @@ async function refreshCoopHistory() {
     const data = await res.json();
     const activity = data.activity || [];
     if (!activity.length) {
-      el.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No activity yet</div><div class="empty-sub">Your savings and dues payments will appear here.</div></div>`;
+      el.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No activity yet</div><div class="empty-sub">Your savings, dues, loans, and dividends will appear here.</div></div>`;
       return;
     }
     const rows = activity.map(a => {
-      const label = a.type === 'savings' ? 'Savings payment' : 'Dues payment';
-      const sourceLabel = a.source === 'cash_in_person' ? 'Cash' : (a.source === 'bank_transfer_manual' ? 'Bank transfer' : 'Payment');
+      const labels = { savings: 'Savings payment', dues: 'Dues payment', loan_disbursed: 'Loan disbursed', loan_repayment: 'Loan repayment', dividend: 'Dividend' };
+      const isOut = a.type === 'loan_repayment';
+      const sourceLabel = a.source === 'cash_in_person' ? 'Cash' : (a.source === 'bank_transfer_manual' ? 'Bank transfer' : (a.type === 'loan_disbursed' ? 'Received' : (a.type === 'dividend' ? 'Approved' : 'Payment')));
       return `<div class="tx-row">
-        <div class="tx-dot in">↓</div>
+        <div class="tx-dot ${isOut ? 'out' : 'in'}">${isOut ? '↑' : '↓'}</div>
         <div class="tx-info">
-          <div class="tx-name">${label}</div>
+          <div class="tx-name">${labels[a.type] || 'Activity'}</div>
           <div class="tx-meta">${fmtTime(a.ts)}  ·  <span style="color:var(--g);font-weight:600">${sourceLabel}</span></div>
         </div>
-        <div class="tx-amount in">+${fmtNaira(a.amount_kobo)}</div>
+        <div class="tx-amount ${isOut ? 'out' : 'in'}">${isOut ? '\u2212' : '+'}${fmtNaira(a.amount_kobo)}</div>
       </div>`;
     }).join('');
     el.innerHTML = '<div class="tx-card">' + rows + '</div>';
