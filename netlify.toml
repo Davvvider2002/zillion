@@ -780,6 +780,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-close-financial-year"
+  to   = "/.netlify/functions/coop-portal-close-financial-year"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-surplus-allocation"
+  to   = "/.netlify/functions/coop-portal-surplus-allocation"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-bank-reconciliation-history"
   to   = "/.netlify/functions/coop-portal-bank-reconciliation-history"
   status = 200
