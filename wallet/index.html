@@ -1167,6 +1167,10 @@ function triggerPWAInstall() {
 <div id="coop-apply-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
     <div style="font-weight:700;font-size:16px;margin-bottom:14px;color:#E8F5EE">Apply for a Loan</div>
+    <div id="coop-loan-package-section" style="display:none;margin-bottom:14px">
+      <div style="font-size:11px;color:#9CC4B0;margin-bottom:6px">Choose a loan package</div>
+      <div id="coop-loan-package-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
+    </div>
     <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Amount (₦)</div>
     <input id="coop-loan-amount" type="number" placeholder="30000" oninput="coopUpdateLoanInterestPreview()" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
     <div id="coop-loan-interest-preview" style="font-size:11px;color:#F5B87A;margin:-8px 0 12px;display:none"></div>
@@ -2857,12 +2861,45 @@ async function coopRequestLoanStatement() {
   }
 }
 
+let coopSelectedLoanPackageId = null;
+
 function coopShowApplyForm() {
   document.getElementById('coop-loan-amount').value = '';
   document.getElementById('coop-loan-months').value = '6';
   document.getElementById('coop-loan-guarantor-phone').value = '';
   document.getElementById('coop-apply-error').style.display = 'none';
   document.getElementById('coop-apply-modal').style.display = 'flex';
+  coopSelectedLoanPackageId = null;
+  coopRenderLoanPackageSelector();
+  coopUpdateLoanInterestPreview();
+}
+
+function coopRenderLoanPackageSelector() {
+  const section = document.getElementById('coop-loan-package-section');
+  const listEl = document.getElementById('coop-loan-package-list');
+  const packages = _coopStatusCache?.loan_packages || [];
+  if (!packages.length) { section.style.display = 'none'; return; }
+
+  section.style.display = '';
+  const totalSavedKobo = (_coopStatusCache?.savings_plans || []).reduce((s, p) => s + (p.saved_kobo || 0), 0);
+
+  listEl.innerHTML = packages.map(p => {
+    const estMaxKobo = p.calculation_type === 'flat_max' ? p.flat_max_kobo : Math.round(totalSavedKobo * (p.multiplier_value || 0));
+    const selected = coopSelectedLoanPackageId === p.id;
+    return `
+      <div onclick="coopSelectLoanPackage('${p.id}')" style="padding:10px 12px;border-radius:8px;border:1px solid ${selected ? '#00C896' : '#234A38'};background:${selected ? 'rgba(0,200,150,.08)' : '#081A11'};cursor:pointer">
+        <div style="font-size:13px;font-weight:600;color:#E8F5EE">${p.name}</div>
+        <div style="font-size:11px;color:#9CC4B0">Up to ~${fmtNaira(estMaxKobo)} · ${p.default_repayment_months}mo</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function coopSelectLoanPackage(packageId) {
+  coopSelectedLoanPackageId = packageId;
+  const pkg = (_coopStatusCache?.loan_packages || []).find(p => p.id === packageId);
+  if (pkg) document.getElementById('coop-loan-months').value = pkg.default_repayment_months;
+  coopRenderLoanPackageSelector();
   coopUpdateLoanInterestPreview();
 }
 function coopUpdateLoanInterestPreview() {
@@ -2889,13 +2926,15 @@ async function coopSubmitLoanApplication() {
   if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
   if (!months || months <= 0) { errEl.textContent = 'Enter a valid repayment period.'; errEl.style.display = 'block'; return; }
   if (!guarantorPhone) { errEl.textContent = "Enter your guarantor's phone number."; errEl.style.display = 'block'; return; }
+  const packagesAvailable = (_coopStatusCache?.loan_packages || []).length > 0;
+  if (packagesAvailable && !coopSelectedLoanPackageId) { errEl.textContent = 'Please select a loan package.'; errEl.style.display = 'block'; return; }
 
   const token = STATE.user?.token || STATE.user?.agentToken || '';
   try {
     const res = await fetch(`${API}/coop-loan-apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ principal_kobo: Math.round(amountNaira * 100), repayment_months: months, guarantor_phone: guarantorPhone }),
+      body: JSON.stringify({ principal_kobo: Math.round(amountNaira * 100), repayment_months: months, guarantor_phone: guarantorPhone, loan_package_id: coopSelectedLoanPackageId }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Application failed.'; errEl.style.display = 'block'; return; }
