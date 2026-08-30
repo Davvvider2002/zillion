@@ -35,7 +35,8 @@ exports.handler = async (event) => {
     .select(`
       entitlement_kobo, total_patronage_kobo, patronage_percent,
       patronage_savings_kobo, patronage_dues_kobo, patronage_loan_interest_kobo,
-      coop_dividend_runs!inner(status, approved_at, total_distributable_kobo,
+      share_capital_kobo, share_percent, share_entitlement_kobo, patronage_entitlement_kobo,
+      coop_dividend_runs!inner(status, approved_at, total_distributable_kobo, share_weight_percent,
         coop_financial_years!inner(year_label, start_date, end_date))
     `)
     .eq('member_id', member.id)
@@ -46,12 +47,17 @@ exports.handler = async (event) => {
     start_date: e.coop_dividend_runs.coop_financial_years.start_date,
     end_date: e.coop_dividend_runs.coop_financial_years.end_date,
     approved_at: e.coop_dividend_runs.approved_at,
+    share_weight_percent: e.coop_dividend_runs.share_weight_percent,
     entitlement_kobo: e.entitlement_kobo,
     patronage_percent: e.patronage_percent,
     patronage_savings_kobo: e.patronage_savings_kobo,
     patronage_dues_kobo: e.patronage_dues_kobo,
     patronage_loan_interest_kobo: e.patronage_loan_interest_kobo,
     total_patronage_kobo: e.total_patronage_kobo,
+    share_capital_kobo: e.share_capital_kobo,
+    share_percent: e.share_percent,
+    share_entitlement_kobo: e.share_entitlement_kobo,
+    patronage_entitlement_kobo: e.patronage_entitlement_kobo,
   })).sort((a, b) => new Date(b.approved_at) - new Date(a.approved_at));
 
   return ok({ is_coop_member: true, dividends });
