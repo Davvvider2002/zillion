@@ -23,6 +23,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { computeDuesOwing } = require('../../lib/coopDues');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
+const { computeMemberShareCapital } = require('../../lib/coopShareCapital');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -52,6 +53,7 @@ exports.handler = async (event) => {
   // savings. A brand-new member correctly owes nothing until their
   // first full period completes.
   const dues = await computeDuesOwing(db, member, society);
+  const shareCapitalKobo = await computeMemberShareCapital(db, member.id);
   if (dues) {
     dues.flutterwave_dues_account_number = member.flutterwave_dues_account_number || null;
     dues.flutterwave_dues_bank_name = member.flutterwave_dues_bank_name || null;
@@ -132,6 +134,7 @@ exports.handler = async (event) => {
     guarantor_requests_pending:  guarantorRequests || [],
     dues,
     latest_dividend: latestDividend ? { year_label: latestDividend.coop_dividend_runs.coop_financial_years.year_label, entitlement_kobo: latestDividend.entitlement_kobo } : null,
+    share_capital_kobo: shareCapitalKobo,
     unread_notification_count: unreadNotifCount,
   });
 };
