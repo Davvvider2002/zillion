@@ -29,6 +29,10 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { calculateDividendRun } = require('../../lib/coopDividendCalculation');
+const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
+
+const RETAINED_EARNINGS_ACCOUNT_CODE = '3910';
+const DIVIDEND_PAYABLE_ACCOUNT_CODE = '2200';
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -81,6 +85,24 @@ exports.handler = async (event) => {
       .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: resolved.society.merchant_id })
       .eq('id', existingRun.id).select().single();
     if (approveErr) return err(500, `Failed to approve: ${approveErr.message}`);
+
+    // Recognize the liability now that it's approved: Debit Retained
+    // Earnings, Credit Dividend Payable, for the full distributable
+    // pool. Never blocks approval itself if accounting isn't set up
+    // or this fails - the approval is real and locked either way.
+    try {
+      if (await accountingIsReady(db, coopId)) {
+        const accounts = await getAccounts(db, coopId, [RETAINED_EARNINGS_ACCOUNT_CODE, DIVIDEND_PAYABLE_ACCOUNT_CODE]);
+        const retained = accounts[RETAINED_EARNINGS_ACCOUNT_CODE];
+        const payable = accounts[DIVIDEND_PAYABLE_ACCOUNT_CODE];
+        if (retained && payable) {
+          const result = await postEntry(db, coopId, `Dividend approved — ${fy.year_label}`, resolved.society.merchant_id, retained, payable, existingRun.total_distributable_kobo);
+          if (result.booked) await db.from('coop_dividend_runs').update({ payable_booked: true }).eq('id', existingRun.id);
+        }
+      }
+    } catch (e) {
+      console.error('[coop-portal-run-dividend] payable booking failed (non-fatal):', e.message);
+    }
 
     return ok({ success: true, run: approved });
   }
