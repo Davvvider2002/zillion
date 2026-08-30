@@ -20,6 +20,7 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT }              = require('../../lib/validators');
 const { resolvePortalSociety }   = require('../../lib/coopPortalAuth');
 const { computeDuesOwing }       = require('../../lib/coopDues');
+const { computeMemberShareCapital } = require('../../lib/coopShareCapital');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
 const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = require('../../lib/coopTermsAcceptance');
 const { listAddons } = require('../../lib/coopEntitlements');
@@ -48,7 +49,8 @@ exports.handler = async (event) => {
   const { data: membersRaw } = await db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false });
   const members = await Promise.all((membersRaw || []).map(async (m) => {
     const dues = await computeDuesOwing(db, m, society);
-    return { ...m, dues };
+    const shareCapitalKobo = await computeMemberShareCapital(db, m.id);
+    return { ...m, dues, share_capital_kobo: shareCapitalKobo };
   }));
 
   const { data: plansRaw } = await db.from('coop_savings_plans')
