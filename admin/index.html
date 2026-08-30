@@ -3119,6 +3119,8 @@ function renderCoopAnalytics(d) {
   const contentEl = document.getElementById('coop-analytics-content');
   const industryRows = Object.entries(d.societies_by_industry || {}).sort((a,b) => b[1]-a[1])
     .map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  const countryRows = Object.entries(d.societies_by_country || {}).sort((a,b) => b[1]-a[1])
+    .map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
   const occupationRows = Object.entries(d.members_by_occupation || {}).sort((a,b) => b[1]-a[1])
     .map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
   const loanRows = (d.loan_patterns_by_occupation || []).sort((a,b) => b.loan_count-a.loan_count)
@@ -3134,6 +3136,12 @@ function renderCoopAnalytics(d) {
     <div class="table-wrap" style="margin-bottom:24px"><table>
       <thead><tr><th>Industry</th><th>Societies</th></tr></thead>
       <tbody>${industryRows || '<tr><td colspan="2" class="no-data">No data yet</td></tr>'}</tbody>
+    </table></div>
+
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">Societies by country</div>
+    <div class="table-wrap" style="margin-bottom:24px"><table>
+      <thead><tr><th>Country</th><th>Societies</th></tr></thead>
+      <tbody>${countryRows || '<tr><td colspan="2" class="no-data">No data yet</td></tr>'}</tbody>
     </table></div>
 
     <div style="font-weight:700;font-size:14px;margin-bottom:8px">Members by occupation</div>
