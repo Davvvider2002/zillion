@@ -350,6 +350,28 @@ a{color:inherit;text-decoration:none}
         <option value="12">December</option>
       </select>
 
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Country</label>
+      <select id="su-country" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px" onchange="onCountryChangeUpdateCurrency()">
+        <option value="Nigeria" selected>Nigeria</option>
+        <option value="Ghana">Ghana</option>
+        <option value="Kenya">Kenya</option>
+        <option value="South Africa">South Africa</option>
+        <option value="United Kingdom">United Kingdom</option>
+        <option value="United States">United States</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Base currency</label>
+      <select id="su-currency" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
+        <option value="NGN" selected>NGN — Nigerian Naira</option>
+        <option value="GHS">GHS — Ghanaian Cedi</option>
+        <option value="KES">KES — Kenyan Shilling</option>
+        <option value="ZAR">ZAR — South African Rand</option>
+        <option value="GBP">GBP — British Pound</option>
+        <option value="USD">USD — US Dollar</option>
+      </select>
+      <div style="font-size:11px;color:var(--muted);margin:-10px 0 14px">All your society's savings, dues, and loans will be recorded in this currency.</div>
+
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Password</label>
       <input id="su-password" type="password" placeholder="At least 6 characters" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-family:inherit;font-size:14px;margin-bottom:14px">
 
@@ -541,6 +563,13 @@ function closeSignupModal() {
 
 let pendingCoopId = null; // set once we know which society we're showing the confirmation/resume state for
 
+function onCountryChangeUpdateCurrency() {
+  const country = document.getElementById('su-country').value;
+  const currencyByCountry = { Nigeria: 'NGN', Ghana: 'GHS', Kenya: 'KES', 'South Africa': 'ZAR', 'United Kingdom': 'GBP', 'United States': 'USD' };
+  const suggested = currencyByCountry[country];
+  if (suggested) document.getElementById('su-currency').value = suggested; // just a suggestion — the admin can still pick a different currency
+}
+
 async function submitSignup() {
   const errEl = document.getElementById('su-error');
   errEl.style.display = 'none';
@@ -557,6 +586,8 @@ async function submitSignup() {
     terms_accepted: document.getElementById('su-terms-accept').checked,
     primary_industry: document.getElementById('su-industry').value || undefined,
     financial_year_start_month: parseInt(document.getElementById('su-fy-month').value),
+    country: document.getElementById('su-country').value,
+    base_currency: document.getElementById('su-currency').value,
   };
   if (!body.society_name || !body.phone || !body.owner_name || !body.email || !body.password) {
     errEl.textContent = 'Please fill in all required fields.'; errEl.style.display = 'block'; return;
