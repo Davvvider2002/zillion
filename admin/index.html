@@ -1043,6 +1043,25 @@ tbody tr:last-child td{border-bottom:none;}
     <input class="field-input" type="text" id="cs-owner-name" placeholder="e.g. Amina Bello" style="margin-bottom:12px;width:100%;box-sizing:border-box">
     <label class="field-label">Location (optional)</label>
     <input class="field-input" type="text" id="cs-location" placeholder="e.g. Lagos" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Country</label>
+    <select class="field-input" id="cs-country" style="margin-bottom:12px;width:100%;box-sizing:border-box" onchange="onCsCountryChangeUpdateCurrency()">
+      <option value="Nigeria" selected>Nigeria</option>
+      <option value="Ghana">Ghana</option>
+      <option value="Kenya">Kenya</option>
+      <option value="South Africa">South Africa</option>
+      <option value="United Kingdom">United Kingdom</option>
+      <option value="United States">United States</option>
+      <option value="Other">Other</option>
+    </select>
+    <label class="field-label">Base currency</label>
+    <select class="field-input" id="cs-currency" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="NGN" selected>NGN — Nigerian Naira</option>
+      <option value="GHS">GHS — Ghanaian Cedi</option>
+      <option value="KES">KES — Kenyan Shilling</option>
+      <option value="ZAR">ZAR — South African Rand</option>
+      <option value="GBP">GBP — British Pound</option>
+      <option value="USD">USD — US Dollar</option>
+    </select>
     <label class="field-label">Login Password (for their Merchant app)</label>
     <input class="field-input" type="password" id="cs-password" placeholder="At least 6 characters" style="margin-bottom:12px;width:100%;box-sizing:border-box">
     <label class="field-label">LASCOFED Reference (optional)</label>
@@ -3300,6 +3319,8 @@ function openCreateSocietyModal() {
   ['cs-name', 'cs-phone', 'cs-owner-name', 'cs-location', 'cs-password', 'cs-lascofed-ref', 'cs-email'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('cs-loan-capital').value = '0';
   document.getElementById('cs-bank-balance').value = '0';
+  document.getElementById('cs-country').value = 'Nigeria';
+  document.getElementById('cs-currency').value = 'NGN';
   document.getElementById('cs-plan').value = '';
   document.getElementById('cs-plan-details').style.display = 'none';
   document.getElementById('cs-error').style.display = 'none';
@@ -3343,6 +3364,13 @@ function updateCreateSocietyTotal() {
   totalEl.textContent = `Total: ₦${(total/100).toLocaleString()}/${cycle === 'yearly' ? 'year' : 'month'}`;
 }
 
+function onCsCountryChangeUpdateCurrency() {
+  const country = document.getElementById('cs-country').value;
+  const currencyByCountry = { Nigeria: 'NGN', Ghana: 'GHS', Kenya: 'KES', 'South Africa': 'ZAR', 'United Kingdom': 'GBP', 'United States': 'USD' };
+  const suggested = currencyByCountry[country];
+  if (suggested) document.getElementById('cs-currency').value = suggested;
+}
+
 async function submitCreateSociety() {
   const errEl = document.getElementById('cs-error');
   errEl.style.display = 'none';
@@ -3352,6 +3380,8 @@ async function submitCreateSociety() {
     phone: document.getElementById('cs-phone').value.trim(),
     owner_name: document.getElementById('cs-owner-name').value.trim(),
     location: document.getElementById('cs-location').value.trim(),
+    country: document.getElementById('cs-country').value,
+    base_currency: document.getElementById('cs-currency').value,
     password: document.getElementById('cs-password').value,
     lascofed_ref: document.getElementById('cs-lascofed-ref').value.trim(),
     opening_loan_capital_kobo: Math.round(parseFloat(document.getElementById('cs-loan-capital').value || 0) * 100),
