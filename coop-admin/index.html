@@ -1801,7 +1801,11 @@ function renderAllocationEditor(data) {
     </div>
     <div class="card">
       <div class="card-title">Dividend calculation</div>
-      <div class="card-sub">Patronage-based: each member's share of savings, dues, and loan interest paid during this year, applied against the member-distribution pool above. Loan interest paid is an approximation, prorated from each loan's own fixed interest ratio — not an exact per-payment figure.</div>
+      <div class="card-sub">Split the member-distribution pool between share-based and patronage-based distribution — 0% is pure patronage (savings, dues, and loan interest paid), 100% is pure share capital held. A hybrid split (e.g. 60/40) is common in cooperative practice.</div>
+      <div class="field">
+        <label>Share-based weight: <span id="div-share-weight-label">0</span>%</label>
+        <input type="range" id="div-share-weight" min="0" max="100" step="5" value="0" style="width:100%" oninput="document.getElementById('div-share-weight-label').textContent = this.value">
+      </div>
       <button class="btn btn-primary btn-sm" onclick="submitRunDividend('${data.financial_year.id}')" id="div-run-btn">Run calculation</button>
       <div id="div-run-error" style="display:none;color:#FF8A8A;font-size:13px;margin:10px 0"></div>
       <div id="div-run-results" style="margin-top:14px"></div>
@@ -1876,9 +1880,10 @@ async function submitRunDividend(financialYearId) {
   const btn = document.getElementById('div-run-btn');
   btn.disabled = true; btn.textContent = 'Calculating...';
   try {
+    const shareWeightPercent = parseInt(document.getElementById('div-share-weight').value, 10) || 0;
     const res = await fetch(`${API}/coop-portal-run-dividend`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ financial_year_id: financialYearId }),
+      body: JSON.stringify({ financial_year_id: financialYearId, share_weight_percent: shareWeightPercent }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to calculate.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Run calculation'; return; }
@@ -1902,16 +1907,16 @@ function renderDividendResults(run, entitlements) {
       <span class="pill ${isApproved ? 'pill-green' : 'pill-muted'}">${isApproved ? 'Approved' : 'Draft'}</span>
       ${!isApproved ? `<button class="btn btn-primary btn-sm" onclick="submitApproveDividend('${run.financial_year_id}')" id="div-approve-btn">Approve &amp; lock</button>` : ''}
     </div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Pool: ${fmtNaira(run.total_distributable_kobo)} · Total patronage: ${fmtNaira(run.total_patronage_kobo)} · Calculated ${fmtDate(run.calculated_at)}${isApproved ? ` · Approved ${fmtDate(run.approved_at)}` : ''}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Pool: ${fmtNaira(run.total_distributable_kobo)} · ${run.share_weight_percent}% shares / ${100 - run.share_weight_percent}% patronage · Total patronage: ${fmtNaira(run.total_patronage_kobo)} · Total share capital: ${fmtNaira(run.total_share_capital_kobo)} · Calculated ${fmtDate(run.calculated_at)}${isApproved ? ` · Approved ${fmtDate(run.approved_at)}` : ''}</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Patronage %</th><th>Entitlement</th>${isApproved ? '<th>Payout</th>' : ''}</tr></thead>
+      <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Share capital</th><th>Entitlement</th>${isApproved ? '<th>Payout</th>' : ''}</tr></thead>
       <tbody>${entitlements.map(e => `
         <tr>
           <td>${e.coop_members?.name || e.coop_members?.phone_normalized || '—'}</td>
           <td>${fmtNaira(e.patronage_savings_kobo)}</td>
           <td>${fmtNaira(e.patronage_dues_kobo)}</td>
           <td>${fmtNaira(e.patronage_loan_interest_kobo)}</td>
-          <td>${(e.patronage_percent * 100).toFixed(2)}%</td>
+          <td>${fmtNaira(e.share_capital_kobo)}</td>
           <td style="font-weight:700">${fmtNaira(e.entitlement_kobo)}</td>
           ${isApproved ? `<td><button class="btn btn-ghost btn-sm" onclick="openDividendPayoutModal('${e.id}','${(e.coop_members?.name || 'Member').replace(/'/g, "\\'")}',${e.entitlement_kobo})">Record payout</button></td>` : ''}
         </tr>
