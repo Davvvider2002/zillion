@@ -32,12 +32,15 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  // Societies by industry
-  const { data: societies } = await db.from('coop_societies').select('coop_id, primary_industry, status');
+  // Societies by industry, and by country
+  const { data: societies } = await db.from('coop_societies').select('coop_id, primary_industry, country, base_currency, status');
   const societiesByIndustry = {};
+  const societiesByCountry = {};
   for (const s of (societies || [])) {
-    const key = s.primary_industry || 'Not specified';
-    societiesByIndustry[key] = (societiesByIndustry[key] || 0) + 1;
+    const industryKey = s.primary_industry || 'Not specified';
+    societiesByIndustry[industryKey] = (societiesByIndustry[industryKey] || 0) + 1;
+    const countryKey = s.country || 'Not specified';
+    societiesByCountry[countryKey] = (societiesByCountry[countryKey] || 0) + 1;
   }
 
   // Members by occupation
@@ -75,6 +78,7 @@ exports.handler = async (event) => {
 
   return ok({
     societies_by_industry: societiesByIndustry,
+    societies_by_country: societiesByCountry,
     members_by_occupation: membersByOccupation,
     loan_patterns_by_occupation: loanPatternsByOccupation,
     total_societies: (societies || []).length,
