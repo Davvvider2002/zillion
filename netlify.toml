@@ -800,6 +800,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-record-share-payment"
+  to   = "/.netlify/functions/coop-portal-record-share-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-record-dividend-payout"
+  to   = "/.netlify/functions/coop-portal-record-dividend-payout"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-bank-reconciliation-history"
   to   = "/.netlify/functions/coop-portal-bank-reconciliation-history"
   status = 200
