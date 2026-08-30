@@ -120,10 +120,13 @@ exports.handler = async (event) => {
     return err(400, 'No allocation line is marked as the member-distribution pool for this year — mark one in the allocation editor first.');
   }
 
-  const { entitlements, total_patronage_kobo } = await calculateDividendRun(db, coopId, fy.start_date, fy.end_date, totalDistributableKobo);
+  const shareWeightPercent = Number.isInteger(body.share_weight_percent) && body.share_weight_percent >= 0 && body.share_weight_percent <= 100
+    ? body.share_weight_percent : 0; // defaults to pure patronage, the original behavior
+
+  const { entitlements, total_patronage_kobo, total_share_capital_kobo } = await calculateDividendRun(db, coopId, fy.start_date, fy.end_date, totalDistributableKobo, shareWeightPercent);
 
   if (!entitlements.length) {
-    return err(400, 'No members have any qualifying patronage (savings, dues, or loan interest paid) in this period — nothing to distribute.');
+    return err(400, 'No members have any qualifying patronage or share capital in this period — nothing to distribute.');
   }
 
   // Re-running (draft only, checked above) replaces the previous draft entirely.
@@ -134,6 +137,8 @@ exports.handler = async (event) => {
     coop_id: coopId,
     total_distributable_kobo: totalDistributableKobo,
     total_patronage_kobo,
+    total_share_capital_kobo,
+    share_weight_percent: shareWeightPercent,
     calculated_by: resolved.society.merchant_id,
   }).select().single();
   if (runErr) return err(500, `Failed to save dividend run: ${runErr.message}`);
