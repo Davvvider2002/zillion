@@ -230,6 +230,26 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- DIVIDEND PAYOUT MODAL -->
+<div class="modal-overlay" id="modal-dividend-payout">
+  <div class="modal-box">
+    <div class="modal-title">Record dividend payout</div>
+    <div id="dp-member-label" style="font-size:13px;color:var(--muted);margin-bottom:6px"></div>
+    <div id="dp-remaining-label" style="font-size:13px;color:var(--g);margin-bottom:14px;font-weight:600"></div>
+
+    <div class="field"><label>Cash (₦) — sent via your own bank/transfer</label><input type="number" id="dp-cash-amount" placeholder="0"></div>
+    <div class="field" id="dp-cash-ref-field"><label>Cash reference (confirms it was actually sent)</label><input type="text" id="dp-cash-reference"></div>
+
+    <div class="field"><label>Credit to savings (₦)</label><input type="number" id="dp-savings-amount" placeholder="0"></div>
+    <div class="field"><label>Convert to shares (₦)</label><input type="number" id="dp-shares-amount" placeholder="0"></div>
+
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Leave any field blank or 0 to skip that method. You can record a payout in stages — this doesn't have to cover the full entitlement at once.</div>
+    <div id="dp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitDividendPayout()" id="dp-btn">Record payout</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-dividend-payout')">Cancel</button>
+  </div>
+</div>
+
 <!-- NEW SAVINGS PLAN MODAL -->
 <div class="modal-overlay" id="modal-new-savings-plan">
   <div class="modal-box">
@@ -1884,7 +1904,7 @@ function renderDividendResults(run, entitlements) {
     </div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Pool: ${fmtNaira(run.total_distributable_kobo)} · Total patronage: ${fmtNaira(run.total_patronage_kobo)} · Calculated ${fmtDate(run.calculated_at)}${isApproved ? ` · Approved ${fmtDate(run.approved_at)}` : ''}</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Patronage %</th><th>Entitlement</th></tr></thead>
+      <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Patronage %</th><th>Entitlement</th>${isApproved ? '<th>Payout</th>' : ''}</tr></thead>
       <tbody>${entitlements.map(e => `
         <tr>
           <td>${e.coop_members?.name || e.coop_members?.phone_normalized || '—'}</td>
@@ -1893,8 +1913,9 @@ function renderDividendResults(run, entitlements) {
           <td>${fmtNaira(e.patronage_loan_interest_kobo)}</td>
           <td>${(e.patronage_percent * 100).toFixed(2)}%</td>
           <td style="font-weight:700">${fmtNaira(e.entitlement_kobo)}</td>
+          ${isApproved ? `<td><button class="btn btn-ghost btn-sm" onclick="openDividendPayoutModal('${e.id}','${(e.coop_members?.name || 'Member').replace(/'/g, "\\'")}',${e.entitlement_kobo})">Record payout</button></td>` : ''}
         </tr>
-      `).join('') || '<tr><td colspan="6" class="no-data">No entitlements yet.</td></tr>'}</tbody>
+      `).join('') || `<tr><td colspan="${isApproved ? 7 : 6}" class="no-data">No entitlements yet.</td></tr>`}</tbody>
     </table></div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">*Loan interest paid is prorated from each loan's fixed interest ratio, not an exact per-payment figure.</div>
   `;
@@ -1915,6 +1936,73 @@ async function submitApproveDividend(financialYearId) {
   } catch (e) {
     notify('Network error: ' + e.message, true);
     if (btn) { btn.disabled = false; btn.textContent = 'Approve & lock'; }
+  }
+}
+
+let currentPayoutEntitlementId = null;
+let currentPayoutEntitlementKobo = 0;
+let currentPayoutFinancialYearId = null;
+
+async function openDividendPayoutModal(entitlementId, memberName, entitlementKobo) {
+  currentPayoutEntitlementId = entitlementId;
+  currentPayoutEntitlementKobo = entitlementKobo;
+  currentPayoutFinancialYearId = currentAllocationYearId;
+
+  document.getElementById('dp-member-label').textContent = memberName;
+  document.getElementById('dp-cash-amount').value = '';
+  document.getElementById('dp-cash-reference').value = '';
+  document.getElementById('dp-savings-amount').value = '';
+  document.getElementById('dp-shares-amount').value = '';
+  document.getElementById('dp-error').style.display = 'none';
+  document.getElementById('dp-remaining-label').textContent = `Entitlement: ${fmtNaira(entitlementKobo)} · Loading paid-so-far...`;
+
+  openModal('modal-dividend-payout');
+
+  try {
+    const res = await fetch(`${API}/coop-portal-record-dividend-payout?entitlement_id=${entitlementId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    const alreadyPaid = (data.payouts || []).reduce((s, p) => s + p.amount_kobo, 0);
+    document.getElementById('dp-remaining-label').textContent = `Entitlement: ${fmtNaira(entitlementKobo)} · Already paid: ${fmtNaira(alreadyPaid)} · Remaining: ${fmtNaira(entitlementKobo - alreadyPaid)}`;
+  } catch (e) {
+    document.getElementById('dp-remaining-label').textContent = `Entitlement: ${fmtNaira(entitlementKobo)}`;
+  }
+}
+
+async function submitDividendPayout() {
+  const errEl = document.getElementById('dp-error');
+  errEl.style.display = 'none';
+
+  const cashAmount = Math.round(parseFloat(document.getElementById('dp-cash-amount').value || 0) * 100);
+  const cashRef = document.getElementById('dp-cash-reference').value.trim();
+  const savingsAmount = Math.round(parseFloat(document.getElementById('dp-savings-amount').value || 0) * 100);
+  const sharesAmount = Math.round(parseFloat(document.getElementById('dp-shares-amount').value || 0) * 100);
+
+  const payouts = [];
+  if (cashAmount > 0) {
+    if (!cashRef) { errEl.textContent = 'A cash reference is required, confirming it was actually sent.'; errEl.style.display = 'block'; return; }
+    payouts.push({ method: 'cash', amount_kobo: cashAmount, reference: cashRef });
+  }
+  if (savingsAmount > 0) payouts.push({ method: 'savings', amount_kobo: savingsAmount });
+  if (sharesAmount > 0) payouts.push({ method: 'shares', amount_kobo: sharesAmount });
+
+  if (!payouts.length) { errEl.textContent = 'Enter at least one amount.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('dp-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-dividend-payout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ entitlement_id: currentPayoutEntitlementId, payouts }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record payout.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Record payout'; return; }
+    notify(`Payout recorded — ${fmtNaira(data.total_paid_kobo)} paid, ${fmtNaira(data.remaining_kobo)} remaining`);
+    closeModal('modal-dividend-payout');
+    btn.disabled = false; btn.textContent = 'Record payout';
+    if (currentPayoutFinancialYearId) await loadExistingDividendRun(currentPayoutFinancialYearId);
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Record payout';
   }
 }
 
