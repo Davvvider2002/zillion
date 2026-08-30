@@ -55,6 +55,14 @@ const VALID_INDUSTRIES = [
   'Civil Service & Government', 'Artisan & Skilled Trade', 'Financial Services',
   'Real Estate & Construction', 'Hospitality & Food Service', 'Other',
 ];
+// Nigeria-first since that's the current market, but the list exists
+// so Zillion can genuinely expand - this is the field the rest of the
+// accounting system (exchange rates, base_amount conversion) was
+// already quietly built to expect but never had anywhere to set.
+const VALID_COUNTRIES = [
+  'Nigeria', 'Ghana', 'Kenya', 'South Africa', 'United Kingdom', 'United States', 'Other',
+];
+const VALID_CURRENCIES = ['NGN', 'GHS', 'KES', 'ZAR', 'GBP', 'USD'];
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -79,6 +87,8 @@ exports.handler = async (event) => {
   const primaryIndustry = VALID_INDUSTRIES.includes(body.primary_industry) ? body.primary_industry : null;
   const fyStartMonth = Number.isInteger(body.financial_year_start_month) && body.financial_year_start_month >= 1 && body.financial_year_start_month <= 12
     ? body.financial_year_start_month : 1; // defaults to January, matching the column's own DB default
+  const country = VALID_COUNTRIES.includes(body.country) ? body.country : 'Nigeria';
+  const baseCurrency = VALID_CURRENCIES.includes(body.base_currency) ? body.base_currency : 'NGN';
   const termsAccepted = body.terms_accepted === true;
 
   if (!name)      return err(400, 'society_name is required');
@@ -132,6 +142,8 @@ exports.handler = async (event) => {
     owner_name:                  ownerName,
     primary_industry:               primaryIndustry,
     financial_year_start_month:        fyStartMonth,
+    country:                            country,
+    base_currency:                      baseCurrency,
     subscription_status:            'trial',
     subscription_plan:                 plan,
     subscription_cycle:                   cycle,
