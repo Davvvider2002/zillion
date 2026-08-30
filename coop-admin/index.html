@@ -230,6 +230,25 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-share-payment">
+  <div class="modal-box">
+    <div class="modal-title">Record a share capital contribution</div>
+    <div id="shp-member-label" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="shp-amount" placeholder="0"></div>
+    <div class="field">
+      <label>How was this paid?</label>
+      <select id="shp-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('shp-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
+        <option value="bank_transfer_manual">Bank transfer</option>
+        <option value="cash_in_person">Cash</option>
+      </select>
+    </div>
+    <div class="field" id="shp-ref-field" style="display:none"><label>Reference (receipt no., etc.)</label><input type="text" id="shp-reference"></div>
+    <div id="shp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitSharePayment()" id="shp-btn">Record contribution</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-share-payment')">Cancel</button>
+  </div>
+</div>
+
 <!-- DIVIDEND PAYOUT MODAL -->
 <div class="modal-overlay" id="modal-dividend-payout">
   <div class="modal-box">
@@ -703,22 +722,24 @@ function renderMembers() {
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Shares</th><th>Status</th><th></th></tr></thead>
         <tbody>${d.members.map(m => `
           <tr>
             <td>${m.name || '—'}</td>
             <td>${m.phone_normalized}</td>
             <td>${fmtDate(m.activated_at)}</td>
             <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
+            <td>${fmtNaira(m.share_capital_kobo || 0)}</td>
             <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
             <td>
-              <div style="display:flex;gap:6px">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}','${(m.name || m.phone_normalized || '').replace(/'/g, "\\'")}')">Record share</button>
                 <button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button>
               </div>
             </td>
           </tr>
-        `).join('') || '<tr><td colspan="6" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
+        `).join('') || '<tr><td colspan="7" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
@@ -908,6 +929,45 @@ async function submitSavingsPayment() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Record payment';
+  }
+}
+
+let pendingShareMemberId = null;
+
+function openSharePaymentModal(memberId, memberLabel) {
+  pendingShareMemberId = memberId;
+  document.getElementById('shp-member-label').textContent = `For: ${memberLabel}`;
+  document.getElementById('shp-amount').value = '';
+  document.getElementById('shp-reference').value = '';
+  document.getElementById('shp-error').style.display = 'none';
+  openModal('modal-share-payment');
+}
+
+async function submitSharePayment() {
+  const errEl = document.getElementById('shp-error');
+  errEl.style.display = 'none';
+  const amount = parseInt(document.getElementById('shp-amount').value) || 0;
+  const source = document.getElementById('shp-source').value;
+  const reference = document.getElementById('shp-reference').value.trim();
+  if (amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('shp-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-share-payment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: pendingShareMemberId, amount_kobo: amount * 100, source, reference }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record contribution.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Record contribution'; return; }
+    notify('Share contribution recorded');
+    closeModal('modal-share-payment');
+    btn.disabled = false; btn.textContent = 'Record contribution';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Record contribution';
   }
 }
 
