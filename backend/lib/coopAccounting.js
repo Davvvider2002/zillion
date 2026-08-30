@@ -26,6 +26,7 @@ const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1200', name: 'Other Receivables', type: 'ASSET' },
   { code: '2000', name: 'Member Savings Payable', type: 'LIABILITY' },
   { code: '2100', name: 'Accounts Payable', type: 'LIABILITY' },
+  { code: '2200', name: 'Dividend Payable', type: 'LIABILITY' },
   { code: '3000', name: 'Share Capital', type: 'EQUITY' },
   { code: '3900', name: 'Opening Balance Equity', type: 'EQUITY', isSystem: true },
   { code: '3910', name: 'Retained Earnings', type: 'EQUITY' },
