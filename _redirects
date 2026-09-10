@@ -76,6 +76,7 @@
 /api/v1/admin-cooperative-members    /.netlify/functions/admin-cooperative-members    200
 /api/v1/admin-cooperative-stats      /.netlify/functions/admin-cooperative-stats      200
 /api/v1/admin-coop-analytics         /.netlify/functions/admin-coop-analytics         200
+/api/v1/admin-coop-manage-subscription /.netlify/functions/admin-coop-manage-subscription 200
 /api/v1/admin-create-agent     /.netlify/functions/admin-create-agent     200
 /api/v1/admin-users            /.netlify/functions/admin-users            200
 /api/v1/admin-coins            /.netlify/functions/admin-coins            200
