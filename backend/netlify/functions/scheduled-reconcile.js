@@ -123,7 +123,7 @@ exports.handler = async () => {
     const { data: activeSocieties } = await db.from('coop_societies')
       .select('coop_id, name, subscription_status, subscription_paid_until, subscription_email')
       .not('subscription_paid_until', 'is', null)
-      .eq('subscription_status', 'active');
+      .eq('subscription_status', 'active').eq('never_expires', false);
 
     const now = new Date();
     for (const society of (activeSocieties || [])) {
@@ -160,7 +160,7 @@ exports.handler = async () => {
   try {
     const { data: reminderDue } = await db.from('coop_societies')
       .select('coop_id, name, trial_ends_at, subscription_email')
-      .eq('subscription_status', 'trial')
+      .eq('subscription_status', 'trial').eq('never_expires', false)
       .is('trial_reminder_sent_at', null)
       .not('trial_ends_at', 'is', null);
 
@@ -194,7 +194,7 @@ exports.handler = async () => {
   try {
     const { data: trialSocieties } = await db.from('coop_societies')
       .select('coop_id, name, trial_ends_at, subscription_paid_until, subscription_email')
-      .eq('subscription_status', 'trial')
+      .eq('subscription_status', 'trial').eq('never_expires', false)
       .not('trial_ends_at', 'is', null);
 
     const now = new Date();
