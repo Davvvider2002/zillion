@@ -1003,7 +1003,26 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
-<!-- Change Plan modal -->
+<!-- Extend Subscription modal -->
+<div id="extend-subscription-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="ext-society-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:18px">Grants free access time — extends the trial or paid period, and restores access immediately if currently suspended/expired.</div>
+    <label class="field-label">Extension length</label>
+    <select class="field-input" id="ext-days" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="7">7 days</option>
+      <option value="14">14 days</option>
+    </select>
+    <label class="field-label">Reason (optional)</label>
+    <input class="field-input" type="text" id="ext-reason" placeholder="e.g. payment processing delay" style="margin-bottom:14px;width:100%;box-sizing:border-box">
+    <div id="ext-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeExtendSubscriptionModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitExtendSubscription()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Grant extension</button>
+    </div>
+  </div>
+</div>
+
 <div id="change-plan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
     <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="cp-society-name">—</div>
@@ -3209,7 +3228,12 @@ function renderCoopThriftTable(societies) {
       </td>
       <td>
         <span style="color:${subColor(s.subscription_status)};font-weight:600">${subLabel(s.subscription_status)}</span>
+        ${s.never_expires ? '<div style="font-size:10px;color:var(--g);font-weight:600">♾ Never expires</div>' : ''}
         ${s.subscription_status === 'pending_verification' && s.subscription_paid_until ? `<div><button class="rbtn" style="background:var(--gl);color:var(--g);margin-top:4px" onclick="activateSubscription('${s.coop_id}')">Activate</button></div>` : ''}
+        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
+          <button class="rbtn" onclick="openExtendSubscriptionModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}')">Extend</button>
+          <button class="rbtn" onclick="toggleNeverExpires('${s.coop_id}',${!s.never_expires})">${s.never_expires ? 'Unset never-expire' : 'Set never-expire'}</button>
+        </div>
       </td>
       <td>${s.trial_ends_at ? new Date(s.trial_ends_at).toLocaleDateString() : '—'}</td>
       <td><button class="rbtn" onclick="openSocietyDetail('${s.coop_id}')">View &rsaquo;</button></td>
@@ -3229,6 +3253,51 @@ async function activateSubscription(coopId) {
     notify(data.message || 'Activated');
     loadCoopThriftSocieties();
   } catch (e) { notify('Activation: ' + e.message, true); }
+}
+
+let pendingExtendCoopId = null;
+
+function openExtendSubscriptionModal(coopId, societyName) {
+  pendingExtendCoopId = coopId;
+  document.getElementById('ext-society-name').textContent = societyName;
+  document.getElementById('ext-reason').value = '';
+  document.getElementById('ext-error').style.display = 'none';
+  document.getElementById('extend-subscription-modal').style.display = 'flex';
+}
+function closeExtendSubscriptionModal() { document.getElementById('extend-subscription-modal').style.display = 'none'; }
+
+async function submitExtendSubscription() {
+  const errEl = document.getElementById('ext-error');
+  errEl.style.display = 'none';
+  const days = parseInt(document.getElementById('ext-days').value, 10);
+  const reason = document.getElementById('ext-reason').value.trim();
+  try {
+    const res = await fetch(`${API}/admin-coop-manage-subscription`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: pendingExtendCoopId, action: 'extend', days, reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to extend.'; errEl.style.display = 'block'; return; }
+    notify(`Extended by ${days} days`);
+    closeExtendSubscriptionModal();
+    loadCoopThriftSocieties();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function toggleNeverExpires(coopId, newValue) {
+  if (newValue && !confirm('Mark this society as never-expiring? It will never be auto-suspended or trial-expired, regardless of payment status. Intended for demo/test societies only.')) return;
+  try {
+    const res = await fetch(`${API}/admin-coop-manage-subscription`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: coopId, action: 'set_never_expires', never_expires: newValue }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('Update: ' + (data.error || 'failed'), true); return; }
+    notify(newValue ? 'Set to never-expire' : 'Never-expire removed');
+    loadCoopThriftSocieties();
+  } catch (e) { notify('Update: ' + e.message, true); }
 }
 
 async function loadAddonModulesAdmin() {
