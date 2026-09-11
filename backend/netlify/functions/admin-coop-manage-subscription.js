@@ -95,8 +95,24 @@ exports.handler = async (event) => {
 
   if (body.action === 'set_never_expires') {
     const neverExpires = body.never_expires === true;
+
+    const updates = { never_expires: neverExpires };
+    // Setting the flag only stops FUTURE suspension/expiry checks from
+    // ever touching this society again - it does nothing on its own to
+    // undo a suspension/expiry that already happened before the flag
+    // was set. Explicitly restore access here so "never expire" means
+    // what it says immediately, not just going forward.
+    if (neverExpires) {
+      if (society.subscription_status === 'suspended') { updates.subscription_status = 'active'; updates.status = 'ACTIVE'; }
+      else if (society.subscription_status === 'trial_expired') { updates.subscription_status = 'trial'; }
+    }
+    // Unsetting never_expires deliberately does NOT immediately
+    // re-suspend anything - the next scheduled-reconcile.js run will
+    // naturally re-evaluate this society on its own terms (including
+    // the normal grace period), same as any other society.
+
     const { data: updated, error: updateErr } = await db.from('coop_societies')
-      .update({ never_expires: neverExpires }).eq('coop_id', coopId).select().single();
+      .update(updates).eq('coop_id', coopId).select().single();
     if (updateErr) return err(500, `Failed to update: ${updateErr.message}`);
 
     await auditLog(db, {
