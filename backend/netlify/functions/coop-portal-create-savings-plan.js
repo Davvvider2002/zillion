@@ -49,12 +49,20 @@ exports.handler = async (event) => {
   const { data: member } = await db.from('coop_members').select('id').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
   if (!member) return err(400, 'That member does not belong to your society');
 
+  let savingsPackageId = null;
+  if (body.savings_package_id) {
+    const { data: pkg } = await db.from('coop_savings_packages').select('id').eq('id', body.savings_package_id).eq('coop_id', coopId).eq('active', true).maybeSingle();
+    if (!pkg) return err(400, 'That savings package is not available for this society');
+    savingsPackageId = pkg.id;
+  }
+
   const { data: created, error: insertErr } = await db.from('coop_savings_plans').insert({
     coop_id:                   coopId,
     member_id:                  memberId,
     target_amount_kobo:          targetKobo,
     monthly_contribution_kobo:     monthlyKobo,
     duration_months:                 durationMo,
+    savings_package_id:                savingsPackageId,
     created_by:                        `portal:${auth.payload.merchant_id}`,
   }).select().single();
 
