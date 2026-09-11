@@ -337,15 +337,15 @@ tr:last-child td{border-bottom:none}
     <div class="modal-title">Loan interest</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Applies to new loan applications only — existing loans are never changed retroactively. Calculated as a flat rate on the principal, added once (not compounding).</div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;cursor:pointer;text-transform:none;letter-spacing:normal;color:var(--cream);font-weight:400">
-      <input type="checkbox" id="li-enabled" onchange="onLoanInterestToggle()"> Charge interest on loans
+      <input type="checkbox" id="lin-enabled" onchange="onLoanInterestToggle()"> Charge interest on loans
     </label>
-    <div class="field" id="li-rate-row" style="display:none">
+    <div class="field" id="lin-rate-row" style="display:none">
       <label>Interest rate (%)</label>
-      <input type="number" id="li-rate" placeholder="e.g. 10" step="0.5" min="0" max="100" oninput="updateLoanInterestExample()">
-      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="li-example"></div>
+      <input type="number" id="lin-rate" placeholder="e.g. 10" step="0.5" min="0" max="100" oninput="updateLoanInterestExample()">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="lin-example"></div>
     </div>
-    <div id="li-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureLoanInterest()" id="li-btn">Save</button>
+    <div id="lin-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureLoanInterest()" id="lin-btn">Save</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-loan-interest')">Cancel</button>
   </div>
 </div>
@@ -514,18 +514,18 @@ tr:last-child td{border-bottom:none}
 <div class="modal-overlay" id="modal-dues-payment">
   <div class="modal-box">
     <div class="modal-title">Record a dues payment</div>
-    <div id="dp-member-label" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
-    <div class="field"><label>Amount (₦)</label><input type="number" id="dp-amount" placeholder="0"></div>
+    <div id="dup-member-label" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="dup-amount" placeholder="0"></div>
     <div class="field">
       <label>How was this paid?</label>
-      <select id="dp-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('dp-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
+      <select id="dup-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('dup-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
         <option value="bank_transfer_manual">Bank transfer</option>
         <option value="cash_in_person">Cash</option>
       </select>
     </div>
-    <div class="field" id="dp-ref-field" style="display:none"><label>Reference</label><input type="text" id="dp-reference"></div>
-    <div id="dp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="submitDuesPayment()" id="dp-btn">Record payment</button>
+    <div class="field" id="dup-ref-field" style="display:none"><label>Reference</label><input type="text" id="dup-reference"></div>
+    <div id="dup-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitDuesPayment()" id="dup-btn">Record payment</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-dues-payment')">Cancel</button>
   </div>
 </div>
@@ -1659,37 +1659,37 @@ async function toggleSavingsPackageActive(packageId, makeActive) {
 
 function openConfigureLoanInterestModal() {
   const s = portalData.society;
-  document.getElementById('li-enabled').checked = !!s.loan_interest_enabled;
-  document.getElementById('li-rate').value = s.loan_interest_rate_percent || '';
-  document.getElementById('li-error').style.display = 'none';
+  document.getElementById('lin-enabled').checked = !!s.loan_interest_enabled;
+  document.getElementById('lin-rate').value = s.loan_interest_rate_percent || '';
+  document.getElementById('lin-error').style.display = 'none';
   onLoanInterestToggle();
   openModal('modal-configure-loan-interest');
 }
 
 function onLoanInterestToggle() {
-  const enabled = document.getElementById('li-enabled').checked;
-  document.getElementById('li-rate-row').style.display = enabled ? '' : 'none';
+  const enabled = document.getElementById('lin-enabled').checked;
+  document.getElementById('lin-rate-row').style.display = enabled ? '' : 'none';
   updateLoanInterestExample();
 }
 
 function updateLoanInterestExample() {
-  const rate = parseFloat(document.getElementById('li-rate').value) || 0;
-  const exampleEl = document.getElementById('li-example');
+  const rate = parseFloat(document.getElementById('lin-rate').value) || 0;
+  const exampleEl = document.getElementById('lin-example');
   if (rate <= 0) { exampleEl.textContent = ''; return; }
   const interest = 100000 * (rate / 100);
   exampleEl.textContent = `On a ₦100,000 loan: ₦${interest.toLocaleString()} interest, ₦${(100000 + interest).toLocaleString()} total repayable`;
 }
 
 async function submitConfigureLoanInterest() {
-  const errEl = document.getElementById('li-error');
+  const errEl = document.getElementById('lin-error');
   errEl.style.display = 'none';
-  const enabled = document.getElementById('li-enabled').checked;
-  const rate = parseFloat(document.getElementById('li-rate').value) || 0;
+  const enabled = document.getElementById('lin-enabled').checked;
+  const rate = parseFloat(document.getElementById('lin-rate').value) || 0;
   if (enabled && (rate <= 0 || rate > 100)) {
     errEl.textContent = 'Enter a valid interest rate between 0 and 100.'; errEl.style.display = 'block'; return;
   }
 
-  const btn = document.getElementById('li-btn');
+  const btn = document.getElementById('lin-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
     const res = await fetch(`${API}/coop-portal-configure-loan-interest`, {
@@ -1767,23 +1767,23 @@ async function submitConfigureLoanPenalty() {
 
 function openDuesPaymentModal(memberId, memberLabel) {
   pendingDuesMemberId = memberId;
-  document.getElementById('dp-member-label').textContent = `For: ${memberLabel}`;
-  document.getElementById('dp-amount').value = '';
-  document.getElementById('dp-reference').value = '';
-  document.getElementById('dp-error').style.display = 'none';
+  document.getElementById('dup-member-label').textContent = `For: ${memberLabel}`;
+  document.getElementById('dup-amount').value = '';
+  document.getElementById('dup-reference').value = '';
+  document.getElementById('dup-error').style.display = 'none';
   openModal('modal-dues-payment');
 }
 
 async function submitDuesPayment() {
-  const errEl = document.getElementById('dp-error');
+  const errEl = document.getElementById('dup-error');
   errEl.style.display = 'none';
-  const amount = parseInt(document.getElementById('dp-amount').value) || 0;
-  const source = document.getElementById('dp-source').value;
-  const reference = document.getElementById('dp-reference').value.trim();
+  const amount = parseInt(document.getElementById('dup-amount').value) || 0;
+  const source = document.getElementById('dup-source').value;
+  const reference = document.getElementById('dup-reference').value.trim();
   if (amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
   if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
 
-  const btn = document.getElementById('dp-btn');
+  const btn = document.getElementById('dup-btn');
   btn.disabled = true; btn.textContent = 'Recording...';
   try {
     const res = await fetch(`${API}/coop-portal-record-dues-payment`, {
@@ -1853,7 +1853,7 @@ async function renderAddons() {
     <div class="card" style="border-color:var(--amber)">
       <div class="card-title">Payment needed</div>
       <div class="card-sub">Your subscription total has changed — pay the new total to keep your account active without interruption.</div>
-      <button class="btn btn-primary btn-sm" onclick="payNowFromPortal()" id="portal-paynow-btn">Pay now →</button>
+      <button class="btn btn-primary btn-sm" onclick="payNowFromPortal(this)">Pay now →</button>
     </div>` : ''}
   `;
 }
@@ -1872,8 +1872,7 @@ async function addAddonNow(addonKey) {
   } catch (e) { notify('Network error: ' + e.message, true); }
 }
 
-async function payNowFromPortal() {
-  const btn = document.getElementById('portal-paynow-btn');
+async function payNowFromPortal(btn) {
   btn.disabled = true; btn.textContent = 'Redirecting...';
   try {
     const res = await fetch(`${API}/public-coop-subscription-checkout-init`, {
@@ -1910,7 +1909,7 @@ function renderBilling() {
           <div style="font-size:15px;font-weight:700;text-transform:capitalize">${s.subscription_plan || '—'} ${s.subscription_cycle ? `· ${s.subscription_cycle}` : ''}</div>
           <div style="font-size:13px;margin-top:4px">${statusLine}</div>
         </div>
-        ${needsPayment || isTrial ? `<button class="btn btn-primary" id="portal-paynow-btn" onclick="payNowFromPortal()">Pay now →</button>` : ''}
+        ${needsPayment || isTrial ? `<button class="btn btn-primary" onclick="payNowFromPortal(this)">Pay now →</button>` : ''}
       </div>
       ${s.repricing_pending_since ? `<div class="card-sub" style="margin-top:10px;color:var(--amber)">Your plan changed and needs a fresh payment — grace period active since ${fmtDate(s.repricing_pending_since)}.</div>` : ''}
     </div>
