@@ -326,6 +326,66 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] monthly loan statements pass failed:', e.message);
   }
 
+  // ── 9. Loan late-penalty application ──────────────────────────────────────
+  // A penalty is applied AT MOST ONCE per loan - checked via an existing
+  // coop_loan_penalties row, not recomputed/recharged every run. Uses
+  // each society's own resolved rate (dedicated loan rate if set,
+  // otherwise the same rate configured for dues), computed by the same
+  // computeLoanRepaymentStatus() used everywhere else this figure
+  // matters, so there's exactly one place this calculation can drift.
+  try {
+    const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
+    const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
+
+    const { data: activeLoans } = await db.from('coop_loans')
+      .select('id, coop_id, principal_kobo').in('status', ['DISBURSED', 'REPAYING']);
+
+    const societyCache = new Map();
+    for (const loan of (activeLoans || [])) {
+      if (!societyCache.has(loan.coop_id)) {
+        const { data: s } = await db.from('coop_societies')
+          .select('late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value').eq('coop_id', loan.coop_id).maybeSingle();
+        societyCache.set(loan.coop_id, s);
+      }
+      const society = societyCache.get(loan.coop_id);
+      if (!society) continue;
+
+      const status = await computeLoanRepaymentStatus(db, loan.id, society, loan.principal_kobo);
+      if (!status.is_overdue || status.late_fee_kobo <= 0) continue;
+
+      const { data: existingPenalty } = await db.from('coop_loan_penalties').select('id').eq('loan_id', loan.id).maybeSingle();
+      if (existingPenalty) continue; // already applied once for this loan — never re-charged
+
+      const { data: created, error: insertErr } = await db.from('coop_loan_penalties').insert({
+        loan_id: loan.id, coop_id: loan.coop_id, amount_kobo: status.late_fee_kobo, reason: 'Automatic late-repayment penalty',
+      }).select().single();
+      if (insertErr) continue;
+
+      try {
+        if (await accountingIsReady(db, loan.coop_id)) {
+          const accounts = await getAccounts(db, loan.coop_id, ['1100', '4160']);
+          const receivable = accounts['1100'];
+          const penaltyIncome = accounts['4160'];
+          if (receivable && penaltyIncome) {
+            await postEntry(db, loan.coop_id, 'Late loan repayment penalty', 'system:scheduled-reconcile', receivable, penaltyIncome, status.late_fee_kobo);
+          }
+        }
+      } catch (e) {
+        console.error(`[scheduled-reconcile] penalty accounting post failed for loan ${loan.id} (non-fatal):`, e.message);
+      }
+
+      alertsRaised++;
+      await logAlert(db, {
+        severity: 'INFO',
+        source:   SOURCE,
+        message:  `Late repayment penalty applied to a loan (${loan.coop_id})`,
+        context:  { coop_id: loan.coop_id, loan_id: loan.id, penalty_kobo: status.late_fee_kobo },
+      });
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] loan penalty pass failed:', e.message);
+  }
+
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
   return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised }) };
 };
