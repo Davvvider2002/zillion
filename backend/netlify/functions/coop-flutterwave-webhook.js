@@ -35,6 +35,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { getFlutterwaveAccessToken, flutterwaveApiBase } = require('../../lib/flutterwave');
 const { logAlert }         = require('../../lib/alerts');
 const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
+const { postZillionSubscriptionRevenue } = require('../../lib/zillionSubscriptionRevenue');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -82,7 +83,7 @@ exports.handler = async (event) => {
     if (!SUCCESS_STATUSES_V3.includes(renewalStatus)) return ok({ ignored: true, reason: 'not successful' });
 
     const { data: society } = await db.from('coop_societies')
-      .select('coop_id, subscription_plan, subscription_cycle, subscription_paid_until')
+      .select('coop_id, name, subscription_plan, subscription_cycle, subscription_paid_until')
       .eq('flutterwave_payment_plan_id', String(payload.data.payment_plan)).maybeSingle();
     if (!society) {
       await logAlert(db, {
@@ -133,6 +134,13 @@ exports.handler = async (event) => {
       // access, rather than suspending immediately on one failed charge.
       return ok({ ignored: true, reason: 'renewal not verified' });
     }
+
+    const { data: addonRows } = await db.from('coop_society_addons').select('addon_key').eq('coop_id', society.coop_id);
+    await postZillionSubscriptionRevenue(db, {
+      coopId: society.coop_id, societyName: society.name, amountKobo: Math.round(Number(renewalAmount) * 100),
+      tier: society.subscription_plan, cycle: society.subscription_cycle,
+      addonKeys: (addonRows || []).map(r => r.addon_key),
+    });
 
     const paidUntil = extendSubscription(society.subscription_paid_until, society.subscription_cycle);
     // Safe to unconditionally restore both fields here — as of this
