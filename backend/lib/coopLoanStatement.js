@@ -29,7 +29,7 @@ async function computeMemberLoanStatement(db, memberId) {
   if (!member) return null;
 
   const { data: society } = await db.from('coop_societies')
-    .select('late_fee_type, late_fee_value').eq('coop_id', member.coop_id).maybeSingle();
+    .select('late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value').eq('coop_id', member.coop_id).maybeSingle();
 
   const { data: loans } = await db.from('coop_loans')
     .select('id, principal_kobo, interest_rate_percent, interest_kobo, total_repayable_kobo, repayment_months, status, requested_at, disbursed_at')
