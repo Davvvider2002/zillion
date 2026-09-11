@@ -280,6 +280,12 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Target amount (₦)</label><input type="number" id="nsp-target" placeholder="0"></div>
     <div class="field"><label>Monthly contribution (₦)</label><input type="number" id="nsp-monthly" placeholder="0"></div>
     <div class="field"><label>Duration (months)</label><input type="number" id="nsp-duration" placeholder="12"></div>
+    <div class="field">
+      <label>Savings package (optional — for interest)</label>
+      <select id="nsp-package-id" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <option value="">No package — no interest</option>
+      </select>
+    </div>
     <div id="nsp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitNewSavingsPlan()" id="nsp-btn">Create plan</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-savings-plan')">Cancel</button>
@@ -419,6 +425,35 @@ tr:last-child td{border-bottom:none}
       <button class="btn btn-ghost" style="width:100%;margin-top:8px;display:none" id="lp-cancel-edit-btn" onclick="resetLoanPackageForm()">Cancel edit</button>
     </div>
     <button class="btn btn-ghost" style="width:100%;margin-top:14px" onclick="closeModal('modal-loan-packages')">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-savings-packages">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-title">Savings packages</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Optional — a member's savings plan can link to a package to earn monthly interest, credited automatically. A plan with no package earns no interest, exactly as before.</div>
+    <div id="svp-list" style="margin-bottom:16px"></div>
+    <div style="border-top:1px solid var(--line);padding-top:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="svp-form-title">Add a package</div>
+      <input type="hidden" id="svp-editing-id" value="">
+      <div class="field">
+        <label>Package name</label>
+        <input type="text" id="svp-name" placeholder="e.g. Regular savings, High-yield savings">
+      </div>
+      <div class="field">
+        <label>Monthly interest rate (%)</label>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Applied to the member's current balance each month, credited automatically.</div>
+        <input type="number" id="svp-rate" placeholder="e.g. 0.5" step="0.01" min="0.01">
+      </div>
+      <div class="field">
+        <label>Minimum balance to earn interest (₦, optional)</label>
+        <input type="number" id="svp-min-balance" placeholder="Leave blank for no minimum" step="100" min="0">
+      </div>
+      <div id="svp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitSavingsPackage()" id="svp-submit-btn">Add package</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px;display:none" id="svp-cancel-edit-btn" onclick="resetSavingsPackageForm()">Cancel edit</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:14px" onclick="closeModal('modal-savings-packages')">Close</button>
   </div>
 </div>
 
@@ -925,6 +960,7 @@ function renderSavings() {
     <div class="card">
       <div class="card-title">Savings plans
         <button class="btn btn-primary btn-sm" onclick="openNewSavingsPlanModal()">＋ New savings plan</button>
+        <button class="btn btn-ghost btn-sm" onclick="openSavingsPackagesModal()">Savings packages</button>
       </div>
       <div class="card-sub">Progress toward each member's savings target.</div>
       <div class="table-wrap"><table>
@@ -1019,13 +1055,26 @@ async function submitSharePayment() {
   }
 }
 
-function openNewSavingsPlanModal() {
+async function openNewSavingsPlanModal() {
   const sel = document.getElementById('nsp-member-id');
   sel.innerHTML = portalData.members.filter(m => m.status === 'ACTIVE').map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('') || '<option value="">No active members yet</option>';
   document.getElementById('nsp-target').value = '';
   document.getElementById('nsp-monthly').value = '';
   document.getElementById('nsp-duration').value = '';
   document.getElementById('nsp-error').style.display = 'none';
+
+  if (!savingsPackagesCache.length) {
+    try {
+      const res = await fetch(`${API}/coop-portal-savings-packages`, { headers: { Authorization: 'Bearer ' + portalToken } });
+      const data = await res.json();
+      savingsPackagesCache = data.packages || [];
+    } catch (e) { /* dropdown just shows "No package" only — not fatal */ }
+  }
+  const pkgSel = document.getElementById('nsp-package-id');
+  const activePackages = savingsPackagesCache.filter(p => p.active);
+  pkgSel.innerHTML = '<option value="">No package — no interest</option>' +
+    activePackages.map(p => `<option value="${p.id}">${p.name} (${p.monthly_interest_rate_percent}%/mo)</option>`).join('');
+
   openModal('modal-new-savings-plan');
 }
 
@@ -1036,6 +1085,7 @@ async function submitNewSavingsPlan() {
   const target = parseInt(document.getElementById('nsp-target').value) || 0;
   const monthly = parseInt(document.getElementById('nsp-monthly').value) || 0;
   const duration = parseInt(document.getElementById('nsp-duration').value) || 0;
+  const packageId = document.getElementById('nsp-package-id').value || undefined;
   if (!memberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
   if (target <= 0) { errEl.textContent = 'Enter a valid target amount.'; errEl.style.display = 'block'; return; }
   if (monthly <= 0) { errEl.textContent = 'Enter a valid monthly contribution.'; errEl.style.display = 'block'; return; }
@@ -1046,7 +1096,7 @@ async function submitNewSavingsPlan() {
   try {
     const res = await fetch(`${API}/coop-portal-create-savings-plan`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ member_id: memberId, target_amount_kobo: target * 100, monthly_contribution_kobo: monthly * 100, duration_months: duration }),
+      body: JSON.stringify({ member_id: memberId, target_amount_kobo: target * 100, monthly_contribution_kobo: monthly * 100, duration_months: duration, savings_package_id: packageId }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to create plan.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create plan'; return; }
@@ -1307,6 +1357,7 @@ async function submitConfigureDues() {
 }
 
 let loanPackagesCache = [];
+let savingsPackagesCache = [];
 
 async function openCreateLoanModal() {
   document.getElementById('cl-error').style.display = 'none';
@@ -1498,6 +1549,109 @@ async function toggleLoanPackageActive(packageId, makeActive) {
       body: JSON.stringify({ action: makeActive ? 'activate' : 'deactivate', package_id: packageId }),
     });
     await loadLoanPackages();
+  } catch (e) {
+    notify('Failed to update package: ' + e.message, true);
+  }
+}
+
+async function openSavingsPackagesModal() {
+  document.getElementById('svp-error').style.display = 'none';
+  resetSavingsPackageForm();
+  openModal('modal-savings-packages');
+  await loadSavingsPackages();
+}
+
+async function loadSavingsPackages() {
+  const listEl = document.getElementById('svp-list');
+  listEl.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-savings-packages`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    savingsPackagesCache = data.packages || [];
+    listEl.innerHTML = savingsPackagesCache.length ? savingsPackagesCache.map(p => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div>
+          <div style="font-size:13px;font-weight:600">${p.name} ${p.active ? '' : '<span class="pill pill-muted" style="margin-left:6px">Inactive</span>'}</div>
+          <div style="font-size:11px;color:var(--muted)">${p.monthly_interest_rate_percent}%/mo${p.min_balance_kobo ? ` · min ${fmtNaira(p.min_balance_kobo)}` : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="editSavingsPackage('${p.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleSavingsPackageActive('${p.id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+        </div>
+      </div>
+    `).join('') : '<div class="no-data">No packages yet — add one below.</div>';
+  } catch (e) {
+    listEl.innerHTML = '<div class="no-data">Failed to load packages.</div>';
+  }
+}
+
+function editSavingsPackage(packageId) {
+  const pkg = savingsPackagesCache.find(p => p.id === packageId);
+  if (!pkg) return;
+  document.getElementById('svp-editing-id').value = pkg.id;
+  document.getElementById('svp-name').value = pkg.name;
+  document.getElementById('svp-rate').value = pkg.monthly_interest_rate_percent;
+  document.getElementById('svp-min-balance').value = pkg.min_balance_kobo ? pkg.min_balance_kobo / 100 : '';
+  document.getElementById('svp-form-title').textContent = `Editing "${pkg.name}"`;
+  document.getElementById('svp-submit-btn').textContent = 'Save changes';
+  document.getElementById('svp-cancel-edit-btn').style.display = '';
+}
+
+function resetSavingsPackageForm() {
+  document.getElementById('svp-editing-id').value = '';
+  document.getElementById('svp-name').value = '';
+  document.getElementById('svp-rate').value = '';
+  document.getElementById('svp-min-balance').value = '';
+  document.getElementById('svp-form-title').textContent = 'Add a package';
+  document.getElementById('svp-submit-btn').textContent = 'Add package';
+  document.getElementById('svp-cancel-edit-btn').style.display = 'none';
+  document.getElementById('svp-error').style.display = 'none';
+}
+
+async function submitSavingsPackage() {
+  const errEl = document.getElementById('svp-error');
+  errEl.style.display = 'none';
+
+  const editingId = document.getElementById('svp-editing-id').value;
+  const minBalanceEntered = document.getElementById('svp-min-balance').value;
+  const payload = {
+    action: editingId ? 'update' : 'create',
+    package_id: editingId || undefined,
+    name: document.getElementById('svp-name').value.trim(),
+    monthly_interest_rate_percent: parseFloat(document.getElementById('svp-rate').value),
+    min_balance_kobo: minBalanceEntered ? Math.round(parseFloat(minBalanceEntered) * 100) : null,
+  };
+
+  if (!payload.name) { errEl.textContent = 'Package name is required.'; errEl.style.display = 'block'; return; }
+  if (!payload.monthly_interest_rate_percent || payload.monthly_interest_rate_percent <= 0) {
+    errEl.textContent = 'Enter a valid monthly interest rate.'; errEl.style.display = 'block'; return;
+  }
+
+  const btn = document.getElementById('svp-submit-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/coop-portal-savings-packages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save package.'; errEl.style.display = 'block'; btn.disabled = false; return; }
+    resetSavingsPackageForm();
+    await loadSavingsPackages();
+    notify(editingId ? 'Package updated' : 'Package added');
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+}
+
+async function toggleSavingsPackageActive(packageId, makeActive) {
+  try {
+    await fetch(`${API}/coop-portal-savings-packages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: makeActive ? 'activate' : 'deactivate', package_id: packageId }),
+    });
+    await loadSavingsPackages();
   } catch (e) {
     notify('Failed to update package: ' + e.message, true);
   }
