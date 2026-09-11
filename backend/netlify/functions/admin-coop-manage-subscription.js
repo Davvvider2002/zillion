@@ -52,7 +52,7 @@ exports.handler = async (event) => {
   if (!coopId) return err(400, 'coop_id is required');
 
   const { data: society } = await db.from('coop_societies')
-    .select('coop_id, name, subscription_status, trial_ends_at, subscription_paid_until, never_expires')
+    .select('coop_id, name, status, subscription_status, trial_ends_at, subscription_paid_until, never_expires')
     .eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Society not found');
 
@@ -103,8 +103,14 @@ exports.handler = async (event) => {
     // was set. Explicitly restore access here so "never expire" means
     // what it says immediately, not just going forward.
     if (neverExpires) {
-      if (society.subscription_status === 'suspended') { updates.subscription_status = 'active'; updates.status = 'ACTIVE'; }
+      if (society.subscription_status === 'suspended') { updates.subscription_status = 'active'; }
       else if (society.subscription_status === 'trial_expired') { updates.subscription_status = 'trial'; }
+      // Checked independently of subscription_status above - these two
+      // fields can desync (confirmed live on a real society: status
+      // stuck at 'SUSPENDED' while subscription_status had already
+      // moved on to 'trial'), so status is corrected on its own terms
+      // rather than assumed to always match subscription_status.
+      if (society.status === 'SUSPENDED') { updates.status = 'ACTIVE'; }
     }
     // Unsetting never_expires deliberately does NOT immediately
     // re-suspend anything - the next scheduled-reconcile.js run will
