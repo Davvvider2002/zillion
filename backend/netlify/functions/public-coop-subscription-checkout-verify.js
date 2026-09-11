@@ -18,6 +18,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { extendSubscription } = require('../../lib/coopSubscription');
 const { computeSubscriptionTotal } = require('../../lib/coopPricing');
+const { postZillionSubscriptionRevenue } = require('../../lib/zillionSubscriptionRevenue');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -43,7 +44,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: society } = await db.from('coop_societies')
-    .select('coop_id, status, subscription_plan, subscription_cycle, subscription_paid_until, subscription_status')
+    .select('coop_id, name, status, subscription_plan, subscription_cycle, subscription_paid_until, subscription_status')
     .eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Society not found');
 
@@ -86,6 +87,11 @@ exports.handler = async (event) => {
   if (!verifiedOk) {
     return ok({ success: false, message: 'Payment could not be verified as successful.' });
   }
+
+  await postZillionSubscriptionRevenue(db, {
+    coopId, societyName: society.name, amountKobo: pricing.totalKobo,
+    tier: society.subscription_plan, cycle: society.subscription_cycle, addonKeys,
+  });
 
   const paidUntil = extendSubscription(society.subscription_paid_until, society.subscription_cycle);
   const update = {
