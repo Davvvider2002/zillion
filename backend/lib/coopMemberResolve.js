@@ -27,10 +27,25 @@ async function resolveMemberForZillionId(db, zillionId, selectFields = '*') {
   if (!zillionId) return null;
 
   // status and activated_at are needed for resolution regardless of
-  // what the caller actually wants back - harmless to request even
-  // when selectFields already includes them or is '*'.
+  // what the caller actually wants back - deduplicated here rather
+  // than trusting PostgREST to handle a field requested twice, which
+  // was never actually verified. Only plain top-level field names are
+  // deduplicated this way; anything with a nested/joined selector
+  // (contains a paren, e.g. "coop_societies(name)") is left as-is and
+  // simply appended alongside, since it can't collide with the two
+  // plain fields being added here.
+  const requestedFields = selectFields.split(',').map(f => f.trim());
+  const alreadyHasEverything = requestedFields.includes('*');
+  const alreadyHasStatus = alreadyHasEverything || requestedFields.includes('status');
+  const alreadyHasActivatedAt = alreadyHasEverything || requestedFields.includes('activated_at');
+  const extra = [
+    alreadyHasStatus ? null : 'status',
+    alreadyHasActivatedAt ? null : 'activated_at',
+  ].filter(Boolean);
+  const finalSelect = extra.length ? `${selectFields}, ${extra.join(', ')}` : selectFields;
+
   const { data: members, error } = await db.from('coop_members')
-    .select(`${selectFields}, status, activated_at`)
+    .select(finalSelect)
     .eq('zillion_id', zillionId);
 
   if (error || !members || members.length === 0) return null;
