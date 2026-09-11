@@ -750,6 +750,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-savings-packages"
+  to   = "/.netlify/functions/coop-portal-savings-packages"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-update-member"
   to   = "/.netlify/functions/coop-portal-update-member"
   status = 200
