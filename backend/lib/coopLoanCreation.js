@@ -19,6 +19,7 @@
 const { computeDuesOwing } = require('./coopDues');
 const { calculateLoanInterest } = require('./coopLoanInterest');
 const { computeMaxLoanAmount } = require('./coopLoanPackages');
+const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('./coopReducingBalanceSchedule');
 
 /**
  * @param {object} db  Supabase client
@@ -59,11 +60,13 @@ async function createLoanApplication(db, params) {
     if (!plan) return { success: false, error: 'That savings plan does not belong to this member' };
   }
 
+  let pkg = null;
   const { data: activePackages } = await db.from('coop_loan_packages').select('id').eq('coop_id', coopId).eq('active', true).limit(1);
   if (activePackages && activePackages.length) {
     if (!loanPackageId) return { success: false, error: 'This society requires selecting a loan package' };
-    const { data: pkg } = await db.from('coop_loan_packages').select('*').eq('id', loanPackageId).eq('coop_id', coopId).eq('active', true).maybeSingle();
-    if (!pkg) return { success: false, error: 'That loan package is not available for this society' };
+    const { data: fetchedPkg } = await db.from('coop_loan_packages').select('*').eq('id', loanPackageId).eq('coop_id', coopId).eq('active', true).maybeSingle();
+    if (!fetchedPkg) return { success: false, error: 'That loan package is not available for this society' };
+    pkg = fetchedPkg;
 
     const maxAllowedKobo = await computeMaxLoanAmount(db, pkg, member.id);
     if (principalKobo > maxAllowedKobo) {
@@ -71,7 +74,34 @@ async function createLoanApplication(db, params) {
     }
   }
 
-  const { interestRatePercent, interestKobo, totalRepayableKobo } = calculateLoanInterest(principalKobo, society);
+  // Reducing-balance (EMI or declining-principal) is only ever
+  // available through a loan package, per how this was scoped -
+  // a package with interest_method still 'flat' (the default) falls
+  // straight through to the exact same calculateLoanInterest() path
+  // every non-package loan already uses, completely unaffected. The
+  // society fetch above is reused here rather than fetched twice.
+  let interestRatePercent, interestKobo, totalRepayableKobo, interestMethod = 'flat', reducingBalanceRatePercent = null;
+
+  if (pkg && pkg.interest_method !== 'flat') {
+    reducingBalanceRatePercent = Number(pkg.reducing_balance_monthly_rate_percent) || 0;
+    // A placeholder date is fine here - only the totals (not the
+    // dated schedule itself) are needed at application time. The
+    // real, dated schedule is generated separately at disbursement,
+    // once the actual disbursement date is known - same point in the
+    // flow the existing flat-rate schedule is already generated at.
+    const generator = pkg.interest_method === 'reducing_balance_declining' ? generateDecliningPrincipalSchedule : generateEmiSchedule;
+    const result = generator(principalKobo, reducingBalanceRatePercent, repaymentMonths, new Date());
+    interestRatePercent = reducingBalanceRatePercent;
+    interestKobo = result.totalInterestKobo;
+    totalRepayableKobo = result.totalRepayableKobo;
+    interestMethod = pkg.interest_method;
+  } else {
+    const flat = calculateLoanInterest(principalKobo, society);
+    interestRatePercent = flat.interestRatePercent;
+    interestKobo = flat.interestKobo;
+    totalRepayableKobo = flat.totalRepayableKobo;
+  }
+
   const monthlyRepaymentKobo = Math.ceil(totalRepayableKobo / repaymentMonths);
 
   const { data: created, error: insertErr } = await db.from('coop_loans').insert({
@@ -86,6 +116,8 @@ async function createLoanApplication(db, params) {
     repayment_months: repaymentMonths,
     monthly_repayment_kobo: monthlyRepaymentKobo,
     guarantor_member_id: guarantor.id,
+    interest_method: interestMethod,
+    reducing_balance_monthly_rate_percent: reducingBalanceRatePercent,
   }).select().single();
 
   if (insertErr) return { success: false, error: `Failed to create loan: ${insertErr.message}` };
