@@ -21,7 +21,8 @@ const NORMAL_DEBIT_TYPES = new Set(['ASSET', 'EXPENSE']); // these increase with
 const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1000', name: 'Cash', type: 'ASSET' },
   { code: '1010', name: 'Bank Account', type: 'ASSET' },
-  { code: '1100', name: 'Loans Receivable', type: 'ASSET' },
+  { code: '1100', name: 'Loan Principal Receivable', type: 'ASSET' },
+  { code: '1110', name: 'Loan Interest Receivable', type: 'ASSET' },
   { code: '1150', name: 'Dues Receivable', type: 'ASSET', isSystem: true },
   { code: '1200', name: 'Other Receivables', type: 'ASSET' },
   { code: '2000', name: 'Member Savings Payable', type: 'LIABILITY' },
