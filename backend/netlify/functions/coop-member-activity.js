@@ -17,6 +17,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -31,7 +32,7 @@ exports.handler = async (event) => {
   if (!zillionId) return ok({ is_coop_member: false, activity: [] });
 
   const db = getServiceClient();
-  const { data: member } = await db.from('coop_members').select('id').eq('zillion_id', zillionId).maybeSingle();
+  const member = await resolveMemberForZillionId(db, zillionId, 'id');
   if (!member) return ok({ is_coop_member: false, activity: [] });
 
   const { data: savingsTxns } = await db.from('coop_savings_transactions')
