@@ -28,6 +28,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { calculateFees }    = require('../../lib/coopFees');
 
 exports.handler = async (event) => {
@@ -63,8 +64,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, name, phone_normalized').eq('zillion_id', zillionId).maybeSingle();
+  const member = await resolveMemberForZillionId(db, zillionId, 'id, coop_id, name, phone_normalized');
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
   if (type === 'savings') {
