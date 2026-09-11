@@ -24,6 +24,7 @@ const { verifyJWT }        = require('../../lib/validators');
 const { computeDuesOwing } = require('../../lib/coopDues');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
 const { computeMemberShareCapital } = require('../../lib/coopShareCapital');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -39,9 +40,10 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: member } = await db.from('coop_members')
-    .select('id, coop_id, name, email, phone_normalized, opening_balance_kobo, status, activated_at, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)')
-    .eq('zillion_id', zillionId).maybeSingle();
+  const member = await resolveMemberForZillionId(db,
+    zillionId,
+    'id, coop_id, name, email, phone_normalized, opening_balance_kobo, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)'
+  );
 
   if (!member) return ok({ is_coop_member: false });
 
