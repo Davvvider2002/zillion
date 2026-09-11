@@ -840,6 +840,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-zillion-ledger"
+  to   = "/.netlify/functions/admin-zillion-ledger"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-flutterwave-settlements"
   to   = "/.netlify/functions/admin-flutterwave-settlements"
   status = 200
