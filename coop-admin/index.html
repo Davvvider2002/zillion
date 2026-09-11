@@ -350,22 +350,22 @@ tr:last-child td{border-bottom:none}
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Applied automatically, once, the first time a loan falls behind its repayment schedule.</div>
     <div class="field">
       <label>Rate to use</label>
-      <select id="lp-mode" onchange="onLoanPenaltyModeChange()" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+      <select id="lpen-mode" onchange="onLoanPenaltyModeChange()" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
         <option value="none">No penalty</option>
         <option value="same_as_dues">Same rate as dues late fee</option>
         <option value="separate">A separate rate just for loans</option>
       </select>
     </div>
-    <div class="field" id="lp-rate-row" style="display:none">
+    <div class="field" id="lpen-rate-row" style="display:none">
       <label>Loan penalty type</label>
-      <select id="lp-type" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px;margin-bottom:8px">
+      <select id="lpen-type" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px;margin-bottom:8px">
         <option value="flat">Flat amount</option>
         <option value="percentage">Percentage of amount overdue</option>
       </select>
-      <input type="number" id="lp-value" placeholder="Amount (₦) or percentage">
+      <input type="number" id="lpen-value" placeholder="Amount (₦) or percentage">
     </div>
-    <div id="lp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureLoanPenalty()" id="lp-btn">Save</button>
+    <div id="lpen-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureLoanPenalty()" id="lpen-btn">Save</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-loan-penalty')">Cancel</button>
   </div>
 </div>
@@ -400,6 +400,19 @@ tr:last-child td{border-bottom:none}
       <div class="field">
         <label>Default repayment period (months)</label>
         <input type="number" id="lp-months" placeholder="e.g. 6" step="1" min="1" value="6">
+      </div>
+      <div class="field">
+        <label>Interest calculation</label>
+        <select id="lp-interest-method" onchange="onLoanPackageInterestMethodChange()">
+          <option value="flat">Flat rate (uses the society's flat interest setting)</option>
+          <option value="reducing_balance_emi">Reducing balance — fixed monthly payment (EMI)</option>
+          <option value="reducing_balance_declining">Reducing balance — fixed principal, payment shrinks over time</option>
+        </select>
+      </div>
+      <div class="field" id="lp-rb-rate-row" style="display:none">
+        <label>Reducing balance monthly rate (%)</label>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">A separate rate from the society's flat interest rate — applied fresh each month to whatever balance remains, not the same number as a flat rate.</div>
+        <input type="number" id="lp-rb-rate" placeholder="e.g. 2" step="0.1" min="0.1">
       </div>
       <div id="lp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
       <button class="btn btn-primary" style="width:100%" onclick="submitLoanPackage()" id="lp-submit-btn">Add package</button>
@@ -1397,6 +1410,11 @@ function onLoanPackageCalcTypeChange() {
   document.getElementById('lp-flatmax-row').style.display = isFlat ? '' : 'none';
 }
 
+function onLoanPackageInterestMethodChange() {
+  const isReducingBalance = document.getElementById('lp-interest-method').value !== 'flat';
+  document.getElementById('lp-rb-rate-row').style.display = isReducingBalance ? '' : 'none';
+}
+
 function editLoanPackage(packageId) {
   const pkg = loanPackagesCache.find(p => p.id === packageId);
   if (!pkg) return;
@@ -1406,7 +1424,10 @@ function editLoanPackage(packageId) {
   document.getElementById('lp-multiplier').value = pkg.multiplier_value || '';
   document.getElementById('lp-flatmax').value = pkg.flat_max_kobo ? pkg.flat_max_kobo / 100 : '';
   document.getElementById('lp-months').value = pkg.default_repayment_months;
+  document.getElementById('lp-interest-method').value = pkg.interest_method || 'flat';
+  document.getElementById('lp-rb-rate').value = pkg.reducing_balance_monthly_rate_percent || '';
   onLoanPackageCalcTypeChange();
+  onLoanPackageInterestMethodChange();
   document.getElementById('lp-form-title').textContent = `Editing "${pkg.name}"`;
   document.getElementById('lp-submit-btn').textContent = 'Save changes';
   document.getElementById('lp-cancel-edit-btn').style.display = '';
@@ -1419,7 +1440,10 @@ function resetLoanPackageForm() {
   document.getElementById('lp-multiplier').value = '';
   document.getElementById('lp-flatmax').value = '';
   document.getElementById('lp-months').value = '6';
+  document.getElementById('lp-interest-method').value = 'flat';
+  document.getElementById('lp-rb-rate').value = '';
   onLoanPackageCalcTypeChange();
+  onLoanPackageInterestMethodChange();
   document.getElementById('lp-form-title').textContent = 'Add a package';
   document.getElementById('lp-submit-btn').textContent = 'Add package';
   document.getElementById('lp-cancel-edit-btn').style.display = 'none';
@@ -1432,6 +1456,7 @@ async function submitLoanPackage() {
 
   const editingId = document.getElementById('lp-editing-id').value;
   const calcType = document.getElementById('lp-calc-type').value;
+  const interestMethod = document.getElementById('lp-interest-method').value;
   const payload = {
     action: editingId ? 'update' : 'create',
     package_id: editingId || undefined,
@@ -1440,9 +1465,14 @@ async function submitLoanPackage() {
     multiplier_value: calcType === 'multiplier_of_savings' ? parseFloat(document.getElementById('lp-multiplier').value) : undefined,
     flat_max_kobo: calcType === 'flat_max' ? Math.round(parseFloat(document.getElementById('lp-flatmax').value) * 100) : undefined,
     default_repayment_months: parseInt(document.getElementById('lp-months').value),
+    interest_method: interestMethod,
+    reducing_balance_monthly_rate_percent: interestMethod !== 'flat' ? parseFloat(document.getElementById('lp-rb-rate').value) : undefined,
   };
 
   if (!payload.name) { errEl.textContent = 'Package name is required.'; errEl.style.display = 'block'; return; }
+  if (interestMethod !== 'flat' && (!payload.reducing_balance_monthly_rate_percent || payload.reducing_balance_monthly_rate_percent <= 0)) {
+    errEl.textContent = 'Enter a valid reducing balance monthly rate.'; errEl.style.display = 'block'; return;
+  }
 
   const btn = document.getElementById('lp-submit-btn');
   btn.disabled = true;
@@ -1525,8 +1555,8 @@ async function submitConfigureLoanInterest() {
 }
 
 function onLoanPenaltyModeChange() {
-  const mode = document.getElementById('lp-mode').value;
-  document.getElementById('lp-rate-row').style.display = mode === 'separate' ? '' : 'none';
+  const mode = document.getElementById('lpen-mode').value;
+  document.getElementById('lpen-rate-row').style.display = mode === 'separate' ? '' : 'none';
 }
 
 function openConfigureLoanPenaltyModal() {
@@ -1536,32 +1566,32 @@ function openConfigureLoanPenaltyModal() {
   else if (s.loan_late_fee_type) mode = 'separate';
   else if (s.late_fee_type) mode = 'same_as_dues';
 
-  document.getElementById('lp-mode').value = mode;
-  document.getElementById('lp-type').value = (mode === 'separate' && s.loan_late_fee_type) ? s.loan_late_fee_type : 'flat';
-  document.getElementById('lp-value').value = (mode === 'separate' && s.loan_late_fee_value != null) ? s.loan_late_fee_value / 100 : '';
-  document.getElementById('lp-error').style.display = 'none';
+  document.getElementById('lpen-mode').value = mode;
+  document.getElementById('lpen-type').value = (mode === 'separate' && s.loan_late_fee_type) ? s.loan_late_fee_type : 'flat';
+  document.getElementById('lpen-value').value = (mode === 'separate' && s.loan_late_fee_value != null) ? s.loan_late_fee_value / 100 : '';
+  document.getElementById('lpen-error').style.display = 'none';
   onLoanPenaltyModeChange();
   openModal('modal-configure-loan-penalty');
 }
 
 async function submitConfigureLoanPenalty() {
-  const errEl = document.getElementById('lp-error');
+  const errEl = document.getElementById('lpen-error');
   errEl.style.display = 'none';
-  const mode = document.getElementById('lp-mode').value;
+  const mode = document.getElementById('lpen-mode').value;
 
   let loanLateFeeType = null; // null = inherit from dues (the default)
   let loanLateFeeValue = null;
   if (mode === 'none') {
     loanLateFeeType = 'none'; // explicit opt-out, distinct from null/inherit
   } else if (mode === 'separate') {
-    loanLateFeeType = document.getElementById('lp-type').value;
-    const entered = parseFloat(document.getElementById('lp-value').value) || 0;
+    loanLateFeeType = document.getElementById('lpen-type').value;
+    const entered = parseFloat(document.getElementById('lpen-value').value) || 0;
     if (entered <= 0) { errEl.textContent = 'Enter a valid amount or percentage.'; errEl.style.display = 'block'; return; }
     loanLateFeeValue = Math.round(entered * 100);
   }
   // mode === 'same_as_dues' leaves both as null, which is exactly what "inherit" means
 
-  const btn = document.getElementById('lp-btn');
+  const btn = document.getElementById('lpen-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
     const res = await fetch(`${API}/coop-portal-configure-loan-penalty`, {
