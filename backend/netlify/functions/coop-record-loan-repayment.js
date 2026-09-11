@@ -14,7 +14,7 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
-const { recordLoanRepaymentJournalEntry, computeRepaymentSplitForLoan } = require('../../lib/coopLoanAccounting');
+const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -46,13 +46,11 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: loan } = await db.from('coop_loans').select('id, coop_id, status, interest_kobo, total_repayable_kobo').eq('id', loanId).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, coop_id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).maybeSingle();
   if (!loan) return err(404, 'Loan not found');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
-  const { principalPortionKobo, interestPortionKobo } = await computeRepaymentSplitForLoan(
-    db, loanId, amountKobo, loan.interest_kobo, loan.total_repayable_kobo
-  );
+  const { principalPortionKobo, interestPortionKobo } = await computeLoanRepaymentSplitUnified(db, loan, amountKobo);
 
   const { data: created, error: insertErr } = await db.from('coop_loan_repayments').insert({
     loan_id:     loanId,
