@@ -30,7 +30,7 @@
 const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
-const { recordLoanRepaymentJournalEntry } = require('../../lib/coopLoanAccounting');
+const { recordLoanRepaymentJournalEntry, computeRepaymentSplitForLoan } = require('../../lib/coopLoanAccounting');
 
 const VERIFICATION_WINDOW_MINUTES = 15;
 
@@ -60,7 +60,7 @@ exports.handler = async (event) => {
   const { data: member } = await db.from('coop_members').select('id, coop_id, phone_normalized').eq('zillion_id', zillionId).maybeSingle();
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
-  const { data: loan } = await db.from('coop_loans').select('id, status').eq('id', loanId).eq('member_id', member.id).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo').eq('id', loanId).eq('member_id', member.id).maybeSingle();
   if (!loan) return err(404, 'That loan does not belong to you');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
@@ -93,12 +93,18 @@ exports.handler = async (event) => {
     return ok({ success: true, already_processed: true, message: 'This repayment was already recorded.' });
   }
 
+  const { principalPortionKobo, interestPortionKobo } = await computeRepaymentSplitForLoan(
+    db, loanId, amountKobo, loan.interest_kobo, loan.total_repayable_kobo
+  );
+
   const { data: repayment, error: repayErr } = await db.from('coop_loan_repayments').insert({
     loan_id: loanId,
     amount_kobo: amountKobo,
     source: 'offline_zil',
     reference: `Offline Zil transfer, verified via coin_ledger`,
     recorded_by: 'member:offline_zil',
+    principal_portion_kobo: principalPortionKobo,
+    interest_portion_kobo:  interestPortionKobo,
   }).select().single();
 
   if (repayErr) return err(500, `Transfer verified but recording the repayment failed: ${repayErr.message}`);
@@ -107,7 +113,7 @@ exports.handler = async (event) => {
     await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
   }
 
-  await recordLoanRepaymentJournalEntry(db, member.coop_id, amountKobo, 'offline_zil', 'member:offline_zil');
+  await recordLoanRepaymentJournalEntry(db, member.coop_id, amountKobo, 'offline_zil', 'member:offline_zil', principalPortionKobo, interestPortionKobo);
 
   return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} confirmed and applied to your loan.` });
 };
