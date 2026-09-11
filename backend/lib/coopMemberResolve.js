@@ -13,17 +13,21 @@
  * incorrectly telling that real member they weren't registered
  * anywhere at all.
  *
- * Resolution when more than one row matches: an ACTIVE membership is
- * always preferred over an inactive one; among ties, the earliest
- * activated is treated as primary. This is a deliberate, documented
- * default - if members should eventually be able to choose or switch
- * between multiple societies themselves, that's a separate, larger
- * feature to build on top of this fix, not a blocker to fixing the
- * immediate breakage.
+ * Resolution when more than one row matches:
+ *   1. If preferredCoopId is given (set on the JWT by
+ *      coop-member-switch-society.js once a member has explicitly
+ *      chosen which society they're acting as) and it matches an
+ *      ACTIVE membership, that one wins outright.
+ *   2. Otherwise: an ACTIVE membership is preferred over an inactive
+ *      one; among ties, the earliest activated is treated as primary.
+ *      This remains the sensible default for a member who has never
+ *      switched, or whose preferred society is no longer valid (e.g.
+ *      deactivated since they last switched) - falls back gracefully
+ *      rather than failing outright.
  */
 'use strict';
 
-async function resolveMemberForZillionId(db, zillionId, selectFields = '*') {
+async function resolveMemberForZillionId(db, zillionId, selectFields = '*', preferredCoopId = null) {
   if (!zillionId) return null;
 
   // status and activated_at are needed for resolution regardless of
@@ -38,9 +42,11 @@ async function resolveMemberForZillionId(db, zillionId, selectFields = '*') {
   const alreadyHasEverything = requestedFields.includes('*');
   const alreadyHasStatus = alreadyHasEverything || requestedFields.includes('status');
   const alreadyHasActivatedAt = alreadyHasEverything || requestedFields.includes('activated_at');
+  const alreadyHasCoopId = alreadyHasEverything || requestedFields.includes('coop_id');
   const extra = [
     alreadyHasStatus ? null : 'status',
     alreadyHasActivatedAt ? null : 'activated_at',
+    (preferredCoopId && !alreadyHasCoopId) ? 'coop_id' : null,
   ].filter(Boolean);
   const finalSelect = extra.length ? `${selectFields}, ${extra.join(', ')}` : selectFields;
 
@@ -50,6 +56,11 @@ async function resolveMemberForZillionId(db, zillionId, selectFields = '*') {
 
   if (error || !members || members.length === 0) return null;
   if (members.length === 1) return members[0];
+
+  if (preferredCoopId) {
+    const preferred = members.find(m => m.coop_id === preferredCoopId && m.status === 'ACTIVE');
+    if (preferred) return preferred;
+  }
 
   const sorted = [...members].sort((a, b) => {
     const aActive = a.status === 'ACTIVE' ? 0 : 1;
