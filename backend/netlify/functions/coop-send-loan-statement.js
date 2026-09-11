@@ -17,6 +17,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT } = require('../../lib/validators');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { computeMemberLoanStatement } = require('../../lib/coopLoanStatement');
 const { generateLoanStatementPdf } = require('../../lib/coopLoanStatementPdf');
@@ -40,7 +41,7 @@ exports.handler = async (event) => {
   let memberId;
   if (auth.payload.zillion_id) {
     // Member requesting their own statement.
-    const { data: member } = await db.from('coop_members').select('id').eq('zillion_id', auth.payload.zillion_id).maybeSingle();
+    const member = await resolveMemberForZillionId(db, auth.payload.zillion_id, 'id');
     if (!member) return err(404, 'No coop membership found for this account');
     memberId = member.id;
   } else if (auth.payload.merchant_id) {
