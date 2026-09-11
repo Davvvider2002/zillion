@@ -22,7 +22,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
-const { recordLoanRepaymentJournalEntry, computeRepaymentSplitForLoan } = require('../../lib/coopLoanAccounting');
+const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -53,7 +53,7 @@ exports.handler = async (event) => {
   const { data: member } = await db.from('coop_members').select('id').eq('zillion_id', zillionId).maybeSingle();
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
-  const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo').eq('id', loanId).eq('member_id', member.id).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
   if (!loan) return err(404, 'That loan does not belong to you');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
@@ -77,9 +77,7 @@ exports.handler = async (event) => {
   });
   if (deductErr) return err(500, `Failed to deduct from savings: ${deductErr.message}`);
 
-  const { principalPortionKobo, interestPortionKobo } = await computeRepaymentSplitForLoan(
-    db, loanId, amountKobo, loan.interest_kobo, loan.total_repayable_kobo
-  );
+  const { principalPortionKobo, interestPortionKobo } = await computeLoanRepaymentSplitUnified(db, loan, amountKobo);
 
   const { data: repayment, error: repayErr } = await db.from('coop_loan_repayments').insert({
     loan_id: loanId,
