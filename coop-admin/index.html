@@ -123,9 +123,39 @@ tr:last-child td{border-bottom:none}
       <input type="password" id="li-password" placeholder="Your password">
     </div>
     <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="doLogin()" id="li-btn">Sign in →</button>
+    <div style="text-align:center;margin-top:14px">
+      <a href="#" onclick="openForgotPasswordModal(); return false;" style="color:var(--muted);font-size:13px">Forgot password?</a>
+    </div>
     <div style="text-align:center;margin-top:20px;font-size:12px;color:var(--muted)">
       <a href="/coop/terms.html" target="_blank" style="color:var(--muted)">Terms</a> · <a href="/coop/privacy.html" target="_blank" style="color:var(--muted)">Privacy</a>
     </div>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD -->
+<div class="modal-overlay" id="modal-forgot-password">
+  <div class="modal-box">
+    <div class="modal-title">Reset your password</div>
+
+    <div id="fp-step-phone">
+      <div class="field">
+        <label>Phone number</label>
+        <input type="tel" id="fp-phone" placeholder="08012345678">
+      </div>
+      <div id="fp-phone-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitForgotPasswordSendCode()" id="fp-send-btn">Send code</button>
+    </div>
+
+    <div id="fp-step-reset" style="display:none">
+      <div class="card-sub" style="margin-bottom:14px" id="fp-sent-to"></div>
+      <div class="field"><label>6-digit code</label><input type="text" id="fp-otp" placeholder="123456" maxlength="6"></div>
+      <div class="field"><label>New password</label><input type="password" id="fp-new-password" placeholder="At least 6 characters"></div>
+      <div id="fp-reset-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="submitForgotPasswordReset()" id="fp-reset-btn">Reset password</button>
+      <button class="btn btn-ghost" style="width:100%" onclick="submitForgotPasswordSendCode()">Resend code</button>
+    </div>
+
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-forgot-password')">Cancel</button>
   </div>
 </div>
 
@@ -658,6 +688,72 @@ async function doLogin() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Sign in →';
+  }
+}
+
+function openForgotPasswordModal() {
+  document.getElementById('fp-step-phone').style.display = '';
+  document.getElementById('fp-step-reset').style.display = 'none';
+  document.getElementById('fp-phone').value = document.getElementById('li-phone').value.trim();
+  document.getElementById('fp-phone-error').style.display = 'none';
+  document.getElementById('fp-otp').value = '';
+  document.getElementById('fp-new-password').value = '';
+  openModal('modal-forgot-password');
+}
+
+async function submitForgotPasswordSendCode() {
+  const errEl = document.getElementById('fp-phone-error');
+  errEl.style.display = 'none';
+  const phone = document.getElementById('fp-phone').value.trim();
+  if (!phone) { errEl.textContent = 'Enter your registered phone number.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('fp-send-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(`${API}/send-otp`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, channel: 'sms' }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Send code';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send code.'; errEl.style.display = 'block'; return; }
+    document.getElementById('fp-sent-to').textContent = data.message || `Code sent to ${phone}`;
+    document.getElementById('fp-step-phone').style.display = 'none';
+    document.getElementById('fp-step-reset').style.display = '';
+    document.getElementById('fp-reset-error').style.display = 'none';
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Send code';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function submitForgotPasswordReset() {
+  const errEl = document.getElementById('fp-reset-error');
+  errEl.style.display = 'none';
+  const phone = document.getElementById('fp-phone').value.trim();
+  const otp = document.getElementById('fp-otp').value.trim();
+  const newPassword = document.getElementById('fp-new-password').value;
+  if (!otp) { errEl.textContent = 'Enter the 6-digit code.'; errEl.style.display = 'block'; return; }
+  if (!newPassword || newPassword.length < 6) { errEl.textContent = 'New password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('fp-reset-btn');
+  btn.disabled = true; btn.textContent = 'Resetting...';
+  try {
+    const res = await fetch(`${API}/merchant-forgot-password`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otp, new_password: newPassword }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Reset password';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to reset password.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-forgot-password');
+    document.getElementById('li-phone').value = phone;
+    document.getElementById('login-error').textContent = 'Password reset — sign in with your new password.';
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-error').style.color = '#5fce7c';
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Reset password';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
 
