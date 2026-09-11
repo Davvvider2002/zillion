@@ -14,6 +14,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT } = require('../../lib/validators');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { recordTermsAcceptance, getClientIp } = require('../../lib/coopTermsAcceptance');
 
 exports.handler = async (event) => {
@@ -31,7 +32,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: member } = await db.from('coop_members').select('coop_id').eq('zillion_id', zillionId).maybeSingle();
+  const member = await resolveMemberForZillionId(db, zillionId, 'coop_id');
 
   const result = await recordTermsAcceptance(db, {
     acceptedByType: 'member',
