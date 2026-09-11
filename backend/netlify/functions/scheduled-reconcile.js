@@ -386,6 +386,40 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] loan penalty pass failed:', e.message);
   }
 
+  // ── 10. Savings interest accrual ────────────────────────────────────────
+  // Applied at most once per plan per calendar month - checked against
+  // the transaction log itself (an existing interest_credit row this
+  // month), not a separately-tracked "last accrued" date.
+  try {
+    const { applyMonthlyInterestIfEligible } = require('../../lib/coopSavingsInterest');
+    const now = new Date();
+
+    const { data: plans } = await db.from('coop_savings_plans')
+      .select('id, coop_id, member_id, savings_package_id, status').eq('status', 'ACTIVE').not('savings_package_id', 'is', null);
+
+    const packageCache = new Map();
+    for (const plan of (plans || [])) {
+      if (!packageCache.has(plan.savings_package_id)) {
+        const { data: pkg } = await db.from('coop_savings_packages').select('*').eq('id', plan.savings_package_id).maybeSingle();
+        packageCache.set(plan.savings_package_id, pkg);
+      }
+      const pkg = packageCache.get(plan.savings_package_id);
+
+      const result = await applyMonthlyInterestIfEligible(db, plan, pkg, now);
+      if (result.applied) {
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'INFO',
+          source:   SOURCE,
+          message:  `Monthly savings interest credited (${plan.coop_id})`,
+          context:  { coop_id: plan.coop_id, savings_plan_id: plan.id, interest_kobo: result.amountKobo },
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] savings interest pass failed:', e.message);
+  }
+
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
   return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised }) };
 };
