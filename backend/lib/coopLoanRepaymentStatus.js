@@ -24,9 +24,14 @@
  *
  * @param {object} db  Supabase client
  * @param {string} loanId
- * @param {object} society { late_fee_type, late_fee_value }
+ * @param {object} society { late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value } -
+ *   loan_late_fee_type/value are the society's OPTIONAL dedicated loan
+ *   penalty rate. When null (the default), loans use the SAME rate as
+ *   dues (late_fee_type/late_fee_value) - giving a society the choice
+ *   to either share one rate across both, or set a separate one just
+ *   for loans, without needing two different UI flows.
  * @param {number} [principalKobo]  fallback baseline if no schedule exists yet
- * @returns {Promise<{total_scheduled_kobo, due_so_far_kobo, paid_kobo, outstanding_kobo, is_overdue, late_fee_kobo, schedule}>}
+ * @returns {Promise<{total_scheduled_kobo, due_so_far_kobo, paid_kobo, penalty_kobo, outstanding_kobo, is_overdue, late_fee_kobo, schedule}>}
  */
 async function computeLoanRepaymentStatus(db, loanId, society, principalKobo) {
   const { data: schedule } = await db.from('coop_loan_repayment_schedule')
@@ -35,25 +40,38 @@ async function computeLoanRepaymentStatus(db, loanId, society, principalKobo) {
   const { data: repayments } = await db.from('coop_loan_repayments')
     .select('amount_kobo').eq('loan_id', loanId);
 
+  const { data: penalties } = await db.from('coop_loan_penalties')
+    .select('amount_kobo').eq('loan_id', loanId);
+  const penaltyKobo = (penalties || []).reduce((s, p) => s + p.amount_kobo, 0);
+
   const today = new Date().toISOString().slice(0, 10);
   const hasSchedule = schedule && schedule.length > 0;
   const totalScheduledKobo = hasSchedule ? schedule.reduce((s, p) => s + p.amount_due_kobo, 0) : (principalKobo || 0);
   const dueSoFarKobo = hasSchedule ? schedule.filter(p => p.due_date <= today).reduce((s, p) => s + p.amount_due_kobo, 0) : (principalKobo || 0);
   const paidKobo = (repayments || []).reduce((s, r) => s + r.amount_kobo, 0);
-  const outstandingKobo = Math.max(0, dueSoFarKobo - paidKobo);
-  const isOverdue = outstandingKobo > 0;
+  const outstandingKobo = Math.max(0, dueSoFarKobo + penaltyKobo - paidKobo);
+  const isOverdue = (dueSoFarKobo - paidKobo) > 0; // overdue is about the repayment schedule itself, not inflated by a penalty already charged for being overdue
+
+  // Effective penalty rate: 'none' explicitly opts this society's loans
+  // out of any penalty even if dues has one configured; a dedicated
+  // loan rate (flat/percentage) overrides dues; null (the default)
+  // inherits whatever's configured for dues.
+  const effectiveFeeType = society?.loan_late_fee_type === 'none' ? null : (society?.loan_late_fee_type ?? society?.late_fee_type);
+  const effectiveFeeValue = society?.loan_late_fee_type === 'none' ? null : (society?.loan_late_fee_type ? society.loan_late_fee_value : society?.late_fee_value);
 
   let lateFeeKobo = 0;
-  if (isOverdue && society) {
-    lateFeeKobo = society.late_fee_type === 'percentage'
-      ? Math.round(outstandingKobo * (society.late_fee_value / 10000)) // late_fee_value stored as basis points (e.g. 500 = 5%) to avoid floating point in the DB
-      : (society.late_fee_value || 0);
+  if (isOverdue && effectiveFeeType) {
+    const overdueAmountKobo = Math.max(0, dueSoFarKobo - paidKobo);
+    lateFeeKobo = effectiveFeeType === 'percentage'
+      ? Math.round(overdueAmountKobo * (effectiveFeeValue / 10000)) // basis points, e.g. 500 = 5%, matching the existing dues convention
+      : (effectiveFeeValue || 0);
   }
 
   return {
     total_scheduled_kobo: totalScheduledKobo,
     due_so_far_kobo: dueSoFarKobo,
     paid_kobo: paidKobo,
+    penalty_kobo: penaltyKobo,
     outstanding_kobo: outstandingKobo,
     is_overdue: isOverdue,
     late_fee_kobo: lateFeeKobo,
