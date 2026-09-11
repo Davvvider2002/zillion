@@ -14,6 +14,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT } = require('../../lib/validators');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -28,7 +29,7 @@ exports.handler = async (event) => {
   if (!zillionId) return err(400, 'This wallet has no linked Zillion identity yet — try logging in again');
 
   const db = getServiceClient();
-  const { data: member } = await db.from('coop_members').select('id').eq('zillion_id', zillionId).maybeSingle();
+  const member = await resolveMemberForZillionId(db, zillionId, 'id');
   if (!member) return ok({ is_coop_member: false, dividends: [] });
 
   const { data: entitlements } = await db.from('coop_dividend_entitlements')
