@@ -23,7 +23,7 @@ const { computeLoanRepaymentStatus } = require('./coopLoanRepaymentStatus');
  * @returns {Promise<{members: Array}>}
  */
 async function computeLoanHistoryReport(db, coopId) {
-  const { data: society } = await db.from('coop_societies').select('late_fee_type, late_fee_value').eq('coop_id', coopId).maybeSingle();
+  const { data: society } = await db.from('coop_societies').select('late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value').eq('coop_id', coopId).maybeSingle();
 
   const { data: loans } = await db.from('coop_loans')
     .select(`
