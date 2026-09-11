@@ -39,6 +39,7 @@ const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '5000', name: 'Operating Expenses', type: 'EXPENSE' },
   { code: '5100', name: 'Staff Costs', type: 'EXPENSE' },
   { code: '5200', name: 'Bank Charges', type: 'EXPENSE' },
+  { code: '5300', name: 'Interest Expense on Savings', type: 'EXPENSE' },
 ];
 
 /**
