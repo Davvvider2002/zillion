@@ -33,6 +33,7 @@ const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '4000', name: 'Interest Income', type: 'INCOME' },
   { code: '4100', name: 'Dues Income', type: 'INCOME' },
   { code: '4150', name: 'Interest Income on Loans', type: 'INCOME' },
+  { code: '4160', name: 'Loan Penalty Income', type: 'INCOME' },
   { code: '4200', name: 'Other Income', type: 'INCOME' },
   { code: '5000', name: 'Operating Expenses', type: 'EXPENSE' },
   { code: '5100', name: 'Staff Costs', type: 'EXPENSE' },
