@@ -42,7 +42,8 @@ exports.handler = async (event) => {
 
   const member = await resolveMemberForZillionId(db,
     zillionId,
-    'id, coop_id, name, email, phone_normalized, opening_balance_kobo, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)'
+    'id, coop_id, name, email, phone_normalized, opening_balance_kobo, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)',
+    auth.payload.coop_id || null
   );
 
   if (!member) return ok({ is_coop_member: false });
