@@ -47,6 +47,7 @@
 'use strict';
 
 const { accountingIsReady, getAccounts, postEntry, postEntryLines } = require('./coopAccountingHelpers');
+const { computeReducingBalanceSplit } = require('./coopReducingBalanceSplit');
 
 const CASH_ACCOUNT_CODE = '1000';
 const BANK_ACCOUNT_CODE = '1010';
@@ -183,4 +184,33 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
   }
 }
 
-module.exports = { recordLoanDisbursementJournalEntry, recordLoanRepaymentJournalEntry, computeRepaymentSplit, computeRepaymentSplitForLoan };
+/**
+ * Single entry point for repayment splitting, regardless of the
+ * loan's interest method - callers pass the full loan row and get
+ * back the correct split without needing to know which underlying
+ * algorithm applies. Flat-rate (including no-interest loans) uses
+ * computeRepaymentSplitForLoan's constant-ratio approach (#4);
+ * reducing-balance (EMI or declining-principal) uses the cumulative-
+ * fill algorithm against the loan's actual stored amortization
+ * schedule, since a reducing-balance loan's principal/interest ratio
+ * is genuinely different every period - a constant ratio would be
+ * simply wrong for it, not just an approximation.
+ *
+ * MUST be called before the new repayment row is inserted, for the
+ * same reason computeRepaymentSplitForLoan must be - both query prior
+ * repayments to know what's already been settled.
+ *
+ * @param {object} loan  full coop_loans row (needs id, interest_method, interest_kobo, total_repayable_kobo)
+ */
+async function computeLoanRepaymentSplitUnified(db, loan, amountKobo) {
+  if (loan.interest_method === 'reducing_balance_emi' || loan.interest_method === 'reducing_balance_declining') {
+    const { data: schedule } = await db.from('coop_loan_repayment_schedule')
+      .select('principal_due_kobo, interest_due_kobo').eq('loan_id', loan.id).order('period_number');
+    const { data: priorRepayments } = await db.from('coop_loan_repayments').select('amount_kobo').eq('loan_id', loan.id);
+    const totalPaidBeforeKobo = (priorRepayments || []).reduce((s, r) => s + (r.amount_kobo || 0), 0);
+    return computeReducingBalanceSplit(schedule || [], totalPaidBeforeKobo, amountKobo);
+  }
+  return await computeRepaymentSplitForLoan(db, loan.id, amountKobo, loan.interest_kobo, loan.total_repayable_kobo);
+}
+
+module.exports = { recordLoanDisbursementJournalEntry, recordLoanRepaymentJournalEntry, computeRepaymentSplit, computeRepaymentSplitForLoan, computeLoanRepaymentSplitUnified };
