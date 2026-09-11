@@ -237,6 +237,7 @@ exports.handler = async () => {
     const { data: repricingPending } = await db.from('coop_societies')
       .select('coop_id, name, status, repricing_pending_since, subscription_email')
       .not('repricing_pending_since', 'is', null)
+      .eq('never_expires', false)
       .neq('status', 'SUSPENDED');
 
     const now = new Date();
