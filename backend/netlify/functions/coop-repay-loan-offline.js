@@ -30,6 +30,7 @@
 const crypto = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
+const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 
 const VERIFICATION_WINDOW_MINUTES = 15;
@@ -57,7 +58,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: member } = await db.from('coop_members').select('id, coop_id, phone_normalized').eq('zillion_id', zillionId).maybeSingle();
+  const member = await resolveMemberForZillionId(db, zillionId, 'id, coop_id, phone_normalized');
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
   const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
