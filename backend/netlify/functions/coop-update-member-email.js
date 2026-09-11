@@ -36,11 +36,17 @@ exports.handler = async (event) => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err(400, 'A valid email is required');
 
   const db = getServiceClient();
+  // Updates every coop_members row for this zillion_id, not just one -
+  // this is a real, legitimate case (the same person can be an active
+  // member of more than one society), and it's the same person's own
+  // email regardless of which society's membership record it's on.
+  // .maybeSingle() previously errored outright whenever more than one
+  // row matched, since it expects at most one.
   const { data: updated, error: updateErr } = await db.from('coop_members')
-    .update({ email }).eq('zillion_id', zillionId).select('id, email').maybeSingle();
+    .update({ email }).eq('zillion_id', zillionId).select('id, email');
 
   if (updateErr) return err(500, `Failed to update email: ${updateErr.message}`);
-  if (!updated) return err(404, 'No coop membership found for this account');
+  if (!updated || updated.length === 0) return err(404, 'No coop membership found for this account');
 
-  return ok({ success: true, email: updated.email });
+  return ok({ success: true, email: updated[0].email });
 };
