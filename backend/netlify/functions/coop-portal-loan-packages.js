@@ -15,6 +15,8 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 
+const VALID_INTEREST_METHODS = ['flat', 'reducing_balance_emi', 'reducing_balance_declining'];
+
 function validatePackageInput(body) {
   const name = (body.name || '').trim();
   if (!name) return 'name is required';
@@ -33,6 +35,13 @@ function validatePackageInput(body) {
 
   const months = Number(body.default_repayment_months);
   if (!Number.isInteger(months) || months <= 0) return 'default_repayment_months must be a positive integer';
+
+  const interestMethod = body.interest_method || 'flat';
+  if (!VALID_INTEREST_METHODS.includes(interestMethod)) return `interest_method must be one of: ${VALID_INTEREST_METHODS.join(', ')}`;
+  if (interestMethod !== 'flat') {
+    const rate = Number(body.reducing_balance_monthly_rate_percent);
+    if (!Number.isFinite(rate) || rate <= 0) return 'reducing_balance_monthly_rate_percent must be a positive number when interest_method is a reducing balance option';
+  }
 
   return null;
 }
@@ -75,6 +84,8 @@ exports.handler = async (event) => {
       multiplier_value: body.calculation_type === 'multiplier_of_savings' ? Number(body.multiplier_value) : null,
       flat_max_kobo: body.calculation_type === 'flat_max' ? Number(body.flat_max_kobo) : null,
       default_repayment_months: Number(body.default_repayment_months),
+      interest_method: body.interest_method || 'flat',
+      reducing_balance_monthly_rate_percent: (body.interest_method && body.interest_method !== 'flat') ? Number(body.reducing_balance_monthly_rate_percent) : null,
     }).select().single();
     if (insertErr) return err(500, `Failed to create package: ${insertErr.message}`);
     return ok({ success: true, package: created });
@@ -92,6 +103,8 @@ exports.handler = async (event) => {
         multiplier_value: body.calculation_type === 'multiplier_of_savings' ? Number(body.multiplier_value) : null,
         flat_max_kobo: body.calculation_type === 'flat_max' ? Number(body.flat_max_kobo) : null,
         default_repayment_months: Number(body.default_repayment_months),
+        interest_method: body.interest_method || 'flat',
+        reducing_balance_monthly_rate_percent: (body.interest_method && body.interest_method !== 'flat') ? Number(body.reducing_balance_monthly_rate_percent) : null,
       })
       .eq('id', body.package_id).eq('coop_id', coopId).select().maybeSingle();
     if (updateErr) return err(500, `Failed to update package: ${updateErr.message}`);
