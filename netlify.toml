@@ -279,6 +279,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/merchant-forgot-password"
+  to   = "/.netlify/functions/merchant-forgot-password"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-my-societies"
+  to   = "/.netlify/functions/coop-member-my-societies"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-switch-society"
+  to   = "/.netlify/functions/coop-member-switch-society"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/merchant-register"
   to   = "/.netlify/functions/merchant-register"
   status = 200
