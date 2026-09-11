@@ -19,6 +19,7 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
 const { generateRepaymentSchedule } = require('../../lib/coopRepaymentSchedule');
+const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('../../lib/coopReducingBalanceSchedule');
 const { recordLoanDisbursementJournalEntry } = require('../../lib/coopLoanAccounting');
 
 exports.handler = async (event) => {
@@ -94,7 +95,14 @@ exports.handler = async (event) => {
     // without this, there'd be a real disbursed loan with no way to
     // ever track it being paid back.
     if (action === 'disburse') {
-      const schedule = generateRepaymentSchedule(loan.total_repayable_kobo, loan.repayment_months, now);
+      let schedule;
+      if (loan.interest_method === 'reducing_balance_emi') {
+        schedule = generateEmiSchedule(loan.principal_kobo, loan.reducing_balance_monthly_rate_percent, loan.repayment_months, now).schedule;
+      } else if (loan.interest_method === 'reducing_balance_declining') {
+        schedule = generateDecliningPrincipalSchedule(loan.principal_kobo, loan.reducing_balance_monthly_rate_percent, loan.repayment_months, now).schedule;
+      } else {
+        schedule = generateRepaymentSchedule(loan.total_repayable_kobo, loan.repayment_months, now);
+      }
       const { error: scheduleErr } = await db.from('coop_loan_repayment_schedule').insert(
         schedule.map(p => ({ loan_id: loanId, ...p }))
       );
