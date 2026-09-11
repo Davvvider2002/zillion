@@ -8,7 +8,7 @@
  * society — never accepted from the client, so a society can only
  * ever configure its own dues.
  *
- * Body: { dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules? }
+ * Body: { dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules?, late_fee_type?, late_fee_value? }
  */
 'use strict';
 
@@ -18,6 +18,7 @@ const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 
 const VALID_FREQUENCIES = ['monthly', 'annual'];
+const VALID_LATE_FEE_TYPES = ['flat', 'percentage'];
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -47,12 +48,19 @@ exports.handler = async (event) => {
 
   if (amountKobo <= 0) return err(400, 'dues_amount_kobo must be a positive integer');
 
+  const lateFeeType = VALID_LATE_FEE_TYPES.includes(body.late_fee_type) ? body.late_fee_type : null;
+  if (body.late_fee_type && !lateFeeType) return err(400, `late_fee_type must be one of: ${VALID_LATE_FEE_TYPES.join(', ')}`);
+  const lateFeeValue = lateFeeType ? (Number.isInteger(body.late_fee_value) && body.late_fee_value > 0 ? body.late_fee_value : null) : null;
+  if (lateFeeType && !lateFeeValue) return err(400, 'late_fee_value must be a positive integer when late_fee_type is set');
+
   const { data: updated, error: updateErr } = await db.from('coop_societies')
     .update({
       dues_amount_kobo:            amountKobo,
       dues_frequency:                frequency,
       dues_enforcement_enabled:        enforcementEnabled,
       dues_enforcement_rules:            enforcementRules,
+      late_fee_type:                        lateFeeType,
+      late_fee_value:                          lateFeeValue,
     })
     .eq('coop_id', coopId)
     .select().single();
