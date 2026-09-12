@@ -27,7 +27,7 @@ exports.handler = async (event) => {
   const ok  = b     => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
   const err = (c,m) => ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
 
-  if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
+  if (event.httpMethod !== 'POST' && event.httpMethod !== 'GET') return err(405, 'Method Not Allowed');
 
   const auth = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
   if (!auth.valid) return err(401, 'Authentication required');
@@ -39,6 +39,27 @@ exports.handler = async (event) => {
 
   if (!(await hasAddon(db, coopId, 'investment'))) {
     return err(403, 'Investment is not enabled for this society. Add it from the Add-ons tab.');
+  }
+
+  if (event.httpMethod === 'GET') {
+    const productId = (event.queryStringParameters || {}).product_id;
+    if (!productId) return err(400, 'product_id query param is required');
+
+    const { data: investments } = await db.from('coop_member_investments')
+      .select('*, coop_members(name, phone_normalized)').eq('product_id', productId).eq('coop_id', coopId)
+      .order('purchased_at', { ascending: false });
+
+    const withAccrued = await Promise.all((investments || []).map(async (inv) => {
+      const { data: accruals } = await db.from('coop_investment_accruals').select('amount_kobo').eq('member_investment_id', inv.id);
+      const totalAccruedKobo = (accruals || []).reduce((s, a) => s + a.amount_kobo, 0);
+      return {
+        id: inv.id, member_name: inv.coop_members?.name || inv.coop_members?.phone_normalized || 'Unknown',
+        units_purchased: inv.units_purchased, principal_kobo: inv.principal_kobo, maturity_date: inv.maturity_date,
+        status: inv.status, auto_reinvest: inv.auto_reinvest, total_accrued_kobo: totalAccruedKobo,
+      };
+    }));
+
+    return ok({ investments: withAccrued });
   }
 
   let body;
