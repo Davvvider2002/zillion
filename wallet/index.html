@@ -1039,7 +1039,10 @@ function triggerPWAInstall() {
          the two actions a member actually needs. -->
     <div id="home-coop-hero-section" style="display:none">
       <div class="balance-card" style="border-color:#00C896;background:linear-gradient(135deg,#052e16,#0F2B1D)">
-        <div class="bal-label" id="home-coop-hero-society" style="color:#9CC4B0">Thrift &amp; Loan</div>
+        <div id="home-coop-hero-society-row" onclick="openSwitchSocietyModal()" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+          <div class="bal-label" id="home-coop-hero-society" style="color:#9CC4B0">Thrift &amp; Loan</div>
+          <span id="home-coop-hero-switch-chevron" style="display:none;color:#9CC4B0;font-size:11px">▾</span>
+        </div>
         <div class="bal-amount" style="color:#fff;font-weight:800" id="home-coop-hero-saved">₦0.00</div>
         <div class="bal-sub" style="color:#9CC4B0">
           <span id="home-coop-hero-target">Target ₦0</span>
@@ -1229,6 +1232,16 @@ function triggerPWAInstall() {
     <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="coop-paynow-subtitle"></div>
     <div id="coop-paynow-body"></div>
     <button onclick="coopClosePayNowModal()" style="width:100%;margin-top:16px;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Close</button>
+  </div>
+</div>
+
+<div id="coop-switch-society-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:4px;color:#E8F5EE">Switch society</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px">You're an active member of more than one society. Choose which one to view.</div>
+    <div id="coop-switch-society-list"></div>
+    <div id="coop-switch-society-error" style="display:none;color:#FF8A8A;font-size:12px;margin-top:10px"></div>
+    <button onclick="coopCloseSwitchSocietyModal()" style="width:100%;margin-top:16px;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Close</button>
   </div>
 </div>
 
@@ -2738,6 +2751,7 @@ async function zilRenderCoopSummary() {
     const pct = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
 
     document.getElementById('home-coop-hero-society').textContent = data.society.name;
+    coopCheckMultipleSocieties();
     document.getElementById('home-coop-hero-saved').textContent = fmtNaira(totalSaved);
     document.getElementById('home-coop-hero-target').textContent = `Target ${fmtNaira(totalTarget)} · ${pct}%`;
     document.getElementById('home-coop-hero-bar').style.width = pct + '%';
@@ -2788,6 +2802,84 @@ async function zilRenderCoopSummary() {
     ? `Owe ${fmtNaira(data.total_outstanding_loan_kobo)}`
     : 'No active loan';
   card.style.display = '';
+}
+
+let _coopSocietiesList = [];
+
+async function coopCheckMultipleSocieties() {
+  const token = STATE.user?.token || '';
+  if (!token) return;
+  try {
+    const res = await fetch(`${API}/coop-member-my-societies`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) return;
+    _coopSocietiesList = data.societies || [];
+    const chevron = document.getElementById('home-coop-hero-switch-chevron');
+    if (chevron) chevron.style.display = data.has_multiple ? '' : 'none';
+  } catch (e) {
+    console.warn('[coop] multi-society check failed (non-fatal):', e.message);
+  }
+}
+
+function openSwitchSocietyModal() {
+  // Only worth opening for a member who actually has more than one -
+  // tapping the label is otherwise a harmless no-op, not an empty modal.
+  if (_coopSocietiesList.length < 2) return;
+
+  const listEl = document.getElementById('coop-switch-society-list');
+  document.getElementById('coop-switch-society-error').style.display = 'none';
+  listEl.innerHTML = _coopSocietiesList.map(s => `
+    <button onclick="coopSwitchToSociety('${s.coop_id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;padding:12px;margin-bottom:8px;background:${s.is_current ? '#1A4030' : '#0d2818'};border:1px solid #1A4030;border-radius:10px;color:#E8F5EE;cursor:pointer">
+      <span>
+        <div style="font-weight:600;font-size:14px">${s.society_name}</div>
+        <div style="font-size:11px;color:#9CC4B0">${s.member_name}</div>
+      </span>
+      ${s.is_current ? '<span style="color:#00C896;font-weight:700">✓</span>' : ''}
+    </button>
+  `).join('');
+
+  document.getElementById('coop-switch-society-modal').style.display = 'flex';
+}
+
+function coopCloseSwitchSocietyModal() {
+  document.getElementById('coop-switch-society-modal').style.display = 'none';
+}
+
+async function coopSwitchToSociety(coopId) {
+  const errEl = document.getElementById('coop-switch-society-error');
+  errEl.style.display = 'none';
+  const token = STATE.user?.token || '';
+  try {
+    const res = await fetch(`${API}/coop-member-switch-society`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ coop_id: coopId }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.token) {
+      errEl.textContent = data.error || 'Could not switch societies. Please try again.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Persists the new token exactly the way the rest of the app
+    // already does via save() - not just an in-memory change that
+    // would be lost the next time the app opens.
+    STATE.user.token = data.token;
+    save();
+
+    // Forces a fresh fetch on the next status check instead of
+    // serving the previous society's cached data for up to 60s.
+    _coopStatusCache = null;
+    window._lastCoopCheckAt = 0;
+
+    coopCloseSwitchSocietyModal();
+    toast(`Switched to ${data.society_name}`);
+    await zilRenderCoopSummary();
+    await loadCoopHomeActivityPreview();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message;
+    errEl.style.display = 'block';
+  }
 }
 
 async function loadCoopHomeActivityPreview() {
