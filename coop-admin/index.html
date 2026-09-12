@@ -45,19 +45,26 @@ label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:6px;font-w
 
 /* APP SHELL */
 #app-shell{display:none}
+.app-body{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:230px;flex-shrink:0;background:#0a2e1a;border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-brand{padding:18px 20px;font-family:'Fraunces',serif;font-weight:900;font-size:16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);flex-shrink:0}
+.sidebar-nav{flex:1;overflow-y:auto;padding:10px 0}
+.sidebar-group-label{padding:16px 20px 6px 20px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sidebar-item{padding:10px 20px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-left:3px solid transparent}
+.sidebar-item:hover{color:var(--cream);background:rgba(255,255,255,.03)}
+.sidebar-item.active{color:var(--amber);border-left-color:var(--amber);background:rgba(232,147,12,.08)}
+.main-column{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.main-column .topbar{flex-shrink:0}
+.view-scroll{flex:1;overflow-y:auto}
 .topbar{position:sticky;top:0;z-index:50;background:rgba(10,46,26,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .topbar-left{display:flex;align-items:center;gap:14px}
 .topbar-logo{font-family:'Fraunces',serif;font-weight:900;font-size:17px;display:flex;align-items:center;gap:8px}
 .topbar-logo-mark{width:24px;height:24px;border-radius:6px;background:var(--amber);display:flex;align-items:center;justify-content:center;color:var(--ink);font-weight:900;font-size:11px}
+.view{max-width:1100px;margin:0 auto;padding:28px 24px 60px;display:none}
+.view.active{display:block}
 .society-name{font-size:13px;color:var(--muted);padding-left:14px;border-left:1px solid var(--line)}
 .trial-badge{background:var(--greenl);color:var(--green-lt);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
 .trial-badge.warn{background:rgba(245,158,11,.15);color:var(--amber)}
-.tabs{display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--line);overflow-x:auto}
-.tab{padding:14px 16px;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
-.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
-.tab:hover{color:var(--cream)}
-.view{max-width:1100px;margin:0 auto;padding:28px 24px 60px;display:none}
-.view.active{display:block}
 
 /* CARDS / METRICS */
 .metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
@@ -159,41 +166,156 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- HR & PAYROLL MODALS -->
+<div class="modal-overlay" id="modal-add-employee">
+  <div class="modal-box">
+    <div class="modal-title">Add employee</div>
+    <div class="field"><label>Full name</label><input type="text" id="ae-name" placeholder="e.g. Amina Bello"></div>
+    <div class="field"><label>Job title</label><input type="text" id="ae-job-title" placeholder="e.g. Office Manager"></div>
+    <div class="field"><label>Employment date</label><input type="date" id="ae-employment-date"></div>
+    <div class="field"><label>Basic salary (₦/month, optional — can be set later)</label><input type="number" id="ae-basic-salary" placeholder="0"></div>
+    <div id="ae-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitAddEmployee()" id="ae-btn">Add employee</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-add-employee')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-set-salary">
+  <div class="modal-box">
+    <div class="modal-title">Set salary</div>
+    <input type="hidden" id="ss-employee-id">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Replaces the employee's current salary — history is kept, not lost.</div>
+    <div class="field"><label>Basic salary (₦/month)</label><input type="number" id="ss-basic-salary" placeholder="0"></div>
+    <div class="field"><label>Allowance name (optional)</label><input type="text" id="ss-allowance-name" placeholder="e.g. Housing Allowance"></div>
+    <div class="field"><label>Allowance amount (₦/month)</label><input type="number" id="ss-allowance-amount" placeholder="0"></div>
+    <div id="ss-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitSetSalary()" id="ss-btn">Save salary</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-set-salary')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-staff-loan">
+  <div class="modal-box">
+    <div class="modal-title">New staff loan</div>
+    <input type="hidden" id="sl-employee-id">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">An employer loan, not a cooperative loan — no interest, no penalties. Repaid automatically via monthly payroll deduction until fully paid off.</div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="sl-principal" placeholder="0"></div>
+    <div class="field"><label>Repayment period (months)</label><input type="number" id="sl-months" placeholder="e.g. 6"></div>
+    <div id="sl-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitStaffLoan()" id="sl-btn">Create staff loan</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-staff-loan')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-new-payroll-run">
+  <div class="modal-box">
+    <div class="modal-title">New payroll run</div>
+    <div class="field"><label>Period label</label><input type="text" id="pr-period-label" placeholder="e.g. September 2026"></div>
+    <div class="field"><label>Period start</label><input type="date" id="pr-period-start"></div>
+    <div class="field"><label>Period end</label><input type="date" id="pr-period-end"></div>
+    <div id="pr-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitNewPayrollRun()" id="pr-btn">Create draft</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-payroll-run')">Cancel</button>
+  </div>
+</div>
+
+<!-- INVESTMENT MODALS -->
+<div class="modal-overlay" id="modal-add-investment-product">
+  <div class="modal-box">
+    <div class="modal-title">New investment product</div>
+    <div class="field"><label>Name</label><input type="text" id="ip-name" placeholder="e.g. 12-Month Growth Plan"></div>
+    <div class="field"><label>Type</label>
+      <select id="ip-product-type" onchange="onInvestmentProductTypeChange()">
+        <option value="individual">Individual — each member invests independently</option>
+        <option value="general">Pooled — many members fund one thing together</option>
+      </select>
+    </div>
+    <div class="field" id="ip-total-units-row"><label>Total units available</label><input type="number" id="ip-total-units" placeholder="e.g. 500"></div>
+    <div class="field"><label>Unit price (₦)</label><input type="number" id="ip-unit-price" placeholder="0"></div>
+    <div class="field"><label>Tenure (months)</label><input type="number" id="ip-tenure" placeholder="e.g. 12"></div>
+    <div class="field"><label>Return type</label>
+      <select id="ip-return-type" onchange="onInvestmentReturnTypeChange()">
+        <option value="fixed">Fixed — a promised rate over the full tenure</option>
+        <option value="variable">Variable — distributes the venture's real, recorded performance (can be a loss)</option>
+      </select>
+    </div>
+    <div class="field" id="ip-fixed-rate-row"><label>Fixed return rate (% over the full tenure)</label><input type="number" id="ip-fixed-rate" placeholder="e.g. 12"></div>
+    <div class="field"><label>Early withdrawal penalty (%, optional)</label><input type="number" id="ip-penalty" placeholder="0"></div>
+    <div id="ip-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitAddInvestmentProduct()" id="ip-btn">Create product</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-add-investment-product')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-record-investment">
+  <div class="modal-box">
+    <div class="modal-title">Record investment purchase</div>
+    <input type="hidden" id="ri-product-id">
+    <div class="field"><label>Member</label><select id="ri-member-select"></select></div>
+    <div class="field"><label>Units</label><input type="number" id="ri-units" placeholder="e.g. 5"></div>
+    <div id="ri-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitRecordInvestment()" id="ri-btn">Record purchase</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-record-investment')">Cancel</button>
+  </div>
+</div>
+
+
 <!-- APP SHELL -->
 <div id="app-shell">
-  <div class="topbar">
-    <div class="topbar-left">
-      <div class="topbar-logo"><span class="topbar-logo-mark">Z</span>Coop Portal</div>
-      <div class="society-name" id="tb-society-name">—</div>
-      <span class="trial-badge" id="tb-status-badge" style="display:none"></span>
-    </div>
-    <button class="btn btn-ghost btn-sm" onclick="doLogout()">Sign out</button>
-  </div>
-  <div class="tabs">
-    <div class="tab active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</div>
-    <div class="tab" data-view="members" onclick="switchView('members')">Members</div>
-    <div class="tab" data-view="savings" onclick="switchView('savings')">Savings</div>
-    <div class="tab" data-view="loans" onclick="switchView('loans')">Loans</div>
-    <div class="tab" data-view="dues" onclick="switchView('dues')">Dues</div>
-    <div class="tab" data-view="addons" onclick="switchView('addons')">Add-ons</div>
-    <div class="tab" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
-    <div class="tab" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
-    <div class="tab" data-view="reconciliation" onclick="switchView('reconciliation')">Bank Reconciliation</div>
-    <div class="tab" data-view="surplus" onclick="switchView('surplus')">Surplus &amp; Dividends</div>
-    <div class="tab" data-view="billing" onclick="switchView('billing')">Billing</div>
-  </div>
+  <div class="app-body">
+    <div class="sidebar">
+      <div class="sidebar-brand"><span class="topbar-logo-mark">Z</span>Coop Portal</div>
+      <div class="sidebar-nav">
+        <div class="sidebar-item active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</div>
 
-  <div class="view active" id="view-dashboard"></div>
-  <div class="view" id="view-members"></div>
-  <div class="view" id="view-savings"></div>
-  <div class="view" id="view-loans"></div>
-  <div class="view" id="view-dues"></div>
-  <div class="view" id="view-addons"></div>
-  <div class="view" id="view-notifications"></div>
-  <div class="view" id="view-accounting"></div>
-  <div class="view" id="view-reconciliation"></div>
-  <div class="view" id="view-surplus"></div>
-  <div class="view" id="view-billing"></div>
+        <div class="sidebar-group-label">Members</div>
+        <div class="sidebar-item" data-view="members" onclick="switchView('members')">Members</div>
+
+        <div class="sidebar-group-label">Finance</div>
+        <div class="sidebar-item" data-view="savings" onclick="switchView('savings')">Savings</div>
+        <div class="sidebar-item" data-view="loans" onclick="switchView('loans')">Loans</div>
+        <div class="sidebar-item" data-view="dues" onclick="switchView('dues')">Dues</div>
+        <div class="sidebar-item" data-view="hr_payroll" onclick="switchView('hr_payroll')">HR &amp; Payroll</div>
+        <div class="sidebar-item" data-view="investment" onclick="switchView('investment')">Investment</div>
+
+        <div class="sidebar-group-label">Reports</div>
+        <div class="sidebar-item" data-view="accounting" onclick="switchView('accounting')">Accounting</div>
+        <div class="sidebar-item" data-view="reconciliation" onclick="switchView('reconciliation')">Bank Reconciliation</div>
+        <div class="sidebar-item" data-view="surplus" onclick="switchView('surplus')">Surplus &amp; Dividends</div>
+
+        <div class="sidebar-group-label">Settings</div>
+        <div class="sidebar-item" data-view="addons" onclick="switchView('addons')">Add-ons</div>
+        <div class="sidebar-item" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
+        <div class="sidebar-item" data-view="billing" onclick="switchView('billing')">Billing</div>
+      </div>
+    </div>
+
+    <div class="main-column">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="society-name" id="tb-society-name">—</div>
+          <span class="trial-badge" id="tb-status-badge" style="display:none"></span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()">Sign out</button>
+      </div>
+
+      <div class="view-scroll">
+        <div class="view active" id="view-dashboard"></div>
+        <div class="view" id="view-members"></div>
+        <div class="view" id="view-savings"></div>
+        <div class="view" id="view-loans"></div>
+        <div class="view" id="view-dues"></div>
+        <div class="view" id="view-hr_payroll"></div>
+        <div class="view" id="view-investment"></div>
+        <div class="view" id="view-addons"></div>
+        <div class="view" id="view-notifications"></div>
+        <div class="view" id="view-accounting"></div>
+        <div class="view" id="view-reconciliation"></div>
+        <div class="view" id="view-surplus"></div>
+        <div class="view" id="view-billing"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ACTIVATE MEMBER MODAL -->
@@ -772,7 +894,7 @@ async function enterApp() {
     document.getElementById('modal-terms-consent').classList.add('open');
     return; // app-shell stays hidden until they agree
   }
-  document.getElementById('app-shell').style.display = 'block';
+  document.getElementById('app-shell').style.display = 'flex';
   switchView('dashboard');
 }
 
@@ -794,7 +916,7 @@ async function submitTermsConsent() {
     console.warn('[terms] acceptance recording failed (non-fatal):', e.message);
   }
   document.getElementById('modal-terms-consent').classList.remove('open');
-  document.getElementById('app-shell').style.display = 'block';
+  document.getElementById('app-shell').style.display = 'flex';
   switchView('dashboard');
 }
 
@@ -835,7 +957,7 @@ async function loadPortalData() {
 // ── VIEW SWITCHING ───────────────────────────────────────────────────
 function switchView(name) {
   currentView = name;
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
+  document.querySelectorAll('.sidebar-item').forEach(t => t.classList.toggle('active', t.dataset.view === name));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'dashboard') renderDashboard();
@@ -843,6 +965,8 @@ function switchView(name) {
   if (name === 'savings') renderSavings();
   if (name === 'loans') renderLoans();
   if (name === 'dues') renderDues();
+  if (name === 'hr_payroll') renderHrPayroll();
+  if (name === 'investment') renderInvestment();
   if (name === 'addons') renderAddons();
   if (name === 'notifications') renderNotifications();
   if (name === 'accounting') renderAccounting();
@@ -1981,6 +2105,392 @@ async function payNowFromPortal(btn) {
   } catch (e) { notify('Network error: ' + e.message, true); btn.disabled = false; btn.textContent = 'Pay now →'; }
 }
 
+// ── HR & PAYROLL ──────────────────────────────────────────────────────
+async function renderHrPayroll() {
+  const el = document.getElementById('view-hr_payroll');
+  el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-employees`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div class="card"><div class="card-title">HR &amp; Payroll</div><div class="card-sub">${data.error || 'Unable to load'}</div>${(data.error||'').includes('not enabled') ? `<button class="btn btn-primary btn-sm" onclick="switchView('addons')">Go to Add-ons</button>` : ''}</div>`;
+      return;
+    }
+    window._hrEmployees = data.employees || [];
+    const rows = window._hrEmployees.map(e => `
+      <tr>
+        <td>${e.name}</td>
+        <td>${e.job_title || '—'}</td>
+        <td>${e.member_name ? `<span class="pill pill-green">${e.member_name}</span>` : '<span class="pill pill-muted">Not a member</span>'}</td>
+        <td>${fmtNaira(e.gross_kobo)}</td>
+        <td><span class="pill ${e.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${e.status}</span></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openSetSalaryModal('${e.id}')">Set salary</button>
+          <button class="btn btn-ghost btn-sm" onclick="openStaffLoanModal('${e.id}')">Staff loan</button>
+        </td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Employees
+          <button class="btn btn-primary btn-sm" onclick="openAddEmployeeModal()">+ Add employee</button>
+        </div>
+        <div class="card-sub">Your society's own paid staff — separate from cooperative members, though an employee can also be one.</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Role</th><th>Linked member</th><th>Gross pay</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" class="no-data">No employees yet.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Payroll runs
+          <button class="btn btn-primary btn-sm" onclick="openNewPayrollRunModal()">+ New payroll run</button>
+        </div>
+        <div class="card-sub">Create a draft to review each employee's pay and deductions before processing — processing posts the accounting entry and applies any staff loan deductions.</div>
+        <div id="hr-payroll-runs-list"><div class="card-sub">Loading…</div></div>
+      </div>
+    `;
+    loadPayrollRunsList();
+  } catch (e) {
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+  }
+}
+
+async function loadPayrollRunsList() {
+  const listEl = document.getElementById('hr-payroll-runs-list');
+  if (!listEl) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-payroll-run`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    const rows = (data.runs || []).map(r => `
+      <tr>
+        <td>${r.period_label}</td>
+        <td><span class="pill ${r.status === 'processed' ? 'pill-green' : 'pill-amber'}">${r.status}</span></td>
+        <td>${r.status === 'draft' ? `<button class="btn btn-ghost btn-sm" onclick="processPayrollRun('${r.id}')">Process</button>` : (r.processed_at ? new Date(r.processed_at).toLocaleDateString() : '—')}</td>
+      </tr>`).join('');
+    listEl.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Period</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="3" class="no-data">No payroll runs yet.</td></tr>'}</tbody>
+    </table></div>`;
+  } catch (e) {
+    listEl.innerHTML = `<div class="card-sub">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function openAddEmployeeModal() {
+  document.getElementById('ae-name').value = '';
+  document.getElementById('ae-job-title').value = '';
+  document.getElementById('ae-employment-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ae-basic-salary').value = '';
+  document.getElementById('ae-error').style.display = 'none';
+  openModal('modal-add-employee');
+}
+
+async function submitAddEmployee() {
+  const errEl = document.getElementById('ae-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('ae-name').value.trim();
+  const employment_date = document.getElementById('ae-employment-date').value;
+  const basicSalary = document.getElementById('ae-basic-salary').value;
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = 'block'; return; }
+  if (!employment_date) { errEl.textContent = 'Employment date is required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ae-btn');
+  btn.disabled = true; btn.textContent = 'Adding...';
+  try {
+    const res = await fetch(`${API}/coop-portal-employees`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({
+        action: 'create', name, employment_date,
+        job_title: document.getElementById('ae-job-title').value.trim() || null,
+        basic_salary_kobo: basicSalary ? Math.round(parseFloat(basicSalary) * 100) : undefined,
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Add employee';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to add employee.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-add-employee');
+    notify('Employee added.');
+    renderHrPayroll();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Add employee';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function openSetSalaryModal(employeeId) {
+  document.getElementById('ss-employee-id').value = employeeId;
+  document.getElementById('ss-basic-salary').value = '';
+  document.getElementById('ss-allowance-name').value = '';
+  document.getElementById('ss-allowance-amount').value = '';
+  document.getElementById('ss-error').style.display = 'none';
+  openModal('modal-set-salary');
+}
+
+async function submitSetSalary() {
+  const errEl = document.getElementById('ss-error');
+  errEl.style.display = 'none';
+  const employeeId = document.getElementById('ss-employee-id').value;
+  const basicSalary = parseFloat(document.getElementById('ss-basic-salary').value);
+  if (!basicSalary || basicSalary <= 0) { errEl.textContent = 'Enter a valid basic salary.'; errEl.style.display = 'block'; return; }
+
+  const allowanceName = document.getElementById('ss-allowance-name').value.trim();
+  const allowanceAmount = parseFloat(document.getElementById('ss-allowance-amount').value);
+  const allowances = (allowanceName && allowanceAmount > 0) ? [{ name: allowanceName, amount_kobo: Math.round(allowanceAmount * 100) }] : [];
+
+  const btn = document.getElementById('ss-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-employees`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'set_salary', employee_id: employeeId, basic_salary_kobo: Math.round(basicSalary * 100), allowances }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Save salary';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-set-salary');
+    notify('Salary updated.');
+    renderHrPayroll();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Save salary';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function openStaffLoanModal(employeeId) {
+  document.getElementById('sl-employee-id').value = employeeId;
+  document.getElementById('sl-principal').value = '';
+  document.getElementById('sl-months').value = '';
+  document.getElementById('sl-error').style.display = 'none';
+  openModal('modal-staff-loan');
+}
+
+async function submitStaffLoan() {
+  const errEl = document.getElementById('sl-error');
+  errEl.style.display = 'none';
+  const employee_id = document.getElementById('sl-employee-id').value;
+  const principal = parseFloat(document.getElementById('sl-principal').value);
+  const months = parseInt(document.getElementById('sl-months').value, 10);
+  if (!principal || principal <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (!months || months <= 0) { errEl.textContent = 'Enter a valid number of months.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('sl-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-staff-loans`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'create', employee_id, principal_kobo: Math.round(principal * 100), repayment_months: months }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Create staff loan';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create staff loan.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-staff-loan');
+    notify('Staff loan created — repayment will deduct automatically from payroll.');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Create staff loan';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function openNewPayrollRunModal() {
+  const now = new Date();
+  document.getElementById('pr-period-label').value = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  document.getElementById('pr-period-start').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  document.getElementById('pr-period-end').value = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  document.getElementById('pr-error').style.display = 'none';
+  openModal('modal-new-payroll-run');
+}
+
+async function submitNewPayrollRun() {
+  const errEl = document.getElementById('pr-error');
+  errEl.style.display = 'none';
+  const period_label = document.getElementById('pr-period-label').value.trim();
+  const period_start = document.getElementById('pr-period-start').value;
+  const period_end = document.getElementById('pr-period-end').value;
+  if (!period_label || !period_start || !period_end) { errEl.textContent = 'All fields are required.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pr-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-payroll-run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'create_draft', period_label, period_start, period_end }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Create draft';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create payroll run.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-new-payroll-run');
+    notify(`Draft created for ${data.employees_included} employee(s). Review, then process from the list.`);
+    loadPayrollRunsList();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Create draft';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function processPayrollRun(payrollRunId) {
+  if (!confirm('Process this payroll run? This applies staff loan deductions and posts the accounting entry — it cannot be undone.')) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-payroll-run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'process', payroll_run_id: payrollRunId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to process payroll run.', true); return; }
+    notify(`Payroll processed — ${data.employees_paid} employee(s) paid, ${fmtNaira(data.total_net_pay_kobo)} total.`);
+    loadPayrollRunsList();
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+  }
+}
+
+// ── INVESTMENT ────────────────────────────────────────────────────────
+async function renderInvestment() {
+  const el = document.getElementById('view-investment');
+  el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-investment-products`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div class="card"><div class="card-title">Investment</div><div class="card-sub">${data.error || 'Unable to load'}</div>${(data.error||'').includes('not enabled') ? `<button class="btn btn-primary btn-sm" onclick="switchView('addons')">Go to Add-ons</button>` : ''}</div>`;
+      return;
+    }
+    window._investmentProducts = data.products || [];
+    const rows = window._investmentProducts.map(p => `
+      <tr>
+        <td>${p.name}</td>
+        <td>${p.product_type === 'general' ? 'Pooled' : 'Individual'}</td>
+        <td>${p.return_type === 'fixed' ? `Fixed (${p.fixed_return_rate_percent}%)` : 'Variable'}</td>
+        <td>${fmtNaira(p.unit_price_kobo)}/unit</td>
+        <td>${p.tenure_months} months</td>
+        <td>${p.product_type === 'general' ? `${p.units_sold}/${p.total_units} units` : `${p.units_sold} sold`}</td>
+        <td><span class="pill ${p.active ? 'pill-green' : 'pill-muted'}">${p.active ? 'Active' : 'Inactive'}</span></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="openRecordInvestmentModal('${p.id}')">Record purchase</button></td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Investment products
+          <button class="btn btn-primary btn-sm" onclick="openAddInvestmentProductModal()">+ New product</button>
+        </div>
+        <div class="card-sub">Fixed-return products promise a set rate over the tenure. Variable-return products distribute the venture's real, recorded performance to investors — including a loss, if it underperforms.</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Type</th><th>Return</th><th>Unit price</th><th>Tenure</th><th>Units</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="8" class="no-data">No investment products yet.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+  }
+}
+
+function onInvestmentProductTypeChange() {
+  const isGeneral = document.getElementById('ip-product-type').value === 'general';
+  document.getElementById('ip-total-units-row').style.display = isGeneral ? '' : 'none';
+}
+function onInvestmentReturnTypeChange() {
+  const isFixed = document.getElementById('ip-return-type').value === 'fixed';
+  document.getElementById('ip-fixed-rate-row').style.display = isFixed ? '' : 'none';
+}
+
+function openAddInvestmentProductModal() {
+  document.getElementById('ip-name').value = '';
+  document.getElementById('ip-product-type').value = 'individual';
+  document.getElementById('ip-return-type').value = 'fixed';
+  document.getElementById('ip-unit-price').value = '';
+  document.getElementById('ip-total-units').value = '';
+  document.getElementById('ip-tenure').value = '';
+  document.getElementById('ip-fixed-rate').value = '';
+  document.getElementById('ip-penalty').value = '';
+  document.getElementById('ip-error').style.display = 'none';
+  onInvestmentProductTypeChange();
+  onInvestmentReturnTypeChange();
+  openModal('modal-add-investment-product');
+}
+
+async function submitAddInvestmentProduct() {
+  const errEl = document.getElementById('ip-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('ip-name').value.trim();
+  const product_type = document.getElementById('ip-product-type').value;
+  const return_type = document.getElementById('ip-return-type').value;
+  const unit_price = parseFloat(document.getElementById('ip-unit-price').value);
+  const tenure_months = parseInt(document.getElementById('ip-tenure').value, 10);
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = 'block'; return; }
+  if (!unit_price || unit_price <= 0) { errEl.textContent = 'Enter a valid unit price.'; errEl.style.display = 'block'; return; }
+  if (!tenure_months || tenure_months <= 0) { errEl.textContent = 'Enter a valid tenure.'; errEl.style.display = 'block'; return; }
+
+  const payload = {
+    action: 'create', name, product_type, return_type,
+    unit_price_kobo: Math.round(unit_price * 100), tenure_months,
+    early_withdrawal_penalty_percent: parseFloat(document.getElementById('ip-penalty').value) || 0,
+  };
+  if (product_type === 'general') {
+    const totalUnits = parseInt(document.getElementById('ip-total-units').value, 10);
+    if (!totalUnits || totalUnits <= 0) { errEl.textContent = 'Enter total units available for a pooled product.'; errEl.style.display = 'block'; return; }
+    payload.total_units = totalUnits;
+  }
+  if (return_type === 'fixed') {
+    const rate = parseFloat(document.getElementById('ip-fixed-rate').value);
+    if (!rate || rate <= 0) { errEl.textContent = 'Enter the fixed return rate.'; errEl.style.display = 'block'; return; }
+    payload.fixed_return_rate_percent = rate;
+  }
+
+  const btn = document.getElementById('ip-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-investment-products`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Create product';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create product.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-add-investment-product');
+    notify('Investment product created.');
+    renderInvestment();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Create product';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function openRecordInvestmentModal(productId) {
+  document.getElementById('ri-product-id').value = productId;
+  document.getElementById('ri-member-select').innerHTML = (portalData.members || [])
+    .map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  document.getElementById('ri-units').value = '';
+  document.getElementById('ri-error').style.display = 'none';
+  openModal('modal-record-investment');
+}
+
+async function submitRecordInvestment() {
+  const errEl = document.getElementById('ri-error');
+  errEl.style.display = 'none';
+  const product_id = document.getElementById('ri-product-id').value;
+  const member_id = document.getElementById('ri-member-select').value;
+  const units = parseInt(document.getElementById('ri-units').value, 10);
+  if (!units || units <= 0) { errEl.textContent = 'Enter a valid number of units.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ri-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-investment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id, product_id, units }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Record purchase';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record investment.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-record-investment');
+    notify('Investment recorded.');
+    renderInvestment();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Record purchase';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
 // ── BILLING ───────────────────────────────────────────────────────────
 function renderBilling() {
   const s = portalData.society;
@@ -3014,7 +3524,7 @@ function renderBalanceSheet(data) {
     document.getElementById('login-screen').style.display = 'none';
     const loaded = await loadPortalData();
     if (loaded) {
-      document.getElementById('app-shell').style.display = 'block';
+      document.getElementById('app-shell').style.display = 'flex';
       switchView('dashboard');
     } else {
       document.getElementById('login-screen').style.display = 'flex';
