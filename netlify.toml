@@ -765,6 +765,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-employees"
+  to   = "/.netlify/functions/coop-portal-employees"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-payroll-run"
+  to   = "/.netlify/functions/coop-portal-payroll-run"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-staff-loans"
+  to   = "/.netlify/functions/coop-portal-staff-loans"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-savings-packages"
   to   = "/.netlify/functions/coop-portal-savings-packages"
   status = 200
