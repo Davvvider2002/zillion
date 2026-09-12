@@ -790,6 +790,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-investment-withdraw"
+  to   = "/.netlify/functions/coop-portal-investment-withdraw"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-investment-performance"
+  to   = "/.netlify/functions/coop-portal-investment-performance"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-record-investment"
   to   = "/.netlify/functions/coop-portal-record-investment"
   status = 200
