@@ -800,6 +800,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-users"
+  to   = "/.netlify/functions/coop-portal-users"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-record-investment"
   to   = "/.netlify/functions/coop-portal-record-investment"
   status = 200
