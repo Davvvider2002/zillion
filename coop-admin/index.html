@@ -282,6 +282,31 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-view-investors">
+  <div class="modal-box" style="max-width:900px">
+    <div class="modal-title">Investors</div>
+    <div id="vi-body"><div class="card-sub">Loading…</div></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:16px" onclick="closeModal('modal-view-investors')">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-record-performance">
+  <div class="modal-box">
+    <div class="modal-title">Record venture performance</div>
+    <input type="hidden" id="rp-product-id">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Distributed proportionally across every active investor by their share of invested principal — including as a loss, if you tick the box below.</div>
+    <div class="field"><label>Period label</label><input type="text" id="rp-period-label" placeholder="e.g. September 2026"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="rp-amount" placeholder="0"></div>
+    <div class="checkbox-row" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <input type="checkbox" id="rp-is-loss" style="width:auto">
+      <label for="rp-is-loss" style="margin:0">This is a loss</label>
+    </div>
+    <div id="rp-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitRecordPerformance()" id="rp-btn">Record performance</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-record-performance')">Cancel</button>
+  </div>
+</div>
+
 
 <!-- APP SHELL -->
 <div id="app-shell">
@@ -2495,7 +2520,11 @@ async function renderInvestment() {
         <td>${p.tenure_months} months</td>
         <td>${p.product_type === 'general' ? `${p.units_sold}/${p.total_units} units` : `${p.units_sold} sold`}</td>
         <td><span class="pill ${p.active ? 'pill-green' : 'pill-muted'}">${p.active ? 'Active' : 'Inactive'}</span></td>
-        <td><button class="btn btn-ghost btn-sm" onclick="openRecordInvestmentModal('${p.id}')">Record purchase</button></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openRecordInvestmentModal('${p.id}')">Record purchase</button>
+          <button class="btn btn-ghost btn-sm" onclick="openViewInvestorsModal('${p.id}')">Investors</button>
+          ${p.return_type === 'variable' ? `<button class="btn btn-ghost btn-sm" onclick="openRecordPerformanceModal('${p.id}')">Record performance</button>` : ''}
+        </td>
       </tr>`).join('');
 
     el.innerHTML = `
@@ -2618,6 +2647,93 @@ async function submitRecordInvestment() {
     renderInvestment();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Record purchase';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function openViewInvestorsModal(productId) {
+  document.getElementById('vi-body').innerHTML = '<div class="card-sub">Loading…</div>';
+  openModal('modal-view-investors');
+  try {
+    const res = await fetch(`${API}/coop-portal-record-investment?product_id=${productId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('vi-body').innerHTML = `<div class="card-sub">${data.error || 'Failed to load'}</div>`; return; }
+
+    const statusPill = (s) => {
+      const map = { ACTIVE: 'pill-green', MATURED: 'pill-amber', WITHDRAWN_EARLY: 'pill-muted', REINVESTED: 'pill-muted' };
+      return `<span class="pill ${map[s] || 'pill-muted'}">${s}</span>`;
+    };
+    const rows = (data.investments || []).map(inv => `
+      <tr>
+        <td>${inv.member_name}</td>
+        <td>${inv.units_purchased}</td>
+        <td>${fmtNaira(inv.principal_kobo)}</td>
+        <td>${fmtNaira(inv.total_accrued_kobo)}</td>
+        <td>${new Date(inv.maturity_date).toLocaleDateString()}</td>
+        <td>${statusPill(inv.status)}</td>
+        <td>${inv.status === 'ACTIVE' ? `<button class="btn btn-ghost btn-sm" onclick="withdrawInvestmentEarly('${inv.id}', ${productId ? `'${productId}'` : 'null'})">Withdraw early</button>` : '—'}</td>
+      </tr>`).join('');
+
+    document.getElementById('vi-body').innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Member</th><th>Units</th><th>Principal</th><th>Accrued</th><th>Maturity</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="no-data">No investors yet.</td></tr>'}</tbody>
+    </table></div>`;
+  } catch (e) {
+    document.getElementById('vi-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
+  }
+}
+
+async function withdrawInvestmentEarly(memberInvestmentId, productId) {
+  if (!confirm('Withdraw this investment early? Any configured penalty will be applied — this cannot be undone.')) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-investment-withdraw`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_investment_id: memberInvestmentId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to withdraw.', true); return; }
+    notify(data.penalty_kobo > 0 ? `Withdrawn — ${fmtNaira(data.penalty_kobo)} penalty applied.` : 'Withdrawn — no penalty applied.');
+    if (productId) openViewInvestorsModal(productId);
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+  }
+}
+
+function openRecordPerformanceModal(productId) {
+  document.getElementById('rp-product-id').value = productId;
+  document.getElementById('rp-period-label').value = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  document.getElementById('rp-amount').value = '';
+  document.getElementById('rp-is-loss').checked = false;
+  document.getElementById('rp-error').style.display = 'none';
+  openModal('modal-record-performance');
+}
+
+async function submitRecordPerformance() {
+  const errEl = document.getElementById('rp-error');
+  errEl.style.display = 'none';
+  const product_id = document.getElementById('rp-product-id').value;
+  const period_label = document.getElementById('rp-period-label').value.trim();
+  const amount = parseFloat(document.getElementById('rp-amount').value);
+  const isLoss = document.getElementById('rp-is-loss').checked;
+  if (!period_label) { errEl.textContent = 'Period label is required.'; errEl.style.display = 'block'; return; }
+  if (isNaN(amount) || amount < 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+
+  const net_performance_kobo = Math.round(amount * 100) * (isLoss ? -1 : 1);
+
+  const btn = document.getElementById('rp-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-investment-performance`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ product_id, period_label, net_performance_kobo }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Record performance';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record performance.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-record-performance');
+    notify(`Performance recorded — distributed across ${data.investors_affected} investor(s).`);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Record performance';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
