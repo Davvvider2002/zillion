@@ -66,7 +66,38 @@ exports.handler = async (event) => {
     .single();
 
   if (error || !merchant) {
-    return err(401, 'No account found for this phone number. Please register first.');
+    // Not a merchant/owner account - check whether this is a staff
+    // account added to a society by its owner (coop_portal_users).
+    // Handled the same way multi-society member lookups are elsewhere
+    // in this codebase: no .single()/.maybeSingle() here, since the
+    // same phone could in principle be staff at more than one
+    // society - take the first active match rather than error out.
+    const { data: staffMatches } = await db.from('coop_portal_users')
+      .select('id, coop_id, name, phone, password_hash, status').eq('phone', normalised).eq('status', 'ACTIVE');
+
+    const staffUser = (staffMatches || [])[0];
+    if (!staffUser) {
+      return err(401, 'No account found for this phone number. Please register first.');
+    }
+
+    const providedHash = createHmac('sha256', mustEnv('JWT_SECRET')).update(password).digest('hex');
+    const expBuf = Buffer.from(staffUser.password_hash, 'hex');
+    const prvBuf = Buffer.from(providedHash, 'hex');
+    const match = expBuf.length === prvBuf.length && require('crypto').timingSafeEqual(expBuf, prvBuf);
+    if (!match) return err(401, 'Incorrect password. Please try again.');
+
+    const { data: society } = await db.from('coop_societies').select('merchant_id, name').eq('coop_id', staffUser.coop_id).maybeSingle();
+    if (!society) return err(500, 'This staff account is not linked to a valid society.');
+
+    const token = signJWT({
+      sub: staffUser.id, merchant_id: society.merchant_id, phone: normalised,
+      device_id: device_id || 'UNKNOWN', business_name: society.name, owner_name: staffUser.name,
+      location: '', role: 'coop_staff', user_id: staffUser.id,
+    });
+
+    console.log(`[merchant-login] ✅ staff user ${staffUser.id} authenticated for ${staffUser.coop_id}`);
+
+    return ok({ success: true, token, merchant_id: society.merchant_id, business_name: society.name, owner_name: staffUser.name, is_staff: true });
   }
 
   // Verify password
