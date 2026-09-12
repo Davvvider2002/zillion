@@ -169,12 +169,18 @@ tr:last-child td{border-bottom:none}
 
 <!-- HR & PAYROLL MODALS -->
 <div class="modal-overlay" id="modal-add-employee">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:480px">
     <div class="modal-title">Add employee</div>
     <div class="field"><label>Full name</label><input type="text" id="ae-name" placeholder="e.g. Amina Bello"></div>
     <div class="field"><label>Job title</label><input type="text" id="ae-job-title" placeholder="e.g. Office Manager"></div>
     <div class="field"><label>Employment date</label><input type="date" id="ae-employment-date"></div>
-    <div class="field"><label>Basic salary (₦/month, optional — can be set later)</label><input type="number" id="ae-basic-salary" placeholder="0"></div>
+    <div class="field"><label>Basic salary (₦/month)</label><input type="number" id="ae-basic-salary" placeholder="0" oninput="updateSalaryPreview('ae')"></div>
+    <div class="field">
+      <label>Allowances</label>
+      <div id="ae-allowances-list"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="addAllowanceRow('ae')">+ Add allowance</button>
+    </div>
+    <div id="ae-preview"></div>
     <div id="ae-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitAddEmployee()" id="ae-btn">Add employee</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-add-employee')">Cancel</button>
@@ -182,13 +188,17 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <div class="modal-overlay" id="modal-set-salary">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:480px">
     <div class="modal-title">Set salary</div>
     <input type="hidden" id="ss-employee-id">
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Replaces the employee's current salary — history is kept, not lost.</div>
-    <div class="field"><label>Basic salary (₦/month)</label><input type="number" id="ss-basic-salary" placeholder="0"></div>
-    <div class="field"><label>Allowance name (optional)</label><input type="text" id="ss-allowance-name" placeholder="e.g. Housing Allowance"></div>
-    <div class="field"><label>Allowance amount (₦/month)</label><input type="number" id="ss-allowance-amount" placeholder="0"></div>
+    <div class="field"><label>Basic salary (₦/month)</label><input type="number" id="ss-basic-salary" placeholder="0" oninput="updateSalaryPreview('ss')"></div>
+    <div class="field">
+      <label>Allowances</label>
+      <div id="ss-allowances-list"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="addAllowanceRow('ss')">+ Add allowance</button>
+    </div>
+    <div id="ss-preview"></div>
     <div id="ss-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitSetSalary()" id="ss-btn">Save salary</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-set-salary')">Cancel</button>
@@ -2332,11 +2342,73 @@ async function openPayrollBreakdownModal(payrollRunId) {
   }
 }
 
+let _allowanceRowCounter = 0;
+
+function addAllowanceRow(prefix, name, amountNaira) {
+  const rowId = `${prefix}-allowance-${++_allowanceRowCounter}`;
+  const list = document.getElementById(`${prefix}-allowances-list`);
+  const row = document.createElement('div');
+  row.id = rowId;
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
+  row.innerHTML = `
+    <input type="text" placeholder="e.g. Housing Allowance" value="${name ? name.replace(/"/g, '&quot;') : ''}" style="flex:1" class="allowance-name" oninput="updateSalaryPreview('${prefix}')">
+    <input type="number" placeholder="₦/month" value="${amountNaira || ''}" style="width:120px" class="allowance-amount" oninput="updateSalaryPreview('${prefix}')">
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('${rowId}').remove(); updateSalaryPreview('${prefix}')" style="padding:8px 10px">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function collectAllowances(prefix) {
+  const list = document.getElementById(`${prefix}-allowances-list`);
+  const rows = Array.from(list.children);
+  return rows.map(row => ({
+    name: row.querySelector('.allowance-name').value.trim(),
+    amount_kobo: Math.round((parseFloat(row.querySelector('.allowance-amount').value) || 0) * 100),
+  })).filter(a => a.name && a.amount_kobo > 0);
+}
+
+let _previewDebounceTimers = {};
+function updateSalaryPreview(prefix) {
+  clearTimeout(_previewDebounceTimers[prefix]);
+  _previewDebounceTimers[prefix] = setTimeout(async () => {
+    const previewEl = document.getElementById(`${prefix}-preview`);
+    const basicSalary = parseFloat(document.getElementById(`${prefix}-basic-salary`).value);
+    if (!basicSalary || basicSalary <= 0) { previewEl.innerHTML = ''; return; }
+
+    const allowances = collectAllowances(prefix);
+    previewEl.innerHTML = '<div class="card-sub">Calculating…</div>';
+    try {
+      const res = await fetch(`${API}/coop-portal-payroll-preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+        body: JSON.stringify({ basic_salary_kobo: Math.round(basicSalary * 100), allowances }),
+      });
+      const data = await res.json();
+      if (!res.ok) { previewEl.innerHTML = `<div class="card-sub" style="color:#FF8A8A">${data.error || 'Could not calculate'}</div>`; return; }
+
+      previewEl.innerHTML = `
+        <div style="background:var(--ink);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12.5px">
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">Basic</span><span>${fmtNaira(data.basic_salary_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">Allowances</span><span>${fmtNaira(data.allowances_total_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:600;border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span>Gross pay</span><span>${fmtNaira(data.gross_pay_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">PAYE</span><span>-${fmtNaira(data.paye_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">Pension (employee)</span><span>-${fmtNaira(data.pension_employee_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">NHF</span><span>-${fmtNaira(data.nhf_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:700;border-top:1px solid var(--line);margin-top:4px;padding-top:6px;color:var(--amber)"><span>Net pay</span><span>${fmtNaira(data.net_pay_kobo)}</span></div>
+        </div>
+      `;
+    } catch (e) {
+      previewEl.innerHTML = `<div class="card-sub" style="color:#FF8A8A">Network error: ${e.message}</div>`;
+    }
+  }, 400);
+}
+
 function openAddEmployeeModal() {
   document.getElementById('ae-name').value = '';
   document.getElementById('ae-job-title').value = '';
   document.getElementById('ae-employment-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('ae-basic-salary').value = '';
+  document.getElementById('ae-allowances-list').innerHTML = '';
+  document.getElementById('ae-preview').innerHTML = '';
   document.getElementById('ae-error').style.display = 'none';
   openModal('modal-add-employee');
 }
@@ -2359,6 +2431,7 @@ async function submitAddEmployee() {
         action: 'create', name, employment_date,
         job_title: document.getElementById('ae-job-title').value.trim() || null,
         basic_salary_kobo: basicSalary ? Math.round(parseFloat(basicSalary) * 100) : undefined,
+        allowances: collectAllowances('ae'),
       }),
     });
     const data = await res.json();
@@ -2376,8 +2449,8 @@ async function submitAddEmployee() {
 function openSetSalaryModal(employeeId) {
   document.getElementById('ss-employee-id').value = employeeId;
   document.getElementById('ss-basic-salary').value = '';
-  document.getElementById('ss-allowance-name').value = '';
-  document.getElementById('ss-allowance-amount').value = '';
+  document.getElementById('ss-allowances-list').innerHTML = '';
+  document.getElementById('ss-preview').innerHTML = '';
   document.getElementById('ss-error').style.display = 'none';
   openModal('modal-set-salary');
 }
@@ -2389,9 +2462,7 @@ async function submitSetSalary() {
   const basicSalary = parseFloat(document.getElementById('ss-basic-salary').value);
   if (!basicSalary || basicSalary <= 0) { errEl.textContent = 'Enter a valid basic salary.'; errEl.style.display = 'block'; return; }
 
-  const allowanceName = document.getElementById('ss-allowance-name').value.trim();
-  const allowanceAmount = parseFloat(document.getElementById('ss-allowance-amount').value);
-  const allowances = (allowanceName && allowanceAmount > 0) ? [{ name: allowanceName, amount_kobo: Math.round(allowanceAmount * 100) }] : [];
+  const allowances = collectAllowances('ss');
 
   const btn = document.getElementById('ss-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
