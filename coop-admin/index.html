@@ -98,6 +98,7 @@ tr:last-child td{border-bottom:none}
 .toast.error{border-color:var(--red);color:var(--red)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -216,6 +217,28 @@ tr:last-child td{border-bottom:none}
     <div id="pr-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitNewPayrollRun()" id="pr-btn">Create draft</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-new-payroll-run')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-import-payroll">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Import employees</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">
+      Upload a CSV or Excel (.xlsx/.xls) file. First row must be a header with <code>name</code>, <code>employment_date</code> (YYYY-MM-DD), and <code>basic_salary</code> (in ₦) columns. Optional: <code>job_title</code>, <code>phone</code>, <code>email</code>, <code>bank_name</code>, <code>bank_account_number</code>, <code>tin</code>, <code>pension_rsa_number</code>, <code>housing_allowance</code>, <code>transport_allowance</code>, <code>other_allowance</code>. A name matching an existing employee is skipped, not overwritten — use "Set salary" to change an existing employee's pay.
+    </div>
+    <div class="field"><label>File</label><input type="file" id="pi-file" accept=".csv,.xlsx,.xls"></div>
+    <div id="pi-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <div id="pi-results" style="display:none;max-height:200px;overflow-y:auto;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitPayrollImport()" id="pi-btn">Import</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-import-payroll')">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-payroll-breakdown">
+  <div class="modal-box" style="max-width:900px">
+    <div class="modal-title" id="pb-title">Breakdown</div>
+    <div id="pb-body"><div class="card-sub">Loading…</div></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:16px" onclick="closeModal('modal-payroll-breakdown')">Close</button>
   </div>
 </div>
 
@@ -2133,7 +2156,10 @@ async function renderHrPayroll() {
     el.innerHTML = `
       <div class="card">
         <div class="card-title">Employees
-          <button class="btn btn-primary btn-sm" onclick="openAddEmployeeModal()">+ Add employee</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="openImportPayrollModal()">📄 Import employees</button>
+            <button class="btn btn-primary btn-sm" onclick="openAddEmployeeModal()">+ Add employee</button>
+          </div>
         </div>
         <div class="card-sub">Your society's own paid staff — separate from cooperative members, though an employee can also be one.</div>
         <div class="table-wrap"><table>
@@ -2165,7 +2191,10 @@ async function loadPayrollRunsList() {
       <tr>
         <td>${r.period_label}</td>
         <td><span class="pill ${r.status === 'processed' ? 'pill-green' : 'pill-amber'}">${r.status}</span></td>
-        <td>${r.status === 'draft' ? `<button class="btn btn-ghost btn-sm" onclick="processPayrollRun('${r.id}')">Process</button>` : (r.processed_at ? new Date(r.processed_at).toLocaleDateString() : '—')}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openPayrollBreakdownModal('${r.id}')">Breakdown</button>
+          ${r.status === 'draft' ? `<button class="btn btn-ghost btn-sm" onclick="processPayrollRun('${r.id}')">Process</button>` : ''}
+        </td>
       </tr>`).join('');
     listEl.innerHTML = `<div class="table-wrap"><table>
       <thead><tr><th>Period</th><th>Status</th><th></th></tr></thead>
@@ -2173,6 +2202,108 @@ async function loadPayrollRunsList() {
     </table></div>`;
   } catch (e) {
     listEl.innerHTML = `<div class="card-sub">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// Converts an uploaded .csv, .xlsx, or .xls file into plain CSV text -
+// the backend only ever needs to understand one format, regardless of
+// what the admin actually uploaded.
+function readCsvOrExcelFile(file) {
+  return new Promise((resolve, reject) => {
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the file'));
+    if (isExcel) {
+      reader.onload = (e) => {
+        try {
+          const workbook = XLSX.read(e.target.result, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_csv(firstSheet));
+        } catch (err) { reject(new Error('Could not parse this Excel file: ' + err.message)); }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsText(file);
+    }
+  });
+}
+
+function openImportPayrollModal() {
+  document.getElementById('pi-file').value = '';
+  document.getElementById('pi-error').style.display = 'none';
+  document.getElementById('pi-results').style.display = 'none';
+  openModal('modal-import-payroll');
+}
+
+async function submitPayrollImport() {
+  const errEl = document.getElementById('pi-error');
+  const resultsEl = document.getElementById('pi-results');
+  errEl.style.display = 'none'; resultsEl.style.display = 'none';
+  const fileInput = document.getElementById('pi-file');
+  if (!fileInput.files || fileInput.files.length === 0) { errEl.textContent = 'Choose a CSV or Excel file first.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pi-btn');
+  btn.disabled = true; btn.textContent = 'Reading file...';
+  let csvText;
+  try {
+    csvText = await readCsvOrExcelFile(fileInput.files[0]);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Import';
+    errEl.textContent = e.message; errEl.style.display = 'block';
+    return;
+  }
+
+  btn.textContent = 'Importing...';
+  try {
+    const res = await fetch(`${API}/coop-portal-payroll-import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ csv_text: csvText }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Import';
+    if (!res.ok) { errEl.textContent = data.error || 'Import failed.'; errEl.style.display = 'block'; return; }
+
+    const s = data.summary;
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = `<div style="margin-bottom:6px;font-weight:600">${s.created} created · ${s.already_existed} already existed · ${s.failed} failed</div>` +
+      data.results.filter(r => r.status === 'failed').map(r => `<div style="color:#FF8A8A">Line ${r.line}: ${r.error}</div>`).join('');
+    notify(`Import complete — ${s.created} employee(s) added`);
+    renderHrPayroll();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Import';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function openPayrollBreakdownModal(payrollRunId) {
+  document.getElementById('pb-body').innerHTML = '<div class="card-sub">Loading…</div>';
+  openModal('modal-payroll-breakdown');
+  try {
+    const res = await fetch(`${API}/coop-portal-payroll-run?payroll_run_id=${payrollRunId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('pb-body').innerHTML = `<div class="card-sub">${data.error || 'Failed to load breakdown'}</div>`; return; }
+
+    document.getElementById('pb-title').textContent = `Breakdown — ${data.run.period_label}`;
+    const rows = data.lines.map(l => `
+      <tr>
+        <td>${l.employee_name}${l.job_title ? `<div style="font-size:11px;color:var(--muted)">${l.job_title}</div>` : ''}</td>
+        <td>${fmtNaira(l.basic_salary_kobo)}</td>
+        <td>${fmtNaira(l.allowances_kobo)}</td>
+        <td>${fmtNaira(l.gross_pay_kobo)}</td>
+        <td>${fmtNaira(l.paye_kobo)}</td>
+        <td>${fmtNaira(l.pension_employee_kobo)}</td>
+        <td>${fmtNaira(l.nhf_kobo)}</td>
+        <td>${l.staff_loan_deduction_kobo > 0 ? fmtNaira(l.staff_loan_deduction_kobo) : '—'}</td>
+        <td style="font-weight:700">${fmtNaira(l.net_pay_kobo)}</td>
+      </tr>`).join('');
+
+    document.getElementById('pb-body').innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Basic</th><th>Allowances</th><th>Gross</th><th>PAYE</th><th>Pension (emp.)</th><th>NHF</th><th>Staff loan</th><th>Net pay</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="9" class="no-data">No line items.</td></tr>'}</tbody>
+    </table></div>`;
+  } catch (e) {
+    document.getElementById('pb-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
   }
 }
 
