@@ -421,6 +421,77 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] savings interest pass failed:', e.message);
   }
 
+  // ── 11. Investment accrual (fixed-return products only) ─────────────────
+  // Variable-return products are never accrued here - their returns come
+  // from an admin recording the venture's real performance, a distinct,
+  // manually-triggered event.
+  try {
+    const { applyMonthlyAccrualIfEligible } = require('../../lib/coopInvestmentLifecycle');
+    const now = new Date();
+
+    const { data: investments } = await db.from('coop_member_investments')
+      .select('id, coop_id, member_id, product_id, principal_kobo, status').eq('status', 'ACTIVE');
+
+    const productCache = new Map();
+    for (const inv of (investments || [])) {
+      if (!productCache.has(inv.product_id)) {
+        const { data: prod } = await db.from('coop_investment_products').select('*').eq('id', inv.product_id).maybeSingle();
+        productCache.set(inv.product_id, prod);
+      }
+      const product = productCache.get(inv.product_id);
+      if (!product) continue;
+
+      const result = await applyMonthlyAccrualIfEligible(db, inv, product, now);
+      if (result.applied) {
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'INFO',
+          source:   SOURCE,
+          message:  `Monthly investment accrual credited (${inv.coop_id})`,
+          context:  { coop_id: inv.coop_id, member_investment_id: inv.id, accrual_kobo: result.amountKobo },
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] investment accrual pass failed:', e.message);
+  }
+
+  // ── 12. Investment maturity processing ───────────────────────────────────
+  // Auto-reinvests (if the member opted in) or marks MATURED for an admin
+  // to process payout - either way, the original amount owed is preserved
+  // exactly, never erased.
+  try {
+    const { processMaturity } = require('../../lib/coopInvestmentLifecycle');
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data: dueInvestments } = await db.from('coop_member_investments')
+      .select('id, coop_id, member_id, product_id, principal_kobo, units_purchased, auto_reinvest, status, maturity_date')
+      .eq('status', 'ACTIVE').lte('maturity_date', today);
+
+    const productCache2 = new Map();
+    for (const inv of (dueInvestments || [])) {
+      if (!productCache2.has(inv.product_id)) {
+        const { data: prod } = await db.from('coop_investment_products').select('*').eq('id', inv.product_id).maybeSingle();
+        productCache2.set(inv.product_id, prod);
+      }
+      const product = productCache2.get(inv.product_id);
+      if (!product) continue;
+
+      const result = await processMaturity(db, inv, product);
+      if (result.processed) {
+        alertsRaised++;
+        await logAlert(db, {
+          severity: 'INFO',
+          source:   SOURCE,
+          message:  `Investment matured — ${result.action} (${inv.coop_id})`,
+          context:  { coop_id: inv.coop_id, member_investment_id: inv.id, action: result.action },
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] investment maturity pass failed:', e.message);
+  }
+
   console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
   return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised }) };
 };
