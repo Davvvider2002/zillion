@@ -9,8 +9,16 @@
  * seeing or acting on another's data: a request body or query string
  * can claim any coop_id it likes, but this function ignores that
  * entirely and looks up the real one server-side.
+ *
+ * Two roles can pass this: 'merchant' (the original owner account,
+ * unrestricted) and 'coop_staff' (an additional user the owner added,
+ * whose actual permissions are checked separately via
+ * requirePortalPermission - resolving the society here only confirms
+ * WHICH society they belong to, not what they're allowed to do in it).
  */
 'use strict';
+
+const ALLOWED_ROLES = ['merchant', 'coop_staff'];
 
 /**
  * @param {object} db    Supabase client
@@ -18,7 +26,7 @@
  * @returns {Promise<{ok: true, society: object} | {ok: false, status: number, error: string}>}
  */
 async function resolvePortalSociety(db, auth) {
-  if (auth.payload?.role !== 'merchant') {
+  if (!ALLOWED_ROLES.includes(auth.payload?.role)) {
     return { ok: false, status: 403, error: 'This portal is for cooperative society accounts only.' };
   }
   const merchantId = auth.payload.merchant_id;
@@ -40,4 +48,30 @@ async function resolvePortalSociety(db, auth) {
   return { ok: true, society };
 }
 
-module.exports = { resolvePortalSociety };
+/**
+ * Checks whether the caller may use one specific feature area. The
+ * owner (role='merchant') always passes, unrestricted. A staff user
+ * (role='coop_staff') only passes if they've been explicitly granted
+ * this exact permission_key - checked fresh against the database on
+ * every call, not cached in the JWT, so a permission the owner
+ * revokes takes effect immediately rather than only at the staff
+ * member's next login.
+ *
+ * @param {object} db
+ * @param {object} auth
+ * @param {string} permissionKey  e.g. 'members', 'hr_payroll', 'accounting'
+ * @returns {Promise<boolean>}
+ */
+async function requirePortalPermission(db, auth, permissionKey) {
+  if (auth.payload?.role === 'merchant') return true; // owner - unrestricted
+  if (auth.payload?.role !== 'coop_staff') return false;
+
+  const userId = auth.payload.user_id;
+  if (!userId) return false;
+
+  const { data } = await db.from('coop_portal_user_permissions')
+    .select('id').eq('user_id', userId).eq('permission_key', permissionKey).maybeSingle();
+  return !!data;
+}
+
+module.exports = { resolvePortalSociety, requirePortalPermission };
