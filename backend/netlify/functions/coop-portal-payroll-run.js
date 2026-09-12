@@ -56,6 +56,33 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'GET') {
+    const runId = (event.queryStringParameters || {}).payroll_run_id;
+
+    if (runId) {
+      const { data: run } = await db.from('coop_payroll_runs').select('*').eq('id', runId).eq('coop_id', coopId).maybeSingle();
+      if (!run) return err(404, 'Payroll run not found');
+
+      const { data: lines } = await db.from('coop_payroll_run_lines')
+        .select('*, coop_employees(name, job_title)').eq('payroll_run_id', runId).order('gross_pay_kobo', { ascending: false });
+
+      const enriched = (lines || []).map(l => ({
+        employee_name: l.coop_employees?.name || 'Unknown',
+        job_title: l.coop_employees?.job_title || null,
+        basic_salary_kobo: l.basic_salary_kobo,
+        allowances_kobo: l.gross_pay_kobo - l.basic_salary_kobo,
+        gross_pay_kobo: l.gross_pay_kobo,
+        paye_kobo: l.paye_kobo,
+        pension_employee_kobo: l.pension_employee_kobo,
+        pension_employer_kobo: l.pension_employer_kobo,
+        nhf_kobo: l.nhf_kobo,
+        nsitf_kobo: l.nsitf_kobo,
+        staff_loan_deduction_kobo: l.staff_loan_deduction_kobo,
+        net_pay_kobo: l.net_pay_kobo,
+      }));
+
+      return ok({ run, lines: enriched });
+    }
+
     const { data: runs } = await db.from('coop_payroll_runs')
       .select('id, period_label, period_start, period_end, status, processed_at')
       .eq('coop_id', coopId).order('created_at', { ascending: false });
