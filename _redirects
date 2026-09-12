@@ -171,6 +171,8 @@
 /api/v1/coop-portal-employees                           /.netlify/functions/coop-portal-employees                           200
 /api/v1/coop-portal-payroll-run                         /.netlify/functions/coop-portal-payroll-run                         200
 /api/v1/coop-portal-staff-loans                         /.netlify/functions/coop-portal-staff-loans                         200
+/api/v1/coop-portal-investment-products                 /.netlify/functions/coop-portal-investment-products                 200
+/api/v1/coop-portal-record-investment                   /.netlify/functions/coop-portal-record-investment                   200
 /api/v1/coop-portal-savings-packages                    /.netlify/functions/coop-portal-savings-packages                    200
 /api/v1/coop-portal-update-member                       /.netlify/functions/coop-portal-update-member                       200
 /api/v1/coop-portal-create-loan                         /.netlify/functions/coop-portal-create-loan                         200
