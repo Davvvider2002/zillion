@@ -605,6 +605,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('system',this)">
         <span class="si">⚙️</span> System
       </button>
+      <button class="snav-item" id="nav-statutoryrates"
+              onclick="showSec('statutoryrates',this);loadStatutoryRates()">
+        <span class="si">🧾</span> Statutory Rates
+      </button>
       <button class="snav-item" id="nav-btdiag"
               onclick="showSec('btdiag',this);btDiagInit()">
         <span class="si">&#x1F4F6;</span> BT Diagnostics
@@ -1890,6 +1894,24 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
       <div id="coin-lookup-result"></div>
     </div>
+  </div>
+</div>
+
+<div id="sec-statutoryrates" class="sec">
+  <div class="card">
+    <div class="card-title">Statutory Deduction Rates</div>
+    <div class="card-sub" style="margin-bottom:16px">
+      Platform-wide rates used by every society's HR &amp; Payroll add-on — not a per-society setting, since PAYE, pension, and NHF are set by Nigerian law uniformly. A change here takes effect on the very next payroll run any society processes, anywhere on the platform.
+    </div>
+    <div id="statutory-config-list"><div class="card-sub">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">PAYE Bands</div>
+    <div class="card-sub" style="margin-bottom:16px">
+      Nigeria's progressive income tax bands, applied in order to taxable annual income (gross minus CRA, pension, and NHF). The final band's size is left blank on purpose — it covers everything remaining, however much that is.
+    </div>
+    <div id="paye-bands-list"><div class="card-sub">Loading…</div></div>
   </div>
 </div>
 
@@ -4380,6 +4402,96 @@ async function checkSystem() {
   try { const r=await fetch('/merchant/'); r.ok?setStatus('merch','green','LIVE','Merchant portal accessible'):setStatus('merch','red','ERROR','Check merchant folder'); } catch { setStatus('merch','red','ERROR','Cannot reach /merchant/'); }
 }
 
+const STATUTORY_CONFIG_LABELS = {
+  cra_flat_amount_kobo: { label: 'CRA — flat amount (₦/year)', unit: 'naira' },
+  cra_percent_of_gross: { label: 'CRA — % of gross (the higher of this or the flat amount is used)', unit: 'percent' },
+  cra_additional_percent: { label: 'CRA — additional % of gross (always added on top)', unit: 'percent' },
+  pension_employee_percent: { label: 'Pension — employee %', unit: 'percent' },
+  pension_employer_percent: { label: 'Pension — employer %', unit: 'percent' },
+  nhf_percent: { label: 'NHF %', unit: 'percent' },
+  nsitf_percent: { label: 'NSITF % (employer-only)', unit: 'percent' },
+};
+
+async function loadStatutoryRates() {
+  const configEl = document.getElementById('statutory-config-list');
+  const bandsEl = document.getElementById('paye-bands-list');
+  configEl.innerHTML = '<div class="card-sub">Loading…</div>';
+  bandsEl.innerHTML = '<div class="card-sub">Loading…</div>';
+  try {
+    const res = await fetch(`${API}/admin-statutory-rates`, { headers: { 'Authorization': 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { configEl.innerHTML = `<div class="card-sub">${data.error || 'Failed to load'}</div>`; bandsEl.innerHTML = ''; return; }
+
+    configEl.innerHTML = (data.config || []).map(c => {
+      const meta = STATUTORY_CONFIG_LABELS[c.config_key] || { label: c.config_key, unit: 'percent' };
+      const displayValue = meta.unit === 'naira' ? (c.config_value_numeric / 100) : c.config_value_numeric;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd)">
+          <div style="flex:1"><div style="font-size:13px;font-weight:600">${meta.label}</div></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="cfg-${c.config_key}" value="${displayValue}" style="width:120px;padding:7px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--d1);color:var(--tx)">
+            <button class="rbtn" onclick="submitUpdateStatutoryConfig('${c.config_key}', '${meta.unit}')">Save</button>
+          </div>
+        </div>`;
+    }).join('') || '<div class="card-sub">No config found.</div>';
+
+    bandsEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th style="text-align:left;padding:8px;font-size:11px;color:var(--gr)">BAND</th><th style="text-align:left;padding:8px;font-size:11px;color:var(--gr)">SIZE (₦/year, blank = unlimited)</th><th style="text-align:left;padding:8px;font-size:11px;color:var(--gr)">RATE %</th><th></th></tr></thead>
+        <tbody>${(data.paye_bands || []).map(b => `
+          <tr style="border-top:1px solid var(--bd)">
+            <td style="padding:8px">Band ${b.band_order}</td>
+            <td style="padding:8px"><input type="number" id="band-size-${b.band_order}" value="${b.band_size_kobo != null ? b.band_size_kobo / 100 : ''}" placeholder="Unlimited" style="width:140px;padding:7px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--d1);color:var(--tx)"></td>
+            <td style="padding:8px"><input type="number" id="band-rate-${b.band_order}" value="${b.rate_percent}" style="width:80px;padding:7px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--d1);color:var(--tx)"></td>
+            <td style="padding:8px"><button class="rbtn" onclick="submitUpdatePayeBand(${b.band_order})">Save</button></td>
+          </tr>`).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    configEl.innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
+    bandsEl.innerHTML = '';
+  }
+}
+
+async function submitUpdateStatutoryConfig(configKey, unit) {
+  const input = document.getElementById(`cfg-${configKey}`);
+  const rawValue = parseFloat(input.value);
+  if (isNaN(rawValue) || rawValue < 0) { alert('Enter a valid, non-negative number.'); return; }
+  const config_value_numeric = unit === 'naira' ? Math.round(rawValue * 100) : rawValue;
+
+  try {
+    const res = await fetch(`${API}/admin-statutory-rates`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body: JSON.stringify({ action: 'update_config', config_key: configKey, config_value_numeric }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to update.'); return; }
+    alert('Saved.');
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function submitUpdatePayeBand(bandOrder) {
+  const sizeInput = document.getElementById(`band-size-${bandOrder}`);
+  const rateInput = document.getElementById(`band-rate-${bandOrder}`);
+  const sizeNaira = sizeInput.value.trim() === '' ? null : parseFloat(sizeInput.value);
+  const rate = parseFloat(rateInput.value);
+  if (sizeNaira !== null && (isNaN(sizeNaira) || sizeNaira <= 0)) { alert('Band size must be a positive number, or blank for unlimited.'); return; }
+  if (isNaN(rate) || rate < 0 || rate > 100) { alert('Rate must be between 0 and 100.'); return; }
+
+  try {
+    const res = await fetch(`${API}/admin-statutory-rates`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+      body: JSON.stringify({ action: 'update_paye_band', band_order: bandOrder, band_size_kobo: sizeNaira !== null ? Math.round(sizeNaira * 100) : null, rate_percent: rate }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to update.'); return; }
+    alert('Saved.');
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
 async function lookupCoin() {
   const coinId = (document.getElementById('coin-lookup-input')?.value||'').trim();
   if (!coinId) return;
@@ -5575,7 +5687,7 @@ function showSec(name, el) {
     overview:'Dashboard', customers:'Customers', merchants:'Merchants',
     agents:'Agents', coins:'Coins', transactions:'Transactions',
     tokens:'Tokens', ledger:'Ledger', users:'Users & Access',
-    fraud:'Fraud', system:'System'
+    fraud:'Fraud', system:'System', statutoryrates:'Statutory Rates'
   };
   const topTitle = document.getElementById('top-bar-title');
   if (topTitle) topTitle.textContent = titles[name] || name;
