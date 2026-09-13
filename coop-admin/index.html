@@ -167,6 +167,46 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-add-user">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">Add user</div>
+    <div class="field"><label>Full name</label><input type="text" id="au-name" placeholder="e.g. Ngozi Eze"></div>
+    <div class="field"><label>Phone number</label><input type="tel" id="au-phone" placeholder="08012345678"></div>
+    <div class="field"><label>Password</label><input type="password" id="au-password" placeholder="At least 6 characters"></div>
+    <div class="field">
+      <label>Access — tick every section this person should be able to use</label>
+      <div id="au-permissions"></div>
+    </div>
+    <div id="au-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitAddUser()" id="au-btn">Add user</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-add-user')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-edit-permissions">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">Edit access — <span id="ep-user-name"></span></div>
+    <input type="hidden" id="ep-user-id">
+    <div class="field">
+      <div id="ep-permissions"></div>
+    </div>
+    <div id="ep-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitEditPermissions()" id="ep-btn">Save access</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-edit-permissions')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reset-password">
+  <div class="modal-box">
+    <div class="modal-title">Reset password</div>
+    <input type="hidden" id="rpw-user-id">
+    <div class="field"><label>New password</label><input type="password" id="rpw-new-password" placeholder="At least 6 characters"></div>
+    <div id="rpw-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitResetPassword()" id="rpw-btn">Reset password</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-reset-password')">Cancel</button>
+  </div>
+</div>
+
 <!-- HR & PAYROLL MODALS -->
 <div class="modal-overlay" id="modal-add-employee">
   <div class="modal-box" style="max-width:480px">
@@ -345,6 +385,7 @@ tr:last-child td{border-bottom:none}
         <div class="sidebar-item" data-view="addons" onclick="switchView('addons')">Add-ons</div>
         <div class="sidebar-item" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
         <div class="sidebar-item" data-view="billing" onclick="switchView('billing')">Billing</div>
+        <div class="sidebar-item" id="nav-users-item" data-view="users" onclick="switchView('users')" style="display:none">Users</div>
       </div>
     </div>
 
@@ -371,6 +412,7 @@ tr:last-child td{border-bottom:none}
         <div class="view" id="view-reconciliation"></div>
         <div class="view" id="view-surplus"></div>
         <div class="view" id="view-billing"></div>
+        <div class="view" id="view-users"></div>
       </div>
     </div>
   </div>
@@ -1005,6 +1047,24 @@ async function loadPortalData() {
     } else {
       badge.style.display = 'none';
     }
+
+    // Sidebar access control - the owner (role='merchant') sees
+    // everything, unrestricted. A staff user only sees the sections
+    // they've been explicitly granted; Dashboard is always visible to
+    // everyone since it's just a summary, and Users is never shown to
+    // staff at all, since user/permission management is deliberately
+    // never itself a grantable permission.
+    document.getElementById('nav-users-item').style.display = data.is_owner ? '' : 'none';
+    if (!data.is_owner) {
+      const granted = new Set(data.permissions || []);
+      document.querySelectorAll('.sidebar-item').forEach(item => {
+        const view = item.dataset.view;
+        if (view && view !== 'dashboard' && view !== 'users') {
+          item.style.display = granted.has(view) ? '' : 'none';
+        }
+      });
+    }
+
     return true;
   } catch (e) {
     notify('Failed to load: ' + e.message, true);
@@ -1031,6 +1091,7 @@ function switchView(name) {
   if (name === 'reconciliation') renderReconciliation();
   if (name === 'surplus') renderSurplus();
   if (name === 'billing') renderBilling();
+  if (name === 'users') renderUsers();
 }
 
 async function refreshAndRender() {
@@ -2806,6 +2867,190 @@ async function submitRecordPerformance() {
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Record performance';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+// ── USERS & ACCESS ────────────────────────────────────────────────────
+const PERMISSION_LABELS = {
+  members: 'Members', savings: 'Savings', loans: 'Loans', dues: 'Dues',
+  hr_payroll: 'HR & Payroll', investment: 'Investment', accounting: 'Accounting',
+  reconciliation: 'Bank Reconciliation', surplus: 'Surplus & Dividends',
+  addons: 'Add-ons', notifications: 'Notifications', billing: 'Billing',
+};
+
+async function renderUsers() {
+  const el = document.getElementById('view-users');
+  el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-users`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = `<div class="card"><div class="card-sub">${data.error || 'Unable to load'}</div></div>`; return; }
+
+    window._portalUsers = data.users || [];
+    const rows = window._portalUsers.map(u => `
+      <tr>
+        <td>${u.name}</td>
+        <td>${u.phone}</td>
+        <td>${u.permissions.length ? u.permissions.map(p => `<span class="pill pill-muted" style="margin:2px">${PERMISSION_LABELS[p] || p}</span>`).join('') : '<span class="pill pill-muted">No access granted</span>'}</td>
+        <td><span class="pill ${u.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${u.status}</span></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openEditPermissionsModal('${u.id}')">Edit access</button>
+          <button class="btn btn-ghost btn-sm" onclick="openResetPasswordModal('${u.id}')">Reset password</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}', '${u.status === 'ACTIVE' ? 'disable' : 'enable'}')">${u.status === 'ACTIVE' ? 'Disable' : 'Enable'}</button>
+        </td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">Users &amp; Access
+          <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ Add user</button>
+        </div>
+        <div class="card-sub">Additional people who can sign in to this portal, each limited to exactly the sections you tick for them. Only the primary account (you) can manage users — this is never itself a grantable permission.</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Access</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" class="no-data">No additional users yet.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+  }
+}
+
+function renderPermissionCheckboxes(containerId, checkedKeys) {
+  const checked = new Set(checkedKeys || []);
+  document.getElementById(containerId).innerHTML = Object.entries(PERMISSION_LABELS).map(([key, label]) => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer">
+      <input type="checkbox" value="${key}" ${checked.has(key) ? 'checked' : ''} class="perm-checkbox" style="width:auto">
+      ${label}
+    </label>
+  `).join('');
+}
+
+function collectCheckedPermissions(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} .perm-checkbox:checked`)).map(cb => cb.value);
+}
+
+function openAddUserModal() {
+  document.getElementById('au-name').value = '';
+  document.getElementById('au-phone').value = '';
+  document.getElementById('au-password').value = '';
+  renderPermissionCheckboxes('au-permissions', []);
+  document.getElementById('au-error').style.display = 'none';
+  openModal('modal-add-user');
+}
+
+async function submitAddUser() {
+  const errEl = document.getElementById('au-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('au-name').value.trim();
+  const phone = document.getElementById('au-phone').value.trim();
+  const password = document.getElementById('au-password').value;
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = 'block'; return; }
+  if (!phone) { errEl.textContent = 'Phone is required.'; errEl.style.display = 'block'; return; }
+  if (!password || password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+
+  const permissions = collectCheckedPermissions('au-permissions');
+
+  const btn = document.getElementById('au-btn');
+  btn.disabled = true; btn.textContent = 'Adding...';
+  try {
+    const res = await fetch(`${API}/coop-portal-users`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'create', name, phone, password, permissions }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Add user';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to add user.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-add-user');
+    notify('User added.');
+    renderUsers();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Add user';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function openEditPermissionsModal(userId) {
+  const user = window._portalUsers.find(u => u.id === userId);
+  if (!user) return;
+  document.getElementById('ep-user-id').value = userId;
+  document.getElementById('ep-user-name').textContent = user.name;
+  renderPermissionCheckboxes('ep-permissions', user.permissions);
+  document.getElementById('ep-error').style.display = 'none';
+  openModal('modal-edit-permissions');
+}
+
+async function submitEditPermissions() {
+  const errEl = document.getElementById('ep-error');
+  errEl.style.display = 'none';
+  const userId = document.getElementById('ep-user-id').value;
+  const permissions = collectCheckedPermissions('ep-permissions');
+
+  const btn = document.getElementById('ep-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-users`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'update_permissions', user_id: userId, permissions }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Save access';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to update.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-edit-permissions');
+    notify('Access updated.');
+    renderUsers();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Save access';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function openResetPasswordModal(userId) {
+  document.getElementById('rpw-user-id').value = userId;
+  document.getElementById('rpw-new-password').value = '';
+  document.getElementById('rpw-error').style.display = 'none';
+  openModal('modal-reset-password');
+}
+
+async function submitResetPassword() {
+  const errEl = document.getElementById('rpw-error');
+  errEl.style.display = 'none';
+  const userId = document.getElementById('rpw-user-id').value;
+  const newPassword = document.getElementById('rpw-new-password').value;
+  if (!newPassword || newPassword.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('rpw-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-users`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'reset_password', user_id: userId, new_password: newPassword }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Reset password';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to reset password.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-reset-password');
+    notify('Password reset.');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Reset password';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function toggleUserStatus(userId, action) {
+  if (action === 'disable' && !confirm('Disable this user? They will not be able to sign in until re-enabled.')) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-users`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action, user_id: userId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to update.', true); return; }
+    notify(action === 'disable' ? 'User disabled.' : 'User enabled.');
+    renderUsers();
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
   }
 }
 
