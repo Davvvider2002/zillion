@@ -23,7 +23,7 @@
 
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
-const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
+const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { computeVariableDistribution } = require('../../lib/coopInvestmentAccrual');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
@@ -45,6 +45,10 @@ exports.handler = async (event) => {
   const resolved = await resolvePortalSociety(db, auth);
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
+
+  if (!(await requirePortalPermission(db, auth, 'investment'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (!(await hasAddon(db, coopId, 'investment'))) {
     return err(403, 'Investment is not enabled for this society. Add it from the Add-ons tab.');
