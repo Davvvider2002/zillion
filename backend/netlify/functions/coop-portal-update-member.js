@@ -20,7 +20,7 @@
 
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
-const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
+const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 
 // Controlled list, matching public-coop-signup.js's VALID_INDUSTRIES
 // pattern, so analytics can aggregate by category rather than
@@ -45,6 +45,10 @@ exports.handler = async (event) => {
   const resolved = await resolvePortalSociety(db, auth);
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
+
+  if (!(await requirePortalPermission(db, auth, 'members'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
