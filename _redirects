@@ -176,6 +176,7 @@
 /api/v1/coop-portal-investment-withdraw                 /.netlify/functions/coop-portal-investment-withdraw                 200
 /api/v1/coop-portal-investment-performance              /.netlify/functions/coop-portal-investment-performance              200
 /api/v1/coop-portal-users                               /.netlify/functions/coop-portal-users                               200
+/api/v1/coop-portal-payroll-preview                     /.netlify/functions/coop-portal-payroll-preview                     200
 /api/v1/coop-portal-record-investment                   /.netlify/functions/coop-portal-record-investment                   200
 /api/v1/coop-portal-savings-packages                    /.netlify/functions/coop-portal-savings-packages                    200
 /api/v1/coop-portal-update-member                       /.netlify/functions/coop-portal-update-member                       200
