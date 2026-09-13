@@ -13,7 +13,7 @@
 
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
-const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
+const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 
 const VALID_INTEREST_METHODS = ['flat', 'reducing_balance_emi', 'reducing_balance_declining'];
 
@@ -58,6 +58,10 @@ exports.handler = async (event) => {
   const resolved = await resolvePortalSociety(db, auth);
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
+
+  if (!(await requirePortalPermission(db, auth, 'loans'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (event.httpMethod === 'GET') {
     const { data: packages } = await db.from('coop_loan_packages')
