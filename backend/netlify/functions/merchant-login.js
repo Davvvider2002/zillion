@@ -97,7 +97,10 @@ exports.handler = async (event) => {
 
     console.log(`[merchant-login] ✅ staff user ${staffUser.id} authenticated for ${staffUser.coop_id}`);
 
-    return ok({ success: true, token, merchant_id: society.merchant_id, business_name: society.name, owner_name: staffUser.name, is_staff: true });
+    const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key').eq('user_id', staffUser.id);
+    const permissions = (perms || []).map(p => p.permission_key);
+
+    return ok({ success: true, token, merchant_id: society.merchant_id, business_name: society.name, owner_name: staffUser.name, is_staff: true, permissions });
   }
 
   // Verify password
