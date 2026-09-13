@@ -810,6 +810,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-dashboard-analytics"
+  to   = "/.netlify/functions/coop-portal-dashboard-analytics"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-record-investment"
   to   = "/.netlify/functions/coop-portal-record-investment"
   status = 200
