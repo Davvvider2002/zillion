@@ -45,17 +45,17 @@ label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:6px;font-w
 
 /* APP SHELL */
 #app-shell{display:none}
-.app-body{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:230px;flex-shrink:0;background:#0a2e1a;border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.app-body{display:flex;align-items:flex-start}
+.sidebar{width:230px;flex-shrink:0;background:#0a2e1a;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
 .sidebar-brand{padding:18px 20px;font-family:'Fraunces',serif;font-weight:900;font-size:16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);flex-shrink:0}
 .sidebar-nav{flex:1;overflow-y:auto;padding:10px 0}
 .sidebar-group-label{padding:16px 20px 6px 20px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .sidebar-item{padding:10px 20px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-left:3px solid transparent}
 .sidebar-item:hover{color:var(--cream);background:rgba(255,255,255,.03)}
 .sidebar-item.active{color:var(--amber);border-left-color:var(--amber);background:rgba(232,147,12,.08)}
-.main-column{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.main-column{flex:1;display:flex;flex-direction:column;min-width:0}
 .main-column .topbar{flex-shrink:0}
-.view-scroll{flex:1;overflow-y:auto}
+.view-scroll{flex:1}
 .topbar{position:sticky;top:0;z-index:50;background:rgba(10,46,26,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .topbar-left{display:flex;align-items:center;gap:14px}
 .topbar-logo{font-family:'Fraunces',serif;font-weight:900;font-size:17px;display:flex;align-items:center;gap:8px}
@@ -99,6 +99,7 @@ tr:last-child td{border-bottom:none}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -1100,7 +1101,7 @@ async function refreshAndRender() {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────
-function renderDashboard() {
+async function renderDashboard() {
   const d = portalData;
   const el = document.getElementById('view-dashboard');
   const pendingLoans = d.loans.filter(l => l.status === 'PENDING_APPROVAL').length;
@@ -1119,6 +1120,20 @@ function renderDashboard() {
       <button class="btn btn-primary btn-sm" onclick="switchView('loans')">Review loans →</button>
     </div>` : ''}
     <div class="card">
+      <div class="card-title">Analytics</div>
+      <div class="card-sub">Last 6 months, and a current snapshot of your loan portfolio.</div>
+      <div id="dashboard-charts-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">
+        <div style="background:var(--ink);border-radius:10px;padding:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">MEMBER GROWTH</div><canvas id="chart-members" height="180"></canvas></div>
+        <div style="background:var(--ink);border-radius:10px;padding:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">SAVINGS DEPOSITED PER MONTH</div><canvas id="chart-savings" height="180"></canvas></div>
+        <div style="background:var(--ink);border-radius:10px;padding:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">LOAN PORTFOLIO BY STATUS</div><canvas id="chart-loans" height="180"></canvas></div>
+        <div style="background:var(--ink);border-radius:10px;padding:14px;display:flex;flex-direction:column;justify-content:center;align-items:center">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600;align-self:flex-start">TOTAL DUES COLLECTED</div>
+          <div id="dues-collected-figure" style="font-size:32px;font-weight:800;color:#00C896">…</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">all-time, across every member</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-title">Recent members</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Name</th><th>Phone</th><th>Joined</th></tr></thead>
@@ -1128,6 +1143,58 @@ function renderDashboard() {
       </table></div>
     </div>
   `;
+  loadDashboardCharts();
+}
+
+let _dashboardChartInstances = [];
+async function loadDashboardCharts() {
+  // Destroy any previous instances first - re-rendering the dashboard
+  // without this would leak old Chart.js instances onto the same canvases.
+  _dashboardChartInstances.forEach(c => c.destroy());
+  _dashboardChartInstances = [];
+
+  try {
+    const res = await fetch(`${API}/coop-portal-dashboard-analytics`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) return;
+
+    const palette = { amber: '#E8930C', teal: '#00C896', blue: '#3B82F6', purple: '#8B5CF6', red: '#EF4444', muted: '#9CC4B0' };
+    Chart.defaults.color = palette.muted;
+    Chart.defaults.borderColor = 'rgba(255,255,255,.08)';
+
+    _dashboardChartInstances.push(new Chart(document.getElementById('chart-members'), {
+      type: 'line',
+      data: {
+        labels: data.months,
+        datasets: [{ label: 'Total members', data: data.cumulative_members_by_month, borderColor: palette.teal, backgroundColor: 'rgba(0,200,150,.15)', fill: true, tension: 0.3 }],
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    }));
+
+    _dashboardChartInstances.push(new Chart(document.getElementById('chart-savings'), {
+      type: 'bar',
+      data: {
+        labels: data.months,
+        datasets: [{ label: 'Saved (₦)', data: data.savings_growth_kobo.map(k => k / 100), backgroundColor: palette.blue, borderRadius: 6 }],
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => '₦' + v.toLocaleString() } } } },
+    }));
+
+    const statusColors = { PENDING_APPROVAL: palette.amber, DISBURSED: palette.blue, REPAYING: palette.purple, COMPLETED: palette.teal, REJECTED: palette.red, DEFAULTED: palette.red };
+    const statusEntries = Object.entries(data.loan_status_breakdown);
+    _dashboardChartInstances.push(new Chart(document.getElementById('chart-loans'), {
+      type: 'doughnut',
+      data: {
+        labels: statusEntries.map(([status]) => status.replace(/_/g, ' ')),
+        datasets: [{ data: statusEntries.map(([, v]) => v.count), backgroundColor: statusEntries.map(([status]) => statusColors[status] || palette.muted) }],
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
+    }));
+
+    document.getElementById('dues-collected-figure').textContent = fmtNaira(data.total_dues_paid_kobo);
+  } catch (e) {
+    console.warn('[dashboard] analytics failed to load (non-fatal):', e.message);
+  }
 }
 
 // ── MEMBERS ───────────────────────────────────────────────────────────
