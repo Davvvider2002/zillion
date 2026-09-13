@@ -19,7 +19,7 @@
 
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
-const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
+const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { computeSurplusForPeriod } = require('../../lib/coopSurplus');
 
@@ -35,6 +35,10 @@ exports.handler = async (event) => {
   const resolved = await resolvePortalSociety(db, auth);
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
+
+  if (!(await requirePortalPermission(db, auth, 'surplus'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (!(await hasAddon(db, coopId, 'surplus_dividends'))) return err(403, 'Surplus & Member Benefits is not on your current plan');
 
