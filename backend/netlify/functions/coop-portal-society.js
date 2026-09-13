@@ -107,8 +107,17 @@ exports.handler = async (event) => {
   const activeLoansKobo = loans.filter(l => ['DISBURSED', 'REPAYING'].includes(l.status))
     .reduce((s, l) => s + (l.repayment?.outstanding_kobo ?? l.principal_kobo ?? 0), 0);
 
+  const isOwner = auth.payload.role === 'merchant';
+  let permissions = [];
+  if (!isOwner && auth.payload.user_id) {
+    const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key').eq('user_id', auth.payload.user_id);
+    permissions = (perms || []).map(p => p.permission_key);
+  }
+
   return ok({
     society,
+    is_owner: isOwner,
+    permissions,
     terms_accepted: !!termsAcceptance,
     terms_version: CURRENT_TERMS_VERSION,
     privacy_version: CURRENT_PRIVACY_VERSION,
