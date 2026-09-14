@@ -49,20 +49,25 @@ async function resolvePortalSociety(db, auth) {
 }
 
 /**
- * Checks whether the caller may use one specific feature area. The
- * owner (role='merchant') always passes, unrestricted. A staff user
- * (role='coop_staff') only passes if they've been explicitly granted
- * this exact permission_key - checked fresh against the database on
- * every call, not cached in the JWT, so a permission the owner
- * revokes takes effect immediately rather than only at the staff
- * member's next login.
+ * Checks whether the caller may perform one specific action within
+ * one feature area. The owner (role='merchant') always passes,
+ * unrestricted. A staff user (role='coop_staff') only passes if
+ * they've been explicitly granted this exact permission_key + action
+ * pair - checked fresh against the database on every call, not
+ * cached in the JWT, so a permission the owner revokes takes effect
+ * immediately rather than only at the staff member's next login.
+ *
+ * action defaults to 'view' - every existing call site that predates
+ * per-action granularity keeps working unchanged, since 'view' is
+ * the minimum right a feature grant always includes.
  *
  * @param {object} db
  * @param {object} auth
  * @param {string} permissionKey  e.g. 'members', 'hr_payroll', 'accounting'
+ * @param {string} action         'view' | 'create' | 'edit' | 'delete'
  * @returns {Promise<boolean>}
  */
-async function requirePortalPermission(db, auth, permissionKey) {
+async function requirePortalPermission(db, auth, permissionKey, action = 'view') {
   if (auth.payload?.role === 'merchant') return true; // owner - unrestricted
   if (auth.payload?.role !== 'coop_staff') return false;
 
@@ -70,7 +75,7 @@ async function requirePortalPermission(db, auth, permissionKey) {
   if (!userId) return false;
 
   const { data } = await db.from('coop_portal_user_permissions')
-    .select('id').eq('user_id', userId).eq('permission_key', permissionKey).maybeSingle();
+    .select('id').eq('user_id', userId).eq('permission_key', permissionKey).eq('action', action).maybeSingle();
   return !!data;
 }
 
