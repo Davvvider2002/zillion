@@ -109,15 +109,23 @@ exports.handler = async (event) => {
 
   const isOwner = auth.payload.role === 'merchant';
   let permissions = [];
+  let permissionActions = [];
   if (!isOwner && auth.payload.user_id) {
-    const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key').eq('user_id', auth.payload.user_id);
-    permissions = (perms || []).map(p => p.permission_key);
+    const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key, action').eq('user_id', auth.payload.user_id);
+    permissions = (perms || []).filter(p => p.action === 'view').map(p => p.permission_key);
+    const grouped = new Map();
+    for (const p of (perms || [])) {
+      if (!grouped.has(p.permission_key)) grouped.set(p.permission_key, []);
+      grouped.get(p.permission_key).push(p.action);
+    }
+    permissionActions = Array.from(grouped.entries()).map(([permission_key, actions]) => ({ permission_key, actions }));
   }
 
   return ok({
     society,
     is_owner: isOwner,
     permissions,
+    permission_actions: permissionActions,
     terms_accepted: !!termsAcceptance,
     terms_version: CURRENT_TERMS_VERSION,
     privacy_version: CURRENT_PRIVACY_VERSION,
