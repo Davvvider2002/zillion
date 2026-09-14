@@ -1043,6 +1043,7 @@ function triggerPWAInstall() {
           <div class="bal-label" id="home-coop-hero-society" style="color:#9CC4B0">Thrift &amp; Loan</div>
           <span id="home-coop-hero-switch-chevron" style="display:none;color:#9CC4B0;font-size:11px">▾</span>
         </div>
+        <div id="home-coop-hero-member-number" style="color:#6B9C82;font-size:11px;font-family:monospace;margin-bottom:4px"></div>
         <div class="bal-amount" style="color:#fff;font-weight:800" id="home-coop-hero-saved">₦0.00</div>
         <div class="bal-sub" style="color:#9CC4B0">
           <span id="home-coop-hero-target">Target ₦0</span>
@@ -2751,6 +2752,7 @@ async function zilRenderCoopSummary() {
     const pct = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
 
     document.getElementById('home-coop-hero-society').textContent = data.society.name;
+    document.getElementById('home-coop-hero-member-number').textContent = data.member?.member_number ? `Member ID: ${data.member.member_number}` : '';
     coopCheckMultipleSocieties();
     document.getElementById('home-coop-hero-saved').textContent = fmtNaira(totalSaved);
     document.getElementById('home-coop-hero-target').textContent = `Target ${fmtNaira(totalTarget)} · ${pct}%`;
