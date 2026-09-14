@@ -815,6 +815,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-reconciliation-source"
+  to   = "/.netlify/functions/coop-portal-reconciliation-source"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-record-investment"
   to   = "/.netlify/functions/coop-portal-record-investment"
   status = 200
