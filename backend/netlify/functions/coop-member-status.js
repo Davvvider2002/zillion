@@ -42,7 +42,7 @@ exports.handler = async (event) => {
 
   const member = await resolveMemberForZillionId(db,
     zillionId,
-    'id, coop_id, name, email, phone_normalized, opening_balance_kobo, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)',
+    'id, coop_id, name, email, phone_normalized, opening_balance_kobo, member_number, flutterwave_dues_account_number, flutterwave_dues_bank_name, coop_societies(name)',
     auth.payload.coop_id || null
   );
 
@@ -129,7 +129,7 @@ exports.handler = async (event) => {
   return ok({
     is_coop_member:     true,
     society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent },
-    member:             { name: member.name, email: member.email, status: member.status, activated_at: member.activated_at },
+    member:             { name: member.name, email: member.email, status: member.status, activated_at: member.activated_at, member_number: member.member_number },
     savings_plans:      plansWithProgress,
     loan_packages:      activeLoanPackages || [],
     loans:               loans || [],
