@@ -37,15 +37,14 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'hr_payroll'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'payroll'))) {
     return err(403, 'HR & Payroll is not enabled for this society. Add it from the Add-ons tab.');
   }
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'hr_payroll', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const { data: employees } = await db.from('coop_employees')
       .select('id, name, job_title, email, phone, employment_date, status, member_id, coop_members(name)')
       .eq('coop_id', coopId).order('employment_date', { ascending: false });
@@ -67,6 +66,12 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
+
+  // create is the only genuinely new-record action here - update,
+  // terminate, and set_salary all modify an employee that already exists.
+  if (!(await requirePortalPermission(db, auth, 'hr_payroll', body.action === 'create' ? 'create' : 'edit'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (body.action === 'create') {
     const name = (body.name || '').trim();
