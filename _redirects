@@ -179,6 +179,7 @@
 /api/v1/coop-portal-payroll-preview                     /.netlify/functions/coop-portal-payroll-preview                     200
 /api/v1/coop-portal-dashboard-analytics                 /.netlify/functions/coop-portal-dashboard-analytics                 200
 /api/v1/coop-portal-reconciliation-source               /.netlify/functions/coop-portal-reconciliation-source               200
+/api/v1/coop-portal-reconciliation-statement-pdf         /.netlify/functions/coop-portal-reconciliation-statement-pdf         200
 /api/v1/coop-portal-record-investment                   /.netlify/functions/coop-portal-record-investment                   200
 /api/v1/coop-portal-savings-packages                    /.netlify/functions/coop-portal-savings-packages                    200
 /api/v1/coop-portal-update-member                       /.netlify/functions/coop-portal-update-member                       200
