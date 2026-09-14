@@ -68,14 +68,34 @@ async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, 
     } catch (e) { console.warn('[coopActivateMember] wallet pre-provision failed (non-fatal):', e.message); }
   }
 
-  const { data: created, error: insertErr } = await db.from('coop_members').insert({
-    coop_id:              coopId,
-    zillion_id:           zillionId,
-    phone_normalized:     phone,
-    name:                 name || null,
-    opening_balance_kobo: openingBalanceKobo || 0,
-    activated_by:         activatedBy,
-  }).select().single();
+  // Sequential within this society only - like a bank account number
+  // scoped to a branch, not globally unique. Counts every member ever
+  // created for this society (regardless of current status) so a
+  // deactivated member's number is never silently reused.
+  async function nextMemberNumber() {
+    const { count: existingCount } = await db.from('coop_members')
+      .select('id', { count: 'exact', head: true }).eq('coop_id', coopId);
+    return String((existingCount || 0) + 1).padStart(4, '0');
+  }
+
+  let created, insertErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const memberNumber = await nextMemberNumber();
+    const result = await db.from('coop_members').insert({
+      coop_id:              coopId,
+      zillion_id:           zillionId,
+      phone_normalized:     phone,
+      name:                 name || null,
+      opening_balance_kobo: openingBalanceKobo || 0,
+      activated_by:         activatedBy,
+      member_number:        memberNumber,
+    }).select().single();
+    created = result.data; insertErr = result.error;
+    // Only retry if it was specifically the member_number uniqueness
+    // that collided (a genuinely concurrent activation) - any other
+    // error should surface immediately, not be masked by a retry.
+    if (!insertErr || !String(insertErr.message || '').includes('idx_coop_members_number')) break;
+  }
 
   if (insertErr) return { ok: false, status: 'error', error: insertErr.message, phone };
 
