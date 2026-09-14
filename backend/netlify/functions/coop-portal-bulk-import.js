@@ -27,7 +27,17 @@ function parseCsv(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
   if (!lines.length) return { rows: [], error: 'CSV is empty' };
 
-  const headerCells = lines[0].split(',').map(c => c.trim().toLowerCase());
+  // Auto-detect the delimiter rather than assume comma - pasting
+  // cells directly from Excel produces tab-separated text, not
+  // comma-separated, and a comma-only parser would see the entire
+  // header row as a single column, never finding "phone" even though
+  // it's right there as the first word.
+  const headerLine = lines[0];
+  const delimiter = [',', '\t', ';']
+    .map(d => ({ d, count: headerLine.split(d).length }))
+    .sort((a, b) => b.count - a.count)[0].d;
+
+  const headerCells = headerLine.split(delimiter).map(c => c.trim().toLowerCase());
   const phoneIdx = headerCells.indexOf('phone');
   const nameIdx = headerCells.indexOf('name');
   const balanceIdx = headerCells.indexOf('opening_balance');
@@ -36,7 +46,7 @@ function parseCsv(text) {
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split(',').map(c => c.trim());
+    const cells = lines[i].split(delimiter).map(c => c.trim());
     rows.push({
       lineNumber: i + 1,
       phone: cells[phoneIdx] || '',
