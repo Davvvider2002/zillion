@@ -34,7 +34,7 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'notifications'))) {
+  if (!(await requirePortalPermission(db, auth, 'notifications', 'create'))) {
     return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
   }
 
