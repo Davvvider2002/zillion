@@ -3715,7 +3715,9 @@ async function viewReconciliationBatch(batchId) {
     if (!res.ok) { detailEl.innerHTML = `<div class="card"><div class="no-data">${data.error}</div></div>`; return; }
     detailEl.innerHTML = `
       <div class="card">
-        <div class="card-title">Reconciliation detail — ${data.batch.bank_name || 'Bank'} — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}</div>
+        <div class="card-title">Reconciliation detail — ${data.batch.bank_name || 'Bank'} — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}
+          <button class="btn btn-ghost btn-sm" onclick="downloadReconciliationStatement('${batchId}')" id="recon-pdf-btn">📄 Download statement (PDF)</button>
+        </div>
         <div class="card-sub">${data.batch.matched_lines} of ${data.batch.total_lines} statement lines matched.</div>
         <div style="background:var(--ink);border-radius:10px;padding:14px 16px;margin-top:14px;font-size:13px">
           <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">Opening balance</span><span>${fmtNaira(data.summary.opening_balance_kobo)}</span></div>
@@ -3762,6 +3764,32 @@ async function viewReconciliationBatch(batchId) {
     `;
   } catch (e) {
     detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${e.message}</div></div>`;
+  }
+}
+
+async function downloadReconciliationStatement(batchId) {
+  const btn = document.getElementById('recon-pdf-btn');
+  const originalText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generating...';
+  try {
+    const res = await fetch(`${API}/coop-portal-reconciliation-statement-pdf?batch_id=${batchId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to generate statement.', true); btn.disabled = false; btn.textContent = originalText; return; }
+
+    const byteChars = atob(data.pdf_base64);
+    const byteNumbers = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = data.filename || 'reconciliation-statement.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    btn.disabled = false; btn.textContent = originalText;
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+    btn.disabled = false; btn.textContent = originalText;
   }
 }
 
