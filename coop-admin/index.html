@@ -853,7 +853,7 @@ tr:last-child td{border-bottom:none}
 
 <!-- NEW JOURNAL ENTRY MODAL -->
 <div class="modal-overlay" id="modal-new-journal-entry">
-  <div class="modal-box" style="max-width:560px">
+  <div class="modal-box" style="max-width:640px">
     <div class="modal-title" id="je-modal-title">New journal entry</div>
     <div class="field"><label>Date</label><input type="date" id="je-date"></div>
     <div class="field"><label>Description</label><input type="text" id="je-description" placeholder="e.g. Office rent for August"></div>
@@ -4235,7 +4235,7 @@ function addJournalLine() {
   const baseCurrency = portalData.society.base_currency || 'NGN';
   const row = document.createElement('div');
   row.id = `je-line-${id}`;
-  row.style.cssText = 'display:grid;grid-template-columns:2fr 90px 1fr 80px 24px;gap:6px;margin-bottom:8px;align-items:center';
+  row.style.cssText = 'display:grid;grid-template-columns:1.6fr 85px 130px 75px 24px;gap:6px;margin-bottom:8px;align-items:center';
   row.innerHTML = `
     <select class="je-line-account" onchange="onJournalAccountChange(${id})" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">${accountOptionsHtml()}</select>
     <select class="je-line-type" onchange="updateJournalBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
