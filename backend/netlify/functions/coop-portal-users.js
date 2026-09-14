@@ -11,7 +11,12 @@
  *
  * PERMISSION_KEYS mirrors the portal's own sidebar sections exactly -
  * what a staff user can be granted access to is exactly what they'd
- * see a menu item for.
+ * see a menu item for. Within each feature, ACTION_KEYS gives the
+ * finer-grained rights: 'view' is the minimum (lets the section show
+ * up at all), 'create'/'edit'/'delete' separately gate whether they
+ * can add, modify, or remove things within it. permissions in
+ * requests/responses is an array of { permission_key, actions: [...] },
+ * one entry per feature, listing which of the 4 actions are granted.
  */
 'use strict';
 
@@ -24,6 +29,7 @@ const PERMISSION_KEYS = [
   'members', 'savings', 'loans', 'dues', 'hr_payroll', 'investment',
   'accounting', 'reconciliation', 'surplus', 'addons', 'notifications', 'billing',
 ];
+const ACTION_KEYS = ['view', 'create', 'edit', 'delete'];
 
 function mustEnv(name) {
   const v = process.env[name];
@@ -37,6 +43,36 @@ function normalisePhone(phone) {
   if (d.startsWith('0')) return '+234' + d.slice(1);
   return '+234' + d;
 }
+
+// Normalizes a client-supplied permissions array into flat, valid
+// { permission_key, action } rows ready to insert - drops anything
+// with an unrecognized feature or action rather than erroring, since
+// a stale/unexpected key in the payload shouldn't block the rest of
+// a legitimate request. A feature with 'create'/'edit'/'delete' but
+// no explicit 'view' still gets 'view' added - it would be a
+// confusing, broken grant otherwise (a user who can edit a section
+// they can't even see it).
+function flattenPermissions(rawPermissions) {
+  const rows = [];
+  for (const p of (Array.isArray(rawPermissions) ? rawPermissions : [])) {
+    if (!PERMISSION_KEYS.includes(p.permission_key)) continue;
+    const actions = new Set((Array.isArray(p.actions) ? p.actions : []).filter(a => ACTION_KEYS.includes(a)));
+    if (actions.size === 0) continue;
+    actions.add('view');
+    for (const action of actions) rows.push({ permission_key: p.permission_key, action });
+  }
+  return rows;
+}
+
+function groupPermissions(flatRows) {
+  const map = new Map();
+  for (const r of flatRows) {
+    if (!map.has(r.permission_key)) map.set(r.permission_key, []);
+    map.get(r.permission_key).push(r.action);
+  }
+  return Array.from(map.entries()).map(([permission_key, actions]) => ({ permission_key, actions }));
+}
+
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -60,11 +96,11 @@ exports.handler = async (event) => {
       .select('id, name, phone, status, created_at').eq('coop_id', coopId).order('created_at', { ascending: true });
 
     const withPermissions = await Promise.all((users || []).map(async (u) => {
-      const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key').eq('user_id', u.id);
-      return { ...u, permissions: (perms || []).map(p => p.permission_key) };
+      const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key, action').eq('user_id', u.id);
+      return { ...u, permissions: groupPermissions(perms || []) };
     }));
 
-    return ok({ users: withPermissions, available_permissions: PERMISSION_KEYS });
+    return ok({ users: withPermissions, available_permissions: PERMISSION_KEYS, available_actions: ACTION_KEYS });
   }
 
   if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
@@ -80,7 +116,7 @@ exports.handler = async (event) => {
     if (!body.password || body.password.length < 6) return err(400, 'password must be at least 6 characters');
 
     const phone = normalisePhone(body.phone);
-    const permissions = Array.isArray(body.permissions) ? body.permissions.filter(p => PERMISSION_KEYS.includes(p)) : [];
+    const permissionRows = flattenPermissions(body.permissions);
 
     const { data: existing } = await db.from('coop_portal_users').select('id').eq('coop_id', coopId).eq('phone', phone).maybeSingle();
     if (existing) return err(400, 'A staff user with this phone number already exists for this society.');
@@ -92,26 +128,26 @@ exports.handler = async (event) => {
     }).select().single();
     if (insertErr) return err(500, `Failed to create user: ${insertErr.message}`);
 
-    if (permissions.length > 0) {
-      await db.from('coop_portal_user_permissions').insert(permissions.map(p => ({ user_id: created.id, permission_key: p })));
+    if (permissionRows.length > 0) {
+      await db.from('coop_portal_user_permissions').insert(permissionRows.map(p => ({ user_id: created.id, permission_key: p.permission_key, action: p.action })));
     }
 
-    return ok({ success: true, user: { id: created.id, name, phone, permissions } });
+    return ok({ success: true, user: { id: created.id, name, phone, permissions: groupPermissions(permissionRows) } });
   }
 
   if (body.action === 'update_permissions') {
     if (!body.user_id) return err(400, 'user_id is required');
-    const permissions = Array.isArray(body.permissions) ? body.permissions.filter(p => PERMISSION_KEYS.includes(p)) : [];
+    const permissionRows = flattenPermissions(body.permissions);
 
     const { data: user } = await db.from('coop_portal_users').select('id').eq('id', body.user_id).eq('coop_id', coopId).maybeSingle();
     if (!user) return err(404, 'User not found in your society');
 
     await db.from('coop_portal_user_permissions').delete().eq('user_id', body.user_id);
-    if (permissions.length > 0) {
-      await db.from('coop_portal_user_permissions').insert(permissions.map(p => ({ user_id: body.user_id, permission_key: p })));
+    if (permissionRows.length > 0) {
+      await db.from('coop_portal_user_permissions').insert(permissionRows.map(p => ({ user_id: body.user_id, permission_key: p.permission_key, action: p.action })));
     }
 
-    return ok({ success: true, permissions });
+    return ok({ success: true, permissions: groupPermissions(permissionRows) });
   }
 
   if (body.action === 'disable' || body.action === 'enable') {
