@@ -18,37 +18,51 @@
 const ACCOUNT_TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
 const NORMAL_DEBIT_TYPES = new Set(['ASSET', 'EXPENSE']); // these increase with a debit; LIABILITY/EQUITY/INCOME increase with a credit
 
+// Secondary classification within each top-level type - the same
+// "Groups" model used across Tally, Sage, and most SME accounting
+// software common in Nigeria, one level more specific than the bare
+// 5 types but well short of a full sub-ledger. bank_cash is what
+// bank reconciliation draws its "which bank" list from - an account
+// only shows up there if it's genuinely classified as one.
+const SUB_TYPES = {
+  ASSET:     [{ key: 'bank_cash',          label: 'Bank & Cash' },      { key: 'debtors',      label: 'Debtors (Accounts Receivable)' },  { key: 'fixed_assets', label: 'Fixed Assets' },        { key: 'other_assets',      label: 'Other Assets' }],
+  LIABILITY: [{ key: 'creditors',          label: 'Creditors (Accounts Payable)' }, { key: 'current_liabilities', label: 'Current Liabilities' }, { key: 'loans_liability', label: 'Loans (Liability)' }],
+  EQUITY:    [{ key: 'capital',            label: 'Capital' },          { key: 'reserves_surplus', label: 'Reserves & Surplus' }],
+  INCOME:    [{ key: 'direct_income',      label: 'Direct Income' },    { key: 'indirect_income', label: 'Indirect / Other Income' }],
+  EXPENSE:   [{ key: 'direct_expenses',    label: 'Direct Expenses' },  { key: 'indirect_expenses', label: 'Indirect / Operating Expenses' }],
+};
+
 const DEFAULT_CHART_OF_ACCOUNTS = [
-  { code: '1000', name: 'Cash', type: 'ASSET' },
-  { code: '1010', name: 'Bank Account', type: 'ASSET' },
-  { code: '1100', name: 'Loan Principal Receivable', type: 'ASSET' },
-  { code: '1110', name: 'Loan Interest Receivable', type: 'ASSET' },
-  { code: '1150', name: 'Dues Receivable', type: 'ASSET', isSystem: true },
-  { code: '1160', name: 'Staff Loans Receivable', type: 'ASSET' },
-  { code: '1200', name: 'Other Receivables', type: 'ASSET' },
-  { code: '2000', name: 'Member Savings Payable', type: 'LIABILITY' },
-  { code: '2100', name: 'Accounts Payable', type: 'LIABILITY' },
-  { code: '2110', name: 'PAYE Payable', type: 'LIABILITY' },
-  { code: '2120', name: 'Pension Payable', type: 'LIABILITY' },
-  { code: '2130', name: 'NHF Payable', type: 'LIABILITY' },
-  { code: '2140', name: 'NSITF Payable', type: 'LIABILITY' },
-  { code: '2200', name: 'Dividend Payable', type: 'LIABILITY' },
-  { code: '2210', name: 'Member Investment Payable', type: 'LIABILITY' },
-  { code: '3000', name: 'Share Capital', type: 'EQUITY' },
-  { code: '3900', name: 'Opening Balance Equity', type: 'EQUITY', isSystem: true },
-  { code: '3910', name: 'Retained Earnings', type: 'EQUITY' },
-  { code: '4000', name: 'Interest Income', type: 'INCOME' },
-  { code: '4100', name: 'Dues Income', type: 'INCOME' },
-  { code: '4150', name: 'Interest Income on Loans', type: 'INCOME' },
-  { code: '4160', name: 'Loan Penalty Income', type: 'INCOME' },
-  { code: '4200', name: 'Other Income', type: 'INCOME' },
-  { code: '4210', name: 'Early Withdrawal Penalty Income', type: 'INCOME' },
-  { code: '5000', name: 'Operating Expenses', type: 'EXPENSE' },
-  { code: '5100', name: 'Staff Costs', type: 'EXPENSE' },
-  { code: '5110', name: 'Employer Pension Contribution Expense', type: 'EXPENSE' },
-  { code: '5200', name: 'Bank Charges', type: 'EXPENSE' },
-  { code: '5300', name: 'Interest Expense on Savings', type: 'EXPENSE' },
-  { code: '5310', name: 'Investment Return Expense', type: 'EXPENSE' },
+  { code: '1000', name: 'Cash', type: 'ASSET', subType: 'bank_cash' },
+  { code: '1010', name: 'Bank Account', type: 'ASSET', subType: 'bank_cash' },
+  { code: '1100', name: 'Loan Principal Receivable', type: 'ASSET', subType: 'debtors' },
+  { code: '1110', name: 'Loan Interest Receivable', type: 'ASSET', subType: 'debtors' },
+  { code: '1150', name: 'Dues Receivable', type: 'ASSET', isSystem: true, subType: 'debtors' },
+  { code: '1160', name: 'Staff Loans Receivable', type: 'ASSET', subType: 'debtors' },
+  { code: '1200', name: 'Other Receivables', type: 'ASSET', subType: 'other_assets' },
+  { code: '2000', name: 'Member Savings Payable', type: 'LIABILITY', subType: 'creditors' },
+  { code: '2100', name: 'Accounts Payable', type: 'LIABILITY', subType: 'creditors' },
+  { code: '2110', name: 'PAYE Payable', type: 'LIABILITY', subType: 'current_liabilities' },
+  { code: '2120', name: 'Pension Payable', type: 'LIABILITY', subType: 'current_liabilities' },
+  { code: '2130', name: 'NHF Payable', type: 'LIABILITY', subType: 'current_liabilities' },
+  { code: '2140', name: 'NSITF Payable', type: 'LIABILITY', subType: 'current_liabilities' },
+  { code: '2200', name: 'Dividend Payable', type: 'LIABILITY', subType: 'creditors' },
+  { code: '2210', name: 'Member Investment Payable', type: 'LIABILITY', subType: 'creditors' },
+  { code: '3000', name: 'Share Capital', type: 'EQUITY', subType: 'capital' },
+  { code: '3900', name: 'Opening Balance Equity', type: 'EQUITY', isSystem: true, subType: 'capital' },
+  { code: '3910', name: 'Retained Earnings', type: 'EQUITY', subType: 'reserves_surplus' },
+  { code: '4000', name: 'Interest Income', type: 'INCOME', subType: 'direct_income' },
+  { code: '4100', name: 'Dues Income', type: 'INCOME', subType: 'direct_income' },
+  { code: '4150', name: 'Interest Income on Loans', type: 'INCOME', subType: 'direct_income' },
+  { code: '4160', name: 'Loan Penalty Income', type: 'INCOME', subType: 'indirect_income' },
+  { code: '4200', name: 'Other Income', type: 'INCOME', subType: 'indirect_income' },
+  { code: '4210', name: 'Early Withdrawal Penalty Income', type: 'INCOME', subType: 'indirect_income' },
+  { code: '5000', name: 'Operating Expenses', type: 'EXPENSE', subType: 'indirect_expenses' },
+  { code: '5100', name: 'Staff Costs', type: 'EXPENSE', subType: 'indirect_expenses' },
+  { code: '5110', name: 'Employer Pension Contribution Expense', type: 'EXPENSE', subType: 'indirect_expenses' },
+  { code: '5200', name: 'Bank Charges', type: 'EXPENSE', subType: 'indirect_expenses' },
+  { code: '5300', name: 'Interest Expense on Savings', type: 'EXPENSE', subType: 'direct_expenses' },
+  { code: '5310', name: 'Investment Return Expense', type: 'EXPENSE', subType: 'direct_expenses' },
 ];
 
 /**
@@ -70,7 +84,7 @@ async function ensureChartOfAccounts(db, coopId, baseCurrency) {
   await db.from('coop_chart_of_accounts').insert(
     missing.map(a => ({
       coop_id: coopId, account_code: a.code, account_name: a.name, account_type: a.type,
-      currency: baseCurrency, is_system: !!a.isSystem,
+      sub_type: a.subType || null, currency: baseCurrency, is_system: !!a.isSystem,
     }))
   );
   return true;
@@ -116,4 +130,4 @@ function linesAreBalanced(lines) {
   return totalDebit === totalCredit && totalDebit > 0;
 }
 
-module.exports = { ACCOUNT_TYPES, NORMAL_DEBIT_TYPES, DEFAULT_CHART_OF_ACCOUNTS, ensureChartOfAccounts, buildOpeningBalanceLines, linesAreBalanced };
+module.exports = { ACCOUNT_TYPES, NORMAL_DEBIT_TYPES, SUB_TYPES, DEFAULT_CHART_OF_ACCOUNTS, ensureChartOfAccounts, buildOpeningBalanceLines, linesAreBalanced };
