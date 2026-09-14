@@ -39,15 +39,14 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'hr_payroll'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'payroll'))) {
     return err(403, 'HR & Payroll is not enabled for this society. Add it from the Add-ons tab.');
   }
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'hr_payroll', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const { data: loans } = await db.from('coop_staff_loans')
       .select('id, employee_id, principal_kobo, repayment_months, monthly_deduction_kobo, status, disbursed_at, coop_employees(name, job_title)')
       .eq('coop_id', coopId).order('disbursed_at', { ascending: false });
@@ -62,6 +61,10 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
+
+  if (!(await requirePortalPermission(db, auth, 'hr_payroll', 'create'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
