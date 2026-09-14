@@ -17,6 +17,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
+const { computeAccountLedger } = require('../../lib/coopFinancialReports');
 const { generateBankReconciliationPdf } = require('../../lib/coopBankReconciliationPdf');
 
 exports.handler = async (event) => {
@@ -54,19 +55,32 @@ exports.handler = async (event) => {
     .select('statement_date, description, amount_kobo, direction, match_status')
     .eq('batch_id', batchId).order('statement_date');
 
-  const resolvedLines = (lines || []).filter(l => l.match_status === 'matched');
-  const summary = {
-    opening_balance_kobo: batch.opening_balance_kobo ?? 0,
-    total_credits_kobo: resolvedLines.filter(l => l.direction === 'credit').reduce((s, l) => s + l.amount_kobo, 0),
-    total_debits_kobo: resolvedLines.filter(l => l.direction === 'debit').reduce((s, l) => s + l.amount_kobo, 0),
-  };
+  const { data: unmatchedRecords } = await db.from('coop_reconciliation_unmatched_records')
+    .select('record_type, record_date, amount_kobo, description')
+    .eq('batch_id', batchId).order('record_date');
+
+  // "Balance per Cash Book" has to be the account's real, live ledger
+  // balance - every journal entry that ever hit it (opening balance,
+  // matched or manually-journaled reconciliation lines, and anything
+  // else entirely unrelated to reconciliation, like a dues or share
+  // payment recorded straight to this same bank account) - not just
+  // the narrow slice of activity this one reconciliation batch itself
+  // resolved. Using only that narrow slice was the actual bug behind
+  // a real statement showing a nonzero, unexplained difference: it
+  // was comparing the bank's true closing balance against a partial
+  // view of the books, not the whole of them.
+  const dates = (lines || []).map(l => l.statement_date).filter(Boolean).sort();
+  const asOfDate = dates.length ? dates[dates.length - 1] : batch.uploaded_at.slice(0, 10);
+  const ledger = batch.bank_account_id ? await computeAccountLedger(db, coopId, batch.bank_account_id, asOfDate, null) : null;
+  const balancePerCashBookKobo = ledger ? ledger.closing_balance_kobo : (batch.opening_balance_kobo ?? 0);
 
   const pdfBuffer = await generateBankReconciliationPdf({
     society: { name: resolved.society.name },
     bankAccount: { account_name: bankAccount?.account_name || 'Unknown account', account_number: null },
     batch: { ...batch, prepared_by: null },
     lines: lines || [],
-    summary,
+    unmatchedRecords: unmatchedRecords || [],
+    balancePerCashBookKobo,
   });
 
   return ok({ success: true, filename: `reconciliation-statement-${batchId.slice(0, 8)}.pdf`, pdf_base64: pdfBuffer.toString('base64') });
