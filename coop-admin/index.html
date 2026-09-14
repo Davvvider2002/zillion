@@ -816,7 +816,7 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Account name</label><input type="text" id="na-name" placeholder="e.g. Rent Expense"></div>
     <div class="field">
       <label>Type</label>
-      <select id="na-type" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+      <select id="na-type" onchange="updateAccountSubTypeOptions()" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
         <option value="ASSET">Asset</option>
         <option value="LIABILITY">Liability</option>
         <option value="EQUITY">Equity</option>
@@ -825,9 +825,25 @@ tr:last-child td{border-bottom:none}
       </select>
     </div>
     <div class="field">
+      <label>Group</label>
+      <select id="na-subtype" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Only an account grouped as Bank &amp; Cash shows up when reconciling a bank statement.</div>
+    </div>
+    <div class="field">
       <label>Currency</label>
       <input type="text" id="na-currency" placeholder="NGN" style="text-transform:uppercase">
       <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave as your base currency unless this account holds a different one (e.g. a USD bank account).</div>
+    </div>
+    <div class="field">
+      <label>Opening balance (optional)</label>
+      <div style="display:flex;gap:8px">
+        <input type="number" id="na-opening-balance" placeholder="0" style="flex:1;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <select id="na-opening-side" style="width:110px;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+          <option value="debit">Dr</option>
+          <option value="credit">Cr</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave blank if this account starts at zero. Posts a balanced entry against Opening Balance Equity.</div>
     </div>
     <div id="na-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitNewAccount()" id="na-btn">Create account</button>
@@ -3259,6 +3275,7 @@ async function submitNotification() {
 
 // ── ACCOUNTING ────────────────────────────────────────────────────────
 let accountingAccounts = null;
+let accountingSubTypes = {};
 let accountingEntries = null;
 let accountingOpeningDone = false;
 let journalLineCount = 0;
@@ -3632,17 +3649,19 @@ async function renderReconciliation() {
     return;
   }
 
+  if (!accountingAccounts) await fetchChartOfAccounts();
+  const bankAccounts = (accountingAccounts || []).filter(a => a.sub_type === 'bank_cash');
+
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Upload bank statement</div>
       <div class="card-sub">CSV with four columns: Date (YYYY-MM-DD), Amount (in Naira, e.g. 30000), Description, Type (credit or debit). First row is treated as a header and skipped.</div>
-      <div class="field"><label>Which bank is this statement from?</label>
-        <input type="text" id="recon-bank-name" list="recon-bank-list" placeholder="e.g. GTBank" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
-        <datalist id="recon-bank-list">
-          <option value="Access Bank"><option value="GTBank"><option value="Zenith Bank"><option value="First Bank">
-          <option value="UBA"><option value="Fidelity Bank"><option value="Union Bank"><option value="Sterling Bank">
-          <option value="Wema Bank"><option value="Polaris Bank"><option value="Stanbic IBTC"><option value="Ecobank">
-        </datalist>
+      <div class="field"><label>Which bank account is this statement for?</label>
+        <select id="recon-bank-account" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+          <option value="">— select —</option>
+          ${bankAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${a.account_name}</option>`).join('')}
+        </select>
+        ${!bankAccounts.length ? `<div style="font-size:11px;color:var(--amber);margin-top:4px">No accounts are grouped as Bank &amp; Cash yet — <a href="#" onclick="switchView('accounting');return false" style="color:var(--amber)">add or reclassify one in Chart of Accounts</a> first.</div>` : ''}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="field"><label>Opening balance on statement (₦)</label><input type="number" id="recon-opening-balance" placeholder="0" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></div>
@@ -3842,10 +3861,10 @@ function handleReconFileSelect(event) {
   errEl.style.display = 'none';
   statusEl.textContent = 'Reading file...';
 
-  const bankName = document.getElementById('recon-bank-name').value.trim();
+  const bankAccountId = document.getElementById('recon-bank-account').value;
   const openingNaira = parseFloat(document.getElementById('recon-opening-balance').value);
   const closingNaira = parseFloat(document.getElementById('recon-closing-balance').value);
-  if (!bankName) { errEl.textContent = 'Select or enter which bank this statement is from first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
+  if (!bankAccountId) { errEl.textContent = 'Select which bank account this statement is for first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
   if (!Number.isFinite(openingNaira) || !Number.isFinite(closingNaira)) { errEl.textContent = 'Enter the opening and closing balance shown on the statement first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
 
   const reader = new FileReader();
@@ -3859,7 +3878,7 @@ function handleReconFileSelect(event) {
       const res = await fetch(`${API}/coop-portal-reconcile-bank-statement`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
         body: JSON.stringify({
-          filename: file.name, lines, bank_name: bankName,
+          filename: file.name, lines, bank_account_id: bankAccountId,
           opening_balance_kobo: Math.round(openingNaira * 100), closing_balance_kobo: Math.round(closingNaira * 100),
         }),
       });
@@ -3924,7 +3943,8 @@ async function fetchChartOfAccounts() {
     const res = await fetch(`${API}/coop-portal-chart-of-accounts`, { headers: { Authorization: 'Bearer ' + portalToken } });
     const data = await res.json();
     accountingAccounts = data.accounts || [];
-  } catch (e) { accountingAccounts = []; }
+    accountingSubTypes = data.sub_types || {};
+  } catch (e) { accountingAccounts = []; accountingSubTypes = {}; }
 }
 
 async function fetchJournalEntries() {
@@ -4000,13 +4020,24 @@ function renderAccountingContent() {
   `;
 }
 
-function openNewAccountModal() {
+async function openNewAccountModal() {
+  if (!accountingAccounts) await fetchChartOfAccounts();
   document.getElementById('na-code').value = '';
   document.getElementById('na-name').value = '';
   document.getElementById('na-type').value = 'ASSET';
   document.getElementById('na-currency').value = portalData.society.base_currency || 'NGN';
+  document.getElementById('na-opening-balance').value = '';
+  document.getElementById('na-opening-side').value = 'debit';
   document.getElementById('na-error').style.display = 'none';
+  updateAccountSubTypeOptions();
   openModal('modal-new-account');
+}
+
+function updateAccountSubTypeOptions() {
+  const type = document.getElementById('na-type').value;
+  const options = accountingSubTypes[type] || [];
+  document.getElementById('na-subtype').innerHTML =
+    '<option value="">— none —</option>' + options.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
 }
 
 async function submitNewAccount() {
@@ -4015,15 +4046,24 @@ async function submitNewAccount() {
   const code = document.getElementById('na-code').value.trim();
   const name = document.getElementById('na-name').value.trim();
   const type = document.getElementById('na-type').value;
+  const subType = document.getElementById('na-subtype').value;
   const currency = document.getElementById('na-currency').value.trim().toUpperCase();
+  const openingBalanceRaw = document.getElementById('na-opening-balance').value;
+  const openingSide = document.getElementById('na-opening-side').value;
   if (!code || !name) { errEl.textContent = 'Code and name are both required.'; errEl.style.display = 'block'; return; }
+
+  const payload = { account_code: code, account_name: name, account_type: type, sub_type: subType || undefined, currency };
+  if (openingBalanceRaw && parseFloat(openingBalanceRaw) > 0) {
+    payload.opening_balance = parseFloat(openingBalanceRaw);
+    payload.opening_balance_side = openingSide;
+  }
 
   const btn = document.getElementById('na-btn');
   btn.disabled = true; btn.textContent = 'Creating...';
   try {
     const res = await fetch(`${API}/coop-portal-chart-of-accounts`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ account_code: code, account_name: name, account_type: type, currency }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to create account.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create account'; return; }
