@@ -854,7 +854,7 @@ tr:last-child td{border-bottom:none}
 <!-- NEW JOURNAL ENTRY MODAL -->
 <div class="modal-overlay" id="modal-new-journal-entry">
   <div class="modal-box" style="max-width:560px">
-    <div class="modal-title">New journal entry</div>
+    <div class="modal-title" id="je-modal-title">New journal entry</div>
     <div class="field"><label>Date</label><input type="date" id="je-date"></div>
     <div class="field"><label>Description</label><input type="text" id="je-description" placeholder="e.g. Office rent for August"></div>
     <div id="je-lines"></div>
@@ -1082,6 +1082,8 @@ async function loadPortalData() {
     // everyone since it's just a summary, and Users is never shown to
     // staff at all, since user/permission management is deliberately
     // never itself a grantable permission.
+    isPortalOwner = !!data.is_owner;
+    portalPermissionActions = data.permission_actions || [];
     document.getElementById('nav-users-item').style.display = data.is_owner ? '' : 'none';
     if (!data.is_owner) {
       const granted = new Set(data.permissions || []);
@@ -2987,6 +2989,13 @@ const PERMISSION_LABELS = {
   reconciliation: 'Bank Reconciliation', surplus: 'Surplus & Dividends',
   addons: 'Add-ons', notifications: 'Notifications', billing: 'Billing',
 };
+const ACTION_LABELS = { view: 'View', create: 'Create', edit: 'Edit', delete: 'Delete' };
+
+function describePermissionPill(p) {
+  const label = PERMISSION_LABELS[p.permission_key] || p.permission_key;
+  const isFullAccess = ['view', 'create', 'edit', 'delete'].every(a => p.actions.includes(a));
+  return `${label}${isFullAccess ? '' : ' (limited)'}`;
+}
 
 async function renderUsers() {
   const el = document.getElementById('view-users');
@@ -3001,7 +3010,7 @@ async function renderUsers() {
       <tr>
         <td>${u.name}</td>
         <td>${u.phone}</td>
-        <td>${u.permissions.length ? u.permissions.map(p => `<span class="pill pill-muted" style="margin:2px">${PERMISSION_LABELS[p] || p}</span>`).join('') : '<span class="pill pill-muted">No access granted</span>'}</td>
+        <td>${u.permissions.length ? u.permissions.map(p => `<span class="pill pill-muted" style="margin:2px">${describePermissionPill(p)}</span>`).join('') : '<span class="pill pill-muted">No access granted</span>'}</td>
         <td><span class="pill ${u.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${u.status}</span></td>
         <td>
           <button class="btn btn-ghost btn-sm" onclick="openEditPermissionsModal('${u.id}')">Edit access</button>
@@ -3015,7 +3024,7 @@ async function renderUsers() {
         <div class="card-title">Users &amp; Access
           <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ Add user</button>
         </div>
-        <div class="card-sub">Additional people who can sign in to this portal, each limited to exactly the sections you tick for them. Only the primary account (you) can manage users — this is never itself a grantable permission.</div>
+        <div class="card-sub">Additional people who can sign in to this portal, each limited to exactly the sections and actions you tick for them — View, Create, Edit, and Delete are granted separately per section. Only the primary account (you) can manage users — this is never itself a grantable permission.</div>
         <div class="table-wrap"><table>
           <thead><tr><th>Name</th><th>Phone</th><th>Access</th><th>Status</th><th></th></tr></thead>
           <tbody>${rows || '<tr><td colspan="5" class="no-data">No additional users yet.</td></tr>'}</tbody>
@@ -3027,18 +3036,39 @@ async function renderUsers() {
   }
 }
 
-function renderPermissionCheckboxes(containerId, checkedKeys) {
-  const checked = new Set(checkedKeys || []);
-  document.getElementById(containerId).innerHTML = Object.entries(PERMISSION_LABELS).map(([key, label]) => `
-    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer">
-      <input type="checkbox" value="${key}" ${checked.has(key) ? 'checked' : ''} class="perm-checkbox" style="width:auto">
-      ${label}
-    </label>
-  `).join('');
+// Renders a Feature × Action grid - each cell is a checkbox for one
+// (permission_key, action) pair. checkedGroups is the same
+// {permission_key, actions:[...]} shape the backend uses, so the
+// round trip in and out of this UI needs no reshaping.
+function renderPermissionCheckboxes(containerId, checkedGroups) {
+  const checkedMap = new Map((checkedGroups || []).map(g => [g.permission_key, new Set(g.actions)]));
+  const actionKeys = Object.keys(ACTION_LABELS);
+  const rows = Object.entries(PERMISSION_LABELS).map(([key, label]) => {
+    const checked = checkedMap.get(key) || new Set();
+    const cells = actionKeys.map(action => `
+      <td style="text-align:center"><input type="checkbox" class="perm-checkbox" data-feature="${key}" data-action="${action}" ${checked.has(action) ? 'checked' : ''} style="width:auto"></td>
+    `).join('');
+    return `<tr><td style="padding:4px 8px 4px 0;white-space:nowrap">${label}</td>${cells}</tr>`;
+  }).join('');
+
+  document.getElementById(containerId).innerHTML = `
+    <table style="width:100%;font-size:12.5px;border-collapse:collapse">
+      <thead><tr><th></th>${actionKeys.map(a => `<th style="text-align:center;padding-bottom:6px">${ACTION_LABELS[a]}</th>`).join('')}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
+// Reads the grid back into the same {permission_key, actions:[...]}
+// shape the backend expects.
 function collectCheckedPermissions(containerId) {
-  return Array.from(document.querySelectorAll(`#${containerId} .perm-checkbox:checked`)).map(cb => cb.value);
+  const map = new Map();
+  document.querySelectorAll(`#${containerId} .perm-checkbox:checked`).forEach(cb => {
+    const key = cb.dataset.feature;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(cb.dataset.action);
+  });
+  return Array.from(map.entries()).map(([permission_key, actions]) => ({ permission_key, actions }));
 }
 
 function openAddUserModal() {
@@ -3274,6 +3304,18 @@ async function submitNotification() {
 }
 
 // ── ACCOUNTING ────────────────────────────────────────────────────────
+let isPortalOwner = true;
+let portalPermissionActions = [];
+// The owner always has every action; a staff user needs this exact
+// feature+action pair explicitly granted. Used to gate action-level
+// UI (Edit/Delete buttons) beyond the coarser sidebar-section hiding,
+// which only ever checked 'view'.
+function hasPortalAction(featureKey, action) {
+  if (isPortalOwner) return true;
+  const entry = portalPermissionActions.find(p => p.permission_key === featureKey);
+  return !!(entry && entry.actions.includes(action));
+}
+
 let accountingAccounts = null;
 let accountingSubTypes = {};
 let accountingEntries = null;
@@ -3281,6 +3323,7 @@ let accountingOpeningDone = false;
 let journalLineCount = 0;
 let currentReconciliationLineId = null;
 let currentReconciliationBatchId = null;
+let currentEditingJournalEntryId = null;
 
 // ── BANK RECONCILIATION ─────────────────────────────────────────────
 // ── SURPLUS & DIVIDENDS ─────────────────────────────────────────────
@@ -4032,17 +4075,23 @@ function renderAccountingContent() {
     </div>
     <div class="card">
       <div class="card-title">Journal entries
-        <button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>＋ New entry</button>
+        ${hasPortalAction('accounting', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>＋ New entry</button>` : ''}
       </div>
-      <div class="card-sub">All entries post immediately — there's no draft stage in this version.</div>
+      <div class="card-sub">All entries post immediately — there's no draft stage in this version. Only manually-created entries can be edited or deleted; anything generated automatically (opening balances, payroll, reconciliation) stays fixed here.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Lines</th></tr></thead>
+        <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Lines</th><th></th></tr></thead>
         <tbody>${accountingEntries.map(e => `
           <tr>
             <td>${e.entry_number}</td><td>${e.entry_date}</td><td>${e.description}${e.entry_type === 'opening_balance' ? ' <span class="pill pill-amber">opening</span>' : ''}</td>
             <td>${(e.coop_journal_entry_lines || []).map(l => `${l.coop_chart_of_accounts?.account_name || '—'}: ${l.line_type === 'debit' ? 'Dr' : 'Cr'} ${fmtNaira(l.base_amount)}`).join('; ')}</td>
+            <td>${e.entry_type === 'manual' ? `
+              <div style="display:flex;gap:6px">
+                ${hasPortalAction('accounting', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openEditJournalEntryModal('${e.id}')">Edit</button>` : ''}
+                ${hasPortalAction('accounting', 'delete') ? `<button class="btn btn-ghost btn-sm" onclick="deleteJournalEntry('${e.id}')">Delete</button>` : ''}
+              </div>
+            ` : ''}</td>
           </tr>
-        `).join('') || '<tr><td colspan="4" class="no-data">No journal entries yet.</td></tr>'}</tbody>
+        `).join('') || '<tr><td colspan="5" class="no-data">No journal entries yet.</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
@@ -4117,9 +4166,61 @@ function openNewJournalEntryModal() {
   document.getElementById('je-error').style.display = 'none';
   document.getElementById('je-suggestion-banner')?.remove();
   currentReconciliationLineId = null;
+  currentEditingJournalEntryId = null;
+  document.getElementById('je-modal-title').textContent = 'New journal entry';
+  document.getElementById('je-btn').textContent = 'Save entry';
   journalLineCount = 0;
   addJournalLine(); addJournalLine();
   openModal('modal-new-journal-entry');
+}
+
+function openEditJournalEntryModal(entryId) {
+  const entry = accountingEntries.find(e => e.id === entryId);
+  if (!entry) return;
+
+  document.getElementById('je-date').value = entry.entry_date;
+  document.getElementById('je-description').value = entry.description;
+  document.getElementById('je-lines').innerHTML = '';
+  document.getElementById('je-error').style.display = 'none';
+  document.getElementById('je-suggestion-banner')?.remove();
+  currentReconciliationLineId = null;
+  currentEditingJournalEntryId = entryId;
+  document.getElementById('je-modal-title').textContent = `Edit entry #${entry.entry_number}`;
+  document.getElementById('je-btn').textContent = 'Save changes';
+  journalLineCount = 0;
+
+  const baseCurrency = portalData.society.base_currency || 'NGN';
+  for (const l of (entry.coop_journal_entry_lines || [])) {
+    addJournalLine();
+    const row = document.getElementById(`je-line-${journalLineCount - 1}`);
+    row.querySelector('.je-line-account').value = l.account_id;
+    row.querySelector('.je-line-type').value = l.line_type;
+    row.querySelector('.je-line-amount').value = l.amount / 100;
+    onJournalAccountChange(journalLineCount - 1);
+    if (l.currency !== baseCurrency) row.querySelector('.je-line-rate').value = l.exchange_rate;
+  }
+  updateJournalBalance();
+  openModal('modal-new-journal-entry');
+}
+
+async function deleteJournalEntry(entryId) {
+  const entry = accountingEntries.find(e => e.id === entryId);
+  if (!confirm(`Delete journal entry${entry ? ` #${entry.entry_number}` : ''}? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-entry?entry_id=${entryId}`, {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + portalToken },
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to delete entry.', true); return; }
+    notify(data.reconciliation_lines_reverted > 0
+      ? `Entry deleted — ${data.reconciliation_lines_reverted} reconciliation line(s) reverted to unmatched.`
+      : 'Entry deleted.');
+    await fetchJournalEntries();
+    renderAccountingContent();
+    if (accountingOpeningDone) loadFinancialReport();
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+  }
 }
 
 function addJournalLine() {
@@ -4191,17 +4292,20 @@ async function submitJournalEntry() {
   if (!valid || lines.length < 2) { errEl.textContent = 'Every line needs an account and a valid amount (and exchange rate, for non-base-currency accounts).'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('je-btn');
+  const isEditing = !!currentEditingJournalEntryId;
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    const res = await fetch(`${API}/coop-portal-journal-entry`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+    const url = isEditing ? `${API}/coop-portal-journal-entry?entry_id=${currentEditingJournalEntryId}` : `${API}/coop-portal-journal-entry`;
+    const res = await fetch(url, {
+      method: isEditing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
       body: JSON.stringify({ entry_date: entryDate, description, lines, reconciliation_line_id: currentReconciliationLineId || undefined }),
     });
     const data = await res.json();
-    if (!res.ok) { errEl.textContent = data.error || 'Failed to save entry.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save entry'; return; }
-    notify(`Entry #${data.entry_number} saved`);
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save entry.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = isEditing ? 'Save changes' : 'Save entry'; return; }
+    notify(isEditing ? 'Entry updated' : `Entry #${data.entry_number} saved`);
     closeModal('modal-new-journal-entry');
-    btn.disabled = false; btn.textContent = 'Save entry';
+    btn.disabled = false; btn.textContent = isEditing ? 'Save changes' : 'Save entry';
+    currentEditingJournalEntryId = null;
     if (currentReconciliationBatchId) {
       const batchId = currentReconciliationBatchId;
       currentReconciliationLineId = null; currentReconciliationBatchId = null;
