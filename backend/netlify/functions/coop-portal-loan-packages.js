@@ -59,11 +59,10 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'loans'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'loans', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const { data: packages } = await db.from('coop_loan_packages')
       .select('*').eq('coop_id', coopId).order('created_at', { ascending: true });
     return ok({ packages: packages || [] });
@@ -76,6 +75,10 @@ exports.handler = async (event) => {
   catch { return err(400, 'Invalid JSON'); }
 
   const action = body.action;
+
+  if (!(await requirePortalPermission(db, auth, 'loans', action === 'create' ? 'create' : 'edit'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (action === 'create') {
     const validationError = validatePackageInput(body);
