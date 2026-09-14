@@ -850,6 +850,15 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- RECONCILIATION SOURCE MODAL -->
+<div class="modal-overlay" id="modal-reconciliation-source">
+  <div class="modal-box">
+    <div class="modal-title">Where this was initiated</div>
+    <div id="rs-body"><div class="card-sub">Loading…</div></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:14px" onclick="closeModal('modal-reconciliation-source')">Close</button>
+  </div>
+</div>
+
 <!-- OPENING BALANCE WIZARD MODAL -->
 <div class="modal-overlay" id="modal-opening-balance">
   <div class="modal-box" style="max-width:520px">
@@ -3675,14 +3684,17 @@ async function viewReconciliationBatch(batchId) {
         <div class="card-title">Reconciliation detail — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}</div>
         <div class="card-sub">${data.batch.matched_lines} of ${data.batch.total_lines} statement lines matched automatically.</div>
         <div style="font-weight:700;font-size:13px;margin:14px 0 8px">Statement lines</div>
+        <div class="card-sub" style="margin-bottom:8px">Click a matched line to see where it was initiated. Click an unmatched line to create a journal entry for it, with a suggested account pairing you can review and adjust before posting.</div>
         <div class="table-wrap"><table>
           <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>${data.lines.map(l => `
-            <tr>
+            <tr style="cursor:pointer" onclick="${l.match_status === 'matched'
+              ? `openReconciliationSourceModal('${l.matched_type}','${l.matched_id}')`
+              : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},'${(l.description || '').replace(/'/g, "\\'")}')`}">
               <td>${fmtDate(l.statement_date)}</td>
               <td>${l.description || '—'}</td>
               <td>${fmtNaira(l.amount_kobo)}</td>
-              <td>${l.match_status === 'matched' ? '<span class="pill pill-green">Matched</span>' : '<span class="pill pill-red">Unmatched</span>'}</td>
+              <td>${l.match_status === 'matched' ? '<span class="pill pill-green">Matched</span>' : '<span class="pill pill-red">Unmatched — click to journal</span>'}</td>
             </tr>
           `).join('') || '<tr><td colspan="4" class="no-data">No lines.</td></tr>'}</tbody>
         </table></div>
@@ -3705,6 +3717,92 @@ async function viewReconciliationBatch(batchId) {
     `;
   } catch (e) {
     detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${e.message}</div></div>`;
+  }
+}
+
+// A starting point only, never treated as fact - keyword-matched
+// against the bank line's own description, defaulting to a generic
+// expense pairing (most unrecorded lines are outgoing charges or
+// withdrawals) when nothing matches. Always shown with a clear
+// "review before posting" notice, never auto-posted.
+function computeJournalSuggestion(description) {
+  const d = (description || '').toLowerCase();
+  if (/charge|fee|commission|vat|stamp duty/.test(d)) {
+    return { debitCode: '5200', creditCode: '1010', note: 'Looks like a bank charge — suggested as an expense against your bank account.' };
+  }
+  if (/deposit|transfer in|credit|inflow/.test(d)) {
+    return { debitCode: '1010', creditCode: '4200', note: 'Looks like money coming in — suggested as income into your bank account.' };
+  }
+  return { debitCode: '5000', creditCode: '1010', note: 'No clear match from the description — suggested as a generic operating expense. Please review and pick the right account.' };
+}
+
+async function openSuggestedJournalEntry(date, amountKobo, description) {
+  if (!accountingAccounts) await fetchChartOfAccounts();
+
+  openNewJournalEntryModal();
+  document.getElementById('je-date').value = date;
+  document.getElementById('je-description').value = `Bank statement: ${description || 'unrecorded transaction'}`;
+
+  const suggestion = computeJournalSuggestion(description);
+  document.getElementById('je-suggestion-banner')?.remove();
+  const bannerHtml = `<div id="je-suggestion-banner" style="background:rgba(232,147,12,.12);border:1px solid var(--amber);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--amber)">⚠️ Suggested from the bank line's description — review and adjust before posting. ${suggestion.note}</div>`;
+  document.getElementById('je-lines').insertAdjacentHTML('beforebegin', bannerHtml);
+
+  const debitAccount = accountingAccounts.find(a => a.account_code === suggestion.debitCode);
+  const creditAccount = accountingAccounts.find(a => a.account_code === suggestion.creditCode);
+  const rows = document.querySelectorAll('#je-lines > div');
+  if (rows[0] && debitAccount) {
+    rows[0].querySelector('.je-line-account').value = debitAccount.id;
+    rows[0].querySelector('.je-line-type').value = 'debit';
+    rows[0].querySelector('.je-line-amount').value = amountKobo / 100;
+    onJournalAccountChange(0);
+  }
+  if (rows[1] && creditAccount) {
+    rows[1].querySelector('.je-line-account').value = creditAccount.id;
+    rows[1].querySelector('.je-line-type').value = 'credit';
+    rows[1].querySelector('.je-line-amount').value = amountKobo / 100;
+    onJournalAccountChange(1);
+  }
+  updateJournalBalance();
+}
+
+async function openReconciliationSourceModal(matchedType, matchedId) {
+  document.getElementById('rs-body').innerHTML = '<div class="card-sub">Loading…</div>';
+  openModal('modal-reconciliation-source');
+  try {
+    const res = await fetch(`${API}/coop-portal-reconciliation-source?type=${matchedType}&id=${matchedId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('rs-body').innerHTML = `<div class="card-sub">${data.error || 'Failed to load'}</div>`; return; }
+
+    if (data.type === 'loan_disbursement') {
+      document.getElementById('rs-body').innerHTML = `
+        <div style="font-size:13px;line-height:1.8">
+          <div><b>Source:</b> Loan disbursement</div>
+          <div><b>Member:</b> ${data.member_name}</div>
+          <div><b>Principal:</b> ${fmtNaira(data.principal_kobo)}</div>
+          <div><b>Disbursed:</b> ${fmtDate(data.date)}</div>
+          <div><b>Status:</b> ${data.status}</div>
+          <div><b>Repayment period:</b> ${data.repayment_period_months} months</div>
+          <div><b>Interest method:</b> ${data.interest_method || 'flat'}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('loans')">View in Loans →</button>
+      `;
+    } else if (data.type === 'loan_repayment') {
+      document.getElementById('rs-body').innerHTML = `
+        <div style="font-size:13px;line-height:1.8">
+          <div><b>Source:</b> Loan repayment</div>
+          <div><b>Member:</b> ${data.member_name}</div>
+          <div><b>Amount:</b> ${fmtNaira(data.amount_kobo)}</div>
+          <div><b>Recorded:</b> ${fmtDate(data.date)}</div>
+          <div><b>Method:</b> ${(data.source || '').replace(/_/g, ' ')}</div>
+          ${data.principal_portion_kobo != null ? `<div><b>Principal portion:</b> ${fmtNaira(data.principal_portion_kobo)}</div>` : ''}
+          ${data.interest_portion_kobo != null ? `<div><b>Interest portion:</b> ${fmtNaira(data.interest_portion_kobo)}</div>` : ''}
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('loans')">View in Loans →</button>
+      `;
+    }
+  } catch (e) {
+    document.getElementById('rs-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
   }
 }
 
@@ -3905,6 +4003,7 @@ function openNewJournalEntryModal() {
   document.getElementById('je-description').value = '';
   document.getElementById('je-lines').innerHTML = '';
   document.getElementById('je-error').style.display = 'none';
+  document.getElementById('je-suggestion-banner')?.remove();
   journalLineCount = 0;
   addJournalLine(); addJournalLine();
   openModal('modal-new-journal-entry');
