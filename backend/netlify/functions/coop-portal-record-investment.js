@@ -37,15 +37,14 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'investment'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'investment'))) {
     return err(403, 'Investment is not enabled for this society. Add it from the Add-ons tab.');
   }
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'investment', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const productId = (event.queryStringParameters || {}).product_id;
     if (!productId) return err(400, 'product_id query param is required');
 
@@ -64,6 +63,10 @@ exports.handler = async (event) => {
     }));
 
     return ok({ investments: withAccrued });
+  }
+
+  if (!(await requirePortalPermission(db, auth, 'investment', 'create'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
   }
 
   let body;
