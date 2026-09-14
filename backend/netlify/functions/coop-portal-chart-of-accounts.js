@@ -32,15 +32,14 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'accounting'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'accounting'))) return err(403, 'The Accounting & Finance module is not on your current plan');
 
   const baseCurrency = resolved.society.base_currency || 'NGN';
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'accounting', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     await ensureChartOfAccounts(db, coopId, baseCurrency);
     const { data: accounts, error } = await db.from('coop_chart_of_accounts')
       .select('*').eq('coop_id', coopId).eq('active', true).order('account_code');
@@ -49,6 +48,10 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
+
+  if (!(await requirePortalPermission(db, auth, 'accounting', 'create'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
