@@ -3262,6 +3262,8 @@ let accountingAccounts = null;
 let accountingEntries = null;
 let accountingOpeningDone = false;
 let journalLineCount = 0;
+let currentReconciliationLineId = null;
+let currentReconciliationBatchId = null;
 
 // ── BANK RECONCILIATION ─────────────────────────────────────────────
 // ── SURPLUS & DIVIDENDS ─────────────────────────────────────────────
@@ -3633,7 +3635,19 @@ async function renderReconciliation() {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Upload bank statement</div>
-      <div class="card-sub">CSV with three columns: Date (YYYY-MM-DD), Amount (in Naira, e.g. 30000), Description. First row is treated as a header and skipped.</div>
+      <div class="card-sub">CSV with four columns: Date (YYYY-MM-DD), Amount (in Naira, e.g. 30000), Description, Type (credit or debit). First row is treated as a header and skipped.</div>
+      <div class="field"><label>Which bank is this statement from?</label>
+        <input type="text" id="recon-bank-name" list="recon-bank-list" placeholder="e.g. GTBank" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
+        <datalist id="recon-bank-list">
+          <option value="Access Bank"><option value="GTBank"><option value="Zenith Bank"><option value="First Bank">
+          <option value="UBA"><option value="Fidelity Bank"><option value="Union Bank"><option value="Sterling Bank">
+          <option value="Wema Bank"><option value="Polaris Bank"><option value="Stanbic IBTC"><option value="Ecobank">
+        </datalist>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Opening balance on statement (₦)</label><input type="number" id="recon-opening-balance" placeholder="0" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></div>
+        <div class="field"><label>Closing balance on statement (₦)</label><input type="number" id="recon-closing-balance" placeholder="0" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></div>
+      </div>
       <input type="file" id="recon-file-input" accept=".csv" style="margin:10px 0" onchange="handleReconFileSelect(event)">
       <div id="recon-upload-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:10px"></div>
       <div id="recon-upload-status" style="font-size:13px;color:var(--muted)"></div>
@@ -3655,10 +3669,11 @@ async function loadReconciliationHistory() {
     const batches = data.batches || [];
     listEl.innerHTML = batches.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>Uploaded</th><th>File</th><th>Lines</th><th>Matched</th><th></th></tr></thead>
+        <thead><tr><th>Uploaded</th><th>Bank</th><th>File</th><th>Lines</th><th>Matched</th><th></th></tr></thead>
         <tbody>${batches.map(b => `
           <tr>
             <td>${fmtDate(b.uploaded_at)}</td>
+            <td>${b.bank_name || '—'}</td>
             <td>${b.filename || '—'}</td>
             <td>${b.total_lines}</td>
             <td>${b.matched_lines} / ${b.total_lines}</td>
@@ -3681,8 +3696,19 @@ async function viewReconciliationBatch(batchId) {
     if (!res.ok) { detailEl.innerHTML = `<div class="card"><div class="no-data">${data.error}</div></div>`; return; }
     detailEl.innerHTML = `
       <div class="card">
-        <div class="card-title">Reconciliation detail — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}</div>
-        <div class="card-sub">${data.batch.matched_lines} of ${data.batch.total_lines} statement lines matched automatically.</div>
+        <div class="card-title">Reconciliation detail — ${data.batch.bank_name || 'Bank'} — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}</div>
+        <div class="card-sub">${data.batch.matched_lines} of ${data.batch.total_lines} statement lines matched.</div>
+        <div style="background:var(--ink);border-radius:10px;padding:14px 16px;margin-top:14px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">Opening balance</span><span>${fmtNaira(data.summary.opening_balance_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">+ Credits (resolved)</span><span style="color:#00C896">${fmtNaira(data.summary.total_credits_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">− Debits (resolved)</span><span style="color:#FF8A8A">${fmtNaira(data.summary.total_debits_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-weight:700;border-top:1px solid var(--line);margin-top:4px"><span>= Computed closing balance</span><span>${fmtNaira(data.summary.computed_closing_balance_kobo)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">Bank statement closing balance</span><span>${data.summary.bank_closing_balance_kobo != null ? fmtNaira(data.summary.bank_closing_balance_kobo) : '—'}</span></div>
+          ${data.summary.difference_kobo != null ? `
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-weight:700;border-top:1px solid var(--line);margin-top:4px;color:${data.summary.fully_reconciled ? '#00C896' : 'var(--amber)'}">
+            <span>${data.summary.fully_reconciled ? '✓ Fully reconciled' : 'Difference remaining'}</span><span>${fmtNaira(Math.abs(data.summary.difference_kobo))}</span>
+          </div>` : ''}
+        </div>
         <div style="font-weight:700;font-size:13px;margin:14px 0 8px">Statement lines</div>
         <div class="card-sub" style="margin-bottom:8px">Click a matched line to see where it was initiated. Click an unmatched line to create a journal entry for it, with a suggested account pairing you can review and adjust before posting.</div>
         <div class="table-wrap"><table>
@@ -3690,7 +3716,7 @@ async function viewReconciliationBatch(batchId) {
           <tbody>${data.lines.map(l => `
             <tr style="cursor:pointer" onclick="${l.match_status === 'matched'
               ? `openReconciliationSourceModal('${l.matched_type}','${l.matched_id}')`
-              : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},'${(l.description || '').replace(/'/g, "\\'")}')`}">
+              : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},'${(l.description || '').replace(/'/g, "\\'")}','${l.id}','${data.batch.id}')`}">
               <td>${fmtDate(l.statement_date)}</td>
               <td>${l.description || '—'}</td>
               <td>${fmtNaira(l.amount_kobo)}</td>
@@ -3736,10 +3762,12 @@ function computeJournalSuggestion(description) {
   return { debitCode: '5000', creditCode: '1010', note: 'No clear match from the description — suggested as a generic operating expense. Please review and pick the right account.' };
 }
 
-async function openSuggestedJournalEntry(date, amountKobo, description) {
+async function openSuggestedJournalEntry(date, amountKobo, description, lineId, batchId) {
   if (!accountingAccounts) await fetchChartOfAccounts();
 
   openNewJournalEntryModal();
+  currentReconciliationLineId = lineId;
+  currentReconciliationBatchId = batchId;
   document.getElementById('je-date').value = date;
   document.getElementById('je-description').value = `Bank statement: ${description || 'unrecorded transaction'}`;
 
@@ -3814,15 +3842,26 @@ function handleReconFileSelect(event) {
   errEl.style.display = 'none';
   statusEl.textContent = 'Reading file...';
 
+  const bankName = document.getElementById('recon-bank-name').value.trim();
+  const openingNaira = parseFloat(document.getElementById('recon-opening-balance').value);
+  const closingNaira = parseFloat(document.getElementById('recon-closing-balance').value);
+  if (!bankName) { errEl.textContent = 'Select or enter which bank this statement is from first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
+  if (!Number.isFinite(openingNaira) || !Number.isFinite(closingNaira)) { errEl.textContent = 'Enter the opening and closing balance shown on the statement first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
+
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
       const lines = parseReconCsv(e.target.result);
       if (!lines.length) { errEl.textContent = 'No valid rows found in this file.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
+      const badLine = lines.find(l => !l.direction);
+      if (badLine) { errEl.textContent = `Every row needs a Type column (credit/debit) — missing or unrecognized on: ${JSON.stringify(badLine)}`; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
       statusEl.textContent = `Uploading and matching ${lines.length} lines...`;
       const res = await fetch(`${API}/coop-portal-reconcile-bank-statement`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-        body: JSON.stringify({ filename: file.name, lines }),
+        body: JSON.stringify({
+          filename: file.name, lines, bank_name: bankName,
+          opening_balance_kobo: Math.round(openingNaira * 100), closing_balance_kobo: Math.round(closingNaira * 100),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { errEl.textContent = data.error || 'Failed to reconcile.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
@@ -3837,9 +3876,12 @@ function handleReconFileSelect(event) {
   reader.readAsText(file);
 }
 
-// Deliberately simple, documented format (Date, Amount, Description) rather
-// than trying to auto-detect arbitrary bank export formats, which vary
-// wildly and would be fragile to guess at.
+// Deliberately simple, documented format (Date, Amount, Description, Type)
+// rather than trying to auto-detect arbitrary bank export formats, which
+// vary wildly and would be fragile to guess at. Type is forgiving of the
+// common real-world variants a bank statement might actually use.
+const RECON_CREDIT_ALIASES = ['credit', 'cr', 'in', 'deposit'];
+const RECON_DEBIT_ALIASES = ['debit', 'dr', 'out', 'withdrawal'];
 function parseReconCsv(text) {
   const rows = text.split(/\r?\n/).filter(r => r.trim());
   const lines = [];
@@ -3849,8 +3891,10 @@ function parseReconCsv(text) {
     const date = cols[0];
     const amountNaira = parseFloat(cols[1]);
     const description = cols[2] || '';
+    const typeRaw = (cols[3] || '').toLowerCase();
+    const direction = RECON_CREDIT_ALIASES.includes(typeRaw) ? 'credit' : RECON_DEBIT_ALIASES.includes(typeRaw) ? 'debit' : null;
     if (!date || !Number.isFinite(amountNaira) || amountNaira <= 0) continue;
-    lines.push({ date, amount_kobo: Math.round(amountNaira * 100), description });
+    lines.push({ date, amount_kobo: Math.round(amountNaira * 100), description, direction });
   }
   return lines;
 }
@@ -4004,6 +4048,7 @@ function openNewJournalEntryModal() {
   document.getElementById('je-lines').innerHTML = '';
   document.getElementById('je-error').style.display = 'none';
   document.getElementById('je-suggestion-banner')?.remove();
+  currentReconciliationLineId = null;
   journalLineCount = 0;
   addJournalLine(); addJournalLine();
   openModal('modal-new-journal-entry');
@@ -4082,16 +4127,22 @@ async function submitJournalEntry() {
   try {
     const res = await fetch(`${API}/coop-portal-journal-entry`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ entry_date: entryDate, description, lines }),
+      body: JSON.stringify({ entry_date: entryDate, description, lines, reconciliation_line_id: currentReconciliationLineId || undefined }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to save entry.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save entry'; return; }
     notify(`Entry #${data.entry_number} saved`);
     closeModal('modal-new-journal-entry');
     btn.disabled = false; btn.textContent = 'Save entry';
-    await fetchJournalEntries();
-    renderAccountingContent();
-    if (accountingOpeningDone) loadFinancialReport();
+    if (currentReconciliationBatchId) {
+      const batchId = currentReconciliationBatchId;
+      currentReconciliationLineId = null; currentReconciliationBatchId = null;
+      await viewReconciliationBatch(batchId);
+    } else {
+      await fetchJournalEntries();
+      renderAccountingContent();
+      if (accountingOpeningDone) loadFinancialReport();
+    }
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Save entry';
