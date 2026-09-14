@@ -12,7 +12,7 @@
  * Gated behind the Bank Reconciliation add-on, same pattern as
  * Accounting.
  *
- * Body: { filename, bank_name?, opening_balance_kobo?, closing_balance_kobo?,
+ * Body: { filename, bank_account_id, opening_balance_kobo?, closing_balance_kobo?,
  *         lines: [{ date, amount_kobo, description, direction }] }
  *
  * direction ('credit'|'debit') is required per line for the closing
@@ -69,6 +69,12 @@ exports.handler = async (event) => {
   const openingBalanceKobo = Number.isInteger(body.opening_balance_kobo) ? body.opening_balance_kobo : null;
   const closingBalanceKobo = Number.isInteger(body.closing_balance_kobo) ? body.closing_balance_kobo : null;
 
+  if (!body.bank_account_id) return err(400, 'bank_account_id is required');
+  const { data: bankAccount } = await db.from('coop_chart_of_accounts')
+    .select('id, account_name, sub_type, active').eq('id', body.bank_account_id).eq('coop_id', coopId).maybeSingle();
+  if (!bankAccount || !bankAccount.active) return err(400, 'That account was not found in your chart of accounts');
+  if (bankAccount.sub_type !== 'bank_cash') return err(400, `"${bankAccount.account_name}" is not classified as Bank & Cash — reclassify it in Chart of Accounts first, or pick a different account`);
+
   const candidates = await fetchReconcilableRecords(db, coopId);
   const { matchedLines, unmatchedLines, unmatchedRecords } = matchStatementLines(statementLines, candidates);
 
@@ -76,7 +82,8 @@ exports.handler = async (event) => {
     coop_id: coopId,
     uploaded_by: resolved.society.merchant_id,
     filename: body.filename || null,
-    bank_name: (body.bank_name || '').trim() || null,
+    bank_account_id: bankAccount.id,
+    bank_name: bankAccount.account_name,
     opening_balance_kobo: openingBalanceKobo,
     closing_balance_kobo: closingBalanceKobo,
     total_lines: statementLines.length,
