@@ -36,19 +36,22 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'surplus'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'surplus_dividends'))) return err(403, 'Surplus & Member Benefits is not on your current plan');
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'surplus', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const { data: years } = await db.from('coop_financial_years')
       .select('*').eq('coop_id', coopId).order('start_date', { ascending: false });
     return ok({ financial_years: years || [] });
   }
 
   if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
+
+  if (!(await requirePortalPermission(db, auth, 'surplus', 'create'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
