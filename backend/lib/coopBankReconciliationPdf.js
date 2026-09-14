@@ -38,11 +38,12 @@ const CHARGE_KEYWORDS = /charge|fee|commission|vat|stamp duty/i;
 
 /**
  * @param {object} data
- * @param {object} data.society        { name }
- * @param {object} data.bankAccount    { account_name }
- * @param {object} data.batch          { filename, uploaded_at, opening_balance_kobo, closing_balance_kobo, prepared_by }
- * @param {Array}  data.lines          statement lines: { statement_date, description, amount_kobo, direction, match_status }
- * @param {object} data.summary        { opening_balance_kobo, total_credits_kobo, total_debits_kobo }
+ * @param {object} data.society               { name }
+ * @param {object} data.bankAccount           { account_name }
+ * @param {object} data.batch                 { filename, uploaded_at, opening_balance_kobo, closing_balance_kobo, prepared_by }
+ * @param {Array}  data.lines                 statement lines: { statement_date, description, amount_kobo, direction, match_status }
+ * @param {Array}  data.unmatchedRecords      recorded loan disbursements/repayments with no matching statement line: { record_type, record_date, amount_kobo, description }
+ * @param {number} data.balancePerCashBookKobo  the bank account's TRUE, live ledger balance (every journal entry that ever posted to it, not just this batch's own resolved lines)
  * @returns {Promise<Buffer>}
  */
 function generateBankReconciliationPdf(data) {
@@ -53,7 +54,7 @@ function generateBankReconciliationPdf(data) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const { society, bankAccount, batch, lines, summary } = data;
+    const { society, bankAccount, batch, lines, unmatchedRecords = [], balancePerCashBookKobo } = data;
 
     const unmatched = lines.filter(l => l.match_status !== 'matched');
     const unmatchedCredits = unmatched.filter(l => l.direction === 'credit');
@@ -66,10 +67,19 @@ function generateBankReconciliationPdf(data) {
     const directDebitsNotRecordedKobo = sum(unmatchedOtherDebits);
     const directCreditsNotRecordedKobo = sum(unmatchedCredits);
 
+    // Recorded in the books (a loan disbursement or repayment) but not
+    // found on this bank statement - shown as real, informational
+    // context (Sections 2 & 3) but deliberately NOT folded into the
+    // Adjusted Bank/Book Balance arithmetic below: these come from the
+    // loan module, not the accounting ledger, so there's no reliable
+    // way to know whether they've actually hit this bank account's
+    // real ledger balance without risking double-counting.
+    const outstandingPayments = unmatchedRecords.filter(r => r.record_type === 'loan_disbursement');
+    const depositsInTransit = unmatchedRecords.filter(r => r.record_type === 'loan_repayment');
+
     const balancePerBankStatementKobo = batch.closing_balance_kobo ?? 0;
     const adjustedBankBalanceKobo = balancePerBankStatementKobo; // no reliable in-transit/outstanding data to adjust with
 
-    const balancePerCashBookKobo = summary.opening_balance_kobo + summary.total_credits_kobo - summary.total_debits_kobo;
     const adjustedBookBalanceKobo = balancePerCashBookKobo + directCreditsNotRecordedKobo - bankChargesNotRecordedKobo - directDebitsNotRecordedKobo;
     const differenceKobo = adjustedBankBalanceKobo - adjustedBookBalanceKobo;
 
@@ -179,17 +189,19 @@ function generateBankReconciliationPdf(data) {
     // ---- Section 2: Outstanding Payments/Cheques -----------------------
     itemTable(
       '2. Outstanding Payments/Cheques',
-      'Not automatically tracked in this system - add manually if applicable.',
-      [], ['Date', 'Cheque/Payment No.', 'Payee/Description', 'Amount'], [70, 110, 220, 115],
-      () => [], 'Total', fmtNaira(0)
+      'Loan disbursements recorded in Zillion but not yet found on this bank statement.',
+      outstandingPayments, ['Date', 'Cheque/Payment No.', 'Payee/Description', 'Amount'], [70, 110, 220, 115],
+      r => [fmtDate(r.record_date), '\u2014', r.description || '\u2014', fmtNaira(r.amount_kobo)],
+      'Total', fmtNaira(sum(outstandingPayments))
     );
 
     // ---- Section 3: Deposits/Receipts in Transit ------------------------
     itemTable(
       '3. Deposits/Receipts in Transit',
-      'Not automatically tracked in this system - add manually if applicable.',
-      [], ['Date', 'Receipt/Reference No.', 'Description', 'Amount'], [70, 110, 220, 115],
-      () => [], 'Total', fmtNaira(0)
+      'Loan repayments recorded in Zillion but not yet found on this bank statement.',
+      depositsInTransit, ['Date', 'Receipt/Reference No.', 'Description', 'Amount'], [70, 110, 220, 115],
+      r => [fmtDate(r.record_date), '\u2014', r.description || '\u2014', fmtNaira(r.amount_kobo)],
+      'Total', fmtNaira(sum(depositsInTransit))
     );
 
     // ---- Section 4: Bank Charges & Direct Debits ------------------------
