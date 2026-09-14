@@ -53,11 +53,10 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'surplus'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'surplus', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const entitlementId = event.queryStringParameters?.entitlement_id;
     if (!entitlementId) return err(400, 'entitlement_id is required');
     const { data: payouts } = await db.from('coop_dividend_payouts')
@@ -66,6 +65,10 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
+
+  if (!(await requirePortalPermission(db, auth, 'surplus', 'create'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
