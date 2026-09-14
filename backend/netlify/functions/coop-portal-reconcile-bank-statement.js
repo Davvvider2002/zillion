@@ -12,7 +12,13 @@
  * Gated behind the Bank Reconciliation add-on, same pattern as
  * Accounting.
  *
- * Body: { filename, lines: [{ date, amount_kobo, description }] }
+ * Body: { filename, bank_name?, opening_balance_kobo?, closing_balance_kobo?,
+ *         lines: [{ date, amount_kobo, description, direction }] }
+ *
+ * direction ('credit'|'debit') is required per line for the closing
+ * balance to mean anything - money in vs money out has to come from
+ * somewhere, and for a matched line it's overridden anyway by what
+ * the match itself proves happened (see coopBankReconciliation.js).
  */
 'use strict';
 
@@ -48,15 +54,20 @@ exports.handler = async (event) => {
   catch { return err(400, 'Invalid JSON'); }
 
   const lines = Array.isArray(body.lines) ? body.lines : [];
-  if (!lines.length) return err(400, 'lines must be a non-empty array of { date, amount_kobo, description }');
+  if (!lines.length) return err(400, 'lines must be a non-empty array of { date, amount_kobo, description, direction }');
 
   const statementLines = [];
   for (const l of lines) {
     const amountKobo = Number(l.amount_kobo);
     if (!l.date || !Number.isFinite(amountKobo) || amountKobo <= 0)
       return err(400, `Invalid line: every entry needs a valid date and a positive amount_kobo. Got: ${JSON.stringify(l)}`);
-    statementLines.push({ date: l.date, amountKobo, description: l.description || '' });
+    if (!['credit', 'debit'].includes(l.direction))
+      return err(400, `Invalid line: direction must be "credit" or "debit". Got: ${JSON.stringify(l)}`);
+    statementLines.push({ date: l.date, amountKobo, description: l.description || '', direction: l.direction });
   }
+
+  const openingBalanceKobo = Number.isInteger(body.opening_balance_kobo) ? body.opening_balance_kobo : null;
+  const closingBalanceKobo = Number.isInteger(body.closing_balance_kobo) ? body.closing_balance_kobo : null;
 
   const candidates = await fetchReconcilableRecords(db, coopId);
   const { matchedLines, unmatchedLines, unmatchedRecords } = matchStatementLines(statementLines, candidates);
@@ -65,6 +76,9 @@ exports.handler = async (event) => {
     coop_id: coopId,
     uploaded_by: resolved.society.merchant_id,
     filename: body.filename || null,
+    bank_name: (body.bank_name || '').trim() || null,
+    opening_balance_kobo: openingBalanceKobo,
+    closing_balance_kobo: closingBalanceKobo,
     total_lines: statementLines.length,
     matched_lines: matchedLines.length,
   }).select().single();
@@ -74,7 +88,8 @@ exports.handler = async (event) => {
   if (allLines.length) {
     await db.from('coop_bank_statement_lines').insert(allLines.map(l => ({
       batch_id: batch.id, coop_id: coopId, statement_date: l.date, description: l.description,
-      amount_kobo: l.amountKobo, matched_type: l.matched_type, matched_id: l.matched_id, match_status: l.match_status,
+      amount_kobo: l.amountKobo, matched_type: l.matched_type, matched_id: l.matched_id,
+      match_status: l.match_status, direction: l.direction,
     })));
   }
   if (unmatchedRecords.length) {
