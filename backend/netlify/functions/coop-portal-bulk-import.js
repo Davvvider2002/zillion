@@ -38,11 +38,14 @@ function parseCsv(text) {
     .sort((a, b) => b.count - a.count)[0].d;
 
   const headerCells = headerLine.split(delimiter).map(c => c.trim().toLowerCase());
-  const phoneIdx = headerCells.indexOf('phone');
+  const PHONE_ALIASES = ['phone', 'phone number', 'phone_number', 'mobile', 'mobile number', 'tel', 'telephone'];
+  const phoneIdx = headerCells.findIndex(c => PHONE_ALIASES.includes(c));
   const nameIdx = headerCells.indexOf('name');
   const balanceIdx = headerCells.indexOf('opening_balance');
 
-  if (phoneIdx === -1) return { rows: [], error: 'CSV must have a "phone" column in its header row' };
+  if (phoneIdx === -1) {
+    return { rows: [], error: `CSV must have a "phone" column in its header row. Detected header: [${headerCells.map(c => `"${c}"`).join(', ')}] (using "${delimiter === '\t' ? 'tab' : delimiter}" as the separator).` };
+  }
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
