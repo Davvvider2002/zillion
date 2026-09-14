@@ -71,7 +71,7 @@ exports.handler = async (event) => {
   if (inputLines.length < 2) return err(400, 'At least two lines are required for a double-entry');
 
   const accountIds = [...new Set(inputLines.map(l => l.account_id))];
-  const { data: accounts } = await db.from('coop_chart_of_accounts').select('id, currency, active').eq('coop_id', coopId).in('id', accountIds);
+  const { data: accounts } = await db.from('coop_chart_of_accounts').select('id, account_code, currency, active').eq('coop_id', coopId).in('id', accountIds);
   const accountMap = new Map((accounts || []).map(a => [a.id, a]));
 
   const resolvedLines = [];
@@ -85,7 +85,7 @@ exports.handler = async (event) => {
     const exchangeRate = account.currency === resolved.society.base_currency ? 1 : (Number(l.exchange_rate) > 0 ? Number(l.exchange_rate) : null);
     if (!exchangeRate) return err(400, `A positive exchange_rate is required for a non-base-currency line (account currency: ${account.currency})`);
     resolvedLines.push({
-      accountId: l.account_id, lineType: l.line_type, amount, currency: account.currency,
+      accountId: l.account_id, accountCode: account.account_code, lineType: l.line_type, amount, currency: account.currency,
       exchangeRate, baseAmount: Math.round(amount * exchangeRate), memo: (l.memo || '').trim() || null,
     });
   }
@@ -124,5 +124,37 @@ exports.handler = async (event) => {
     resourceType: 'coop_journal_entry', resourceId: entry.id, requestBody: body, result: 'SUCCESS',
   });
 
-  return ok({ success: true, entry_number: nextNumber, entry_id: entry.id });
+  let reconciliationResolved = false;
+  if (body.reconciliation_line_id) {
+    const { data: reconLine } = await db.from('coop_bank_statement_lines')
+      .select('id, batch_id').eq('id', body.reconciliation_line_id).eq('coop_id', coopId).maybeSingle();
+
+    if (reconLine) {
+      // Bank account (1010) is an asset - a debit to it means the
+      // balance went UP (money arrived, a "credit" on the actual bank
+      // statement); a credit to it means the balance went DOWN (money
+      // left, a "debit" on the statement). This is the standard
+      // asset-account polarity, just the opposite direction from how
+      // banks describe their own statements.
+      const bankLine = resolvedLines.find(l => l.accountCode === '1010');
+      const direction = bankLine ? (bankLine.lineType === 'debit' ? 'credit' : 'debit') : null;
+
+      await db.from('coop_bank_statement_lines').update({
+        match_status: 'matched',
+        resolved_journal_entry_id: entry.id,
+        ...(direction ? { direction } : {}),
+      }).eq('id', reconLine.id);
+
+      // Keep the batch's own matched_lines count honest too, so the
+      // upload-summary figure shown elsewhere doesn't silently drift
+      // from what the detail view actually shows.
+      const { count: matchedCount } = await db.from('coop_bank_statement_lines')
+        .select('id', { count: 'exact', head: true }).eq('batch_id', reconLine.batch_id).eq('match_status', 'matched');
+      await db.from('coop_bank_reconciliation_batches').update({ matched_lines: matchedCount || 0 }).eq('id', reconLine.batch_id);
+
+      reconciliationResolved = true;
+    }
+  }
+
+  return ok({ success: true, entry_number: nextNumber, entry_id: entry.id, reconciliation_resolved: reconciliationResolved });
 };
