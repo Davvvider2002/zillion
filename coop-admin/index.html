@@ -634,7 +634,7 @@ tr:last-child td{border-bottom:none}
     <div class="modal-title">Loan packages</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Members choose a package when applying. Once you have at least one active package, applying without one is no longer allowed.</div>
     <div id="lp-list" style="margin-bottom:16px"></div>
-    <div style="border-top:1px solid var(--line);padding-top:14px">
+    <div id="lp-form-section" style="border-top:1px solid var(--line);padding-top:14px">
       <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="lp-form-title">Add a package</div>
       <input type="hidden" id="lp-editing-id" value="">
       <div class="field">
@@ -686,7 +686,7 @@ tr:last-child td{border-bottom:none}
     <div class="modal-title">Savings packages</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Optional — a member's savings plan can link to a package to earn monthly interest, credited automatically. A plan with no package earns no interest, exactly as before.</div>
     <div id="svp-list" style="margin-bottom:16px"></div>
-    <div style="border-top:1px solid var(--line);padding-top:14px">
+    <div id="svp-form-section" style="border-top:1px solid var(--line);padding-top:14px">
       <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="svp-form-title">Add a package</div>
       <input type="hidden" id="svp-editing-id" value="">
       <div class="field">
@@ -1234,8 +1234,8 @@ function renderMembers() {
     <div class="card">
       <div class="card-title">Members
         <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>
-          <button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>
+          ${hasPortalAction('members', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>` : ''}
+          ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>` : ''}
         </div>
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
@@ -1252,8 +1252,8 @@ function renderMembers() {
             <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>
-                <button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}','${(m.name || m.phone_normalized || '').replace(/'/g, "\\'")}')">Record share</button>
+                ${hasPortalAction('members', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>` : ''}
+                ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}','${(m.name || m.phone_normalized || '').replace(/'/g, "\\'")}')">Record share</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button>
               </div>
             </td>
@@ -1410,7 +1410,7 @@ function renderSavings() {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Savings plans
-        <button class="btn btn-primary btn-sm" onclick="openNewSavingsPlanModal()">＋ New savings plan</button>
+        ${hasPortalAction('savings', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewSavingsPlanModal()">＋ New savings plan</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openSavingsPackagesModal()">Savings packages</button>
       </div>
       <div class="card-sub">Progress toward each member's savings target.</div>
@@ -1422,7 +1422,7 @@ function renderSavings() {
             <td>${fmtNaira(p.target_amount_kobo)}</td>
             <td>${fmtNaira(p.saved_kobo)}</td>
             <td>${p.progress_pct}%</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="openSavingsPaymentModal('${p.id}','${(p.coop_members?.name || p.coop_members?.phone_normalized || '').replace(/'/g,"\\'")}')">Record payment</button></td>
+            <td>${hasPortalAction('savings', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSavingsPaymentModal('${p.id}','${(p.coop_members?.name || p.coop_members?.phone_normalized || '').replace(/'/g,"\\'")}')">Record payment</button>` : ''}</td>
           </tr>
         `).join('') || '<tr><td colspan="5" class="no-data">No savings plans yet.</td></tr>'}</tbody>
       </table></div>
@@ -1585,9 +1585,9 @@ function renderLoans() {
     <div class="card">
       <div class="card-title">Loans
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>
-          <button class="btn btn-ghost btn-sm" onclick="openConfigureLoanPenaltyModal()">${d.society.loan_late_fee_type ? 'Penalty: separate rate' : (d.society.late_fee_type ? 'Penalty: same as dues' : 'Set penalty')}</button>
-          <button class="btn btn-primary btn-sm" onclick="openCreateLoanModal()">+ Create loan</button>
+          ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>` : ''}
+          ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureLoanPenaltyModal()">${d.society.loan_late_fee_type ? 'Penalty: separate rate' : (d.society.late_fee_type ? 'Penalty: same as dues' : 'Set penalty')}</button>` : ''}
+          ${hasPortalAction('loans', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openCreateLoanModal()">+ Create loan</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openLoanPackagesModal()">Loan packages</button>
           <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
         </div>
@@ -1662,6 +1662,7 @@ async function renderLoanHistoryReport(el) {
 }
 
 function loanActionButtons(l) {
+  if (!hasPortalAction('loans', 'edit')) return '';
   if (l.status === 'PENDING_APPROVAL') {
     return `<button class="btn btn-primary btn-sm" onclick="doLoanAction('${l.id}','approve')">Approve</button>
             <button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="openRejectLoanModal('${l.id}')">Reject</button>`;
@@ -1718,7 +1719,7 @@ function renderDues() {
         <td>${fmtNaira(yearData.accrued_kobo)}</td>
         <td>${fmtNaira(yearData.paid_kobo)}</td>
         <td>${yearData.owing_kobo > 0 ? `<span class="pill pill-amber">${fmtNaira(yearData.owing_kobo)}</span>` : `<span class="pill pill-green">Clear</span>`}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="openDuesPaymentModal('${m.id}','${(m.name || m.phone_normalized).replace(/'/g,"\\'")}')">Record payment</button></td>
+        <td>${hasPortalAction('dues', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openDuesPaymentModal('${m.id}','${(m.name || m.phone_normalized).replace(/'/g,"\\'")}')">Record payment</button>` : ''}</td>
       </tr>`;
   }).join('');
 
@@ -1727,7 +1728,7 @@ function renderDues() {
       <div class="card-title">Dues
         <div style="display:flex;gap:8px;align-items:center">
           ${allYears.length ? `<select onchange="selectedDuesYear=parseInt(this.value);renderDues()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">${allYears.map(y => `<option value="${y}" ${y === selectedDuesYear ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
-          <button class="btn btn-ghost btn-sm" onclick="openConfigureDuesModal()">${d.society.dues_amount_kobo ? 'Edit' : 'Configure'} dues</button>
+          ${hasPortalAction('dues', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureDuesModal()">${d.society.dues_amount_kobo ? 'Edit' : 'Configure'} dues</button>` : ''}
         </div>
       </div>
       <div class="card-sub">${d.society.dues_amount_kobo ? `₦${(d.society.dues_amount_kobo/100).toLocaleString()}/month per member — owed from each member's join month through December, then a full year every year after. Payments apply to the oldest owing year first.` : 'Dues are not configured for this society yet.'}</div>
@@ -1878,6 +1879,7 @@ async function submitCreateLoan() {
 async function openLoanPackagesModal() {
   document.getElementById('lp-error').style.display = 'none';
   resetLoanPackageForm();
+  document.getElementById('lp-form-section').style.display = (hasPortalAction('loans', 'create') || hasPortalAction('loans', 'edit')) ? '' : 'none';
   openModal('modal-loan-packages');
   await loadLoanPackages();
 }
@@ -1896,8 +1898,8 @@ async function loadLoanPackages() {
           <div style="font-size:11px;color:var(--muted)">${p.calculation_type === 'flat_max' ? `Up to ${fmtNaira(p.flat_max_kobo)} for everyone` : `${p.multiplier_value}x member's total savings`} · ${p.default_repayment_months}mo</div>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="editLoanPackage('${p.id}')">Edit</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleLoanPackageActive('${p.id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+          ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="editLoanPackage('${p.id}')">Edit</button>` : ''}
+          ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="toggleLoanPackageActive('${p.id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>` : ''}
         </div>
       </div>
     `).join('') : '<div class="no-data">No packages yet — add one below.</div>';
@@ -2008,6 +2010,7 @@ async function toggleLoanPackageActive(packageId, makeActive) {
 async function openSavingsPackagesModal() {
   document.getElementById('svp-error').style.display = 'none';
   resetSavingsPackageForm();
+  document.getElementById('svp-form-section').style.display = (hasPortalAction('savings', 'create') || hasPortalAction('savings', 'edit')) ? '' : 'none';
   openModal('modal-savings-packages');
   await loadSavingsPackages();
 }
@@ -2026,8 +2029,8 @@ async function loadSavingsPackages() {
           <div style="font-size:11px;color:var(--muted)">${p.monthly_interest_rate_percent}%/mo${p.min_balance_kobo ? ` · min ${fmtNaira(p.min_balance_kobo)}` : ''}</div>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="editSavingsPackage('${p.id}')">Edit</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleSavingsPackageActive('${p.id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+          ${hasPortalAction('savings', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="editSavingsPackage('${p.id}')">Edit</button>` : ''}
+          ${hasPortalAction('savings', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="toggleSavingsPackageActive('${p.id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>` : ''}
         </div>
       </div>
     `).join('') : '<div class="no-data">No packages yet — add one below.</div>';
@@ -2296,7 +2299,7 @@ async function renderAddons() {
             <div style="font-weight:600;font-size:14px">${a.name}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.description || ''} — ${fmtNaira(a.price_kobo)}/mo</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>
+          ${hasPortalAction('addons', 'create') ? `<button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>` : ''}
         </div>
       `).join('')}
     </div>` : ''}
@@ -2356,8 +2359,8 @@ async function renderHrPayroll() {
         <td>${fmtNaira(e.gross_kobo)}</td>
         <td><span class="pill ${e.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${e.status}</span></td>
         <td>
-          <button class="btn btn-ghost btn-sm" onclick="openSetSalaryModal('${e.id}')">Set salary</button>
-          <button class="btn btn-ghost btn-sm" onclick="openStaffLoanModal('${e.id}')">Staff loan</button>
+          ${hasPortalAction('hr_payroll', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openSetSalaryModal('${e.id}')">Set salary</button>` : ''}
+          ${hasPortalAction('hr_payroll', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openStaffLoanModal('${e.id}')">Staff loan</button>` : ''}
         </td>
       </tr>`).join('');
 
@@ -2365,8 +2368,8 @@ async function renderHrPayroll() {
       <div class="card">
         <div class="card-title">Employees
           <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="openImportPayrollModal()">📄 Import employees</button>
-            <button class="btn btn-primary btn-sm" onclick="openAddEmployeeModal()">+ Add employee</button>
+            ${hasPortalAction('hr_payroll', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openImportPayrollModal()">📄 Import employees</button>` : ''}
+            ${hasPortalAction('hr_payroll', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openAddEmployeeModal()">+ Add employee</button>` : ''}
           </div>
         </div>
         <div class="card-sub">Your society's own paid staff — separate from cooperative members, though an employee can also be one.</div>
@@ -2377,7 +2380,7 @@ async function renderHrPayroll() {
       </div>
       <div class="card">
         <div class="card-title">Payroll runs
-          <button class="btn btn-primary btn-sm" onclick="openNewPayrollRunModal()">+ New payroll run</button>
+          ${hasPortalAction('hr_payroll', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewPayrollRunModal()">+ New payroll run</button>` : ''}
         </div>
         <div class="card-sub">Create a draft to review each employee's pay and deductions before processing — processing posts the accounting entry and applies any staff loan deductions.</div>
         <div id="hr-payroll-runs-list"><div class="card-sub">Loading…</div></div>
@@ -2401,7 +2404,7 @@ async function loadPayrollRunsList() {
         <td><span class="pill ${r.status === 'processed' ? 'pill-green' : 'pill-amber'}">${r.status}</span></td>
         <td>
           <button class="btn btn-ghost btn-sm" onclick="openPayrollBreakdownModal('${r.id}')">Breakdown</button>
-          ${r.status === 'draft' ? `<button class="btn btn-ghost btn-sm" onclick="processPayrollRun('${r.id}')">Process</button>` : ''}
+          ${r.status === 'draft' && hasPortalAction('hr_payroll', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="processPayrollRun('${r.id}')">Process</button>` : ''}
         </td>
       </tr>`).join('');
     listEl.innerHTML = `<div class="table-wrap"><table>
@@ -2765,16 +2768,16 @@ async function renderInvestment() {
         <td>${p.product_type === 'general' ? `${p.units_sold}/${p.total_units} units` : `${p.units_sold} sold`}</td>
         <td><span class="pill ${p.active ? 'pill-green' : 'pill-muted'}">${p.active ? 'Active' : 'Inactive'}</span></td>
         <td>
-          <button class="btn btn-ghost btn-sm" onclick="openRecordInvestmentModal('${p.id}')">Record purchase</button>
+          ${hasPortalAction('investment', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openRecordInvestmentModal('${p.id}')">Record purchase</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openViewInvestorsModal('${p.id}')">Investors</button>
-          ${p.return_type === 'variable' ? `<button class="btn btn-ghost btn-sm" onclick="openRecordPerformanceModal('${p.id}')">Record performance</button>` : ''}
+          ${p.return_type === 'variable' && hasPortalAction('investment', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openRecordPerformanceModal('${p.id}')">Record performance</button>` : ''}
         </td>
       </tr>`).join('');
 
     el.innerHTML = `
       <div class="card">
         <div class="card-title">Investment products
-          <button class="btn btn-primary btn-sm" onclick="openAddInvestmentProductModal()">+ New product</button>
+          ${hasPortalAction('investment', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openAddInvestmentProductModal()">+ New product</button>` : ''}
         </div>
         <div class="card-sub">Fixed-return products promise a set rate over the tenure. Variable-return products distribute the venture's real, recorded performance to investors — including a loss, if it underperforms.</div>
         <div class="table-wrap"><table>
@@ -2915,7 +2918,7 @@ async function openViewInvestorsModal(productId) {
         <td>${fmtNaira(inv.total_accrued_kobo)}</td>
         <td>${new Date(inv.maturity_date).toLocaleDateString()}</td>
         <td>${statusPill(inv.status)}</td>
-        <td>${inv.status === 'ACTIVE' ? `<button class="btn btn-ghost btn-sm" onclick="withdrawInvestmentEarly('${inv.id}', ${productId ? `'${productId}'` : 'null'})">Withdraw early</button>` : '—'}</td>
+        <td>${(inv.status === 'ACTIVE' && hasPortalAction('investment', 'edit')) ? `<button class="btn btn-ghost btn-sm" onclick="withdrawInvestmentEarly('${inv.id}', ${productId ? `'${productId}'` : 'null'})">Withdraw early</button>` : '—'}</td>
       </tr>`).join('');
 
     document.getElementById('vi-body').innerHTML = `<div class="table-wrap"><table>
@@ -3247,7 +3250,7 @@ function renderNotifications() {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Notifications
-        <button class="btn btn-primary btn-sm" onclick="openNotifyModal()">✎ New message</button>
+        ${hasPortalAction('notifications', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNotifyModal()">✎ New message</button>` : ''}
       </div>
       <div class="card-sub">One-way messages to your members — broadcasts or individual notes.</div>
       <div class="table-wrap"><table>
@@ -3342,6 +3345,7 @@ async function renderSurplus() {
   }
 
   el.innerHTML = `
+    ${hasPortalAction('surplus', 'create') ? `
     <div class="card">
       <div class="card-title">Close a financial year</div>
       <div class="card-sub">Calculates income minus expense for the exact date range you set. Once allocated, a year can't be recalculated without first removing its allocation.</div>
@@ -3350,7 +3354,7 @@ async function renderSurplus() {
       <div class="field"><label>End date</label><input type="date" id="fy-end"></div>
       <div id="fy-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
       <button class="btn btn-primary btn-sm" onclick="submitCloseFinancialYear()" id="fy-submit-btn">Close year</button>
-    </div>
+    </div>` : ''}
     <div class="card">
       <div class="card-title">Financial years
         <button class="rbtn" onclick="loadFinancialYears()">&#x21BB;</button>
@@ -3359,7 +3363,7 @@ async function renderSurplus() {
     </div>
     <div id="fy-detail-card"></div>
   `;
-  suggestCurrentFinancialYearDates();
+  if (hasPortalAction('surplus', 'create')) suggestCurrentFinancialYearDates();
   await loadFinancialYears();
 }
 
@@ -3456,15 +3460,17 @@ async function openAllocationEditor(financialYearId) {
 function renderAllocationEditor(data) {
   const detailEl = document.getElementById('fy-detail-card');
   const rows = data.allocations.length ? data.allocations : [{ category: '', amount_kobo: '' }];
+  const canEditAllocation = hasPortalAction('surplus', 'edit');
+  const canRunDividend = hasPortalAction('surplus', 'create');
   detailEl.innerHTML = `
     <div class="card">
       <div class="card-title">Allocate surplus — ${data.financial_year.year_label}</div>
       <div class="card-sub">Net surplus: ${fmtNaira(data.financial_year.net_surplus_kobo)}. Categories are entirely up to your society's own bye-laws — reserve fund, development fund, member distribution, whatever applies. Check "Member pool" on whichever line is meant to be shared out to members.</div>
-      <div id="alloc-rows">${rows.map(renderAllocationRow).join('')}</div>
-      <button class="btn btn-ghost btn-sm" style="margin:10px 0" onclick="addAllocationRow()">+ Add category</button>
+      <div id="alloc-rows">${rows.map(a => renderAllocationRow(a, canEditAllocation)).join('')}</div>
+      ${canEditAllocation ? `<button class="btn btn-ghost btn-sm" style="margin:10px 0" onclick="addAllocationRow()">+ Add category</button>` : ''}
       <div id="alloc-total" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
       <div id="alloc-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
-      <button class="btn btn-primary" onclick="submitAllocation(${data.financial_year.net_surplus_kobo})" id="alloc-submit-btn">Save allocation</button>
+      ${canEditAllocation ? `<button class="btn btn-primary" onclick="submitAllocation(${data.financial_year.net_surplus_kobo})" id="alloc-submit-btn">Save allocation</button>` : ''}
     </div>
     <div class="card">
       <div class="card-title">Dividend calculation</div>
@@ -3473,7 +3479,7 @@ function renderAllocationEditor(data) {
         <label>Share-based weight: <span id="div-share-weight-label">0</span>%</label>
         <input type="range" id="div-share-weight" min="0" max="100" step="5" value="0" style="width:100%" oninput="document.getElementById('div-share-weight-label').textContent = this.value">
       </div>
-      <button class="btn btn-primary btn-sm" onclick="submitRunDividend('${data.financial_year.id}')" id="div-run-btn">Run calculation</button>
+      ${canRunDividend ? `<button class="btn btn-primary btn-sm" onclick="submitRunDividend('${data.financial_year.id}')" id="div-run-btn">Run calculation</button>` : ''}
       <div id="div-run-error" style="display:none;color:#FF8A8A;font-size:13px;margin:10px 0"></div>
       <div id="div-run-results" style="margin-top:14px"></div>
     </div>
@@ -3481,15 +3487,15 @@ function renderAllocationEditor(data) {
   loadExistingDividendRun(data.financial_year.id);
 }
 
-function renderAllocationRow(a) {
+function renderAllocationRow(a, canEdit = true) {
   return `
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center" class="alloc-row">
-      <input type="text" class="alloc-category" placeholder="e.g. Statutory Reserve Fund" value="${a.category || ''}" style="flex:2">
-      <input type="number" class="alloc-amount" placeholder="Amount (₦)" value="${a.amount_kobo ? a.amount_kobo/100 : ''}" style="flex:1">
+      <input type="text" class="alloc-category" placeholder="e.g. Statutory Reserve Fund" value="${a.category || ''}" style="flex:2" ${canEdit ? '' : 'disabled'}>
+      <input type="number" class="alloc-amount" placeholder="Amount (₦)" value="${a.amount_kobo ? a.amount_kobo/100 : ''}" style="flex:1" ${canEdit ? '' : 'disabled'}>
       <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;text-transform:none;letter-spacing:normal">
-        <input type="checkbox" class="alloc-is-member-dist" ${a.is_member_distribution ? 'checked' : ''}> Member pool
+        <input type="checkbox" class="alloc-is-member-dist" ${a.is_member_distribution ? 'checked' : ''} ${canEdit ? '' : 'disabled'}> Member pool
       </label>
-      <button class="btn btn-ghost btn-sm" onclick="this.closest('.alloc-row').remove()">Remove</button>
+      ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="this.closest('.alloc-row').remove()">Remove</button>` : ''}
     </div>
   `;
 }
@@ -3585,7 +3591,7 @@ function renderDividendResults(run, entitlements) {
           <td>${fmtNaira(e.patronage_loan_interest_kobo)}</td>
           <td>${fmtNaira(e.share_capital_kobo)}</td>
           <td style="font-weight:700">${fmtNaira(e.entitlement_kobo)}</td>
-          ${isApproved ? `<td><button class="btn btn-ghost btn-sm" onclick="openDividendPayoutModal('${e.id}','${(e.coop_members?.name || 'Member').replace(/'/g, "\\'")}',${e.entitlement_kobo})">Record payout</button></td>` : ''}
+          ${isApproved && hasPortalAction('surplus', 'create') ? `<td><button class="btn btn-ghost btn-sm" onclick="openDividendPayoutModal('${e.id}','${(e.coop_members?.name || 'Member').replace(/'/g, "\\'")}',${e.entitlement_kobo})">Record payout</button></td>` : (isApproved ? '<td></td>' : '')}
         </tr>
       `).join('') || `<tr><td colspan="${isApproved ? 7 : 6}" class="no-data">No entitlements yet.</td></tr>`}</tbody>
     </table></div>
@@ -3696,6 +3702,7 @@ async function renderReconciliation() {
   const bankAccounts = (accountingAccounts || []).filter(a => a.sub_type === 'bank_cash');
 
   el.innerHTML = `
+    ${hasPortalAction('reconciliation', 'create') ? `
     <div class="card">
       <div class="card-title">Upload bank statement</div>
       <div class="card-sub">CSV with four columns: Date (YYYY-MM-DD), Amount (in Naira, e.g. 30000), Description, Type (credit or debit). First row is treated as a header and skipped.</div>
@@ -3713,7 +3720,7 @@ async function renderReconciliation() {
       <input type="file" id="recon-file-input" accept=".csv" style="margin:10px 0" onchange="handleReconFileSelect(event)">
       <div id="recon-upload-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:10px"></div>
       <div id="recon-upload-status" style="font-size:13px;color:var(--muted)"></div>
-    </div>
+    </div>` : ''}
     <div class="card">
       <div class="card-title">Past reconciliations</div>
       <div id="recon-history-list"><div class="no-data">Loading...</div></div>
@@ -4035,7 +4042,7 @@ function renderAccountingContent() {
     <div class="card" style="border-color:var(--amber)">
       <div class="card-title">Set your opening balances</div>
       <div class="card-sub">Before recording new activity, tell us what each account currently holds. One-time setup.</div>
-      <button class="btn btn-primary btn-sm" onclick="openOpeningBalanceModal()">Start wizard →</button>
+      <button class="btn btn-primary btn-sm" onclick="openOpeningBalanceModal()" ${!hasPortalAction('accounting', 'create') ? 'disabled title="You need create access on Accounting to run this"' : ''}>Start wizard →</button>
     </div>` : ''}
     <div class="card">
       <div class="card-title">Reports
@@ -4063,7 +4070,7 @@ function renderAccountingContent() {
     </div>
     <div class="card">
       <div class="card-title">Chart of accounts
-        <button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button>
+        ${hasPortalAction('accounting', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button>` : ''}
       </div>
       <div class="card-sub">Base currency: ${baseCurrency}. Accounts in another currency show their own totals converted at the rate you enter per transaction.</div>
       <div class="table-wrap"><table>
