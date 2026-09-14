@@ -41,7 +41,7 @@ function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
   if (digits.startsWith('234')) return '+' + digits;
   if (digits.startsWith('0'))   return '+234' + digits.slice(1);
-  return '+' + digits;
+  return '+234' + digits;
 }
 
 const VALID_PLANS = ['launch', 'growth', 'scale'];
