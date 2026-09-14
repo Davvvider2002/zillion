@@ -64,15 +64,14 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'investment'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'investment'))) {
     return err(403, 'Investment is not enabled for this society. Add it from the Add-ons tab.');
   }
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'investment', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const { data: products } = await db.from('coop_investment_products')
       .select('*').eq('coop_id', coopId).order('created_at', { ascending: true });
     return ok({ products: products || [] });
@@ -83,6 +82,12 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
+
+  // create is the only new-record action - update/deactivate/activate
+  // all modify a product that already exists.
+  if (!(await requirePortalPermission(db, auth, 'investment', body.action === 'create' ? 'create' : 'edit'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (body.action === 'create') {
     const validationError = validateProductInput(body);
