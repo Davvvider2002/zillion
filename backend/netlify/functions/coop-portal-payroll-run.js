@@ -51,15 +51,14 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  if (!(await requirePortalPermission(db, auth, 'hr_payroll'))) {
-    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
-  }
-
   if (!(await hasAddon(db, coopId, 'payroll'))) {
     return err(403, 'HR & Payroll is not enabled for this society. Add it from the Add-ons tab.');
   }
 
   if (event.httpMethod === 'GET') {
+    if (!(await requirePortalPermission(db, auth, 'hr_payroll', 'view'))) {
+      return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    }
     const runId = (event.queryStringParameters || {}).payroll_run_id;
 
     if (runId) {
@@ -98,6 +97,11 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
+
+  // create_draft makes a new run; process modifies an existing draft's status.
+  if (!(await requirePortalPermission(db, auth, 'hr_payroll', body.action === 'create_draft' ? 'create' : 'edit'))) {
+    return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+  }
 
   if (body.action === 'create_draft') {
     const { period_label, period_start, period_end } = body;
