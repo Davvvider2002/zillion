@@ -1213,9 +1213,10 @@ function renderMembers() {
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Shares</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Shares</th><th>Status</th><th></th></tr></thead>
         <tbody>${d.members.map(m => `
           <tr>
+            <td style="font-family:monospace;color:var(--amber)">${m.member_number || '—'}</td>
             <td>${m.name || '—'}</td>
             <td>${m.phone_normalized}</td>
             <td>${fmtDate(m.activated_at)}</td>
@@ -1230,7 +1231,7 @@ function renderMembers() {
               </div>
             </td>
           </tr>
-        `).join('') || '<tr><td colspan="7" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
+        `).join('') || '<tr><td colspan="8" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
