@@ -41,21 +41,45 @@ exports.handler = async (event) => {
 
   if (!batchId) {
     const { data: batches } = await db.from('coop_bank_reconciliation_batches')
-      .select('id, uploaded_at, filename, total_lines, matched_lines')
+      .select('id, uploaded_at, filename, bank_name, total_lines, matched_lines')
       .eq('coop_id', coopId).order('uploaded_at', { ascending: false }).limit(50);
     return ok({ batches: batches || [] });
   }
 
   const { data: batch } = await db.from('coop_bank_reconciliation_batches')
-    .select('id, uploaded_at, filename, total_lines, matched_lines').eq('id', batchId).eq('coop_id', coopId).maybeSingle();
+    .select('id, uploaded_at, filename, bank_name, opening_balance_kobo, closing_balance_kobo, total_lines, matched_lines')
+    .eq('id', batchId).eq('coop_id', coopId).maybeSingle();
   if (!batch) return err(404, 'Batch not found');
 
   const { data: lines } = await db.from('coop_bank_statement_lines')
-    .select('statement_date, description, amount_kobo, matched_type, matched_id, match_status')
+    .select('id, statement_date, description, amount_kobo, matched_type, matched_id, match_status, direction, resolved_journal_entry_id')
     .eq('batch_id', batchId).order('statement_date');
   const { data: unmatchedRecords } = await db.from('coop_reconciliation_unmatched_records')
     .select('record_type, record_id, record_date, amount_kobo, description')
     .eq('batch_id', batchId).order('record_date');
 
-  return ok({ batch, lines: lines || [], unmatched_records: unmatchedRecords || [] });
+  // Only lines actually resolved (auto-matched, or manually journaled)
+  // count toward the closing balance - a line still sitting unmatched
+  // hasn't been accounted for yet, so it correctly keeps the computed
+  // figure from tying out until it's dealt with, which is the honest
+  // point of reconciling in the first place.
+  const resolvedLines = (lines || []).filter(l => l.match_status === 'matched');
+  const totalCreditsKobo = resolvedLines.filter(l => l.direction === 'credit').reduce((s, l) => s + l.amount_kobo, 0);
+  const totalDebitsKobo = resolvedLines.filter(l => l.direction === 'debit').reduce((s, l) => s + l.amount_kobo, 0);
+  const openingBalanceKobo = batch.opening_balance_kobo ?? 0;
+  const computedClosingBalanceKobo = openingBalanceKobo + totalCreditsKobo - totalDebitsKobo;
+  const closingBalanceDifferenceKobo = batch.closing_balance_kobo != null ? (batch.closing_balance_kobo - computedClosingBalanceKobo) : null;
+
+  return ok({
+    batch, lines: lines || [], unmatched_records: unmatchedRecords || [],
+    summary: {
+      opening_balance_kobo: openingBalanceKobo,
+      total_credits_kobo: totalCreditsKobo,
+      total_debits_kobo: totalDebitsKobo,
+      computed_closing_balance_kobo: computedClosingBalanceKobo,
+      bank_closing_balance_kobo: batch.closing_balance_kobo,
+      difference_kobo: closingBalanceDifferenceKobo,
+      fully_reconciled: closingBalanceDifferenceKobo === 0,
+    },
+  });
 };
