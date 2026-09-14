@@ -755,7 +755,9 @@ tr:last-child td{border-bottom:none}
   <div class="modal-box" style="max-width:520px">
     <div class="modal-title">Import members from CSV</div>
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">First row must be a header with a <code>phone</code> column. Optional: <code>name</code>, <code>opening_balance</code> (in ₦).</div>
-    <div class="field"><label>Paste CSV</label><textarea id="im-csv" rows="8" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px;font-family:monospace" placeholder="phone,name,opening_balance&#10;08012345678,Amina Bello,5000"></textarea></div>
+    <div class="field"><label>Upload a CSV or Excel (.xlsx/.xls) file</label><input type="file" id="im-file" accept=".csv,.xlsx,.xls"></div>
+    <div style="text-align:center;color:var(--muted);font-size:12px;margin:12px 0">— or —</div>
+    <div class="field"><label>Paste CSV</label><textarea id="im-csv" rows="6" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px;font-family:monospace" placeholder="phone,name,opening_balance&#10;08012345678,Amina Bello,5000"></textarea></div>
     <div id="im-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <div id="im-results" style="display:none;max-height:200px;overflow-y:auto;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitBulkImport()" id="im-btn">Import</button>
@@ -1330,10 +1332,25 @@ async function submitBulkImport() {
   const errEl = document.getElementById('im-error');
   const resultsEl = document.getElementById('im-results');
   errEl.style.display = 'none'; resultsEl.style.display = 'none';
-  const csvText = document.getElementById('im-csv').value.trim();
-  if (!csvText) { errEl.textContent = 'Paste some CSV first.'; errEl.style.display = 'block'; return; }
 
+  const fileInput = document.getElementById('im-file');
   const btn = document.getElementById('im-btn');
+  let csvText;
+
+  if (fileInput.files && fileInput.files.length > 0) {
+    btn.disabled = true; btn.textContent = 'Reading file...';
+    try {
+      csvText = await readCsvOrExcelFile(fileInput.files[0]);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Import';
+      errEl.textContent = e.message; errEl.style.display = 'block';
+      return;
+    }
+  } else {
+    csvText = document.getElementById('im-csv').value.trim();
+    if (!csvText) { errEl.textContent = 'Choose a file or paste some CSV first.'; errEl.style.display = 'block'; return; }
+  }
+
   btn.disabled = true; btn.textContent = 'Importing...';
   try {
     const res = await fetch(`${API}/coop-portal-bulk-import`, {
