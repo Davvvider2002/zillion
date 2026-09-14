@@ -79,7 +79,12 @@ function matchStatementLines(statementLines, candidates) {
     }
     if (best) {
       usedCandidateKeys.add(`${best.type}:${best.id}`);
-      matchedLines.push({ ...line, matched_type: best.type, matched_id: best.id, match_status: 'matched' });
+      // direction is authoritative from the match itself - a loan
+      // disbursement is always money leaving the bank account, a
+      // repayment always money arriving - overriding whatever the CSV
+      // said, since the match proves what genuinely happened.
+      const direction = best.type === 'loan_repayment' ? 'credit' : 'debit';
+      matchedLines.push({ ...line, matched_type: best.type, matched_id: best.id, match_status: 'matched', direction });
     } else {
       unmatchedLines.push({ ...line, matched_type: null, matched_id: null, match_status: 'unmatched' });
     }
