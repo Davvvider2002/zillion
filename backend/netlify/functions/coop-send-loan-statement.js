@@ -3,7 +3,10 @@
  *
  * POST /api/v1/coop-send-loan-statement
  *
- * Generates a member's loan statement PDF and emails it. Two ways in:
+ * Generates a member's COMPLETE statement (savings, loans, investment,
+ * dues - not loans alone, despite the filename kept for backward
+ * compatibility with the existing frontend call) and emails it. Two
+ * ways in:
  *  - A member's own wallet JWT (zillion_id) — sends their own statement.
  *  - A society admin's portal JWT (merchant_id) — body must include
  *    member_id, and that member must belong to the admin's own
@@ -19,8 +22,8 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT } = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
-const { computeMemberLoanStatement } = require('../../lib/coopLoanStatement');
-const { generateLoanStatementPdf } = require('../../lib/coopLoanStatementPdf');
+const { computeMemberFullStatement } = require('../../lib/coopMemberFullStatement');
+const { generateMemberStatementPdf } = require('../../lib/coopMemberStatementPdf');
 const { sendEmail } = require('../../lib/resendEmail');
 
 exports.handler = async (event) => {
@@ -57,13 +60,13 @@ exports.handler = async (event) => {
     return err(401, 'Token does not carry a recognized identity');
   }
 
-  const statementData = await computeMemberLoanStatement(db, memberId);
+  const statementData = await computeMemberFullStatement(db, memberId);
   if (!statementData) return err(404, 'Member not found');
   if (!statementData.member.email) return err(400, 'No email on file for this member — add one before requesting a statement');
 
   let pdfBuffer;
   try {
-    pdfBuffer = await generateLoanStatementPdf(statementData);
+    pdfBuffer = await generateMemberStatementPdf(statementData);
   } catch (e) {
     return err(500, `Failed to generate statement PDF: ${e.message}`);
   }
@@ -71,9 +74,9 @@ exports.handler = async (event) => {
   const result = await sendEmail({
     to: statementData.member.email,
     toName: statementData.member.name,
-    subject: `Your Zillion Coop loan statement — ${statementData.member.society_name}`,
-    htmlContent: `<p>Hi ${statementData.member.name},</p><p>Your loan statement is attached.</p>`,
-    attachments: [{ filename: 'loan-statement.pdf', content: pdfBuffer.toString('base64') }],
+    subject: `Your Zillion Coop statement — ${statementData.member.society_name}`,
+    htmlContent: `<p>Hi ${statementData.member.name},</p><p>Your statement (savings, loans, investment, and dues) is attached.</p>`,
+    attachments: [{ filename: 'member-statement.pdf', content: pdfBuffer.toString('base64') }],
   });
 
   if (!result.sent) return err(502, `Statement generated but email failed to send: ${result.reason}`);
