@@ -97,6 +97,16 @@ tr:last-child td{border-bottom:none}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;font-size:13.5px;z-index:1001;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .toast.error{border-color:var(--red);color:var(--red)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+@media print{
+  body *{visibility:hidden}
+  .print-target,.print-target *{visibility:visible}
+  .print-target{position:absolute;top:0;left:0;width:100%;background:#fff!important;color:#000!important;border:none!important;box-shadow:none!important}
+  .print-target .card-title,.print-target th{color:#000!important}
+  .print-target button,.print-target select,.print-target input,.print-target .no-print{display:none!important}
+  .print-target table{color:#000!important}
+}
+.print-header{display:none}
+.print-target .print-header{display:block;margin-bottom:14px;font-size:12px;color:#333}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -286,10 +296,13 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <div class="modal-overlay" id="modal-payroll-breakdown">
-  <div class="modal-box" style="max-width:900px">
+  <div class="modal-box" id="payroll-breakdown-box" style="max-width:900px">
     <div class="modal-title" id="pb-title">Breakdown</div>
     <div id="pb-body"><div class="card-sub">Loading…</div></div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:16px" onclick="closeModal('modal-payroll-breakdown')">Close</button>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost" style="flex:1" onclick="printSection('payroll-breakdown-box', document.getElementById('pb-title').textContent)">🖨️ Print / Download</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-payroll-breakdown')">Close</button>
+    </div>
   </div>
 </div>
 
@@ -1231,11 +1244,12 @@ function renderMembers() {
   const d = portalData;
   const el = document.getElementById('view-members');
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="members-report-card">
       <div class="card-title">Members
         <div style="display:flex;gap:8px">
           ${hasPortalAction('members', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>` : ''}
           ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="printSection('members-report-card', 'Members Report')">🖨️ Print / Download</button>
         </div>
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
@@ -1408,10 +1422,11 @@ function renderSavings() {
   const d = portalData;
   const el = document.getElementById('view-savings');
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="savings-report-card">
       <div class="card-title">Savings plans
         ${hasPortalAction('savings', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewSavingsPlanModal()">＋ New savings plan</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openSavingsPackagesModal()">Savings packages</button>
+        <button class="btn btn-ghost btn-sm" onclick="printSection('savings-report-card', 'Savings Report')">🖨️ Print / Download</button>
       </div>
       <div class="card-sub">Progress toward each member's savings target.</div>
       <div class="table-wrap"><table>
@@ -1582,7 +1597,7 @@ function renderLoans() {
   }
 
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="loans-report-card">
       <div class="card-title">Loans
         <div style="display:flex;gap:8px;align-items:center">
           ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>` : ''}
@@ -1590,6 +1605,7 @@ function renderLoans() {
           ${hasPortalAction('loans', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openCreateLoanModal()">+ Create loan</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openLoanPackagesModal()">Loan packages</button>
           <button class="btn btn-ghost btn-sm" onclick="switchLoansView('history')">View History Report</button>
+          <button class="btn btn-ghost btn-sm" onclick="printSection('loans-report-card', 'Loans Report')">🖨️ Print / Download</button>
         </div>
       </div>
       <div class="card-sub">Applications, approvals, and repayment status.</div>
@@ -1630,9 +1646,12 @@ async function renderLoanHistoryReport(el) {
 
   const members = loanHistoryData.members || [];
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="loan-history-report-card">
       <div class="card-title">Loan History
-        <button class="btn btn-ghost btn-sm" onclick="switchLoansView('active')">Back to Active Loans</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="switchLoansView('active')">Back to Active Loans</button>
+          <button class="btn btn-ghost btn-sm" onclick="printSection('loan-history-report-card', 'Loan History Report')">🖨️ Print / Download</button>
+        </div>
       </div>
       <div class="card-sub">Full loan and repayment trail, member by member.</div>
       ${members.length ? members.map(m => `
@@ -1724,11 +1743,12 @@ function renderDues() {
   }).join('');
 
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="dues-report-card">
       <div class="card-title">Dues
         <div style="display:flex;gap:8px;align-items:center">
           ${allYears.length ? `<select onchange="selectedDuesYear=parseInt(this.value);renderDues()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">${allYears.map(y => `<option value="${y}" ${y === selectedDuesYear ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
           ${hasPortalAction('dues', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureDuesModal()">${d.society.dues_amount_kobo ? 'Edit' : 'Configure'} dues</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="printSection('dues-report-card', 'Dues Report — ${selectedDuesYear}')">🖨️ Print / Download</button>
         </div>
       </div>
       <div class="card-sub">${d.society.dues_amount_kobo ? `₦${(d.society.dues_amount_kobo/100).toLocaleString()}/month per member — owed from each member's join month through December, then a full year every year after. Payments apply to the oldest owing year first.` : 'Dues are not configured for this society yet.'}</div>
@@ -3319,6 +3339,25 @@ function hasPortalAction(featureKey, action) {
   return !!(entry && entry.actions.includes(action));
 }
 
+// Generic print/download for any report card - "download" is the
+// browser's own Save as PDF option in the print dialog, so this one
+// mechanism covers both asks without needing a bespoke PDF generator
+// for every report type. Injects a small letterhead (society name +
+// generated date) that only shows up in the print output, then
+// restores the DOM to normal right after.
+function printSection(elementId, reportTitle) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const header = document.createElement('div');
+  header.className = 'print-header';
+  const societyName = portalData?.society?.name || 'Zillion Coop';
+  header.innerHTML = `<strong style="font-size:15px">${societyName}</strong><br>${reportTitle || ''}<br>Generated: ${new Date().toLocaleString('en-NG', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+  el.insertBefore(header, el.firstChild);
+  el.classList.add('print-target');
+  window.print();
+  setTimeout(() => { el.classList.remove('print-target'); header.remove(); }, 300);
+}
+
 let accountingAccounts = null;
 let accountingSubTypes = {};
 let accountingEntries = null;
@@ -4044,7 +4083,7 @@ function renderAccountingContent() {
       <div class="card-sub">Before recording new activity, tell us what each account currently holds. One-time setup.</div>
       <button class="btn btn-primary btn-sm" onclick="openOpeningBalanceModal()" ${!hasPortalAction('accounting', 'create') ? 'disabled title="You need create access on Accounting to run this"' : ''}>Start wizard →</button>
     </div>` : ''}
-    <div class="card">
+    <div class="card" id="accounting-report-card">
       <div class="card-title">Reports
         <div style="display:flex;gap:8px;align-items:center">
           <select id="report-type-select" onchange="loadFinancialReport()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">
@@ -4056,6 +4095,7 @@ function renderAccountingContent() {
           <select id="ledger-account-select" onchange="loadFinancialReport()" style="display:none;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">
             ${accountingAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${a.account_name}</option>`).join('')}
           </select>
+          <button class="btn btn-ghost btn-sm" onclick="printSection('accounting-report-card', document.getElementById('report-type-select').selectedOptions[0].textContent)">🖨️ Print / Download</button>
         </div>
       </div>
       <div class="card-sub">Computed live from your journal entries — always current.</div>
