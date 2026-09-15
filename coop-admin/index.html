@@ -1585,6 +1585,11 @@ function loanStatusPill(status) {
 }
 
 let loansViewMode = 'active';
+let hrPayrollViewMode = 'employees';
+function switchHrPayrollView(mode) {
+  hrPayrollViewMode = mode;
+  renderHrPayroll();
+}
 let loanHistoryData = null;
 
 function renderLoans() {
@@ -2362,6 +2367,7 @@ async function payNowFromPortal(btn) {
 // ── HR & PAYROLL ──────────────────────────────────────────────────────
 async function renderHrPayroll() {
   const el = document.getElementById('view-hr_payroll');
+  if (hrPayrollViewMode === 'staff-loan-report') { await renderStaffLoanReport(el); return; }
   el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
   try {
     const res = await fetch(`${API}/coop-portal-employees`, { headers: { Authorization: 'Bearer ' + portalToken } });
@@ -2400,7 +2406,10 @@ async function renderHrPayroll() {
       </div>
       <div class="card">
         <div class="card-title">Payroll runs
-          ${hasPortalAction('hr_payroll', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewPayrollRunModal()">+ New payroll run</button>` : ''}
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="switchHrPayrollView('staff-loan-report')">Staff Loan Report</button>
+            ${hasPortalAction('hr_payroll', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewPayrollRunModal()">+ New payroll run</button>` : ''}
+          </div>
         </div>
         <div class="card-sub">Create a draft to review each employee's pay and deductions before processing — processing posts the accounting entry and applies any staff loan deductions.</div>
         <div id="hr-payroll-runs-list"><div class="card-sub">Loading…</div></div>
@@ -2410,6 +2419,85 @@ async function renderHrPayroll() {
   } catch (e) {
     el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
   }
+}
+
+async function renderStaffLoanReport(el) {
+  el.innerHTML = `<div class="card"><div class="card-title">Staff Loan Report<button class="btn btn-ghost btn-sm" onclick="switchHrPayrollView('employees')">Back to HR &amp; Payroll</button></div><div class="card-sub">Loading…</div></div>`;
+  try {
+    const res = await fetch(`${API}/coop-portal-staff-loan-report`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div class="card"><div class="card-title">Staff Loan Report<button class="btn btn-ghost btn-sm" onclick="switchHrPayrollView('employees')">Back to HR &amp; Payroll</button></div><div class="card-sub">${data.error || 'Unable to load'}</div></div>`;
+      return;
+    }
+
+    const s = data.summary;
+    const loanRows = data.loans.map(l => `
+      <tr>
+        <td>${l.employee_name}${l.job_title ? `<div style="font-size:11px;color:var(--muted)">${l.job_title}</div>` : ''}</td>
+        <td>${fmtNaira(l.principal_kobo)}</td>
+        <td>${fmtNaira(l.total_paid_kobo)}</td>
+        <td style="font-weight:700">${fmtNaira(l.remaining_balance_kobo)}</td>
+        <td>
+          <div style="background:var(--line);border-radius:6px;height:8px;width:90px;overflow:hidden">
+            <div style="background:${l.progress_pct >= 100 ? 'var(--green-lt)' : 'var(--amber)'};height:100%;width:${l.progress_pct}%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${l.progress_pct}%</div>
+        </td>
+        <td>${l.projected_payoff_months != null ? `${l.projected_payoff_months} mo${l.projected_payoff_months === 1 ? '' : 's'}` : '<span class="pill pill-green">Cleared</span>'}</td>
+        <td><span class="pill ${l.status === 'ACTIVE' ? 'pill-amber' : 'pill-muted'}">${l.status}</span></td>
+        <td><button class="btn btn-ghost btn-sm" onclick='openStaffLoanHistoryModal(${JSON.stringify(l).replace(/'/g, "&#39;")})'>History</button></td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div class="card" id="staff-loan-report-card">
+        <div class="card-title">Staff Loan Report
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="printSection('staff-loan-report-card', 'Staff Loan Report')">🖨️ Print / Download</button>
+            <button class="btn btn-ghost btn-sm" onclick="switchHrPayrollView('employees')">Back to HR &amp; Payroll</button>
+          </div>
+        </div>
+        <div class="card-sub">Progress and balances across every staff loan the society has disbursed.</div>
+        <div class="metrics-row" style="margin-bottom:18px">
+          <div class="metric-card"><div class="val">${fmtNaira(s.total_disbursed_kobo)}</div><div class="lbl">Total disbursed</div></div>
+          <div class="metric-card"><div class="val">${fmtNaira(s.total_repaid_kobo)}</div><div class="lbl">Total repaid</div></div>
+          <div class="metric-card"><div class="val" style="color:var(--amber)">${fmtNaira(s.total_outstanding_kobo)}</div><div class="lbl">Outstanding</div></div>
+          <div class="metric-card"><div class="val">${s.active_count} / ${s.completed_count}</div><div class="lbl">Active / Completed</div></div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Employee</th><th>Principal</th><th>Paid</th><th>Remaining</th><th>Progress</th><th>Payoff</th><th>Status</th><th></th></tr></thead>
+          <tbody>${loanRows || '<tr><td colspan="8" class="no-data">No staff loans yet.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+  }
+}
+
+function openStaffLoanHistoryModal(loan) {
+  const rows = (loan.history || []).map(h => `
+    <tr>
+      <td>${fmtDate(h.date)}</td>
+      <td>${fmtNaira(h.amount_kobo)}</td>
+      <td>${fmtNaira(h.balance_kobo)}</td>
+    </tr>`).join('');
+  const html = `
+    <div class="modal-overlay open" id="modal-staff-loan-history-dynamic" onclick="if(event.target===this) this.remove()">
+      <div class="modal-box" id="staff-loan-history-box">
+        <div class="modal-title">${loan.employee_name} — repayment history</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Principal ${fmtNaira(loan.principal_kobo)} · Monthly deduction ${fmtNaira(loan.monthly_deduction_kobo)}</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Date deducted</th><th>Amount</th><th>Balance after</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="3" class="no-data">No deductions recorded yet.</td></tr>'}</tbody>
+        </table></div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn btn-ghost" style="flex:1" onclick="printSection('staff-loan-history-box', '${loan.employee_name.replace(/'/g, "\\'")} — Staff Loan History')">🖨️ Print / Download</button>
+          <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('modal-staff-loan-history-dynamic').remove()">Close</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 async function loadPayrollRunsList() {
