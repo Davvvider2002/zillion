@@ -85,6 +85,10 @@ exports.handler = async (event) => {
   if (!validated.ok) return err(validated.status, validated.error);
   const resolvedLines = validated.resolvedLines;
 
+  const closedYearCheck = await isDateInClosedFinancialYear(db, coopId, entryDate);
+  if (closedYearCheck) return err(400, `${entryDate} falls within "${closedYearCheck.year_label}", which is already closed (${closedYearCheck.start_date} to ${closedYearCheck.end_date}) — reopen that year first if this entry genuinely needs to be posted there.`);
+
+
   if (!linesAreBalanced(resolvedLines)) {
     const totalDebit = resolvedLines.filter(l => l.lineType === 'debit').reduce((s, l) => s + l.baseAmount, 0);
     const totalCredit = resolvedLines.filter(l => l.lineType === 'credit').reduce((s, l) => s + l.baseAmount, 0);
@@ -160,6 +164,22 @@ exports.handler = async (event) => {
  * journal entry. Returns the same resolvedLines shape linesAreBalanced()
  * and the insert logic both already expect.
  */
+/**
+ * Returns the closed financial-year row an entry_date falls inside,
+ * or null if it's outside every closed year (or no years are closed
+ * at all). Only years with an actual posted closing_entry_id count -
+ * a year that's merely been computed as a snapshot (old rows from
+ * before this check existed) doesn't block anything.
+ */
+async function isDateInClosedFinancialYear(db, coopId, entryDate) {
+  if (!entryDate) return null;
+  const { data } = await db.from('coop_financial_years')
+    .select('year_label, start_date, end_date')
+    .eq('coop_id', coopId).not('closing_entry_id', 'is', null)
+    .lte('start_date', entryDate).gte('end_date', entryDate).maybeSingle();
+  return data || null;
+}
+
 async function validateAndResolveLines(db, coopId, baseCurrency, entryDate, description, inputLines) {
   if (!entryDate) return { ok: false, status: 400, error: 'entry_date is required' };
   if (!description) return { ok: false, status: 400, error: 'description is required' };
@@ -223,6 +243,10 @@ async function handleEdit(db, auth, coopId, resolved, event, ok, err) {
   const validated = await validateAndResolveLines(db, coopId, resolved.society.base_currency, entryDate, description, inputLines);
   if (!validated.ok) return err(validated.status, validated.error);
   const resolvedLines = validated.resolvedLines;
+
+  const closedYearCheck = await isDateInClosedFinancialYear(db, coopId, entryDate);
+  if (closedYearCheck) return err(400, `${entryDate} falls within "${closedYearCheck.year_label}", which is already closed (${closedYearCheck.start_date} to ${closedYearCheck.end_date}) — reopen that year first if this entry genuinely needs to be posted there.`);
+
 
   if (!linesAreBalanced(resolvedLines)) {
     const totalDebit = resolvedLines.filter(l => l.lineType === 'debit').reduce((s, l) => s + l.baseAmount, 0);
