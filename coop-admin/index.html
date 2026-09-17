@@ -1161,6 +1161,23 @@ async function renderDashboard() {
       <div class="card-sub">Members have applied for loans that need approval.</div>
       <button class="btn btn-primary btn-sm" onclick="switchView('loans')">Review loans →</button>
     </div>` : ''}
+    ${d.member_plan && d.member_plan.plan && d.member_plan.cap != null ? `
+    <div class="card">
+      <div class="card-title">Your Plan
+        <span class="pill pill-amber" style="text-transform:capitalize">${d.member_plan.plan}</span>
+      </div>
+      <div class="card-sub">Every module is available on every plan — the only thing that differs between plans is how many active members your society can have. Add-ons are separate and unaffected by this.</div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:20px;align-items:center;margin-top:10px">
+        <canvas id="chart-member-cap" height="160"></canvas>
+        <div>
+          <div style="font-size:28px;font-weight:800;color:${d.member_plan.remaining === 0 ? 'var(--amber)' : 'var(--cream)'}">${d.member_plan.active_count} / ${d.member_plan.cap}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">active members used</div>
+          ${d.member_plan.remaining === 0
+            ? `<div style="font-size:13px;color:var(--amber);font-weight:600">You've reached your plan's member cap — upgrade to activate more.</div>`
+            : `<div style="font-size:13px;color:var(--muted)">${d.member_plan.remaining} member${d.member_plan.remaining === 1 ? '' : 's'} remaining before you'll need to upgrade.</div>`}
+        </div>
+      </div>
+    </div>` : ''}
     <div class="card">
       <div class="card-title">Analytics</div>
       <div class="card-sub">Last 6 months, and a current snapshot of your loan portfolio.</div>
@@ -1194,6 +1211,20 @@ async function loadDashboardCharts() {
   // without this would leak old Chart.js instances onto the same canvases.
   _dashboardChartInstances.forEach(c => c.destroy());
   _dashboardChartInstances = [];
+
+  const capCanvas = document.getElementById('chart-member-cap');
+  if (capCanvas && portalData.member_plan && portalData.member_plan.cap != null) {
+    const used = portalData.member_plan.active_count;
+    const remaining = portalData.member_plan.remaining;
+    _dashboardChartInstances.push(new Chart(capCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: ['Registered', 'Remaining'],
+        datasets: [{ data: [used, remaining], backgroundColor: [remaining === 0 ? '#EF4444' : '#E8930C', 'rgba(255,255,255,.08)'], borderWidth: 0 }],
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, cutout: '70%' },
+    }));
+  }
 
   try {
     const res = await fetch(`${API}/coop-portal-dashboard-analytics`, { headers: { Authorization: 'Bearer ' + portalToken } });
