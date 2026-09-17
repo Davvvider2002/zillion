@@ -2634,6 +2634,7 @@ async function openPayrollBreakdownModal(payrollRunId) {
     const data = await res.json();
     if (!res.ok) { document.getElementById('pb-body').innerHTML = `<div class="card-sub">${data.error || 'Failed to load breakdown'}</div>`; return; }
 
+    currentPayrollRunId = payrollRunId;
     document.getElementById('pb-title').textContent = `Breakdown — ${data.run.period_label}`;
     const rows = data.lines.map(l => `
       <tr>
@@ -2646,15 +2647,78 @@ async function openPayrollBreakdownModal(payrollRunId) {
         <td>${fmtNaira(l.nhf_kobo)}</td>
         <td>${l.staff_loan_deduction_kobo > 0 ? fmtNaira(l.staff_loan_deduction_kobo) : '—'}</td>
         <td style="font-weight:700">${fmtNaira(l.net_pay_kobo)}</td>
+        <td class="no-print">
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="downloadPayslip('${l.employee_id}','${(l.employee_name||'').replace(/'/g,"\\'")}')">Payslip</button>
+            <button class="btn btn-ghost btn-sm" onclick="emailPayslip('${l.employee_id}','${(l.employee_name||'').replace(/'/g,"\\'")}')">Email</button>
+            ${l.employee_phone ? `<button class="btn btn-ghost btn-sm" onclick="whatsappPayslip('${l.employee_id}','${(l.employee_name||'').replace(/'/g,"\\'")}','${l.employee_phone}')">WhatsApp</button>` : ''}
+          </div>
+        </td>
       </tr>`).join('');
 
     document.getElementById('pb-body').innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Employee</th><th>Basic</th><th>Allowances</th><th>Gross</th><th>PAYE</th><th>Pension (emp.)</th><th>NHF</th><th>Staff loan</th><th>Net pay</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="9" class="no-data">No line items.</td></tr>'}</tbody>
+      <thead><tr><th>Employee</th><th>Basic</th><th>Allowances</th><th>Gross</th><th>PAYE</th><th>Pension (emp.)</th><th>NHF</th><th>Staff loan</th><th>Net pay</th><th class="no-print">Payslip</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="10" class="no-data">No line items.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
     document.getElementById('pb-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
   }
+}
+
+let currentPayrollRunId = null;
+
+function base64ToBlob(base64, mime) {
+  const byteChars = atob(base64);
+  const byteNumbers = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+  return new Blob([new Uint8Array(byteNumbers)], { type: mime });
+}
+
+async function fetchPayslipPdf(employeeId, action) {
+  const res = await fetch(`${API}/coop-portal-send-payslip`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+    body: JSON.stringify({ payroll_run_id: currentPayrollRunId, employee_id: employeeId, action }),
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+
+async function downloadPayslip(employeeId, employeeName) {
+  const { ok, data } = await fetchPayslipPdf(employeeId, 'download');
+  if (!ok) { notify(data.error || 'Failed to generate payslip.', true); return; }
+  const blob = base64ToBlob(data.pdf_base64, 'application/pdf');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = data.filename || `payslip-${employeeName}.pdf`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function emailPayslip(employeeId, employeeName) {
+  notify(`Sending payslip to ${employeeName}...`);
+  const { ok, data } = await fetchPayslipPdf(employeeId, 'email');
+  if (!ok) { notify(data.error || 'Failed to send payslip.', true); return; }
+  notify(`Payslip emailed to ${data.sent_to}.`);
+}
+
+// No WhatsApp Business API integration exists to send a file directly
+// - this downloads the payslip PDF to the admin's own device, then
+// opens a WhatsApp chat with the employee's number pre-filled with a
+// message, for the admin to manually attach the file they just
+// downloaded. A real send would need a paid WhatsApp Business API
+// integration this platform doesn't have yet.
+async function whatsappPayslip(employeeId, employeeName, employeePhone) {
+  const { ok, data } = await fetchPayslipPdf(employeeId, 'download');
+  if (!ok) { notify(data.error || 'Failed to generate payslip.', true); return; }
+  const blob = base64ToBlob(data.pdf_base64, 'application/pdf');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = data.filename || `payslip-${employeeName}.pdf`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  notify('Payslip downloaded — attach it in the WhatsApp chat that just opened.');
+  const digits = employeePhone.replace(/\D/g, '');
+  const message = encodeURIComponent(`Hi ${employeeName}, here is your payslip.`);
+  window.open(`https://wa.me/${digits}?text=${message}`, '_blank');
 }
 
 let _allowanceRowCounter = 0;
