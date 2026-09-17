@@ -775,6 +775,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-send-payslip"
+  to   = "/.netlify/functions/coop-portal-send-payslip"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-staff-loans"
   to   = "/.netlify/functions/coop-portal-staff-loans"
   status = 200
