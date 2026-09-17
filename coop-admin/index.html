@@ -1170,7 +1170,7 @@ async function renderDashboard() {
       <div style="background:var(--ink);border-radius:10px;padding:14px;margin-top:10px;max-width:280px;margin-left:auto;margin-right:auto;text-align:center">
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">MEMBERS USED</div>
         <canvas id="chart-member-cap" height="180"></canvas>
-        <div style="font-size:22px;font-weight:800;margin-top:10px;color:${d.member_plan.remaining === 0 ? 'var(--amber)' : 'var(--cream)'}">${d.member_plan.active_count} / ${d.member_plan.cap}</div>
+        <div style="font-size:22px;font-weight:800;margin-top:10px;color:${d.member_plan.remaining === 0 ? 'var(--amber)' : 'var(--cream)'}">${d.member_plan.activeCount} / ${d.member_plan.cap}</div>
         ${d.member_plan.remaining === 0
           ? `<div style="font-size:12px;color:var(--amber);font-weight:600;margin-top:4px">Cap reached — upgrade to activate more.</div>`
           : `<div style="font-size:12px;color:var(--muted);margin-top:4px">${d.member_plan.remaining} member${d.member_plan.remaining === 1 ? '' : 's'} remaining</div>`}
@@ -1212,15 +1212,15 @@ async function loadDashboardCharts() {
 
   const capCanvas = document.getElementById('chart-member-cap');
   if (capCanvas && portalData.member_plan && portalData.member_plan.cap != null) {
-    const used = portalData.member_plan.active_count;
+    const used = portalData.member_plan.activeCount;
     const remaining = portalData.member_plan.remaining;
     _dashboardChartInstances.push(new Chart(capCanvas, {
       type: 'doughnut',
       data: {
-        labels: ['Registered', 'Remaining'],
-        datasets: [{ data: [used, remaining], backgroundColor: [remaining === 0 ? '#EF4444' : '#E8930C', 'rgba(255,255,255,.08)'], borderWidth: 0 }],
+        labels: ['Members used', 'Remaining'],
+        datasets: [{ data: [used, remaining], backgroundColor: [remaining === 0 ? '#EF4444' : '#E8930C', '#2D8A4E'], borderColor: '#0A2E1A', borderWidth: 2 }],
       },
-      options: { responsive: true, plugins: { legend: { display: false } }, cutout: '70%' },
+      options: { responsive: true, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } }, cutout: '65%' },
     }));
   }
 
