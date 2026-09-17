@@ -21,6 +21,7 @@ const { verifyJWT }              = require('../../lib/validators');
 const { resolvePortalSociety }   = require('../../lib/coopPortalAuth');
 const { computeDuesOwing }       = require('../../lib/coopDues');
 const { computeMemberShareCapital } = require('../../lib/coopShareCapital');
+const { getMemberCapStatus }     = require('../../lib/coopMemberCap');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
 const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = require('../../lib/coopTermsAcceptance');
 const { listAddons } = require('../../lib/coopEntitlements');
@@ -140,5 +141,6 @@ exports.handler = async (event) => {
       total_saved_kobo: totalSavedKobo,
       active_loans_kobo: activeLoansKobo,
     },
+    member_plan: await getMemberCapStatus(db, coopId),
   });
 };
