@@ -228,7 +228,7 @@ a{color:inherit;text-decoration:none}
     <div class="pricing-head">
       <div class="eyebrow">Pricing</div>
       <h2>Pick the plan for the cooperative you have now.</h2>
-      <p>Every plan starts with a free 14-day trial — no card needed. Pick the plan for the cooperative you have now; moving up later is just a plan change, not a new system.</p>
+      <p>Every plan includes every module — Members, Savings, Loans, Dues, HR &amp; Payroll, Investment, Accounting, Bank Reconciliation, Surplus &amp; Dividends. The only thing that changes between plans is how many active members your society can have. Every plan starts with a free 14-day trial — no card needed. Growing past your cap is just a plan change, not a new system.</p>
     </div>
     <div class="toggle-row">
       <span class="toggle-label active" id="label-monthly">Monthly</span>
@@ -418,33 +418,35 @@ a{color:inherit;text-decoration:none}
 <script>
 const API = '/api/v1';
 
+const ALL_MODULES = 'Every module included — Members, Savings, Loans, Dues, HR &amp; Payroll, Investment, Accounting, Bank Reconciliation, Surplus &amp; Dividends';
+
 const TIERS = [
   {
     key: 'launch', name: 'Launch', step: 1,
     for_: 'Small/new cooperatives, church &amp; staff savings groups',
     monthly: 9900, yearly: 100980, cap: '100 members',
-    features: ['Member management &amp; KYC', 'Savings &amp; contributions', 'Basic loan management', 'Member statements &amp; receipts', '2 admin users', 'Email support'],
+    features: [ALL_MODULES, 'Up to 100 active members', 'Unlimited admin users', 'Email support'],
     featured: false,
   },
   {
     key: 'growth', name: 'Growth', step: 2,
     for_: 'Cooperatives moving beyond Excel and manual operations',
     monthly: 24900, yearly: 253980, cap: '500 members',
-    features: ['Everything in Launch', 'Full loan workflow &amp; guarantors', 'Penalties &amp; charges', 'Role &amp; permission management', 'Payment integration', '5 admin users', 'Priority support'],
+    features: [ALL_MODULES, 'Up to 500 active members', 'Unlimited admin users', 'Email support'],
     featured: true,
   },
   {
     key: 'scale', name: 'Scale', step: 3,
     for_: 'Established cooperatives with larger financial activity',
     monthly: 49900, yearly: 508980, cap: '2,000 members',
-    features: ['Everything in Growth', 'Multi-branch support', 'Bulk member &amp; transaction upload', 'Advanced financial analytics', 'API/webhook access', '15 admin users', 'WhatsApp support'],
+    features: [ALL_MODULES, 'Up to 2,000 active members', 'Unlimited admin users', 'Email support'],
     featured: false,
   },
   {
     key: 'enterprise', name: 'Enterprise', step: 4,
     for_: 'Federations, unions, and large multi-branch cooperatives',
     monthly: null, yearly: null, cap: 'Unlimited members',
-    features: ['Everything in Scale', 'Multiple cooperatives/branches', 'White-label branding', 'Payroll integration', 'Dedicated account manager', 'Custom SLA'],
+    features: [ALL_MODULES, 'Unlimited active members', 'Multiple cooperatives/branches', 'White-label branding', 'Dedicated account manager', 'Custom SLA'],
     featured: false,
   },
 ];
