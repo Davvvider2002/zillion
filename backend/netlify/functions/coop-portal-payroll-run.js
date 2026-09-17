@@ -66,11 +66,13 @@ exports.handler = async (event) => {
       if (!run) return err(404, 'Payroll run not found');
 
       const { data: lines } = await db.from('coop_payroll_run_lines')
-        .select('*, coop_employees(name, job_title)').eq('payroll_run_id', runId).order('gross_pay_kobo', { ascending: false });
+        .select('*, coop_employees(name, job_title, phone)').eq('payroll_run_id', runId).order('gross_pay_kobo', { ascending: false });
 
       const enriched = (lines || []).map(l => ({
+        employee_id: l.employee_id,
         employee_name: l.coop_employees?.name || 'Unknown',
         job_title: l.coop_employees?.job_title || null,
+        employee_phone: l.coop_employees?.phone || null,
         basic_salary_kobo: l.basic_salary_kobo,
         allowances_kobo: l.gross_pay_kobo - l.basic_salary_kobo,
         gross_pay_kobo: l.gross_pay_kobo,
