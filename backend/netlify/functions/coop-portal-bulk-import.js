@@ -22,6 +22,7 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 const { activateMember }       = require('../../lib/coopActivateMember');
+const { checkMemberCapAllows } = require('../../lib/coopMemberCap');
 
 function parseCsv(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
@@ -89,6 +90,9 @@ exports.handler = async (event) => {
   const { rows, error: parseError } = parseCsv(csvText);
   if (parseError) return err(400, parseError);
   if (rows.length > 500) return err(400, `${rows.length} rows is too many for one import — split into batches of 500 or fewer`);
+
+  const capCheck = await checkMemberCapAllows(db, coopId, rows.length);
+  if (!capCheck.ok) return err(403, capCheck.error);
 
   const activatedBy = `portal:${auth.payload.merchant_id}`;
   const results = [];
