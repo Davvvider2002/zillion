@@ -3475,7 +3475,7 @@ async function renderSurplus() {
     ${hasPortalAction('surplus', 'create') ? `
     <div class="card">
       <div class="card-title">Close a financial year</div>
-      <div class="card-sub">Calculates income minus expense for the exact date range you set. Once allocated, a year can't be recalculated without first removing its allocation.</div>
+      <div class="card-sub">Posts a real closing entry that zeroes this period's income and expense accounts into Retained Earnings — the same as a manual year-end close. Once closed, new journal entries can't be dated within this period until the year is reopened, and a year with an allocation against it can't be reopened without removing that allocation first.</div>
       <div class="field"><label>Year label</label><input type="text" id="fy-label" placeholder="e.g. 2026"></div>
       <div class="field"><label>Start date</label><input type="date" id="fy-start"></div>
       <div class="field"><label>End date</label><input type="date" id="fy-end"></div>
@@ -3522,7 +3522,7 @@ async function loadFinancialYears() {
     const years = data.financial_years || [];
     listEl.innerHTML = years.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>Year</th><th>Period</th><th>Income</th><th>Expense</th><th>Net surplus</th><th></th></tr></thead>
+        <thead><tr><th>Year</th><th>Period</th><th>Income</th><th>Expense</th><th>Net surplus</th><th>Status</th><th></th></tr></thead>
         <tbody>${years.map(y => `
           <tr>
             <td>${y.year_label}</td>
@@ -3530,7 +3530,11 @@ async function loadFinancialYears() {
             <td>${fmtNaira(y.total_income_kobo)}</td>
             <td>${fmtNaira(y.total_expense_kobo)}</td>
             <td style="font-weight:700">${fmtNaira(y.net_surplus_kobo)}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="openAllocationEditor('${y.id}')">Allocate</button></td>
+            <td>${y.closing_entry_id ? '<span class="pill pill-green">Closed</span>' : '<span class="pill pill-muted">Computed only</span>'}</td>
+            <td style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-sm" onclick="openAllocationEditor('${y.id}')">Allocate</button>
+              ${y.closing_entry_id && hasPortalAction('surplus', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="reopenFinancialYear('${y.id}','${y.year_label.replace(/'/g, "\\'")}')">Reopen</button>` : ''}
+            </td>
           </tr>
         `).join('')}</tbody>
       </table></div>
@@ -3565,6 +3569,22 @@ async function submitCloseFinancialYear() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Close year';
+  }
+}
+
+async function reopenFinancialYear(financialYearId, yearLabel) {
+  if (!confirm(`Reopen "${yearLabel}"? This removes the posted closing entry — income and expense accounts will include this year's activity again in cumulative reports until it's closed again.`)) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-close-financial-year`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ action: 'reopen', financial_year_id: financialYearId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Failed to reopen year.', true); return; }
+    notify(`${yearLabel} reopened.`);
+    await loadFinancialYears();
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
   }
 }
 
