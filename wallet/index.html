@@ -1247,6 +1247,40 @@ function triggerPWAInstall() {
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
+     SCREEN — AJO (standalone product, own screen - not nested inside Coop)
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-ajo" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="back-btn" onclick="goBack()">‹</button>
+    <div class="hdr-title">Zillion Ajo</div>
+  </div>
+  <div class="scroll-body" style="padding:16px">
+
+    <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;color:#9CC4B0;margin-bottom:8px">Have a group's join link or code?</div>
+      <input id="ajo-join-input" type="text" placeholder="Paste join link or group ID" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <div id="ajo-join-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:8px"></div>
+      <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoJoinFromInput()" id="ajo-join-btn">Join group</button>
+    </div>
+
+    <div class="section-header"><div class="section-title">Your groups</div></div>
+    <div id="ajo-groups-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajo-contribute" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px" id="ajo-contrib-title">Contribute</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="ajo-contrib-sub"></div>
+    <div id="ajo-contrib-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitContribution()" id="ajo-contrib-btn">Confirm contribution</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-contribute').style.display='none'">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
      SCREEN — MESSAGES (one-way, admin → member)
 ══════════════════════════════════════════════════════════════ -->
 <div id="screen-messages" class="screen hidden">
@@ -2162,6 +2196,7 @@ function onScreenEnter(id) {
     if (id === 'screen-history') refreshHistory();
     if (id === 'screen-profile') refreshProfile();
     if (id === 'screen-coop')    refreshCoopScreen();
+    if (id === 'screen-ajo')     loadAjoHomeScreen();
     if (id === 'screen-messages') refreshMessagesScreen();
     if (id === 'screen-pin') {
       const termsRow = document.getElementById('pin-terms-row');
@@ -2320,7 +2355,7 @@ async function checkAndShowProductChooser(onProceed) {
   if (!token) { onProceed(); return; }
 
   const saved = localStorage.getItem('zillion_active_view');
-  if (saved === 'coop' || saved === 'ajo') { onProceed(); return; }
+  if (saved === 'coop' || saved === 'ajo') { proceedToChosenView(onProceed, saved); return; }
 
   try {
     const res = await fetch(`${API}/zillion-member-products`, { headers: { Authorization: 'Bearer ' + token } });
@@ -2372,7 +2407,20 @@ function selectProductView(view) {
   document.getElementById('product-chooser-overlay')?.remove();
   const proceed = window._productChooserProceed;
   window._productChooserProceed = null;
-  if (proceed) proceed();
+  if (proceed) proceedToChosenView(proceed, view);
+}
+
+// Shared by both the "already chosen" fast path and a fresh choice -
+// runs the normal proceed callback first (device sync, refreshHome
+// etc. all still need to happen), then redirects to the Ajo screen
+// specifically if that's the chosen view - proceed() itself always
+// lands on screen-home, which is correct for Coop/no-preference but
+// not the final destination for Ajo.
+function proceedToChosenView(onProceed, view) {
+  onProceed();
+  if (view === 'ajo') {
+    setTimeout(() => goTo('screen-ajo'), 50);
+  }
 }
 
 // Settings' "Switch between Coop and Ajo" button - re-shows the
@@ -2385,6 +2433,113 @@ function reopenProductChooser() {
     document.getElementById('product-view-current').textContent = localStorage.getItem('zillion_active_view') === 'ajo' ? 'Zillion Ajo' : 'Zillion Coop';
     toast('View updated');
   });
+}
+
+// -- Zillion Ajo screen -------------------------------------------------
+let ajoContributeSchemeId = null;
+
+async function loadAjoHomeScreen() {
+  const el = document.getElementById('ajo-groups-list');
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) { el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Sign in to see your groups.</div>'; return; }
+
+  el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div>';
+  try {
+    const res = await fetch(`${API}/ajo-member-my-groups`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">${data.error || 'Unable to load'}</div>`; return; }
+
+    const groups = data.groups || [];
+    if (!groups.length) {
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">You haven\'t joined any groups yet — paste a join link above to get started.</div>';
+      return;
+    }
+
+    el.innerHTML = groups.map(g => `
+      <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:2px">${g.scheme_name}</div>
+        <div style="font-size:12px;color:#9CC4B0;text-transform:capitalize;margin-bottom:10px">${(g.scheme_type || '').replace(/_/g, ' ')}${g.cycle_position ? ' · Position ' + g.cycle_position : ''}</div>
+        <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenContributeModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Contribute</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">Network error: ${e.message}</div>`;
+  }
+}
+
+// Accepts either a raw scheme_id, or a full join link
+// (zillion.ng/wallet/?ajo_join=<id>) - pasted links are far more
+// likely in practice than a bare id typed by hand.
+function extractSchemeId(input) {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    const fromParam = url.searchParams.get('ajo_join');
+    if (fromParam) return fromParam;
+  } catch (e) { /* not a URL - fall through and treat as a raw id */ }
+  return trimmed;
+}
+
+async function ajoJoinFromInput() {
+  const errEl = document.getElementById('ajo-join-error');
+  errEl.style.display = 'none';
+  const raw = document.getElementById('ajo-join-input').value;
+  const schemeId = extractSchemeId(raw);
+  if (!schemeId) { errEl.textContent = 'Paste a join link or group ID first.'; errEl.style.display = 'block'; return; }
+
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) { errEl.textContent = 'Sign in first.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ajo-join-btn');
+  btn.disabled = true; btn.textContent = 'Joining...';
+  try {
+    const res = await fetch(`${API}/ajo-member-join-scheme`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ scheme_id: schemeId }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Join group';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to join.'; errEl.style.display = 'block'; return; }
+    document.getElementById('ajo-join-input').value = '';
+    toast(data.rejoined ? 'Welcome back!' : 'You joined the group.');
+    loadAjoHomeScreen();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Join group';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function ajoOpenContributeModal(schemeId, schemeName) {
+  ajoContributeSchemeId = schemeId;
+  document.getElementById('ajo-contrib-title').textContent = schemeName;
+  document.getElementById('ajo-contrib-sub').textContent = 'Records this cycle\'s contribution using the group\'s configured amount.';
+  document.getElementById('ajo-contrib-error').style.display = 'none';
+  document.getElementById('modal-ajo-contribute').style.display = 'flex';
+}
+
+async function ajoSubmitContribution() {
+  const errEl = document.getElementById('ajo-contrib-error');
+  errEl.style.display = 'none';
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token || !ajoContributeSchemeId) return;
+
+  const btn = document.getElementById('ajo-contrib-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/ajo-member-record-contribution`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ scheme_id: ajoContributeSchemeId }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Confirm contribution';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record contribution.'; errEl.style.display = 'block'; return; }
+    document.getElementById('modal-ajo-contribute').style.display = 'none';
+    toast('Contribution recorded.');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Confirm contribution';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
 }
 
 async function verifyOtp() {
