@@ -324,6 +324,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-member-join-scheme"
+  to   = "/.netlify/functions/ajo-member-join-scheme"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-member-record-contribution"
+  to   = "/.netlify/functions/ajo-member-record-contribution"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-member-switch-scheme"
   to   = "/.netlify/functions/ajo-member-switch-scheme"
   status = 200
