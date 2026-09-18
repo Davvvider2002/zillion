@@ -1854,6 +1854,17 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <div class="settings-group" id="product-view-group" style="display:none">
+        <div class="settings-group-label">App View</div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;padding:14px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="settings-label">Currently showing</span>
+            <span class="settings-value" id="product-view-current">—</span>
+          </div>
+          <button onclick="reopenProductChooser()" style="width:100%;padding:12px;background:transparent;color:var(--fg,#1A2E1A);border:1px solid var(--b,#ddd);border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">Switch between Coop and Ajo</button>
+        </div>
+      </div>
+
       <div class="settings-group" id="zil-mfb-group">
         <div class="settings-group-label">Preferred Bank (MFB)</div>
         <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 0">
@@ -2298,6 +2309,84 @@ function onOtpKey(i, e) {
 function getOtpValue() {
   return [0,1,2,3,4,5].map(i => document.getElementById('otp'+i).value).join('');
 }
+
+// -- Zillion Ajo / Coop product chooser ---------------------------
+// Runs once per "entering the app" moment (PIN unlock, PIN creation
+// on signup, and session restore) - never on ordinary in-app
+// navigation back to Home. Fails open on any error: a network hiccup
+// on this check must never block someone from their own wallet.
+async function checkAndShowProductChooser(onProceed) {
+  const token = (STATE.user && STATE.user.token) || STATE._verifiedToken || '';
+  if (!token) { onProceed(); return; }
+
+  const saved = localStorage.getItem('zillion_active_view');
+  if (saved === 'coop' || saved === 'ajo') { onProceed(); return; }
+
+  try {
+    const res = await fetch(`${API}/zillion-member-products`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok || !data.show_chooser) { onProceed(); return; }
+  } catch (e) {
+    onProceed(); return; // fail open - never block wallet access on this check
+  }
+
+  document.getElementById('product-chooser-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'product-chooser-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(13,31,26,.97);z-index:9999;
+    display:flex;flex-direction:column;justify-content:center;padding:24px 20px;
+  `;
+  overlay.innerHTML = `
+    <div style="max-width:400px;margin:0 auto;width:100%">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="font-size:34px;margin-bottom:10px">👋</div>
+        <div style="font-size:19px;font-weight:700;color:#fff;margin-bottom:8px">Welcome back</div>
+        <div style="font-size:14px;color:#C8E6D4;line-height:1.5">This number is set up for both — which one would you like to open?</div>
+      </div>
+      <button onclick="selectProductView('coop')"
+        style="width:100%;padding:18px;background:#1A7A4A;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">🌾</span>
+        <span>
+          <span style="display:block">Zillion Coop</span>
+          <span style="display:block;font-size:12px;font-weight:400;color:#C8E6D4;margin-top:2px">Your cooperative society</span>
+        </span>
+      </button>
+      <button onclick="selectProductView('ajo')"
+        style="width:100%;padding:18px;background:#E8930C;color:#1A2E1A;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">🤝</span>
+        <span>
+          <span style="display:block">Zillion Ajo</span>
+          <span style="display:block;font-size:12px;font-weight:400;color:#4A3410;margin-top:2px">Your savings group</span>
+        </span>
+      </button>
+      <div style="text-align:center;font-size:12px;color:#7A9A85;margin-top:10px">You can switch anytime from Settings.</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  window._productChooserProceed = onProceed;
+}
+
+function selectProductView(view) {
+  localStorage.setItem('zillion_active_view', view);
+  document.getElementById('product-chooser-overlay')?.remove();
+  const proceed = window._productChooserProceed;
+  window._productChooserProceed = null;
+  if (proceed) proceed();
+}
+
+// Settings' "Switch between Coop and Ajo" button - re-shows the
+// chooser on demand, outside the normal login flow. Clears the saved
+// preference first so checkAndShowProductChooser doesn't just skip
+// straight past it the way it would on an ordinary login.
+function reopenProductChooser() {
+  localStorage.removeItem('zillion_active_view');
+  checkAndShowProductChooser(() => {
+    document.getElementById('product-view-current').textContent = localStorage.getItem('zillion_active_view') === 'ajo' ? 'Zillion Ajo' : 'Zillion Coop';
+    toast('View updated');
+  });
+}
+
 async function verifyOtp() {
   const code  = getOtpValue();
   const errEl = document.getElementById('phone-error');
@@ -2463,10 +2552,12 @@ async function processPinComplete() {
       unlockAttempts = 0;
       localStorage.removeItem('zillion_locked');
       pinBuffer = '';
-      goTo('screen-home');
-      refreshHome();
-      refreshProfile();
-      setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+      checkAndShowProductChooser(() => {
+        goTo('screen-home');
+        refreshHome();
+        refreshProfile();
+        setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+      });
     } else {
       unlockAttempts++;
       for (let i=0;i<6;i++) document.getElementById('pd'+i).className='pin-dot error';
@@ -2546,20 +2637,22 @@ async function completeOnboarding() {
       method: 'POST', headers: { Authorization: 'Bearer ' + STATE.user.token },
     }).catch(e => console.warn('[terms] acceptance recording failed (non-fatal):', e.message));
   }
-  goTo('screen-home');
-  setTimeout(() => refreshHome(), 100);
-  // Register device by triggering a sync (even with empty vault)
-  setTimeout(() => { STATE.isOnline = navigator.onLine; if (STATE.isOnline) trySync(); }, 1500);
-  // If user arrived via QR link, handle the claim now
-  if (STATE._pendingClaimId) {
-    const cid = STATE._pendingClaimId;
-    STATE._pendingClaimId = null;
-    setTimeout(async () => {
-      goTo('screen-receive');
-      switchRecvTab('qr');
-      await handleQRResult('https://zillion.ng/wallet/?claim=' + cid);
-    }, 800);
-  }
+  checkAndShowProductChooser(() => {
+    goTo('screen-home');
+    setTimeout(() => refreshHome(), 100);
+    // Register device by triggering a sync (even with empty vault)
+    setTimeout(() => { STATE.isOnline = navigator.onLine; if (STATE.isOnline) trySync(); }, 1500);
+    // If user arrived via QR link, handle the claim now
+    if (STATE._pendingClaimId) {
+      const cid = STATE._pendingClaimId;
+      STATE._pendingClaimId = null;
+      setTimeout(async () => {
+        goTo('screen-receive');
+        switchRecvTab('qr');
+        await handleQRResult('https://zillion.ng/wallet/?claim=' + cid);
+      }, 800);
+    }
+  });
 }
 
 // -- Session restore --------------------------------------------
@@ -2587,11 +2680,14 @@ function routeAfterSessionLoad() {
 function tryRestoreSession() {
   if (load() && STATE.user) {
     if (routeAfterSessionLoad()) return;
-    goTo('screen-home');
-    refreshHome();
-    refreshProfile();
-    // Attempt sync immediately on restore — registers device, settles pending
-    setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+    checkAndShowProductChooser(() => {
+      goTo('screen-home');
+      refreshHome();
+      refreshProfile();
+      // Attempt sync immediately on restore — registers device, settles pending
+      setTimeout(() => { STATE.isOnline = navigator.onLine; trySync(); }, 800);
+    });
+    return;
   } else {
     toast('No account found — please set up a new account', true);
     goTo('screen-phone'); // take them to phone entry, not just a toast
@@ -3974,7 +4070,25 @@ function refreshProfile() {
       const since = data.member?.activated_at ? new Date(data.member.activated_at) : null;
       document.getElementById('coop-profile-since').textContent = since ? since.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
     });
-  } else {
+  }
+
+  // Only worth showing if the member could plausibly switch to
+  // something else - the group stays hidden for a one-product
+  // member even if a stray preference exists in localStorage.
+  const token3 = (STATE.user && STATE.user.token) || '';
+  if (token3) {
+    fetch(`${API}/zillion-member-products`, { headers: { Authorization: 'Bearer ' + token3 } })
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !data.show_chooser) return;
+        const savedView = localStorage.getItem('zillion_active_view');
+        document.getElementById('product-view-group').style.display = '';
+        document.getElementById('product-view-current').textContent = savedView === 'ajo' ? 'Zillion Ajo' : (savedView === 'coop' ? 'Zillion Coop' : 'Not set');
+      })
+      .catch(() => {});
+  }
+
+  if (!isCoop) {
     zilLoadMfb();
     zilRenderBalanceByBank();
   }
