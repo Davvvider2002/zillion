@@ -309,6 +309,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-ajo-fee-config"
+  to   = "/.netlify/functions/admin-ajo-fee-config"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-ajo-overview"
+  to   = "/.netlify/functions/admin-ajo-overview"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-ajo-agents"
+  to   = "/.netlify/functions/admin-ajo-agents"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-member-switch-scheme"
   to   = "/.netlify/functions/ajo-member-switch-scheme"
   status = 200
