@@ -99,6 +99,8 @@
 /api/v1/coop-member-my-societies  /.netlify/functions/coop-member-my-societies  200
 /api/v1/coop-member-switch-society  /.netlify/functions/coop-member-switch-society  200
 /api/v1/ajo-member-my-groups  /.netlify/functions/ajo-member-my-groups  200
+/api/v1/ajo-admin-create-scheme  /.netlify/functions/ajo-admin-create-scheme  200
+/api/v1/ajo-admin-my-schemes  /.netlify/functions/ajo-admin-my-schemes  200
 /api/v1/ajo-member-switch-scheme  /.netlify/functions/ajo-member-switch-scheme  200
 /api/v1/zillion-member-products  /.netlify/functions/zillion-member-products  200
 /api/v1/merchant-register      /.netlify/functions/merchant-register      200
