@@ -248,7 +248,10 @@ async function loadSchemes() {
         <td>${s.active_member_count}</td>
         <td>${s.cycles_run}</td>
         <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
-        <td><button class="btn btn-ghost btn-sm" onclick="copyJoinLink('${s.id}','${s.name.replace(/'/g, "\\'")}')">Copy join link</button></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="copyJoinLink('${s.id}','${s.name.replace(/'/g, "\\'")}')">Copy join link</button>
+          ${s.status === 'ACTIVE' ? `<button class="btn btn-ghost btn-sm" onclick="processAjoCycle('${s.id}','${s.name.replace(/'/g, "\\'")}','${s.payout_order}')">Process cycle</button>` : ''}
+        </td>
       </tr>`).join('');
 
     el.innerHTML = `<div class="table-wrap"><table>
@@ -269,6 +272,29 @@ function copyJoinLink(schemeId, schemeName) {
     );
   } else {
     prompt('Copy this link:', link);
+  }
+}
+
+async function processAjoCycle(schemeId, schemeName, payoutOrder) {
+  let payeeMemberId = null;
+  if (payoutOrder === 'admin_assigned' || payoutOrder === 'priority') {
+    payeeMemberId = prompt(`"${schemeName}" uses ${payoutOrder.replace('_', ' ')} payout order — paste the member ID being paid this cycle:`);
+    if (!payeeMemberId) return; // cancelled
+  } else {
+    if (!confirm(`Close the current cycle for "${schemeName}" and pay out the next member (${payoutOrder} order)?`)) return;
+  }
+
+  try {
+    const res = await fetch(`${API}/ajo-admin-process-cycle`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ scheme_id: schemeId, payee_scheme_member_id: payeeMemberId || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || 'Failed to process cycle.', true); return; }
+    toast(data.scheme_completed ? `"${schemeName}" has completed its full rotation.` : `Cycle closed — payout of ${fmtNaira(data.payout.amount_kobo)} recorded.`);
+    loadSchemes();
+  } catch (e) {
+    toast('Network error: ' + e.message, true);
   }
 }
 
