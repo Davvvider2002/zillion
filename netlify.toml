@@ -334,6 +334,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-admin-process-cycle"
+  to   = "/.netlify/functions/ajo-admin-process-cycle"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-member-switch-scheme"
   to   = "/.netlify/functions/ajo-member-switch-scheme"
   status = 200
