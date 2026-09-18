@@ -14,8 +14,19 @@
  * standalone Ajo proposal, Part 2), even though in practice an admin
  * will often also join as a contributing member themselves.
  *
+ * Two side effects on successful creation:
+ *  - Cycle 1 is created automatically (status OPEN) - a scheme with
+ *    no cycle has nowhere for a contribution to attach to, so this
+ *    isn't a separate "start cycle" step the admin has to remember.
+ *  - If referral_code is supplied and resolves to an ACTIVE agent,
+ *    one ajo_referral_attributions row is created, first-touch and
+ *    permanent - this is the ONLY moment attribution can ever happen
+ *    for a scheme (Part 5.1 of the proposal). An invalid or missing
+ *    code is never an error; it just means this scheme has no
+ *    referring agent, which is the normal case for most schemes.
+ *
  * Body: { name, scheme_type, contribution_amount_kobo, frequency,
- *         cycle_length, payout_order? }
+ *         cycle_length, payout_order?, referral_code? }
  * Auth: wallet JWT (zillion_id).
  */
 'use strict';
@@ -66,5 +77,30 @@ exports.handler = async (event) => {
 
   if (error) return err(500, `Failed to create scheme: ${error.message}`);
 
-  return ok({ success: true, scheme });
+  const { data: cycle1, error: cycleErr } = await db.from('ajo_cycles').insert({
+    scheme_id: scheme.id, cycle_number: 1, status: 'OPEN',
+  }).select().single();
+  if (cycleErr) {
+    // The scheme itself was created successfully; a cycle-1 failure
+    // shouldn't be reported as if scheme creation failed outright,
+    // but the admin needs to know contributions can't be recorded yet.
+    return ok({ success: true, scheme, cycle: null, warning: `Scheme created, but its first cycle could not be started: ${cycleErr.message}. Contact support.` });
+  }
+
+  let referralAttribution = null;
+  const referralCode = (body.referral_code || '').trim();
+  if (referralCode) {
+    const { data: agent } = await db.from('ajo_agents')
+      .select('id').eq('referral_code', referralCode).eq('status', 'ACTIVE').maybeSingle();
+    if (agent) {
+      const { data: attribution } = await db.from('ajo_referral_attributions')
+        .insert({ agent_id: agent.id, scheme_id: scheme.id }).select().single();
+      referralAttribution = attribution || null;
+    }
+    // An unknown or inactive code is silently ignored, not an error -
+    // this scheme simply has no referring agent, same as if no code
+    // had been supplied at all.
+  }
+
+  return ok({ success: true, scheme, cycle: cycle1, referral_attributed: !!referralAttribution });
 };
