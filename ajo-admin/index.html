@@ -248,14 +248,27 @@ async function loadSchemes() {
         <td>${s.active_member_count}</td>
         <td>${s.cycles_run}</td>
         <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="copyJoinLink('${s.id}','${s.name.replace(/'/g, "\\'")}')">Copy join link</button></td>
       </tr>`).join('');
 
     el.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Group</th><th>Type</th><th>Contribution</th><th>Members</th><th>Cycles run</th><th>Status</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="6" class="no-data">No groups yet — create your first one above.</td></tr>'}</tbody>
+      <thead><tr><th>Group</th><th>Type</th><th>Contribution</th><th>Members</th><th>Cycles run</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="no-data">No groups yet — create your first one above.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
     el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function copyJoinLink(schemeId, schemeName) {
+  const link = `https://zillion.ng/wallet/?ajo_join=${schemeId}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link).then(
+      () => toast(`Join link for "${schemeName}" copied.`),
+      () => prompt('Copy this link:', link)
+    );
+  } else {
+    prompt('Copy this link:', link);
   }
 }
 
