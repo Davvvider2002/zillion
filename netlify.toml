@@ -299,6 +299,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-admin-create-scheme"
+  to   = "/.netlify/functions/ajo-admin-create-scheme"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-admin-my-schemes"
+  to   = "/.netlify/functions/ajo-admin-my-schemes"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-member-switch-scheme"
   to   = "/.netlify/functions/ajo-member-switch-scheme"
   status = 200
