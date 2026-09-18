@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zillion Ajo — Group Admin</title>
+<style>
+:root{
+  --ink:#0A2E1A;--amber:#F59E0B;--amber-d:#D97706;
+  --cream:#F7F3EC;--muted:#C8BFA8;
+  --card:#0F3A22;--line:rgba(247,243,236,0.14);
+  --red:#E85D5D;--redl:rgba(232,93,93,.14);
+  --green-mid:#1A5C32;--green-lt:#2D8A4E;--greenl:rgba(45,138,78,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--ink);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:24px}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-weight:700;font-size:18px}
+.brand .z{width:32px;height:32px;border-radius:8px;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:800}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+.card-title{font-size:16px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.btn{padding:11px 18px;border-radius:9px;border:none;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--amber);color:var(--ink)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--cream);border:1px solid var(--line)}
+.btn-sm{padding:8px 14px;font-size:13px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.field input,.field select{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px;font-family:inherit}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.pill-amber{background:rgba(245,158,11,.15);color:var(--amber)}
+.pill-green{background:var(--greenl);color:var(--green-lt)}
+.pill-muted{background:var(--line);color:var(--muted)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+td{padding:12px 8px;border-bottom:1px solid var(--line)}
+.no-data{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:Georgia,serif;font-size:19px;font-weight:700;margin-bottom:18px}
+.otp-boxes{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.otp-boxes input{width:42px;height:52px;text-align:center;font-size:20px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;font-size:13.5px;z-index:1001;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.toast.error{border-color:var(--red);color:var(--red)}
+</style>
+</head>
+<body>
+
+<div id="login-screen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="card" style="max-width:400px;width:100%">
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="brand" style="justify-content:center;margin-bottom:8px"><span class="z">Z</span> Zillion Ajo</div>
+      <div style="font-size:13px;color:var(--muted)">Group Admin</div>
+    </div>
+
+    <div id="login-step-phone">
+      <div class="field"><label>Phone number</label><input type="tel" id="admin-phone" placeholder="08012345678"></div>
+      <div id="phone-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="sendAdminOtp()" id="send-otp-btn">Send code</button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:14px">Same sign-in as your Zillion wallet — no separate account needed.</div>
+    </div>
+
+    <div id="login-step-otp" style="display:none">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px;text-align:center">Enter the 6-digit code sent to your phone</div>
+      <div class="otp-boxes">
+        <input maxlength="1" id="otp0"><input maxlength="1" id="otp1"><input maxlength="1" id="otp2">
+        <input maxlength="1" id="otp3"><input maxlength="1" id="otp4"><input maxlength="1" id="otp5">
+      </div>
+      <div id="otp-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;text-align:center"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="verifyAdminOtp()" id="verify-otp-btn">Verify &amp; sign in</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="backToPhone()">Use a different number</button>
+    </div>
+  </div>
+</div>
+
+<div id="app-shell" style="display:none">
+  <div class="topbar">
+    <div class="brand"><span class="z">Z</span> Zillion Ajo — Group Admin</div>
+    <button class="btn btn-ghost btn-sm" onclick="signOut()">Sign out</button>
+  </div>
+  <div class="wrap">
+    <div class="card">
+      <div class="card-title">Your groups
+        <button class="btn btn-primary btn-sm" onclick="openCreateSchemeModal()">+ Create group</button>
+      </div>
+      <div class="card-sub">Every group you administer — configure once, the rotation runs itself from there.</div>
+      <div id="schemes-list"><div class="no-data">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-create-scheme">
+  <div class="modal-box">
+    <div class="modal-title">Create a group</div>
+    <div class="field"><label>Group name</label><input type="text" id="cs-name" placeholder="e.g. Market Women Weekly"></div>
+    <div class="field">
+      <label>Type</label>
+      <select id="cs-type">
+        <option value="rotational">Rotational (everyone gets a lump-sum turn)</option>
+        <option value="daily_thrift">Daily thrift</option>
+        <option value="target_thrift">Target thrift (saving toward a goal)</option>
+      </select>
+    </div>
+    <div class="field"><label>Contribution amount (₦)</label><input type="number" id="cs-amount" placeholder="5000"></div>
+    <div class="field">
+      <label>Frequency</label>
+      <select id="cs-frequency">
+        <option value="daily">Daily</option>
+        <option value="weekly" selected>Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+    <div class="field"><label>Number of cycles</label><input type="number" id="cs-cycles" placeholder="e.g. 12"></div>
+    <div class="field">
+      <label>Payout order</label>
+      <select id="cs-payout-order">
+        <option value="fixed">Fixed order</option>
+        <option value="random">Random draw</option>
+        <option value="admin_assigned">Admin-assigned</option>
+        <option value="priority">Priority (need-based)</option>
+      </select>
+    </div>
+    <div id="cs-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitCreateScheme()" id="cs-btn">Create group</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-create-scheme')">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/.netlify/functions';
+let adminToken = localStorage.getItem('ajo_admin_token') || '';
+let pendingPhone = '';
+
+function toast(msg, isError=false, ms=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function fmtNaira(kobo) { return '₦' + ((kobo||0)/100).toLocaleString(); }
+
+function normalisePhone(raw) {
+  const d = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) return raw;
+  if (d.startsWith('0')) return '+234' + d.slice(1);
+  return '+234' + d;
+}
+
+async function sendAdminOtp() {
+  const raw = document.getElementById('admin-phone').value.trim();
+  const errEl = document.getElementById('phone-error');
+  errEl.style.display = 'none';
+  if (!raw) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
+  pendingPhone = normalisePhone(raw);
+  const btn = document.getElementById('send-otp-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(`${API}/send-otp`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: pendingPhone }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Send code';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send code.'; errEl.style.display = 'block'; return; }
+    document.getElementById('login-step-phone').style.display = 'none';
+    document.getElementById('login-step-otp').style.display = '';
+    document.getElementById('otp0').focus();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Send code';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function backToPhone() {
+  document.getElementById('login-step-otp').style.display = 'none';
+  document.getElementById('login-step-phone').style.display = '';
+  [0,1,2,3,4,5].forEach(i => document.getElementById('otp'+i).value = '');
+}
+
+// Auto-advance between OTP boxes
+[0,1,2,3,4,5].forEach(i => {
+  document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('otp'+i);
+    if (!box) return;
+    box.addEventListener('input', () => { if (box.value && i < 5) document.getElementById('otp'+(i+1)).focus(); });
+  });
+});
+
+async function verifyAdminOtp() {
+  const code = [0,1,2,3,4,5].map(i => document.getElementById('otp'+i).value).join('');
+  const errEl = document.getElementById('otp-error');
+  errEl.style.display = 'none';
+  if (code.length < 6) { errEl.textContent = 'Enter all 6 digits.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('verify-otp-btn');
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  try {
+    const res = await fetch(`${API}/verify-otp`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: pendingPhone, otp: code }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Verify & sign in';
+    if (!res.ok || !data.verified) { errEl.textContent = data.error || 'Incorrect code.'; errEl.style.display = 'block'; return; }
+    adminToken = data.token;
+    localStorage.setItem('ajo_admin_token', adminToken);
+    showApp();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Verify & sign in';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function signOut() {
+  localStorage.removeItem('ajo_admin_token');
+  adminToken = '';
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'block';
+  loadSchemes();
+}
+
+async function loadSchemes() {
+  const el = document.getElementById('schemes-list');
+  el.innerHTML = '<div class="no-data">Loading…</div>';
+  try {
+    const res = await fetch(`${API}/ajo-admin-my-schemes`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+
+    const rows = (data.schemes || []).map(s => `
+      <tr>
+        <td>${s.name}</td>
+        <td style="text-transform:capitalize">${s.scheme_type.replace(/_/g, ' ')}</td>
+        <td>${fmtNaira(s.contribution_amount_kobo)} / ${s.frequency}</td>
+        <td>${s.active_member_count}</td>
+        <td>${s.cycles_run}</td>
+        <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
+      </tr>`).join('');
+
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Group</th><th>Type</th><th>Contribution</th><th>Members</th><th>Cycles run</th><th>Status</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" class="no-data">No groups yet — create your first one above.</td></tr>'}</tbody>
+    </table></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function openCreateSchemeModal() {
+  document.getElementById('cs-name').value = '';
+  document.getElementById('cs-amount').value = '';
+  document.getElementById('cs-cycles').value = '';
+  document.getElementById('cs-error').style.display = 'none';
+  openModal('modal-create-scheme');
+}
+
+async function submitCreateScheme() {
+  const errEl = document.getElementById('cs-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('cs-name').value.trim();
+  const amountNaira = parseFloat(document.getElementById('cs-amount').value);
+  const cycles = parseInt(document.getElementById('cs-cycles').value, 10);
+  if (!name) { errEl.textContent = 'Group name is required.'; errEl.style.display = 'block'; return; }
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid contribution amount.'; errEl.style.display = 'block'; return; }
+  if (!cycles || cycles <= 0) { errEl.textContent = 'Enter a valid number of cycles.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('cs-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/ajo-admin-create-scheme`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({
+        name,
+        scheme_type: document.getElementById('cs-type').value,
+        contribution_amount_kobo: Math.round(amountNaira * 100),
+        frequency: document.getElementById('cs-frequency').value,
+        cycle_length: cycles,
+        payout_order: document.getElementById('cs-payout-order').value,
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Create group';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create group.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-create-scheme');
+    toast(`"${data.scheme.name}" created.`);
+    loadSchemes();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Create group';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+if (adminToken) showApp();
+</script>
+</body>
+</html>
