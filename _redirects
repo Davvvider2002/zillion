@@ -98,6 +98,9 @@
 /api/v1/merchant-forgot-password  /.netlify/functions/merchant-forgot-password  200
 /api/v1/coop-member-my-societies  /.netlify/functions/coop-member-my-societies  200
 /api/v1/coop-member-switch-society  /.netlify/functions/coop-member-switch-society  200
+/api/v1/ajo-member-my-groups  /.netlify/functions/ajo-member-my-groups  200
+/api/v1/ajo-member-switch-scheme  /.netlify/functions/ajo-member-switch-scheme  200
+/api/v1/zillion-member-products  /.netlify/functions/zillion-member-products  200
 /api/v1/merchant-register      /.netlify/functions/merchant-register      200
 /api/v1/admin-merchants        /.netlify/functions/admin-merchants        200
 /api/v1/admin-ledger           /.netlify/functions/admin-ledger           200
