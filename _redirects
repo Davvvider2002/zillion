@@ -104,6 +104,8 @@
 /api/v1/admin-ajo-fee-config  /.netlify/functions/admin-ajo-fee-config  200
 /api/v1/admin-ajo-overview  /.netlify/functions/admin-ajo-overview  200
 /api/v1/admin-ajo-agents  /.netlify/functions/admin-ajo-agents  200
+/api/v1/ajo-member-join-scheme  /.netlify/functions/ajo-member-join-scheme  200
+/api/v1/ajo-member-record-contribution  /.netlify/functions/ajo-member-record-contribution  200
 /api/v1/ajo-member-switch-scheme  /.netlify/functions/ajo-member-switch-scheme  200
 /api/v1/zillion-member-products  /.netlify/functions/zillion-member-products  200
 /api/v1/merchant-register      /.netlify/functions/merchant-register      200
