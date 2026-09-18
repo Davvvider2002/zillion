@@ -294,6 +294,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-member-my-groups"
+  to   = "/.netlify/functions/ajo-member-my-groups"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-member-switch-scheme"
+  to   = "/.netlify/functions/ajo-member-switch-scheme"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/zillion-member-products"
+  to   = "/.netlify/functions/zillion-member-products"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/merchant-register"
   to   = "/.netlify/functions/merchant-register"
   status = 200
