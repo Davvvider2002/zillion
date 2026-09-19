@@ -349,6 +349,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-member-provision-account"
+  to   = "/.netlify/functions/ajo-member-provision-account"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-flutterwave-webhook"
+  to   = "/.netlify/functions/ajo-flutterwave-webhook"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-admin-manage-collector"
   to   = "/.netlify/functions/ajo-admin-manage-collector"
   status = 200
