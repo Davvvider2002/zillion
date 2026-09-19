@@ -34,12 +34,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
-
-const COMMISSION_WINDOW_MONTHS = 24;
-// The commission rate itself - the share of the fee revenue an agent
-// earns on a referral still within its window. Not yet exposed as an
-// admin-configurable setting; a fixed 30% until that's built.
-const AGENT_COMMISSION_SHARE_BPS = 3000;
+const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -89,22 +84,7 @@ exports.handler = async (event) => {
 
   let agentCommissionKobo = 0;
   if (feeKobo > 0) {
-    const { data: attribution } = await db.from('ajo_referral_attributions').select('id, agent_id, attributed_at').eq('scheme_id', schemeId).maybeSingle();
-    if (attribution) {
-      const windowCutoff = new Date(attribution.attributed_at).getTime() + COMMISSION_WINDOW_MONTHS * 30 * 24 * 3600 * 1000;
-      if (Date.now() < windowCutoff) {
-        agentCommissionKobo = Math.round(feeKobo * AGENT_COMMISSION_SHARE_BPS / 10000);
-        if (agentCommissionKobo > 0) {
-          await db.from('ajo_agent_earnings').insert({
-            agent_id: attribution.agent_id, attribution_id: attribution.id,
-            source_fee_event_type: 'contribution', source_event_id: contribution.id,
-            commission_kobo: agentCommissionKobo,
-          });
-        }
-      }
-      // Past the 24-month window: no commission row is created at
-      // all, not a zero-value one - the cap ends accrual outright.
-    }
+    agentCommissionKobo = await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'contribution', contribution.id);
   }
 
   return ok({
