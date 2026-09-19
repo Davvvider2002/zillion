@@ -43,9 +43,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
-
-const COMMISSION_WINDOW_MONTHS = 24;
-const AGENT_COMMISSION_SHARE_BPS = 3000; // matches ajo-member-record-contribution.js
+const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
 
 function selectPayee(members, alreadyPaidMemberIds, payoutOrder, adminChoiceId) {
   const eligible = members.filter(m => !alreadyPaidMemberIds.includes(m.id));
@@ -136,19 +134,7 @@ exports.handler = async (event) => {
 
   let agentCommissionKobo = 0;
   if (feeKobo > 0) {
-    const { data: attribution } = await db.from('ajo_referral_attributions').select('id, agent_id, attributed_at').eq('scheme_id', schemeId).maybeSingle();
-    if (attribution) {
-      const windowCutoff = new Date(attribution.attributed_at).getTime() + COMMISSION_WINDOW_MONTHS * 30 * 24 * 3600 * 1000;
-      if (Date.now() < windowCutoff) {
-        agentCommissionKobo = Math.round(feeKobo * AGENT_COMMISSION_SHARE_BPS / 10000);
-        if (agentCommissionKobo > 0) {
-          await db.from('ajo_agent_earnings').insert({
-            agent_id: attribution.agent_id, attribution_id: attribution.id,
-            source_fee_event_type: 'payout', source_event_id: payout.id, commission_kobo: agentCommissionKobo,
-          });
-        }
-      }
-    }
+    agentCommissionKobo = await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'payout', payout.id);
   }
 
   await db.from('ajo_cycles').update({ status: 'PAID_OUT', closed_at: new Date().toISOString() }).eq('id', cycle.id);
