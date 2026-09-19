@@ -70,7 +70,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
   const { data: memberships } = await db.from('ajo_scheme_members')
-    .select('id, scheme_id, joined_at, cycle_position, ajo_schemes(name, scheme_type, status, contribution_amount_kobo, frequency, cycle_length)')
+    .select('id, scheme_id, joined_at, cycle_position, dedicated_account_number, dedicated_account_bank, ajo_schemes(name, scheme_type, status, contribution_amount_kobo, frequency, cycle_length)')
     .eq('zillion_id', zillionId)
     .eq('status', 'ACTIVE')
     .order('joined_at', { ascending: true });
@@ -112,6 +112,8 @@ exports.handler = async (event) => {
       scheme_type: scheme.scheme_type || null,
       frequency: scheme.frequency || null,
       cycle_position: m.cycle_position,
+      dedicated_account_number: m.dedicated_account_number || null,
+      dedicated_account_bank: m.dedicated_account_bank || null,
       is_current: m.scheme_id === auth.payload.ajo_scheme_id,
       contribution_amount_kobo: contributionAmountKobo,
       open_cycle_number: openCycle ? openCycle.cycle_number : null,
