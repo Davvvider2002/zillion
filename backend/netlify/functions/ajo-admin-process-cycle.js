@@ -87,8 +87,9 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: scheme } = await db.from('ajo_schemes')
-    .select('id, name, payout_order, cycle_length, created_by_zillion_id, status').eq('id', schemeId).maybeSingle();
+    .select('id, name, scheme_type, payout_order, cycle_length, created_by_zillion_id, status').eq('id', schemeId).maybeSingle();
   if (!scheme) return err(404, 'Scheme not found');
+  if (scheme.scheme_type === 'personal_savings') return err(400, 'Personal savings has no rotation to process — use the withdraw action instead.');
   if (scheme.created_by_zillion_id !== zillionId) return err(403, 'Only this scheme\'s own group admin can process a cycle');
   if (scheme.status !== 'ACTIVE') return err(400, `This scheme is ${scheme.status.toLowerCase()} — no cycle to process`);
 
