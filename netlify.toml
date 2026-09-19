@@ -339,6 +339,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-admin-manage-collector"
+  to   = "/.netlify/functions/ajo-admin-manage-collector"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-collector-record-cash"
+  to   = "/.netlify/functions/ajo-collector-record-cash"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-collector-reconcile"
+  to   = "/.netlify/functions/ajo-collector-reconcile"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-member-switch-scheme"
   to   = "/.netlify/functions/ajo-member-switch-scheme"
   status = 200
