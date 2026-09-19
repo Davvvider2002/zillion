@@ -139,6 +139,14 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-scheme-detail">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-title" id="sd-title">Group details</div>
+    <div id="sd-body"><div class="no-data">Loading…</div></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:16px" onclick="closeModal('modal-scheme-detail')">Close</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -267,21 +275,23 @@ async function loadSchemes() {
 
     const rows = (data.schemes || []).map(s => `
       <tr>
-        <td>${s.name}</td>
+        <td><a href="#" onclick="openSchemeDetail('${s.id}');return false" style="color:var(--amber);font-weight:700;text-decoration:none">${s.name}</a></td>
         <td style="text-transform:capitalize">${s.scheme_type.replace(/_/g, ' ')}</td>
         <td>${fmtNaira(s.contribution_amount_kobo)} / ${s.frequency}</td>
+        <td style="text-transform:capitalize">${s.payout_order.replace(/_/g, ' ')}</td>
         <td>${s.active_member_count}</td>
         <td>${s.cycles_run}</td>
         <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
         <td>
+          <button class="btn btn-ghost btn-sm" onclick="openSchemeDetail('${s.id}')">View details</button>
           <button class="btn btn-ghost btn-sm" onclick="copyJoinLink('${s.id}','${s.name.replace(/'/g, "\\'")}')">Copy join link</button>
           ${s.status === 'ACTIVE' ? `<button class="btn btn-ghost btn-sm" onclick="processAjoCycle('${s.id}','${s.name.replace(/'/g, "\\'")}','${s.payout_order}')">Process cycle</button>` : ''}
         </td>
       </tr>`).join('');
 
     el.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Group</th><th>Type</th><th>Contribution</th><th>Members</th><th>Cycles run</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="7" class="no-data">No groups yet — create your first one above.</td></tr>'}</tbody>
+      <thead><tr><th>Group</th><th>Type</th><th>Contribution</th><th>Payout order</th><th>Members</th><th>Cycles run</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" class="no-data">No groups yet — create your first one above.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
     el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
@@ -320,6 +330,63 @@ async function processAjoCycle(schemeId, schemeName, payoutOrder) {
     loadSchemes();
   } catch (e) {
     toast('Network error: ' + e.message, true);
+  }
+}
+
+async function openSchemeDetail(schemeId) {
+  document.getElementById('sd-title').textContent = 'Group details';
+  document.getElementById('sd-body').innerHTML = '<div class="no-data">Loading…</div>';
+  openModal('modal-scheme-detail');
+  try {
+    const res = await fetch(`${API}/ajo-admin-scheme-detail?scheme_id=${schemeId}`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('sd-body').innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+
+    const s = data.scheme;
+    document.getElementById('sd-title').textContent = s.name;
+
+    const memberRows = (data.members || []).map(m => `
+      <tr>
+        <td>#${m.cycle_position ?? '—'}</td>
+        <td style="font-family:monospace;font-size:12px">${m.zillion_id}</td>
+        <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
+        <td>${new Date(m.joined_at).toLocaleDateString()}</td>
+      </tr>`).join('') || '<tr><td colspan="4" class="no-data">No members yet</td></tr>';
+
+    const cycleRows = (data.cycles || []).map(c => {
+      const collected = (c.contributions || []).reduce((sum, x) => sum + x.amount_kobo, 0);
+      const payoutText = c.payout ? `${fmtNaira(c.payout.amount_kobo)} → member paid` : '—';
+      return `
+      <tr>
+        <td>#${c.cycle_number}</td>
+        <td><span class="pill ${c.status === 'PAID_OUT' ? 'pill-green' : (c.status === 'OPEN' ? 'pill-amber' : 'pill-muted')}">${c.status}</span></td>
+        <td>${(c.contributions || []).length} contribution${(c.contributions || []).length === 1 ? '' : 's'} (${fmtNaira(collected)})</td>
+        <td>${payoutText}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="4" class="no-data">No cycles yet</td></tr>';
+
+    document.getElementById('sd-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;font-size:13px">
+        <div><b>Type:</b> ${s.scheme_type.replace(/_/g, ' ')}</div>
+        <div><b>Contribution:</b> ${fmtNaira(s.contribution_amount_kobo)} / ${s.frequency}</div>
+        <div><b>Payout order:</b> ${s.payout_order.replace(/_/g, ' ')}</div>
+        <div><b>Cycle length:</b> ${s.cycle_length}</div>
+        <div><b>Status:</b> ${s.status}</div>
+        <div><b>Referred by:</b> ${data.referred_by ? data.referred_by.referral_code : '—'}</div>
+      </div>
+      <div style="font-weight:700;margin-bottom:6px">Members (${(data.members || []).length})</div>
+      <div class="table-wrap" style="margin-bottom:18px"><table>
+        <thead><tr><th>Position</th><th>Zillion ID</th><th>Status</th><th>Joined</th></tr></thead>
+        <tbody>${memberRows}</tbody>
+      </table></div>
+      <div style="font-weight:700;margin-bottom:6px">Cycles</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Cycle</th><th>Status</th><th>Contributions</th><th>Payout</th></tr></thead>
+        <tbody>${cycleRows}</tbody>
+      </table></div>
+    `;
+  } catch (e) {
+    document.getElementById('sd-body').innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
   }
 }
 
