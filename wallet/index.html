@@ -1329,6 +1329,30 @@ function triggerPWAInstall() {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-ajo-provision" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px" id="ajo-provision-title">Fund by bank transfer</div>
+
+    <div id="ajo-provision-form">
+      <div style="font-size:12px;color:#9CC4B0;margin-bottom:14px">Get your own dedicated account number — transfer to it from any Nigerian bank and it's credited automatically. Your BVN or NIN is required to issue it.</div>
+      <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">BVN or NIN (11 digits)</label>
+      <input type="text" id="ajo-provision-bvn" maxlength="11" placeholder="12345678901" style="width:100%;padding:12px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;font-weight:700;margin-bottom:12px;box-sizing:border-box;letter-spacing:1px">
+      <div id="ajo-provision-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+      <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitProvision()" id="ajo-provision-btn">Get account number</button>
+      <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-provision').style.display='none'">Cancel</button>
+    </div>
+
+    <div id="ajo-provision-result" style="display:none">
+      <div style="font-size:12px;color:#9CC4B0;margin-bottom:14px">Transfer any amount here from any Nigerian bank — it's credited to this pot automatically within moments.</div>
+      <div style="background:#081A11;border:1px solid #234A38;border-radius:10px;padding:14px;margin-bottom:16px;text-align:center">
+        <div style="font-size:11px;color:#7A9A85;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px" id="ajo-provision-bank"></div>
+        <div style="font-size:22px;font-weight:800;color:#00E0AC;letter-spacing:1px" id="ajo-provision-account"></div>
+      </div>
+      <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px" onclick="document.getElementById('modal-ajo-provision').style.display='none';loadAjoHomeScreen()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN — MESSAGES (one-way, admin → member)
 ══════════════════════════════════════════════════════════════ -->
@@ -2524,10 +2548,13 @@ async function loadAjoHomeScreen() {
             <div style="font-size:10px;color:#7A9A85;text-transform:uppercase;letter-spacing:.03em">Available balance</div>
             <div style="font-size:22px;font-weight:800;color:#00E0AC;margin-top:2px">${fmtNaira(g.available_balance_kobo)}</div>
           </div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
             <button class="btn" style="flex:1;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenContributeModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Add money</button>
             <button class="btn" style="flex:1;padding:10px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenWithdrawModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Withdraw</button>
           </div>
+          ${g.dedicated_account_number
+            ? `<div style="font-size:11px;color:#7A9A85;text-align:center">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number}</div>`
+            : `<button type="button" onclick="ajoOpenProvisionModal('${g.scheme_id}')" style="width:100%;background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px">Get a bank account for this pot →</button>`}
         </div>`;
       }
 
@@ -2570,6 +2597,9 @@ async function loadAjoHomeScreen() {
         </div>
 
         <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenContributeModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Contribute</button>
+        ${g.dedicated_account_number
+          ? `<div style="font-size:11px;color:#7A9A85;text-align:center;margin-top:8px">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number}</div>`
+          : `<button type="button" onclick="ajoOpenProvisionModal('${g.scheme_id}')" style="width:100%;background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:6px 0 0">Get a bank account for this group →</button>`}
       </div>
     `;
     }).join('');
@@ -2779,6 +2809,47 @@ async function ajoSubmitWithdrawal() {
     loadAjoHomeScreen();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Confirm withdrawal';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+let ajoProvisionSchemeId = null;
+
+function ajoOpenProvisionModal(schemeId) {
+  ajoProvisionSchemeId = schemeId;
+  document.getElementById('ajo-provision-form').style.display = 'block';
+  document.getElementById('ajo-provision-result').style.display = 'none';
+  document.getElementById('ajo-provision-bvn').value = '';
+  document.getElementById('ajo-provision-error').style.display = 'none';
+  document.getElementById('modal-ajo-provision').style.display = 'flex';
+}
+
+async function ajoSubmitProvision() {
+  const errEl = document.getElementById('ajo-provision-error');
+  errEl.style.display = 'none';
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token || !ajoProvisionSchemeId) return;
+
+  const bvn = document.getElementById('ajo-provision-bvn').value.trim();
+  if (!/^\d{11}$/.test(bvn)) { errEl.textContent = 'Enter your 11-digit BVN or NIN.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ajo-provision-btn');
+  btn.disabled = true; btn.textContent = 'Getting your account...';
+  try {
+    const res = await fetch(`${API}/ajo-member-provision-account`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ scheme_id: ajoProvisionSchemeId, bvn_or_nin: bvn }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Get account number';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to get an account.'; errEl.style.display = 'block'; return; }
+
+    document.getElementById('ajo-provision-form').style.display = 'none';
+    document.getElementById('ajo-provision-result').style.display = 'block';
+    document.getElementById('ajo-provision-bank').textContent = data.bank_name;
+    document.getElementById('ajo-provision-account').textContent = data.account_number;
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Get account number';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
