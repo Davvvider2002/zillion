@@ -129,6 +129,10 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
         <option value="priority">Priority (need-based)</option>
       </select>
     </div>
+    <div class="field">
+      <label>Referred by an agent? (optional)</label>
+      <input type="text" id="cs-referral-code" placeholder="e.g. AJO-DAVID01">
+    </div>
     <div id="cs-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitCreateScheme()" id="cs-btn">Create group</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-create-scheme')">Cancel</button>
@@ -323,6 +327,7 @@ function openCreateSchemeModal() {
   document.getElementById('cs-name').value = '';
   document.getElementById('cs-amount').value = '';
   document.getElementById('cs-cycles').value = '';
+  document.getElementById('cs-referral-code').value = '';
   document.getElementById('cs-error').style.display = 'none';
   openModal('modal-create-scheme');
 }
@@ -333,6 +338,7 @@ async function submitCreateScheme() {
   const name = document.getElementById('cs-name').value.trim();
   const amountNaira = parseFloat(document.getElementById('cs-amount').value);
   const cycles = parseInt(document.getElementById('cs-cycles').value, 10);
+  const referralCode = document.getElementById('cs-referral-code').value.trim();
   if (!name) { errEl.textContent = 'Group name is required.'; errEl.style.display = 'block'; return; }
   if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid contribution amount.'; errEl.style.display = 'block'; return; }
   if (!cycles || cycles <= 0) { errEl.textContent = 'Enter a valid number of cycles.'; errEl.style.display = 'block'; return; }
@@ -349,13 +355,20 @@ async function submitCreateScheme() {
         frequency: document.getElementById('cs-frequency').value,
         cycle_length: cycles,
         payout_order: document.getElementById('cs-payout-order').value,
+        referral_code: referralCode || undefined,
       }),
     });
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'Create group';
     if (!res.ok) { errEl.textContent = data.error || 'Failed to create group.'; errEl.style.display = 'block'; return; }
     closeModal('modal-create-scheme');
-    toast(`"${data.scheme.name}" created.`);
+    if (referralCode && !data.referral_attributed) {
+      toast(`"${data.scheme.name}" created — but "${referralCode}" wasn't recognized as an active agent, so no referral was linked.`, true, 5000);
+    } else if (data.referral_attributed) {
+      toast(`"${data.scheme.name}" created and linked to agent ${referralCode}.`);
+    } else {
+      toast(`"${data.scheme.name}" created.`);
+    }
     loadSchemes();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Create group';
