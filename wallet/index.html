@@ -1273,7 +1273,10 @@ function triggerPWAInstall() {
 <div class="modal-overlay" id="modal-ajo-contribute" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
     <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px" id="ajo-contrib-title">Contribute</div>
-    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="ajo-contrib-sub"></div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:14px" id="ajo-contrib-sub"></div>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Amount (₦)</label>
+    <input type="number" id="ajo-contrib-amount" oninput="ajoOnContribAmountChange()" style="width:100%;padding:12px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;font-weight:700;margin-bottom:8px;box-sizing:border-box">
+    <div id="ajo-contrib-advance-note" style="display:none;font-size:11.5px;color:#F5B87A;margin-bottom:12px">Paying more than the amount due? The extra counts as an advance and is automatically credited toward your future rounds.</div>
     <div id="ajo-contrib-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
     <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitContribution()" id="ajo-contrib-btn">Confirm contribution</button>
     <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-contribute').style.display='none'">Cancel</button>
@@ -2463,13 +2466,40 @@ async function loadAjoHomeScreen() {
       return;
     }
 
-    el.innerHTML = groups.map(g => `
+    window._ajoGroupsCache = groups; // so the contribute modal can look up stats without a second round trip
+
+    el.innerHTML = groups.map(g => {
+      const pct = g.contribution_amount_kobo > 0 ? Math.min(100, Math.round((g.contributed_this_cycle_kobo / g.contribution_amount_kobo) * 100)) : 0;
+      const isAhead = g.credit_balance_kobo > 0;
+      const isBehind = g.credit_balance_kobo < 0;
+      return `
       <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
         <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:2px">${g.scheme_name}</div>
-        <div style="font-size:12px;color:#9CC4B0;text-transform:capitalize;margin-bottom:10px">${(g.scheme_type || '').replace(/_/g, ' ')}${g.cycle_position ? ' · Position ' + g.cycle_position : ''}</div>
+        <div style="font-size:12px;color:#9CC4B0;text-transform:capitalize;margin-bottom:10px">${(g.scheme_type || '').replace(/_/g, ' ')}${g.cycle_position ? ' · Position ' + g.cycle_position : ''}${g.open_cycle_number ? ' · Cycle ' + g.open_cycle_number : ''}</div>
+
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+          <span style="color:#9CC4B0">This round</span>
+          <span style="font-weight:700;color:#00E0AC">${fmtNaira(g.contributed_this_cycle_kobo)} / ${fmtNaira(g.contribution_amount_kobo)}</span>
+        </div>
+        <div style="background:#081A11;border-radius:6px;height:8px;overflow:hidden;margin-bottom:12px">
+          <div style="background:#00C896;height:100%;width:${pct}%"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="background:#081A11;border-radius:8px;padding:8px 10px">
+            <div style="font-size:10px;color:#7A9A85;text-transform:uppercase;letter-spacing:.03em">Total contributed</div>
+            <div style="font-size:14px;font-weight:700;color:#E8F5EE;margin-top:2px">${fmtNaira(g.total_contributed_kobo)}</div>
+          </div>
+          <div style="background:#081A11;border-radius:8px;padding:8px 10px">
+            <div style="font-size:10px;color:#7A9A85;text-transform:uppercase;letter-spacing:.03em">${isBehind ? 'Owing' : 'Advance credit'}</div>
+            <div style="font-size:14px;font-weight:700;margin-top:2px;color:${isBehind ? '#FF8A8A' : (isAhead ? '#00E0AC' : '#E8F5EE')}">${fmtNaira(Math.abs(g.credit_balance_kobo))}</div>
+          </div>
+        </div>
+
         <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenContributeModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Contribute</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
   } catch (e) {
     el.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">Network error: ${e.message}</div>`;
   }
@@ -2520,10 +2550,38 @@ async function ajoJoinFromInput() {
 
 function ajoOpenContributeModal(schemeId, schemeName) {
   ajoContributeSchemeId = schemeId;
+  const g = (window._ajoGroupsCache || []).find(x => x.scheme_id === schemeId);
+
   document.getElementById('ajo-contrib-title').textContent = schemeName;
-  document.getElementById('ajo-contrib-sub').textContent = 'Records this cycle\'s contribution using the group\'s configured amount.';
   document.getElementById('ajo-contrib-error').style.display = 'none';
+  document.getElementById('ajo-contrib-advance-note').style.display = 'none';
+
+  if (g) {
+    // If behind, default to exactly the shortfall so the field pre-fills
+    // to what's actually owed. Otherwise default to a standard round's
+    // amount - paying it now, with nothing currently owed, is itself an
+    // advance, and the note below makes that explicit.
+    const owedKobo = g.credit_balance_kobo < 0 ? -g.credit_balance_kobo : g.contribution_amount_kobo;
+    document.getElementById('ajo-contrib-amount').value = (owedKobo / 100).toFixed(2);
+    document.getElementById('ajo-contrib-sub').textContent = g.credit_balance_kobo < 0
+      ? `You're behind by ${fmtNaira(-g.credit_balance_kobo)} — this covers you back up to date.`
+      : g.credit_balance_kobo > 0
+        ? `You're already ${fmtNaira(g.credit_balance_kobo)} ahead. This round's default amount is shown below.`
+        : `This round's amount, set by your group admin.`;
+  } else {
+    document.getElementById('ajo-contrib-amount').value = '';
+    document.getElementById('ajo-contrib-sub').textContent = 'Records this cycle\'s contribution.';
+  }
+
   document.getElementById('modal-ajo-contribute').style.display = 'flex';
+}
+
+function ajoOnContribAmountChange() {
+  const g = (window._ajoGroupsCache || []).find(x => x.scheme_id === ajoContributeSchemeId);
+  if (!g) return;
+  const enteredKobo = Math.round(parseFloat(document.getElementById('ajo-contrib-amount').value || '0') * 100);
+  const owedKobo = g.credit_balance_kobo < 0 ? -g.credit_balance_kobo : g.contribution_amount_kobo;
+  document.getElementById('ajo-contrib-advance-note').style.display = enteredKobo > owedKobo ? 'block' : 'none';
 }
 
 async function ajoSubmitContribution() {
@@ -2532,18 +2590,22 @@ async function ajoSubmitContribution() {
   const token = (STATE.user && STATE.user.token) || '';
   if (!token || !ajoContributeSchemeId) return;
 
+  const amountNaira = parseFloat(document.getElementById('ajo-contrib-amount').value);
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+
   const btn = document.getElementById('ajo-contrib-btn');
   btn.disabled = true; btn.textContent = 'Recording...';
   try {
     const res = await fetch(`${API}/ajo-member-record-contribution`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ scheme_id: ajoContributeSchemeId }),
+      body: JSON.stringify({ scheme_id: ajoContributeSchemeId, amount_kobo: Math.round(amountNaira * 100) }),
     });
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'Confirm contribution';
     if (!res.ok) { errEl.textContent = data.error || 'Failed to record contribution.'; errEl.style.display = 'block'; return; }
     document.getElementById('modal-ajo-contribute').style.display = 'none';
     toast('Contribution recorded.');
+    loadAjoHomeScreen();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Confirm contribution';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
