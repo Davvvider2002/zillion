@@ -58,7 +58,12 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
     </div>
 
     <div id="login-step-phone">
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button type="button" id="channel-tab-sms" class="btn btn-primary btn-sm" style="flex:1" onclick="setOtpChannel('sms')">Text me a code</button>
+        <button type="button" id="channel-tab-email" class="btn btn-ghost btn-sm" style="flex:1" onclick="setOtpChannel('email')">Email me a code</button>
+      </div>
       <div class="field"><label>Phone number</label><input type="tel" id="admin-phone" placeholder="08012345678"></div>
+      <div class="field" id="admin-email-field" style="display:none"><label>Email</label><input type="email" id="admin-email" placeholder="you@example.com"></div>
       <div id="phone-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
       <button class="btn btn-primary" style="width:100%" onclick="sendAdminOtp()" id="send-otp-btn">Send code</button>
       <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:14px">Same sign-in as your Zillion wallet — no separate account needed.</div>
@@ -136,6 +141,7 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
 const API = '/.netlify/functions';
 let adminToken = localStorage.getItem('ajo_admin_token') || '';
 let pendingPhone = '';
+let otpChannel = 'sms';
 
 function toast(msg, isError=false, ms=3000) {
   const el = document.getElementById('toast');
@@ -155,18 +161,33 @@ function normalisePhone(raw) {
   return '+234' + d;
 }
 
+function setOtpChannel(channel) {
+  otpChannel = channel;
+  document.getElementById('channel-tab-sms').className = 'btn btn-sm ' + (channel === 'sms' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('channel-tab-email').className = 'btn btn-sm ' + (channel === 'email' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('admin-email-field').style.display = channel === 'email' ? '' : 'none';
+}
+
 async function sendAdminOtp() {
   const raw = document.getElementById('admin-phone').value.trim();
   const errEl = document.getElementById('phone-error');
   errEl.style.display = 'none';
   if (!raw) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
   pendingPhone = normalisePhone(raw);
+
+  const payload = { phone: pendingPhone, channel: otpChannel };
+  if (otpChannel === 'email') {
+    const email = document.getElementById('admin-email').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Enter a valid email address.'; errEl.style.display = 'block'; return; }
+    payload.email = email;
+  }
+
   const btn = document.getElementById('send-otp-btn');
   btn.disabled = true; btn.textContent = 'Sending...';
   try {
     const res = await fetch(`${API}/send-otp`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: pendingPhone }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'Send code';
