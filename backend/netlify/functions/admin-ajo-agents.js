@@ -43,21 +43,30 @@ exports.handler = async (event) => {
 
     const withEarnings = await Promise.all((agents || []).map(async (a) => {
       const { data: earnings } = await db.from('ajo_agent_earnings').select('commission_kobo, paid_out_at').eq('agent_id', a.id);
-      const { data: attributions } = await db.from('ajo_referral_attributions').select('id, attributed_at').eq('agent_id', a.id);
+      const { data: attributions } = await db.from('ajo_referral_attributions')
+        .select('id, attributed_at, ajo_schemes(id, name, status)').eq('agent_id', a.id);
 
       const totalAccruedKobo = (earnings || []).reduce((s, e) => s + e.commission_kobo, 0);
       const totalPaidKobo = (earnings || []).filter(e => e.paid_out_at).reduce((s, e) => s + e.commission_kobo, 0);
       const now = Date.now();
-      const withinWindow = (attributions || []).filter(at => {
+      const referredGroups = (attributions || []).map(at => {
         const cutoff = new Date(at.attributed_at).getTime() + COMMISSION_WINDOW_MONTHS * 30 * 24 * 3600 * 1000;
-        return now < cutoff;
-      }).length;
+        return {
+          scheme_id: at.ajo_schemes?.id || null,
+          scheme_name: at.ajo_schemes?.name || '(deleted group)',
+          scheme_status: at.ajo_schemes?.status || null,
+          attributed_at: at.attributed_at,
+          within_commission_window: now < cutoff,
+        };
+      });
+      const withinWindow = referredGroups.filter(g => g.within_commission_window).length;
 
       return {
         ...a,
-        total_referrals: (attributions || []).length,
+        referred_groups: referredGroups,
+        total_referrals: referredGroups.length,
         referrals_within_commission_window: withinWindow,
-        referrals_past_commission_window: (attributions || []).length - withinWindow,
+        referrals_past_commission_window: referredGroups.length - withinWindow,
         total_accrued_kobo: totalAccruedKobo,
         total_paid_kobo: totalPaidKobo,
         outstanding_kobo: totalAccruedKobo - totalPaidKobo,
