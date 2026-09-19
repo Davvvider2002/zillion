@@ -1257,6 +1257,13 @@ function triggerPWAInstall() {
   </div>
   <div class="scroll-body" style="padding:16px">
 
+    <div style="background:linear-gradient(135deg,#1A4030,#0F2B1D);border:1px solid #234A38;border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+      <div style="font-size:32px;margin-bottom:6px">🐷</div>
+      <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:4px">Start saving on your own</div>
+      <div style="font-size:12px;color:#9CC4B0;margin-bottom:12px">No group, no one else involved — just you, saving toward something, and free to withdraw whenever you need to.</div>
+      <button class="btn" style="width:100%;padding:11px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenCreatePersonalModal()">Start personal savings</button>
+    </div>
+
     <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:16px">
       <div style="font-size:12px;color:#9CC4B0;margin-bottom:8px">Have a group's join link or code?</div>
       <input id="ajo-join-input" type="text" placeholder="Paste join link or group ID" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:10px;box-sizing:border-box">
@@ -1267,6 +1274,31 @@ function triggerPWAInstall() {
     <div class="section-header"><div class="section-title">Your groups</div></div>
     <div id="ajo-groups-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
 
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajo-create-personal" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:34px;margin-bottom:6px">🐷</div>
+      <div style="font-size:17px;font-weight:700;color:#fff">Start personal savings</div>
+    </div>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">What are you saving for?</label>
+    <input type="text" id="acp-name" placeholder="e.g. Rent, New phone, Emergency fund" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px;box-sizing:border-box">
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Amount per contribution (₦)</label>
+    <input type="number" id="acp-amount" placeholder="5000" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px;box-sizing:border-box">
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">How often?</label>
+    <select id="acp-frequency" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px;box-sizing:border-box">
+      <option value="daily">Daily</option>
+      <option value="weekly" selected>Weekly</option>
+      <option value="monthly">Monthly</option>
+    </select>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Target — number of contributions</label>
+    <input type="number" id="acp-periods" placeholder="e.g. 12" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:6px;box-sizing:border-box">
+    <div style="font-size:11px;color:#7A9A85;margin-bottom:14px">Just a target to track toward — you can withdraw anytime, even before you reach it.</div>
+    <div id="acp-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitCreatePersonal()" id="acp-btn">Create savings pot</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-create-personal').style.display='none'">Cancel</button>
   </div>
 </div>
 
@@ -1285,7 +1317,8 @@ function triggerPWAInstall() {
 
 <div class="modal-overlay" id="modal-ajo-withdraw" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
-    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px" id="ajo-withdraw-title">Withdraw</div>
+    <div style="text-align:center;margin-bottom:4px"><span style="font-size:30px">🐷</span></div>
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px;text-align:center" id="ajo-withdraw-title">Withdraw</div>
     <div style="font-size:12px;color:#9CC4B0;margin-bottom:14px" id="ajo-withdraw-sub"></div>
     <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Amount (₦)</label>
     <input type="number" id="ajo-withdraw-amount" style="width:100%;padding:12px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;font-weight:700;margin-bottom:8px;box-sizing:border-box">
@@ -2485,7 +2518,7 @@ async function loadAjoHomeScreen() {
       if (g.scheme_type === 'personal_savings') {
         return `
         <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
-          <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:2px">${g.scheme_name}</div>
+          <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:2px">🐷 ${g.scheme_name}</div>
           <div style="font-size:12px;color:#9CC4B0;margin-bottom:12px">Personal savings · withdraw anytime</div>
           <div style="background:#081A11;border-radius:8px;padding:12px;margin-bottom:12px;text-align:center">
             <div style="font-size:10px;color:#7A9A85;text-transform:uppercase;letter-spacing:.03em">Available balance</div>
@@ -2584,6 +2617,56 @@ async function ajoJoinFromInput() {
     loadAjoHomeScreen();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Join group';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function ajoOpenCreatePersonalModal() {
+  document.getElementById('acp-name').value = '';
+  document.getElementById('acp-amount').value = '';
+  document.getElementById('acp-periods').value = '';
+  document.getElementById('acp-error').style.display = 'none';
+  document.getElementById('modal-ajo-create-personal').style.display = 'flex';
+}
+
+// Reuses the same scheme-creation endpoint the group-admin portal
+// uses - it only ever checks that the caller is a signed-in wallet
+// user, nothing "admin" about it, so a personal pot needs no separate
+// backend path. payout_order is left unset (defaults server-side) -
+// meaningless for a solo saver with nothing to rotate.
+async function ajoSubmitCreatePersonal() {
+  const errEl = document.getElementById('acp-error');
+  errEl.style.display = 'none';
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) { errEl.textContent = 'Sign in first.'; errEl.style.display = 'block'; return; }
+
+  const name = document.getElementById('acp-name').value.trim();
+  const amountNaira = parseFloat(document.getElementById('acp-amount').value);
+  const periods = parseInt(document.getElementById('acp-periods').value, 10);
+  if (!name) { errEl.textContent = 'Give your savings pot a name.'; errEl.style.display = 'block'; return; }
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (!periods || periods <= 0) { errEl.textContent = 'Enter a valid target number of contributions.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('acp-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(`${API}/ajo-admin-create-scheme`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({
+        name, scheme_type: 'personal_savings',
+        contribution_amount_kobo: Math.round(amountNaira * 100),
+        frequency: document.getElementById('acp-frequency').value,
+        cycle_length: periods,
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Create savings pot';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to create.'; errEl.style.display = 'block'; return; }
+    document.getElementById('modal-ajo-create-personal').style.display = 'none';
+    toast(`🐷 "${data.scheme.name}" is ready — start saving whenever you like.`);
+    loadAjoHomeScreen();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Create savings pot';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
