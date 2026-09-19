@@ -107,6 +107,7 @@
 /api/v1/ajo-member-join-scheme  /.netlify/functions/ajo-member-join-scheme  200
 /api/v1/ajo-member-record-contribution  /.netlify/functions/ajo-member-record-contribution  200
 /api/v1/ajo-admin-process-cycle  /.netlify/functions/ajo-admin-process-cycle  200
+/api/v1/ajo-admin-scheme-detail  /.netlify/functions/ajo-admin-scheme-detail  200
 /api/v1/ajo-admin-manage-collector  /.netlify/functions/ajo-admin-manage-collector  200
 /api/v1/ajo-collector-record-cash  /.netlify/functions/ajo-collector-record-cash  200
 /api/v1/ajo-collector-reconcile  /.netlify/functions/ajo-collector-reconcile  200
