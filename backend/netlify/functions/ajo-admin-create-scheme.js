@@ -34,7 +34,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 
-const SCHEME_TYPES = ['rotational', 'daily_thrift', 'target_thrift'];
+const SCHEME_TYPES = ['rotational', 'daily_thrift', 'target_thrift', 'personal_savings'];
 const FREQUENCIES = ['daily', 'weekly', 'monthly'];
 const PAYOUT_ORDERS = ['fixed', 'random', 'admin_assigned', 'priority'];
 
@@ -85,6 +85,15 @@ exports.handler = async (event) => {
     // shouldn't be reported as if scheme creation failed outright,
     // but the admin needs to know contributions can't be recorded yet.
     return ok({ success: true, scheme, cycle: null, warning: `Scheme created, but its first cycle could not be started: ${cycleErr.message}. Contact support.` });
+  }
+
+  // Personal savings has no separate "join" step - the creator IS
+  // the sole member, auto-enrolled here. Group schemes deliberately
+  // do NOT do this (Group admin and Member stay separate actions -
+  // Part 2 of the standalone proposal); personal savings is the one
+  // exception, since there's no one else who could ever join.
+  if (schemeType === 'personal_savings') {
+    await db.from('ajo_scheme_members').insert({ scheme_id: scheme.id, zillion_id: zillionId, cycle_position: 1 });
   }
 
   let referralAttribution = null;
