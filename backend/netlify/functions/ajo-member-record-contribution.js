@@ -33,8 +33,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
-const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
-const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
+const { creditContribution } = require('../../lib/ajoCreditContribution');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -63,32 +62,16 @@ exports.handler = async (event) => {
   const { data: membership } = await db.from('ajo_scheme_members').select('id, status').eq('scheme_id', schemeId).eq('zillion_id', zillionId).maybeSingle();
   if (!membership || membership.status !== 'ACTIVE') return err(403, 'You are not an active member of this scheme');
 
-  const { data: cycle } = await db.from('ajo_cycles').select('id, started_at').eq('scheme_id', schemeId).eq('status', 'OPEN').order('cycle_number', { ascending: false }).limit(1).maybeSingle();
-  if (!cycle) return err(400, 'This scheme has no open cycle to contribute to right now');
-
   const amountKobo = Number.isInteger(body.amount_kobo) && body.amount_kobo > 0 ? body.amount_kobo : scheme.contribution_amount_kobo;
   const source = body.source === 'cash' ? 'cash' : 'digital';
 
-  const feeRate = await resolveFeeRate(db, 'contribution', cycle.started_at);
-  const feeKobo = computeFeeKobo(feeRate, amountKobo);
-
-  const { data: contribution, error: contribErr } = await db.from('ajo_contributions').insert({
-    cycle_id: cycle.id, scheme_member_id: membership.id, amount_kobo: amountKobo, fee_kobo: feeKobo,
-    status: 'PAID', source,
-  }).select().single();
-  if (contribErr) return err(500, `Failed to record contribution: ${contribErr.message}`);
-
-  await db.from('ajo_ledger').insert({
-    scheme_id: schemeId, entry_type: 'contribution', amount_kobo: amountKobo, reference_id: contribution.id,
+  const result = await creditContribution(db, {
+    schemeId, schemeMemberId: membership.id, amountKobo, source,
   });
-
-  let agentCommissionKobo = 0;
-  if (feeKobo > 0) {
-    agentCommissionKobo = await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'contribution', contribution.id);
-  }
+  if (!result.ok) return err(400, result.error);
 
   return ok({
-    success: true, contribution, fee_kobo: feeKobo,
-    agent_commission_kobo: agentCommissionKobo,
+    success: true, contribution: result.contribution, fee_kobo: result.feeKobo,
+    agent_commission_kobo: result.agentCommissionKobo,
   });
 };
