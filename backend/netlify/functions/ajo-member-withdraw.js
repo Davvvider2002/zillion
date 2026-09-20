@@ -20,6 +20,15 @@
  * by a rotation. Same fee engine and agent commission logic as a
  * normal payout (Part 4.1 / Part 5.2 of the standalone proposal).
  *
+ * Now genuinely moves money, not just a database record: pays out to
+ * the member's own dedicated account (the same account their
+ * contributions arrive through, provisioned under their own BVN/NIN
+ * via ajo-member-provision-account.js) - a real Flutterwave-issued
+ * bank account, safe to also use as a payout destination since it
+ * already belongs to them. If they haven't provisioned one yet, the
+ * withdrawal is refused up front rather than recorded with nowhere
+ * to actually send the money.
+ *
  * A personal savings scheme's single, ever-open cycle (created at
  * scheme creation, never closed by ajo-admin-process-cycle.js, which
  * explicitly refuses this scheme_type) is where every contribution
@@ -33,6 +42,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
 const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
+const { resolveBankCode, verifyRecipientAccount, initiateTransfer } = require('../../lib/ajoTransfer');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -62,8 +72,10 @@ exports.handler = async (event) => {
   if (scheme.scheme_type !== 'personal_savings') return err(400, 'Withdrawals are only available for personal savings — this is a group scheme, where money is part of a collective rotation, not yours alone to withdraw on request.');
   if (scheme.status !== 'ACTIVE') return err(400, `This savings pot is ${scheme.status.toLowerCase()}`);
 
-  const { data: membership } = await db.from('ajo_scheme_members').select('id, status').eq('scheme_id', schemeId).eq('zillion_id', zillionId).maybeSingle();
+  const { data: membership } = await db.from('ajo_scheme_members')
+    .select('id, status, dedicated_account_number, dedicated_account_bank').eq('scheme_id', schemeId).eq('zillion_id', zillionId).maybeSingle();
   if (!membership || membership.status !== 'ACTIVE') return err(403, 'You are not the owner of this savings pot');
+  if (!membership.dedicated_account_number) return err(400, 'Get your dedicated account set up first (via "Fund by bank transfer") before withdrawing — there\'s nowhere to send the money yet.');
 
   const { data: cycle } = await db.from('ajo_cycles').select('id, started_at').eq('scheme_id', schemeId).eq('status', 'OPEN').order('cycle_number', { ascending: false }).limit(1).maybeSingle();
   if (!cycle) return err(400, 'This savings pot has no open period to withdraw from');
@@ -91,8 +103,38 @@ exports.handler = async (event) => {
 
   const agentCommissionKobo = feeKobo > 0 ? await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'payout', withdrawal.id) : 0;
 
+  // Attempt the real transfer. The withdrawal record above already
+  // reflects the decision (money is owed, fee/commission applied) -
+  // this section is purely about whether Flutterwave actually moved
+  // it. A failure here doesn't undo the withdrawal record - it marks
+  // transfer_status so it's visible and actionable, not silently lost.
+  const transferReference = `ZILAJOWD-${withdrawal.id.slice(0, 8)}-${Date.now()}`;
+  let transferOutcome = { transfer_status: 'FAILED', transfer_failure_reason: 'Bank code could not be resolved from the account\'s bank name' };
+
+  const bankCode = await resolveBankCode(membership.dedicated_account_bank).catch(() => null);
+  if (bankCode) {
+    const verification = await verifyRecipientAccount(membership.dedicated_account_number, bankCode);
+    if (verification.ok) {
+      const transferResult = await initiateTransfer({
+        accountNumber: membership.dedicated_account_number, bankCode, amountKobo: netWithdrawalKobo,
+        narration: `Zillion Ajo withdrawal`, reference: transferReference,
+      });
+      transferOutcome = transferResult.ok
+        ? { transfer_status: 'QUEUED', transfer_reference: transferReference }
+        : { transfer_status: 'FAILED', transfer_failure_reason: transferResult.error };
+    } else {
+      transferOutcome = { transfer_status: 'FAILED', transfer_failure_reason: `Account verification failed: ${verification.error}` };
+    }
+  }
+
+  const { data: withdrawalWithTransfer } = await db.from('ajo_payouts').update(transferOutcome).eq('id', withdrawal.id).select().single();
+
   return ok({
-    success: true, withdrawal, fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo,
+    success: true, withdrawal: withdrawalWithTransfer || withdrawal, fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo,
     remaining_balance_kobo: availableKobo - requestedKobo,
+    transfer_status: transferOutcome.transfer_status,
+    message: transferOutcome.transfer_status === 'QUEUED'
+      ? `₦${(netWithdrawalKobo / 100).toLocaleString()} is on its way to your account.`
+      : `Withdrawal recorded, but the transfer didn't go through automatically (${transferOutcome.transfer_failure_reason || 'unknown reason'}) — contact support to complete it.`,
   });
 };
