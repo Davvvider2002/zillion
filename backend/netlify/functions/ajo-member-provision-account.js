@@ -63,10 +63,15 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: membership } = await db.from('ajo_scheme_members')
-    .select('id, scheme_id, zillion_id, status, flutterwave_customer_id, flutterwave_tx_ref, ajo_schemes(name)')
+    .select('id, scheme_id, zillion_id, status, flutterwave_customer_id, flutterwave_tx_ref, dedicated_account_number, ajo_schemes(name)')
     .eq('scheme_id', schemeId).eq('zillion_id', zillionId).maybeSingle();
   if (!membership || membership.status !== 'ACTIVE') return err(403, 'You are not an active member of this scheme');
-  if (membership.flutterwave_tx_ref) return err(409, 'You already have a dedicated account for this scheme');
+  const isReplacing = !!membership.flutterwave_tx_ref;
+  // Re-provisioning is allowed - it overwrites the stored account with a
+  // new one (this is what let a real user recover from a stale sandbox
+  // account after a misconfiguration was fixed, without needing manual
+  // database intervention). The old Flutterwave customer is reused below
+  // when present, since it represents the same person, not a new one.
 
   const { data: identity } = await db.from('zillion_identities').select('phone_normalized').eq('zillion_id', zillionId).maybeSingle();
   const phoneNormalized = identity?.phone_normalized || '';
@@ -181,6 +186,9 @@ exports.handler = async (event) => {
   return ok({
     success: true, membership: updated,
     account_number: accountNumber, bank_name: bankName,
-    message: `Account ready: ${accountNumber} (${bankName}). Transfer your contribution here from any Nigerian bank.`,
+    message: isReplacing
+      ? `Account updated: ${accountNumber} (${bankName}). Your old account number no longer routes contributions here — use this new one going forward.`
+      : `Account ready: ${accountNumber} (${bankName}). Transfer your contribution here from any Nigerian bank.`,
+    replaced_previous: isReplacing,
   });
 };
