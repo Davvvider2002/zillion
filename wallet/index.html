@@ -1334,7 +1334,7 @@ function triggerPWAInstall() {
     <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px" id="ajo-provision-title">Fund by bank transfer</div>
 
     <div id="ajo-provision-form">
-      <div style="font-size:12px;color:#9CC4B0;margin-bottom:14px">Get your own dedicated account number — transfer to it from any Nigerian bank and it's credited automatically. Your BVN or NIN is required to issue it.</div>
+      <div id="ajo-provision-description" style="font-size:12px;color:#9CC4B0;margin-bottom:14px">Get your own dedicated account number — transfer to it from any Nigerian bank and it's credited automatically. Your BVN or NIN is required to issue it.</div>
       <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">BVN or NIN (11 digits)</label>
       <input type="text" id="ajo-provision-bvn" maxlength="11" placeholder="12345678901" style="width:100%;padding:12px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;font-weight:700;margin-bottom:12px;box-sizing:border-box;letter-spacing:1px">
       <div id="ajo-provision-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
@@ -2604,7 +2604,7 @@ async function loadAjoHomeScreen() {
             <button class="btn" style="flex:1;padding:10px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenWithdrawModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Withdraw</button>
           </div>
           ${g.dedicated_account_number
-            ? `<div style="font-size:11px;color:#7A9A85;text-align:center">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number}</div>`
+            ? `<div style="font-size:11px;color:#7A9A85;text-align:center">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number} · <a href="#" onclick="ajoOpenProvisionModal('${g.scheme_id}');return false" style="color:#00E0AC">Edit</a></div>`
             : `<button type="button" onclick="ajoOpenProvisionModal('${g.scheme_id}')" style="width:100%;background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px">Get a bank account for this pot →</button>`}
         </div>`;
       }
@@ -2649,7 +2649,7 @@ async function loadAjoHomeScreen() {
 
         <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenContributeModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Contribute</button>
         ${g.dedicated_account_number
-          ? `<div style="font-size:11px;color:#7A9A85;text-align:center;margin-top:8px">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number}</div>`
+          ? `<div style="font-size:11px;color:#7A9A85;text-align:center;margin-top:8px">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number} · <a href="#" onclick="ajoOpenProvisionModal('${g.scheme_id}');return false" style="color:#00E0AC">Edit</a></div>`
           : `<button type="button" onclick="ajoOpenProvisionModal('${g.scheme_id}')" style="width:100%;background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:6px 0 0">Get a bank account for this group →</button>`}
       </div>
     `;
@@ -2872,6 +2872,13 @@ function ajoOpenProvisionModal(schemeId) {
   document.getElementById('ajo-provision-result').style.display = 'none';
   document.getElementById('ajo-provision-bvn').value = '';
   document.getElementById('ajo-provision-error').style.display = 'none';
+
+  const g = (window._ajoGroupsCache || []).find(x => x.scheme_id === schemeId);
+  const isReplacing = g && g.dedicated_account_number;
+  document.getElementById('ajo-provision-description').textContent = isReplacing
+    ? 'This replaces your current account — your old account number will stop receiving contributions once this is done. Your BVN or NIN is required to issue the new one.'
+    : 'Get your own dedicated account number — transfer to it from any Nigerian bank and it\'s credited automatically. Your BVN or NIN is required to issue it.';
+
   document.getElementById('modal-ajo-provision').style.display = 'flex';
 }
 
