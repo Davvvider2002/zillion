@@ -359,6 +359,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-collector-my-schemes"
+  to   = "/.netlify/functions/ajo-collector-my-schemes"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-collector-scheme-members"
+  to   = "/.netlify/functions/ajo-collector-scheme-members"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-admin-manage-collector"
   to   = "/.netlify/functions/ajo-admin-manage-collector"
   status = 200
