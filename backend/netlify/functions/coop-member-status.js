@@ -93,18 +93,32 @@ exports.handler = async (event) => {
   }));
 
   const { data: loansRaw } = await db.from('coop_loans')
-    .select('*, guarantor:coop_members!coop_loans_guarantor_member_id_fkey(name)')
+    .select('*')
     .eq('member_id', member.id).order('requested_at', { ascending: false });
 
+  const loanIdsForGuarantors = (loansRaw || []).map(l => l.id);
+  const { data: myLoansGuarantors } = loanIdsForGuarantors.length
+    ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name)').in('loan_id', loanIdsForGuarantors)
+    : { data: [] };
+
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
-    if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return l;
+    const guarantors = (myLoansGuarantors || []).filter(g => g.loan_id === l.id);
+    if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return { ...l, guarantors };
     const repaymentStatus = await computeLoanRepaymentStatus(db, l.id, society, l.total_repayable_kobo);
-    return { ...l, repayment: repaymentStatus };
+    return { ...l, guarantors, repayment: repaymentStatus };
   }));
 
-  const { data: guarantorRequests } = await db.from('coop_loans')
-    .select('id, principal_kobo, repayment_months, monthly_repayment_kobo, requested_at, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized)')
-    .eq('guarantor_member_id', member.id).eq('status', 'PENDING_GUARANTOR');
+  // Loans where THIS member is named as a guarantor and hasn't
+  // responded yet - via the join table now, not a single FK column,
+  // since a member can be one of several guarantors on a loan.
+  const { data: myPendingGuarantorRows } = await db.from('coop_loan_guarantors')
+    .select('loan_id, coop_loans!inner(id, principal_kobo, repayment_months, monthly_repayment_kobo, requested_at, status, coop_members!coop_loans_member_id_fkey(name, phone_normalized))')
+    .eq('member_id', member.id).eq('status', 'PENDING').eq('coop_loans.status', 'PENDING_GUARANTOR');
+  const guarantorRequests = (myPendingGuarantorRows || []).map(r => ({
+    id: r.coop_loans.id, principal_kobo: r.coop_loans.principal_kobo, repayment_months: r.coop_loans.repayment_months,
+    monthly_repayment_kobo: r.coop_loans.monthly_repayment_kobo, requested_at: r.coop_loans.requested_at,
+    borrower: r.coop_loans.coop_members,
+  }));
 
   // FIX: previously always summed the ORIGINAL principal, never
   // decreasing as repayments were made — now that repayment tracking
