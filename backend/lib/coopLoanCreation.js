@@ -10,9 +10,17 @@
  * drift apart over time.
  *
  * Both callers are expected to have already resolved memberId and
- * guarantorMemberId to real coop_members rows in the same society —
- * this function doesn't do phone lookups or auth, just the actual
- * business rules and the insert.
+ * every entry of guarantorMemberIds to real coop_members rows in the
+ * same society — this function doesn't do phone lookups or auth,
+ * just the actual business rules and the insert.
+ *
+ * Guarantor count is set by the society's own admin
+ * (coop_societies.required_guarantor_count, defaults to 1) — not
+ * hardcoded. A loan needs exactly that many named guarantors, each
+ * gets their own coop_loan_guarantors row, and the loan only reaches
+ * admin review once every one of them has approved (Part: guarantor
+ * count is a society-level setting, per the standing requirement that
+ * this stays admin-configurable rather than fixed in code).
  */
 'use strict';
 
@@ -30,23 +38,31 @@ const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('./c
  * @param {string} [params.loanPackageId]
  * @param {number} params.principalKobo
  * @param {number} params.repaymentMonths
- * @param {string} params.guarantorMemberId
- * @returns {Promise<{success: boolean, loan?: object, error?: string, interestKobo?: number, interestRatePercent?: number, totalRepayableKobo?: number}>}
+ * @param {string[]} params.guarantorMemberIds
+ * @returns {Promise<{success: boolean, loan?: object, error?: string, interestKobo?: number, interestRatePercent?: number, totalRepayableKobo?: number, guarantorNames?: string[]}>}
  */
 async function createLoanApplication(db, params) {
-  const { coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberId } = params;
+  const { coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds } = params;
 
   const { data: member } = await db.from('coop_members').select('id, status').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
   if (!member) return { success: false, error: 'Member not found in this society' };
   if (member.status !== 'ACTIVE') return { success: false, error: `This member's status is ${member.status}, not ACTIVE` };
 
-  const { data: guarantor } = await db.from('coop_members').select('id, name').eq('id', guarantorMemberId).eq('coop_id', coopId).maybeSingle();
-  if (!guarantor) return { success: false, error: 'Guarantor must be an existing member of this society' };
-  if (guarantor.id === member.id) return { success: false, error: 'A member cannot guarantee their own loan' };
-
   const { data: society } = await db.from('coop_societies')
-    .select('dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules, loan_interest_enabled, loan_interest_rate_percent')
+    .select('dues_amount_kobo, dues_frequency, dues_enforcement_enabled, dues_enforcement_rules, loan_interest_enabled, loan_interest_rate_percent, required_guarantor_count')
     .eq('coop_id', coopId).single();
+
+  const requiredGuarantorCount = society?.required_guarantor_count || 1;
+  const uniqueGuarantorIds = [...new Set(guarantorMemberIds || [])];
+  if (uniqueGuarantorIds.length !== requiredGuarantorCount) {
+    return { success: false, error: `This society requires exactly ${requiredGuarantorCount} guarantor${requiredGuarantorCount === 1 ? '' : 's'} — ${uniqueGuarantorIds.length} provided${(guarantorMemberIds || []).length !== uniqueGuarantorIds.length ? ' (duplicates were removed)' : ''}.` };
+  }
+
+  const { data: guarantors } = await db.from('coop_members').select('id, name').eq('coop_id', coopId).in('id', uniqueGuarantorIds);
+  if (!guarantors || guarantors.length !== uniqueGuarantorIds.length) {
+    return { success: false, error: 'One or more guarantors are not existing members of this society' };
+  }
+  if (uniqueGuarantorIds.includes(member.id)) return { success: false, error: 'A member cannot guarantee their own loan' };
 
   if (society?.dues_enforcement_enabled && society.dues_enforcement_rules?.block_loan_application) {
     const dues = await computeDuesOwing(db, member, society);
@@ -115,14 +131,24 @@ async function createLoanApplication(db, params) {
     total_repayable_kobo: totalRepayableKobo,
     repayment_months: repaymentMonths,
     monthly_repayment_kobo: monthlyRepaymentKobo,
-    guarantor_member_id: guarantor.id,
+    guarantor_member_id: guarantors[0].id, // first guarantor, kept for any legacy single-guarantor display - coop_loan_guarantors below is the real source of truth
     interest_method: interestMethod,
     reducing_balance_monthly_rate_percent: reducingBalanceRatePercent,
   }).select().single();
 
   if (insertErr) return { success: false, error: `Failed to create loan: ${insertErr.message}` };
 
-  return { success: true, loan: created, guarantorName: guarantor.name, interestRatePercent, interestKobo, totalRepayableKobo };
+  const { error: guarantorInsertErr } = await db.from('coop_loan_guarantors').insert(
+    guarantors.map(g => ({ loan_id: created.id, member_id: g.id }))
+  );
+  if (guarantorInsertErr) {
+    // The loan row exists but its guarantors don't - clean up rather
+    // than leave an orphaned loan no one can ever action.
+    await db.from('coop_loans').delete().eq('id', created.id);
+    return { success: false, error: `Failed to record guarantors: ${guarantorInsertErr.message}` };
+  }
+
+  return { success: true, loan: created, guarantorNames: guarantors.map(g => g.name), interestRatePercent, interestKobo, totalRepayableKobo };
 }
 
 module.exports = { createLoanApplication };
