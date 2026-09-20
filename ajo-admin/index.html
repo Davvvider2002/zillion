@@ -327,7 +327,8 @@ async function processAjoCycle(schemeId, schemeName, payoutOrder) {
     });
     const data = await res.json();
     if (!res.ok) { toast(data.error || 'Failed to process cycle.', true); return; }
-    toast(data.scheme_completed ? `"${schemeName}" has completed its full rotation.` : `Cycle closed — payout of ${fmtNaira(data.payout.amount_kobo)} recorded.`);
+    const transferNote = data.transfer_status === 'QUEUED' ? ' Transfer is on its way.' : data.transfer_status === 'FAILED' ? ' Transfer did not go through automatically — check the payout.' : '';
+    toast((data.scheme_completed ? `"${schemeName}" has completed its full rotation.` : `Cycle closed — payout of ${fmtNaira(data.payout.amount_kobo)} recorded.`) + transferNote, data.transfer_status === 'FAILED');
     loadSchemes();
   } catch (e) {
     toast('Network error: ' + e.message, true);
