@@ -44,6 +44,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
 const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
+const { resolveBankCode, verifyRecipientAccount, initiateTransfer } = require('../../lib/ajoTransfer');
 
 function selectPayee(members, alreadyPaidMemberIds, payoutOrder, adminChoiceId) {
   const eligible = members.filter(m => !alreadyPaidMemberIds.includes(m.id));
@@ -99,7 +100,7 @@ exports.handler = async (event) => {
   if (!cycle) return err(400, 'This scheme has no open cycle right now');
 
   const { data: members } = await db.from('ajo_scheme_members')
-    .select('id, cycle_position').eq('scheme_id', schemeId).eq('status', 'ACTIVE');
+    .select('id, cycle_position, dedicated_account_number, dedicated_account_bank').eq('scheme_id', schemeId).eq('status', 'ACTIVE');
   if (!members || members.length === 0) return err(400, 'This scheme has no active members to pay');
 
   const { data: allCycles } = await db.from('ajo_cycles').select('id').eq('scheme_id', schemeId);
@@ -112,6 +113,7 @@ exports.handler = async (event) => {
   const selection = selectPayee(members, alreadyPaidIds, scheme.payout_order, body.payee_scheme_member_id || null);
   if (selection.error) return err(400, selection.error);
   const payee = selection.payee;
+  if (!payee.dedicated_account_number) return err(400, `${payee.id === (body.payee_scheme_member_id || '') ? 'That member' : 'The next member in line'} hasn't set up a dedicated account yet — they need to do this from the wallet ("Fund by bank transfer") before a cycle can be processed for them.`);
 
   // Payout amount = the sum of everything actually contributed into
   // this cycle - the real pool, not just the configured per-member
@@ -138,6 +140,33 @@ exports.handler = async (event) => {
     agentCommissionKobo = await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'payout', payout.id);
   }
 
+  // Attempt the real transfer - the payout record above already
+  // reflects the rotation's decision (who's owed what); this is
+  // purely about whether Flutterwave actually moved the money. A
+  // failure here doesn't undo the payout or block the rotation from
+  // progressing - it marks transfer_status so it's visible and
+  // actionable, not silently lost.
+  const transferReference = `ZILAJOPO-${payout.id.slice(0, 8)}-${Date.now()}`;
+  let transferOutcome = { transfer_status: 'FAILED', transfer_failure_reason: 'Bank code could not be resolved from the account\'s bank name' };
+
+  const bankCode = await resolveBankCode(payee.dedicated_account_bank).catch(() => null);
+  if (bankCode) {
+    const verification = await verifyRecipientAccount(payee.dedicated_account_number, bankCode);
+    if (verification.ok) {
+      const transferResult = await initiateTransfer({
+        accountNumber: payee.dedicated_account_number, bankCode, amountKobo: netPayoutKobo,
+        narration: `Zillion Ajo payout — ${scheme.name}`, reference: transferReference,
+      });
+      transferOutcome = transferResult.ok
+        ? { transfer_status: 'QUEUED', transfer_reference: transferReference }
+        : { transfer_status: 'FAILED', transfer_failure_reason: transferResult.error };
+    } else {
+      transferOutcome = { transfer_status: 'FAILED', transfer_failure_reason: `Account verification failed: ${verification.error}` };
+    }
+  }
+
+  const { data: payoutWithTransfer } = await db.from('ajo_payouts').update(transferOutcome).eq('id', payout.id).select().single();
+
   await db.from('ajo_cycles').update({ status: 'PAID_OUT', closed_at: new Date().toISOString() }).eq('id', cycle.id);
 
   const remainingAfterThis = members.length - (alreadyPaidIds.length + 1);
@@ -154,8 +183,9 @@ exports.handler = async (event) => {
   }
 
   return ok({
-    success: true, payout, payee_scheme_member_id: payee.id,
+    success: true, payout: payoutWithTransfer || payout, payee_scheme_member_id: payee.id,
     fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo,
     next_cycle: nextCycle, scheme_completed: schemeCompleted,
+    transfer_status: transferOutcome.transfer_status,
   });
 };
