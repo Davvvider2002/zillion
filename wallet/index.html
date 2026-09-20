@@ -2805,7 +2805,7 @@ async function ajoSubmitWithdrawal() {
     btn.disabled = false; btn.textContent = 'Confirm withdrawal';
     if (!res.ok) { errEl.textContent = data.error || 'Failed to withdraw.'; errEl.style.display = 'block'; return; }
     document.getElementById('modal-ajo-withdraw').style.display = 'none';
-    toast(`${fmtNaira(data.withdrawal.amount_kobo)} withdrawn.`);
+    toast(data.message || `${fmtNaira(data.withdrawal.amount_kobo)} withdrawn.`, data.transfer_status === 'FAILED');
     loadAjoHomeScreen();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Confirm withdrawal';
