@@ -83,12 +83,19 @@ exports.handler = async (event) => {
   }));
 
   const { data: loansRaw } = await db.from('coop_loans')
-    .select('*, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized), guarantor:coop_members!coop_loans_guarantor_member_id_fkey(name)')
+    .select('*, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized)')
     .eq('coop_id', coopId).order('requested_at', { ascending: false });
+
+  const loanIdsForGuarantors = (loansRaw || []).map(l => l.id);
+  const { data: allLoanGuarantors } = loanIdsForGuarantors.length
+    ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', loanIdsForGuarantors)
+    : { data: [] };
+
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
-    if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return l;
+    const guarantors = (allLoanGuarantors || []).filter(g => g.loan_id === l.id);
+    if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return { ...l, guarantors };
     const repayment = await computeLoanRepaymentStatus(db, l.id, society, l.total_repayable_kobo);
-    return { ...l, repayment };
+    return { ...l, guarantors, repayment };
   }));
 
   const { data: notifications } = await db.from('coop_notifications')
