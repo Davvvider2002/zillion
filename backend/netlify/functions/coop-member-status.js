@@ -49,7 +49,7 @@ exports.handler = async (event) => {
   if (!member) return ok({ is_coop_member: false });
 
   const { data: society } = await db.from('coop_societies')
-    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled, late_fee_type, late_fee_value, loan_interest_enabled, loan_interest_rate_percent, loan_late_fee_type, loan_late_fee_value')
+    .select('merchant_id, name, dues_amount_kobo, dues_frequency, dues_enforcement_enabled, late_fee_type, late_fee_value, loan_interest_enabled, loan_interest_rate_percent, loan_late_fee_type, loan_late_fee_value, required_guarantor_count')
     .eq('coop_id', member.coop_id).single();
 
   // Dues — same "never a stored figure that could drift" philosophy as
@@ -142,7 +142,7 @@ exports.handler = async (event) => {
 
   return ok({
     is_coop_member:     true,
-    society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent },
+    society:            { name: society.name, loan_interest_enabled: society.loan_interest_enabled, loan_interest_rate_percent: society.loan_interest_rate_percent, required_guarantor_count: society.required_guarantor_count || 1 },
     member:             { name: member.name, email: member.email, status: member.status, activated_at: member.activated_at, member_number: member.member_number },
     savings_plans:      plansWithProgress,
     loan_packages:      activeLoanPackages || [],
