@@ -4,18 +4,26 @@
  * POST /api/v1/coop-loan-apply
  *
  * A cooperative society member applies for their own loan — admin
- * approves, doesn't create loan records unilaterally. Requires a
- * guarantor (another member of the same society) before it can even
- * reach admin review, matching standard Nigerian cooperative practice.
+ * approves, doesn't create loan records unilaterally. Requires
+ * exactly as many guarantors (other members of the same society) as
+ * the society's own admin has configured
+ * (coop_societies.required_guarantor_count, defaults to 1) before it
+ * can even reach admin review, matching standard Nigerian cooperative
+ * practice.
  *
  * Auth: wallet JWT (the member's own token from verify-otp.js, which
  * already carries zillion_id — no extra lookup needed to resolve identity).
  *
- * Body: { savings_plan_id, loan_package_id, principal_kobo, repayment_months, guarantor_phone }
+ * Body: { savings_plan_id, loan_package_id, principal_kobo, repayment_months, guarantor_phones }
+ *   guarantor_phones: string[] — must match the society's required count exactly.
+ *   guarantor_phone (singular, string) is still accepted for backward
+ *   compatibility with any caller not yet updated to the array form -
+ *   wrapped into a one-element array internally.
  *
- * Core validation (dues enforcement, package caps, interest) lives in
- * coopLoanCreation.js, shared with coop-portal-create-loan.js (the
- * admin-initiated path) so both always apply identical rules.
+ * Core validation (dues enforcement, package caps, interest,
+ * guarantor-count enforcement) lives in coopLoanCreation.js, shared
+ * with coop-portal-create-loan.js (the admin-initiated path) so both
+ * always apply identical rules.
  */
 'use strict';
 
@@ -51,21 +59,26 @@ exports.handler = async (event) => {
   const loanPackageId    = (body.loan_package_id || '').trim() || null;
   const principalKobo    = Number.isInteger(body.principal_kobo) ? body.principal_kobo : 0;
   const repaymentMonths  = Number.isInteger(body.repayment_months) ? body.repayment_months : 0;
-  const guarantorPhoneRaw = (body.guarantor_phone || '').trim();
+  const guarantorPhonesRaw = Array.isArray(body.guarantor_phones) ? body.guarantor_phones
+    : body.guarantor_phone ? [body.guarantor_phone] : [];
 
   if (principalKobo <= 0)   return err(400, 'principal_kobo must be a positive integer');
   if (repaymentMonths <= 0) return err(400, 'repayment_months must be a positive integer');
-  if (!guarantorPhoneRaw)   return err(400, 'guarantor_phone is required');
+  if (!guarantorPhonesRaw.length) return err(400, 'At least one guarantor phone is required (guarantor_phones)');
 
   const db = getServiceClient();
 
   const member = await resolveMemberForZillionId(db, zillionId, 'id, coop_id, status');
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
-  const guarantorPhone = normalisePhone(guarantorPhoneRaw);
-  const { data: guarantor } = await db.from('coop_members')
-    .select('id').eq('coop_id', member.coop_id).eq('phone_normalized', guarantorPhone).maybeSingle();
-  if (!guarantor) return err(400, 'Guarantor must be an existing member of your cooperative society');
+  const guarantorMemberIds = [];
+  for (const raw of guarantorPhonesRaw) {
+    const phone = normalisePhone(raw);
+    const { data: guarantor } = await db.from('coop_members')
+      .select('id').eq('coop_id', member.coop_id).eq('phone_normalized', phone).maybeSingle();
+    if (!guarantor) return err(400, `${raw} is not an existing member of your cooperative society`);
+    guarantorMemberIds.push(guarantor.id);
+  }
 
   const result = await createLoanApplication(db, {
     coopId: member.coop_id,
@@ -74,16 +87,17 @@ exports.handler = async (event) => {
     loanPackageId,
     principalKobo,
     repaymentMonths,
-    guarantorMemberId: guarantor.id,
+    guarantorMemberIds,
   });
 
   if (!result.success) return err(400, result.error);
 
+  const guarantorList = (result.guarantorNames || []).join(', ');
   return ok({
     success: true,
     loan:    result.loan,
     message: result.interestKobo > 0
-      ? `Loan application submitted for ₦${(principalKobo/100).toLocaleString()} + ${result.interestRatePercent}% interest (₦${(result.totalRepayableKobo/100).toLocaleString()} total repayable). Waiting for ${result.guarantorName || 'your guarantor'} to confirm before it goes to admin review.`
-      : `Loan application submitted. Waiting for ${result.guarantorName || 'your guarantor'} to confirm before it goes to admin review.`,
+      ? `Loan application submitted for ₦${(principalKobo/100).toLocaleString()} + ${result.interestRatePercent}% interest (₦${(result.totalRepayableKobo/100).toLocaleString()} total repayable). Waiting for ${guarantorList || 'your guarantor(s)'} to confirm before it goes to admin review.`
+      : `Loan application submitted. Waiting for ${guarantorList || 'your guarantor(s)'} to confirm before it goes to admin review.`,
   });
 };
