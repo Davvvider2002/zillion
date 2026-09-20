@@ -616,6 +616,20 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-configure-guarantors">
+  <div class="modal-box">
+    <div class="modal-title">Guarantors required per loan</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">How many guarantors a member must name before a loan application can even reach you for review. Only new applications are affected — a loan already in progress keeps the guarantor count it was submitted with.</div>
+    <div class="field">
+      <label>Required guarantors</label>
+      <input type="number" id="gc-count" min="1" max="10" step="1" placeholder="1">
+    </div>
+    <div id="gc-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureGuarantors()" id="gc-btn">Save</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-guarantors')">Cancel</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-configure-loan-penalty">
   <div class="modal-box">
     <div class="modal-title">Late repayment penalty</div>
@@ -1635,6 +1649,7 @@ function renderLoans() {
       <div class="card-title">Loans
         <div style="display:flex;gap:8px;align-items:center">
           ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureLoanInterestModal()">${d.society.loan_interest_enabled ? `Interest: ${d.society.loan_interest_rate_percent}%` : 'Set interest'}</button>` : ''}
+          ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureGuarantorsModal()">Guarantors: ${d.society.required_guarantor_count || 1}</button>` : ''}
           ${hasPortalAction('loans', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureLoanPenaltyModal()">${d.society.loan_late_fee_type ? 'Penalty: separate rate' : (d.society.late_fee_type ? 'Penalty: same as dues' : 'Set penalty')}</button>` : ''}
           ${hasPortalAction('loans', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openCreateLoanModal()">+ Create loan</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openLoanPackagesModal()">Loan packages</button>
@@ -2208,6 +2223,40 @@ async function submitConfigureLoanInterest() {
     if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
     notify('Loan interest settings saved');
     closeModal('modal-configure-loan-interest');
+    btn.disabled = false; btn.textContent = 'Save';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+function openConfigureGuarantorsModal() {
+  const s = portalData.society;
+  document.getElementById('gc-count').value = s.required_guarantor_count || 1;
+  document.getElementById('gc-error').style.display = 'none';
+  openModal('modal-configure-guarantors');
+}
+
+async function submitConfigureGuarantors() {
+  const errEl = document.getElementById('gc-error');
+  errEl.style.display = 'none';
+  const count = parseInt(document.getElementById('gc-count').value, 10);
+  if (!Number.isInteger(count) || count < 1 || count > 10) {
+    errEl.textContent = 'Enter a whole number between 1 and 10.'; errEl.style.display = 'block'; return;
+  }
+
+  const btn = document.getElementById('gc-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-configure-guarantors`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ required_guarantor_count: count }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
+    notify(`Guarantor requirement set to ${count}`);
+    closeModal('modal-configure-guarantors');
     btn.disabled = false; btn.textContent = 'Save';
     await refreshAndRender();
   } catch (e) {
