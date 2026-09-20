@@ -3,13 +3,16 @@
  *
  * POST /api/v1/coop-loan-guarantor-respond
  *
- * The named guarantor approves or declines a loan application. Only
- * moves a loan out of PENDING_GUARANTOR and into admin's queue
- * (PENDING_APPROVAL) once their own guarantor has actually confirmed —
- * a loan can't reach an admin for review without this step.
+ * One named guarantor approves or declines a loan application. With
+ * more than one guarantor required (coop_societies.required_guarantor_count,
+ * set by the society's own admin), the loan only moves out of
+ * PENDING_GUARANTOR and into admin's queue (PENDING_APPROVAL) once
+ * EVERY named guarantor has approved — any single decline rejects
+ * the loan immediately, without waiting for the rest to respond.
  *
- * Auth: wallet JWT — the CALLER must be the specific guarantor named
- * on this loan, not just any member of the society.
+ * Auth: wallet JWT — the CALLER must be one of the specific
+ * guarantors named on this loan, not just any member of the society,
+ * and only affects their own guarantor row, not anyone else's.
  *
  * Body: { loan_id, decision: "APPROVED" | "DECLINED" }
  */
@@ -48,29 +51,47 @@ exports.handler = async (event) => {
 
   const { data: loan } = await db.from('coop_loans').select('*').eq('id', loanId).maybeSingle();
   if (!loan) return err(404, 'Loan not found');
-  if (loan.guarantor_member_id !== guarantorMember.id)
-    return err(403, 'You are not the named guarantor on this loan');
   if (loan.status !== 'PENDING_GUARANTOR')
     return err(409, `This loan is already past the guarantor stage (status: ${loan.status})`);
 
-  const newLoanStatus = decision === 'APPROVED' ? 'PENDING_APPROVAL' : 'REJECTED';
+  const { data: myGuarantorRow } = await db.from('coop_loan_guarantors')
+    .select('id, status').eq('loan_id', loanId).eq('member_id', guarantorMember.id).maybeSingle();
+  if (!myGuarantorRow) return err(403, 'You are not a named guarantor on this loan');
+  if (myGuarantorRow.status !== 'PENDING') return err(409, `You have already ${myGuarantorRow.status.toLowerCase()} this loan`);
 
-  const { data: updated, error: updateErr } = await db.from('coop_loans')
-    .update({
-      guarantor_status: decision,
-      status: newLoanStatus,
-      rejection_reason: decision === 'DECLINED' ? `Declined by guarantor (${guarantorMember.name || 'unnamed'})` : null,
-    })
-    .eq('id', loanId)
-    .select().single();
+  const { error: rowUpdateErr } = await db.from('coop_loan_guarantors')
+    .update({ status: decision, responded_at: new Date().toISOString() }).eq('id', myGuarantorRow.id);
+  if (rowUpdateErr) return err(500, `Failed to record decision: ${rowUpdateErr.message}`);
 
-  if (updateErr) return err(500, `Failed to record decision: ${updateErr.message}`);
+  const { data: allGuarantorRows } = await db.from('coop_loan_guarantors').select('status').eq('loan_id', loanId);
+
+  let newLoanStatus = 'PENDING_GUARANTOR'; // default: still waiting on someone else
+  let rejectionReason = null;
+  if (decision === 'DECLINED') {
+    newLoanStatus = 'REJECTED';
+    rejectionReason = `Declined by guarantor (${guarantorMember.name || 'unnamed'})`;
+  } else if ((allGuarantorRows || []).every(g => g.status === 'APPROVED')) {
+    newLoanStatus = 'PENDING_APPROVAL';
+  }
+
+  let updated = loan;
+  if (newLoanStatus !== 'PENDING_GUARANTOR') {
+    const { data: updatedLoan, error: loanUpdateErr } = await db.from('coop_loans')
+      .update({ status: newLoanStatus, rejection_reason: rejectionReason })
+      .eq('id', loanId).select().single();
+    if (loanUpdateErr) return err(500, `Decision recorded, but failed to update loan status: ${loanUpdateErr.message}`);
+    updated = updatedLoan;
+  }
+
+  const stillWaitingOn = (allGuarantorRows || []).filter(g => g.status === 'PENDING').length;
 
   return ok({
     success: true,
     loan:    updated,
-    message: decision === 'APPROVED'
-      ? 'Guarantor confirmed — loan now with admin for review.'
-      : 'Guarantor declined — loan application closed.',
+    message: decision === 'DECLINED'
+      ? 'Guarantor declined — loan application closed.'
+      : newLoanStatus === 'PENDING_APPROVAL'
+        ? 'All guarantors have confirmed — loan now with admin for review.'
+        : `Guarantor confirmed — still waiting on ${stillWaitingOn} more guarantor${stillWaitingOn === 1 ? '' : 's'}.`,
   });
 };
