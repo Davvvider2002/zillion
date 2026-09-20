@@ -1215,8 +1215,8 @@ function triggerPWAInstall() {
     <div id="coop-loan-interest-preview" style="font-size:11px;color:#F5B87A;margin:-8px 0 12px;display:none"></div>
     <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Repayment period (months)</div>
     <input id="coop-loan-months" type="number" value="6" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px">
-    <div style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Guarantor's phone number</div>
-    <input id="coop-loan-guarantor-phone" type="tel" placeholder="08012345678" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:16px">
+    <div id="coop-loan-guarantor-label" style="font-size:11px;color:#9CC4B0;margin-bottom:4px">Guarantor's phone number</div>
+    <div id="coop-loan-guarantor-fields"></div>
     <div id="coop-apply-error" style="color:#FF8A8A;font-size:12px;margin-bottom:10px;display:none"></div>
     <div style="display:flex;gap:10px">
       <button onclick="coopCloseApplyModal()" style="flex:1;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>
@@ -3730,7 +3730,7 @@ async function refreshCoopScreen() {
         <span style="font-weight:700;font-size:14px">${fmtNaira(l.principal_kobo)}</span>
         <span style="font-size:12px;font-weight:700;color:${statusColor(l.status)}">${l.status.replace(/_/g,' ')}</span>
       </div>
-      <div style="font-size:12px;color:#9CC4B0;margin-top:4px">${fmtNaira(l.monthly_repayment_kobo)}/month for ${l.repayment_months} months · Guarantor: ${l.guarantor?.name || '—'}</div>
+      <div style="font-size:12px;color:#9CC4B0;margin-top:4px">${fmtNaira(l.monthly_repayment_kobo)}/month for ${l.repayment_months} months · Guarantor${(l.guarantors || []).length === 1 ? '' : 's'}: ${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</div>
       ${l.rejection_reason ? `<div style="font-size:11px;color:#FF8A8A;margin-top:4px">${l.rejection_reason}</div>` : ''}
     </div>
   `).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No loans yet.</div></div>';
@@ -3834,15 +3834,23 @@ async function coopRequestLoanStatement() {
 
 let coopSelectedLoanPackageId = null;
 
-function coopShowApplyForm() {
+async function coopShowApplyForm() {
   document.getElementById('coop-loan-amount').value = '';
   document.getElementById('coop-loan-months').value = '6';
-  document.getElementById('coop-loan-guarantor-phone').value = '';
   document.getElementById('coop-apply-error').style.display = 'none';
   document.getElementById('coop-apply-modal').style.display = 'flex';
   coopSelectedLoanPackageId = null;
   coopRenderLoanPackageSelector();
   coopUpdateLoanInterestPreview();
+
+  const status = await zilCoopFetchStatus();
+  const requiredCount = status?.society?.required_guarantor_count || 1;
+  document.getElementById('coop-loan-guarantor-label').textContent = requiredCount === 1
+    ? "Guarantor's phone number"
+    : `Guarantors' phone numbers (${requiredCount} required)`;
+  document.getElementById('coop-loan-guarantor-fields').innerHTML = Array.from({ length: requiredCount }, (_, i) => `
+    <input id="coop-loan-guarantor-phone-${i}" type="tel" placeholder="08012345678" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:${i === requiredCount - 1 ? '16px' : '8px'}">
+  `).join('');
 }
 
 function coopRenderLoanPackageSelector() {
@@ -3893,10 +3901,12 @@ async function coopSubmitLoanApplication() {
   errEl.style.display = 'none';
   const amountNaira = parseFloat(document.getElementById('coop-loan-amount').value);
   const months = parseInt(document.getElementById('coop-loan-months').value);
-  const guarantorPhone = document.getElementById('coop-loan-guarantor-phone').value.trim();
+  const guarantorInputs = Array.from(document.querySelectorAll('#coop-loan-guarantor-fields input'));
+  const guarantorPhones = guarantorInputs.map(el => el.value.trim()).filter(Boolean);
   if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
   if (!months || months <= 0) { errEl.textContent = 'Enter a valid repayment period.'; errEl.style.display = 'block'; return; }
-  if (!guarantorPhone) { errEl.textContent = "Enter your guarantor's phone number."; errEl.style.display = 'block'; return; }
+  if (guarantorPhones.length < guarantorInputs.length) { errEl.textContent = 'Enter every guarantor\'s phone number.'; errEl.style.display = 'block'; return; }
+  if (new Set(guarantorPhones).size !== guarantorPhones.length) { errEl.textContent = 'Each guarantor must be a different person.'; errEl.style.display = 'block'; return; }
   const packagesAvailable = (_coopStatusCache?.loan_packages || []).length > 0;
   if (packagesAvailable && !coopSelectedLoanPackageId) { errEl.textContent = 'Please select a loan package.'; errEl.style.display = 'block'; return; }
 
@@ -3905,7 +3915,7 @@ async function coopSubmitLoanApplication() {
     const res = await fetch(`${API}/coop-loan-apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ principal_kobo: Math.round(amountNaira * 100), repayment_months: months, guarantor_phone: guarantorPhone, loan_package_id: coopSelectedLoanPackageId }),
+      body: JSON.stringify({ principal_kobo: Math.round(amountNaira * 100), repayment_months: months, guarantor_phones: guarantorPhones, loan_package_id: coopSelectedLoanPackageId }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Application failed.'; errEl.style.display = 'block'; return; }
