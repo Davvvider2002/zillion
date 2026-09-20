@@ -845,6 +845,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-configure-guarantors"
+  to   = "/.netlify/functions/coop-portal-configure-guarantors"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-configure-loan-penalty"
   to   = "/.netlify/functions/coop-portal-configure-loan-penalty"
   status = 200
