@@ -1354,6 +1354,48 @@ function triggerPWAInstall() {
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
+     SCREEN — AJO COLLECTOR (field cash collection & reconciliation)
+══════════════════════════════════════════════════════════════ -->
+<div id="screen-ajo-collector" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="back-btn" onclick="goBack()">‹</button>
+    <div class="hdr-title">Collector Tools</div>
+  </div>
+  <div class="scroll-body" style="padding:16px">
+    <div id="ajo-collector-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajo-collect-cash" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px;max-height:85vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:14px" id="acc-title">Record cash contribution</div>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Member</label>
+    <select id="acc-member" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:12px;box-sizing:border-box">
+      <option value="">Loading members…</option>
+    </select>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Amount (₦)</label>
+    <input type="number" id="acc-amount" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:6px;box-sizing:border-box">
+    <div style="font-size:11px;color:#7A9A85;margin-bottom:12px">Leave blank to use the group's standard contribution amount.</div>
+    <div id="acc-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitCollectCash()" id="acc-btn">Record</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-collect-cash').style.display='none'">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajo-reconcile" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:4px" id="arc-title">End-of-day reconciliation</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:14px">Count the physical cash you collected today and enter it below — this is checked against what the system has on record for you today.</div>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Cash counted (₦)</label>
+    <input type="number" id="arc-actual" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:16px;font-weight:700;margin-bottom:12px;box-sizing:border-box">
+    <div id="arc-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitReconcile()" id="arc-btn">Submit</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-reconcile').style.display='none'">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
      SCREEN — MESSAGES (one-way, admin → member)
 ══════════════════════════════════════════════════════════════ -->
 <div id="screen-messages" class="screen hidden">
@@ -1980,6 +2022,14 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <div class="settings-group" id="ajo-collector-settings-group" style="display:none">
+        <div class="settings-group-label">Collector Tools</div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;padding:14px 0">
+          <div style="font-size:12px;color:var(--muted,#7A9A85);margin-bottom:2px">You're assigned to collect cash for one or more Ajo groups.</div>
+          <button onclick="goTo('screen-ajo-collector')" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">Open Collector Tools</button>
+        </div>
+      </div>
+
       <div class="settings-group" id="zil-mfb-group">
         <div class="settings-group-label">Preferred Bank (MFB)</div>
         <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 0">
@@ -2278,6 +2328,7 @@ function onScreenEnter(id) {
     if (id === 'screen-profile') refreshProfile();
     if (id === 'screen-coop')    refreshCoopScreen();
     if (id === 'screen-ajo')     loadAjoHomeScreen();
+    if (id === 'screen-ajo-collector') loadAjoCollectorScreen();
     if (id === 'screen-messages') refreshMessagesScreen();
     if (id === 'screen-pin') {
       const termsRow = document.getElementById('pin-terms-row');
@@ -2850,6 +2901,134 @@ async function ajoSubmitProvision() {
     document.getElementById('ajo-provision-account').textContent = data.account_number;
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Get account number';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+// -- Ajo collector tools -------------------------------------------------
+let ajoCollectSchemeId = null;
+let ajoReconcileSchemeId = null;
+let ajoReconcileCollectorId = null;
+
+async function loadAjoCollectorScreen() {
+  const el = document.getElementById('ajo-collector-list');
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) { el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Sign in first.</div>'; return; }
+
+  el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div>';
+  try {
+    const res = await fetch(`${API}/ajo-collector-my-schemes`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">${data.error || 'Unable to load'}</div>`; return; }
+
+    const assignments = data.assignments || [];
+    if (!assignments.length) {
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">You are not currently assigned as a collector for any group.</div>';
+      return;
+    }
+
+    el.innerHTML = assignments.map(a => `
+      <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:2px">${a.scheme_name}</div>
+        <div style="font-size:12px;color:#9CC4B0;text-transform:capitalize;margin-bottom:12px">${(a.scheme_type || '').replace(/_/g, ' ')} · ${fmtNaira(a.contribution_amount_kobo)} standard amount</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn" style="flex:1;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenCollectCashModal('${a.scheme_id}','${a.scheme_name.replace(/'/g, "\\'")}')">Record cash</button>
+          <button class="btn" style="flex:1;padding:10px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenReconcileModal('${a.scheme_id}','${a.collector_id}','${a.scheme_name.replace(/'/g, "\\'")}')">${a.reconciled_today ? 'Reconciled today ✓' : 'Reconcile today'}</button>
+        </div>
+        ${a.reconciled_today ? `<div style="font-size:11px;color:${a.todays_reconciliation.variance_kobo === 0 ? '#00E0AC' : '#F5B87A'}">Today: expected ${fmtNaira(a.todays_reconciliation.expected_kobo)}, counted ${fmtNaira(a.todays_reconciliation.actual_kobo)}${a.todays_reconciliation.variance_kobo !== 0 ? ` (variance ${fmtNaira(a.todays_reconciliation.variance_kobo)})` : ' — balanced'}</div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">Network error: ${e.message}</div>`;
+  }
+}
+
+async function ajoOpenCollectCashModal(schemeId, schemeName) {
+  ajoCollectSchemeId = schemeId;
+  document.getElementById('acc-title').textContent = `Record cash — ${schemeName}`;
+  document.getElementById('acc-amount').value = '';
+  document.getElementById('acc-error').style.display = 'none';
+  document.getElementById('acc-member').innerHTML = '<option value="">Loading members…</option>';
+  openModal('modal-ajo-collect-cash');
+
+  const token = (STATE.user && STATE.user.token) || '';
+  try {
+    const res = await fetch(`${API}/ajo-collector-scheme-members?scheme_id=${schemeId}`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const members = data.members || [];
+    document.getElementById('acc-member').innerHTML = members.length
+      ? members.map(m => `<option value="${m.zillion_id}">${m.phone_normalized || m.zillion_id}${m.cycle_position ? ' (Position ' + m.cycle_position + ')' : ''}</option>`).join('')
+      : '<option value="">No active members</option>';
+  } catch (e) {
+    document.getElementById('acc-member').innerHTML = '<option value="">Failed to load members</option>';
+  }
+}
+
+function openModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'flex'; }
+
+async function ajoSubmitCollectCash() {
+  const errEl = document.getElementById('acc-error');
+  errEl.style.display = 'none';
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token || !ajoCollectSchemeId) return;
+
+  const memberZillionId = document.getElementById('acc-member').value;
+  if (!memberZillionId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  const amountNaira = document.getElementById('acc-amount').value.trim();
+
+  const btn = document.getElementById('acc-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const payload = { scheme_id: ajoCollectSchemeId, member_zillion_id: memberZillionId };
+    if (amountNaira) payload.amount_kobo = Math.round(parseFloat(amountNaira) * 100);
+    const res = await fetch(`${API}/ajo-collector-record-cash`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Record';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record.'; errEl.style.display = 'block'; return; }
+    document.getElementById('modal-ajo-collect-cash').style.display = 'none';
+    toast(`${fmtNaira(data.contribution.amount_kobo)} recorded.`);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Record';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function ajoOpenReconcileModal(schemeId, collectorId, schemeName) {
+  ajoReconcileSchemeId = schemeId;
+  ajoReconcileCollectorId = collectorId;
+  document.getElementById('arc-title').textContent = `Reconcile — ${schemeName}`;
+  document.getElementById('arc-actual').value = '';
+  document.getElementById('arc-error').style.display = 'none';
+  openModal('modal-ajo-reconcile');
+}
+
+async function ajoSubmitReconcile() {
+  const errEl = document.getElementById('arc-error');
+  errEl.style.display = 'none';
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token || !ajoReconcileSchemeId) return;
+
+  const amountNaira = parseFloat(document.getElementById('arc-actual').value);
+  if (isNaN(amountNaira) || amountNaira < 0) { errEl.textContent = 'Enter the amount of cash you counted.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('arc-btn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    const res = await fetch(`${API}/ajo-collector-reconcile`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ scheme_id: ajoReconcileSchemeId, actual_kobo: Math.round(amountNaira * 100) }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Submit';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to submit.'; errEl.style.display = 'block'; return; }
+    document.getElementById('modal-ajo-reconcile').style.display = 'none';
+    toast(data.balanced ? 'Reconciled — balanced.' : `Reconciled — variance of ${fmtNaira(data.reconciliation.variance_kobo)}.`, !data.balanced);
+    loadAjoCollectorScreen();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Submit';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
@@ -4551,6 +4730,15 @@ function refreshProfile() {
         const savedView = localStorage.getItem('zillion_active_view');
         document.getElementById('product-view-group').style.display = '';
         document.getElementById('product-view-current').textContent = savedView === 'ajo' ? 'Zillion Ajo' : (savedView === 'coop' ? 'Zillion Coop' : 'Not set');
+      })
+      .catch(() => {});
+
+    fetch(`${API}/ajo-collector-my-schemes`, { headers: { Authorization: 'Bearer ' + token3 } })
+      .then(r => r.json())
+      .then(data => {
+        if (data && (data.assignments || []).length > 0) {
+          document.getElementById('ajo-collector-settings-group').style.display = '';
+        }
       })
       .catch(() => {});
   }
