@@ -771,7 +771,9 @@ tr:last-child td{border-bottom:none}
 <div class="modal-overlay" id="modal-reject-loan">
   <div class="modal-box">
     <div class="modal-title">Reject this loan</div>
-    <div class="field"><label>Reason (optional)</label><input type="text" id="rl-reason" placeholder="e.g. Insufficient savings history"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">The borrower sees this reason directly.</div>
+    <div class="field"><label>Reason</label><input type="text" id="rl-reason" placeholder="e.g. Insufficient savings history"></div>
+    <div id="rl-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-danger" style="width:100%" onclick="submitRejectLoan()" id="rl-btn">Reject loan</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-reject-loan')">Cancel</button>
   </div>
@@ -1664,7 +1666,7 @@ function renderLoans() {
           <tr>
             <td>${l.borrower?.name || l.borrower?.phone_normalized || '—'}</td>
             <td>${l.interest_kobo > 0 ? `${fmtNaira(l.principal_kobo)} <span style="color:var(--amber);font-size:12px">+${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)</span>` : fmtNaira(l.principal_kobo)}</td>
-            <td>${l.guarantor?.name || '—'}</td>
+            <td>${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</td>
             <td>${loanStatusPill(l.status)}</td>
             <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
             <td>${loanActionButtons(l)}</td>
@@ -1757,11 +1759,13 @@ async function doLoanAction(loanId, action, reason) {
 function openRejectLoanModal(loanId) {
   pendingLoanId = loanId;
   document.getElementById('rl-reason').value = '';
+  document.getElementById('rl-error').style.display = 'none';
   openModal('modal-reject-loan');
 }
 
 async function submitRejectLoan() {
   const reason = document.getElementById('rl-reason').value.trim();
+  if (!reason) { document.getElementById('rl-error').textContent = 'Enter a reason — the borrower will see it.'; document.getElementById('rl-error').style.display = 'block'; return; }
   closeModal('modal-reject-loan');
   await doLoanAction(pendingLoanId, 'reject', reason);
 }
