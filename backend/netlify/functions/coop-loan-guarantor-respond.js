@@ -40,9 +40,11 @@ exports.handler = async (event) => {
 
   const loanId   = (body.loan_id || '').trim();
   const decision = (body.decision || '').trim().toUpperCase();
+  const declineReason = (body.reason || '').trim();
 
   if (!loanId) return err(400, 'loan_id is required');
   if (!['APPROVED', 'DECLINED'].includes(decision)) return err(400, 'decision must be APPROVED or DECLINED');
+  if (decision === 'DECLINED' && !declineReason) return err(400, 'A reason is required when declining, so the borrower knows why');
 
   const db = getServiceClient();
 
@@ -69,7 +71,7 @@ exports.handler = async (event) => {
   let rejectionReason = null;
   if (decision === 'DECLINED') {
     newLoanStatus = 'REJECTED';
-    rejectionReason = `Declined by guarantor (${guarantorMember.name || 'unnamed'})`;
+    rejectionReason = `Declined by guarantor (${guarantorMember.name || 'unnamed'}): ${declineReason}`;
   } else if ((allGuarantorRows || []).every(g => g.status === 'APPROVED')) {
     newLoanStatus = 'PENDING_APPROVAL';
   }
