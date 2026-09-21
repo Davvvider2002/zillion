@@ -104,13 +104,21 @@ exports.handler = async (event) => {
   };
 
   // Multi-tenant settlement: only added if this society has a
-  // subaccount configured. Flat split = the subaccount receives
-  // EXACTLY the base amount; both fee portions stay with Zillion's
-  // main account by default (subaccounts only get what's allocated).
+  // subaccount configured. transaction_charge_type MUST be
+  // 'flat_subaccount', not 'flat' - confirmed against Flutterwave's own
+  // documentation (multiple independent sources agree): 'flat' means
+  // the MAIN account gets transaction_charge and the subaccount gets
+  // the remainder - the exact opposite of what's needed here. This was
+  // live and wrong before this fix, confirmed by a real transaction
+  // receipt showing the subaccount receiving a fee-sized sliver while
+  // the main account received the bulk base amount. 'flat_subaccount'
+  // is what makes transaction_charge represent what the SUBACCOUNT
+  // actually receives, with both fee portions correctly staying with
+  // Zillion's main account as the remainder.
   if (society?.flutterwave_subaccount_id) {
     paymentPayload.subaccounts = [{
       id: society.flutterwave_subaccount_id,
-      transaction_charge_type: 'flat',
+      transaction_charge_type: 'flat_subaccount',
       transaction_charge: baseKobo / 100,
     }];
   }
