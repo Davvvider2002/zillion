@@ -111,8 +111,13 @@ exports.handler = async (event) => {
     customizations: { title: `Join ${society.name}` },
   };
 
+  // transaction_charge_type must be 'flat_subaccount', not 'flat' -
+  // see the detailed fix note in coop-flutterwave-checkout-init.js,
+  // where this exact bug was found via a real transaction receipt
+  // showing settlement going to the wrong account. Fixed here too,
+  // since this code was copied from that same pattern.
   if (society.flutterwave_subaccount_id) {
-    paymentPayload.subaccounts = [{ id: society.flutterwave_subaccount_id, transaction_charge_type: 'flat', transaction_charge: baseKobo / 100 }];
+    paymentPayload.subaccounts = [{ id: society.flutterwave_subaccount_id, transaction_charge_type: 'flat_subaccount', transaction_charge: baseKobo / 100 }];
   }
 
   let flwResponse;
