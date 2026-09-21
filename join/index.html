@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join a Cooperative — Zillion</title>
+<style>
+  :root { --bg: #05140D; --card: #0F2B1D; --border: #1A4030; --border2: #234A38; --text: #E8F5EE; --muted: #9CC4B0; --muted2: #7A9A85; --amber: #E8930C; --green: #00C896; --green2: #00E0AC; --red: #FF8A8A; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0); }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 32px 20px; }
+  .logo { text-align: center; margin-bottom: 24px; }
+  .logo .z { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: var(--amber); color: #1A2E1A; font-weight: 800; font-size: 20px; border-radius: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .society-name { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .society-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted2); margin-bottom: 6px; }
+  input { width: 100%; padding: 12px; background: #081A11; border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 15px; margin-bottom: 14px; box-sizing: border-box; }
+  .fee-row { display: flex; justify-content: space-between; align-items: center; background: #081A11; border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; }
+  .fee-row .amt { font-size: 18px; font-weight: 800; color: var(--green2); }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; }
+  .btn-primary { background: var(--amber); color: #1A2E1A; }
+  .error { color: var(--red); font-size: 13px; margin-bottom: 12px; display: none; }
+  .center { text-align: center; padding: 20px 0; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border2); border-top-color: var(--green2); border-radius: 50%; margin: 0 auto 14px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .success-icon { font-size: 48px; margin-bottom: 10px; }
+  .footer-note { text-align: center; font-size: 11px; color: var(--muted2); margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"><span class="z">Z</span></div>
+  <div class="card" id="card">
+    <div class="center"><div class="spinner"></div><div style="color:var(--muted);font-size:13px">Loading…</div></div>
+  </div>
+  <div class="footer-note">Powered by Zillion Coop</div>
+</div>
+
+<script>
+const API = '/.netlify/functions';
+const params = new URLSearchParams(location.search);
+const coopId = params.get('coop_id') || '';
+let societyInfo = null;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function fmtNaira(kobo) { return '₦' + (Number(kobo || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+async function init() {
+  // Returning from Flutterwave checkout takes priority over the form.
+  if (params.get('checkout_return') === '1') { await handleCheckoutReturn(); return; }
+
+  if (!coopId) {
+    renderError('This link is missing information about which cooperative to join. Ask your admin for the correct link or QR code.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/coop-public-society-info?coop_id=${encodeURIComponent(coopId)}`);
+    const data = await res.json();
+    if (!res.ok) { renderError(data.error || 'This cooperative could not be found.'); return; }
+    societyInfo = data;
+    renderForm();
+  } catch (e) {
+    renderError('Network error: ' + e.message);
+  }
+}
+
+function renderError(msg) {
+  document.getElementById('card').innerHTML = `<div class="center"><div class="success-icon">⚠️</div><div style="font-size:14px;color:var(--muted)">${esc(msg)}</div></div>`;
+}
+
+function renderForm() {
+  const feeKobo = societyInfo.joining_fee_kobo || 0;
+  document.getElementById('card').innerHTML = `
+    <div class="society-name">${esc(societyInfo.name)}</div>
+    <div class="society-sub">Fill in your details to join.</div>
+    ${feeKobo > 0 ? `<div class="fee-row"><span style="color:var(--muted)">Joining fee</span><span class="amt">${fmtNaira(feeKobo)}</span></div>` : `<div class="fee-row"><span style="color:var(--muted)">Joining fee</span><span class="amt">Free</span></div>`}
+    <label>Full name</label>
+    <input id="jf-name" type="text" placeholder="Your full name">
+    <label>Phone number</label>
+    <input id="jf-phone" type="tel" placeholder="08012345678">
+    <label>Email (optional)</label>
+    <input id="jf-email" type="email" placeholder="your@email.com">
+    <div class="error" id="jf-error"></div>
+    <button class="btn btn-primary" id="jf-btn" onclick="submitJoin()">${feeKobo > 0 ? 'Continue to payment' : 'Join now'}</button>
+  `;
+}
+
+async function submitJoin() {
+  const errEl = document.getElementById('jf-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('jf-name').value.trim();
+  const phone = document.getElementById('jf-phone').value.trim();
+  const email = document.getElementById('jf-email').value.trim();
+  if (!name) { errEl.textContent = 'Enter your full name.'; errEl.style.display = 'block'; return; }
+  if (!phone) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('jf-btn');
+  btn.disabled = true; btn.textContent = 'Please wait…';
+  try {
+    const res = await fetch(`${API}/coop-public-join-init`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coop_id: coopId, name, phone, email, return_url: location.origin + location.pathname + '?coop_id=' + encodeURIComponent(coopId) }),
+    });
+    const data = await res.json();
+    btn.disabled = false;
+    if (!res.ok) { errEl.textContent = data.error || 'Could not submit your application.'; errEl.style.display = 'block'; btn.textContent = societyInfo.joining_fee_kobo > 0 ? 'Continue to payment' : 'Join now'; return; }
+
+    if (!data.requires_payment) {
+      renderSuccess(data.message);
+      return;
+    }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    btn.disabled = false; btn.textContent = societyInfo.joining_fee_kobo > 0 ? 'Continue to payment' : 'Join now';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function renderSuccess(message) {
+  document.getElementById('card').innerHTML = `<div class="center"><div class="success-icon">🎉</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">You're in!</div><div style="font-size:13px;color:var(--muted)">${esc(message || 'Welcome to the cooperative.')}</div></div>`;
+}
+
+async function handleCheckoutReturn() {
+  document.getElementById('card').innerHTML = `<div class="center"><div class="spinner"></div><div style="color:var(--muted);font-size:13px">Confirming your payment…</div></div>`;
+
+  const status = params.get('status');
+  const txRef = params.get('tx_ref');
+  const transactionId = params.get('transaction_id');
+  try { window.history.replaceState({}, '', window.location.pathname + '?coop_id=' + encodeURIComponent(coopId)); } catch (e) {}
+
+  if (status === 'cancelled') { renderError('Payment was cancelled. Refresh this page to try again.'); return; }
+  if (!txRef || !transactionId) { renderError('Something went wrong with the payment redirect. If you were charged, contact the society admin with any reference you have.'); return; }
+
+  try {
+    const res = await fetch(`${API}/coop-public-join-verify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tx_ref: txRef, transaction_id: transactionId }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      renderSuccess(data.message);
+    } else {
+      renderError(data.message || data.error || 'Payment could not be confirmed. If you were charged, contact the society admin.');
+    }
+  } catch (e) {
+    renderError('Network error while confirming payment: ' + e.message);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
