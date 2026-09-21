@@ -90,7 +90,9 @@ exports.handler = async (event) => {
     } else if (action === 'reject') {
       if (['DISBURSED', 'REPAYING', 'COMPLETED'].includes(loan.status))
         return err(409, `Cannot reject a loan that's already disbursed (status: ${loan.status})`);
-      update = { status: 'REJECTED', rejection_reason: (body.reason || '').trim() || `Rejected by ${adminName}` };
+      const reason = (body.reason || '').trim();
+      if (!reason) return err(400, 'A reason is required when rejecting — the borrower sees this directly');
+      update = { status: 'REJECTED', rejection_reason: reason };
     } else if (action === 'disburse') {
       if (loan.status !== 'APPROVED')
         return err(409, `Loan must be APPROVED before it can be disbursed (currently: ${loan.status})`);
