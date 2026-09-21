@@ -1084,6 +1084,21 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- Reject Loan modal -->
+<div id="modal-ct-reject-loan" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">Reject this loan</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:16px">The borrower sees this reason directly.</div>
+    <label class="field-label">Reason</label>
+    <input class="field-input" type="text" id="crl-reason" placeholder="e.g. Insufficient savings history" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="crl-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeRejectLoanModalAdmin()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitRejectLoanAdmin()" style="flex:1;padding:11px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Reject loan</button>
+    </div>
+  </div>
+</div>
+
 <!-- Extend Subscription modal -->
 <div id="extend-subscription-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
@@ -3862,14 +3877,16 @@ function renderCtLoans(loans) {
       <td>${fmtNaira(l.principal_kobo)}</td>
       <td><span style="color:${statusColor(l.status)};font-weight:600">${l.status.replace(/_/g, ' ')}</span></td>
       <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
-      <td>${l.guarantor?.name || '—'}</td>
+      <td>${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</td>
       <td>${actions}</td>
     </tr>`;
   }).join('');
 }
 
+let pendingRejectLoanId = null;
+
 async function loanAction(loanId, action) {
-  if (action === 'reject' && !confirm('Reject this loan application?')) return;
+  if (action === 'reject') { openRejectLoanModalAdmin(loanId); return; }
   try {
     const res = await fetch(`${API}/coop-loans-admin`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
@@ -3878,6 +3895,33 @@ async function loanAction(loanId, action) {
     const data = await res.json();
     if (!res.ok) { notify('Loan action: ' + (data.error || 'failed'), true); return; }
     notify(`Loan ${action}d`);
+    openSocietyDetail(ctCurrentCoopId);
+  } catch (e) { notify('Loan action: ' + e.message, true); }
+}
+
+function openRejectLoanModalAdmin(loanId) {
+  pendingRejectLoanId = loanId;
+  document.getElementById('crl-reason').value = '';
+  document.getElementById('crl-error').style.display = 'none';
+  document.getElementById('modal-ct-reject-loan').style.display = 'flex';
+}
+
+function closeRejectLoanModalAdmin() {
+  document.getElementById('modal-ct-reject-loan').style.display = 'none';
+}
+
+async function submitRejectLoanAdmin() {
+  const reason = document.getElementById('crl-reason').value.trim();
+  if (!reason) { document.getElementById('crl-error').textContent = 'Enter a reason — the borrower will see it.'; document.getElementById('crl-error').style.display = 'block'; return; }
+  closeRejectLoanModalAdmin();
+  try {
+    const res = await fetch(`${API}/coop-loans-admin`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ loan_id: pendingRejectLoanId, action: 'reject', reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('Loan action: ' + (data.error || 'failed'), true); return; }
+    notify('Loan rejected');
     openSocietyDetail(ctCurrentCoopId);
   } catch (e) { notify('Loan action: ' + e.message, true); }
 }
