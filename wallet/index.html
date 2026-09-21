@@ -1225,6 +1225,20 @@ function triggerPWAInstall() {
   </div>
 </div>
 
+<!-- Guarantor decline reason modal -->
+<div id="modal-coop-decline" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:6px;color:#E8F5EE">Decline as guarantor</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:12px">Let the borrower know why — this is shown to them directly.</div>
+    <textarea id="coop-decline-reason" rows="3" placeholder="e.g. I'm already guaranteeing another loan right now" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:10px;box-sizing:border-box;resize:vertical"></textarea>
+    <div id="coop-decline-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('modal-coop-decline').style.display='none'" style="flex:1;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>
+      <button onclick="coopSubmitDecline()" style="flex:1;padding:12px;background:#FF8A8A;color:#05140D;border:none;border-radius:10px;font-weight:700;cursor:pointer">Decline loan</button>
+    </div>
+  </div>
+</div>
+
 <!-- Pay Now modal — reusable for both savings and dues. Shows the real
      account once provisioned, or an honest "not set up yet" state. -->
 <div id="coop-paynow-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
@@ -3723,6 +3737,29 @@ async function refreshCoopScreen() {
   }
 
   const statusColor = s => ({ PENDING_GUARANTOR: '#F5B87A', PENDING_APPROVAL: '#F5B87A', APPROVED: '#7AB8F5', DISBURSED: '#00E0AC', REPAYING: '#00E0AC', COMPLETED: '#7FA894', REJECTED: '#FF8A8A', DEFAULTED: '#FF8A8A' }[s] || '#9CC4B0');
+
+  // Visual progression stepper - done stages green, the current stage
+  // amber, everything after it dim. REJECTED/DEFAULTED get a distinct
+  // red "stopped here" treatment rather than pretending progress
+  // continues along the normal path.
+  function coopLoanStepper(status) {
+    const STAGES = ['Applied', 'Guarantor', 'Admin review', 'Approved', 'Disbursed', 'Repaying', 'Completed'];
+    const STAGE_INDEX = { PENDING_GUARANTOR: 1, PENDING_APPROVAL: 2, APPROVED: 3, DISBURSED: 4, REPAYING: 5, COMPLETED: 6 };
+    if (status === 'REJECTED' || status === 'DEFAULTED') {
+      const diedAt = status === 'DEFAULTED' ? 5 : 2; // defaulted always got as far as Repaying; rejected shown stopping at review
+      return STAGES.map((label, i) => {
+        const dotColor = i < diedAt ? '#00C896' : i === diedAt ? '#FF8A8A' : '#234A38';
+        return `<div style="flex:1;text-align:center"><div style="width:9px;height:9px;border-radius:50%;background:${dotColor};margin:0 auto 3px"></div><div style="font-size:8.5px;color:${i === diedAt ? '#FF8A8A' : '#7A9A85'}">${i === diedAt ? (status === 'DEFAULTED' ? 'Defaulted' : 'Stopped') : label}</div></div>`;
+      }).join('<div style="flex:0.5;height:1px;background:#234A38;margin-top:4px"></div>');
+    }
+    const currentIndex = STAGE_INDEX[status] ?? 0;
+    return STAGES.map((label, i) => {
+      const dotColor = i < currentIndex ? '#00C896' : i === currentIndex ? '#F5B87A' : '#234A38';
+      const textColor = i <= currentIndex ? '#E8F5EE' : '#7A9A85';
+      return `<div style="flex:1;text-align:center"><div style="width:9px;height:9px;border-radius:50%;background:${dotColor};margin:0 auto 3px"></div><div style="font-size:8.5px;color:${textColor}">${label}</div></div>`;
+    }).join('<div style="flex:0.5;height:1px;background:#234A38;margin-top:4px"></div>');
+  }
+
   const loansEl = document.getElementById('coop-loans-list');
   loansEl.innerHTML = (data.loans || []).length ? data.loans.map(l => `
     <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
@@ -3731,7 +3768,8 @@ async function refreshCoopScreen() {
         <span style="font-size:12px;font-weight:700;color:${statusColor(l.status)}">${l.status.replace(/_/g,' ')}</span>
       </div>
       <div style="font-size:12px;color:#9CC4B0;margin-top:4px">${fmtNaira(l.monthly_repayment_kobo)}/month for ${l.repayment_months} months · Guarantor${(l.guarantors || []).length === 1 ? '' : 's'}: ${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</div>
-      ${l.rejection_reason ? `<div style="font-size:11px;color:#FF8A8A;margin-top:4px">${l.rejection_reason}</div>` : ''}
+      <div style="display:flex;margin-top:10px">${coopLoanStepper(l.status)}</div>
+      ${l.rejection_reason ? `<div style="font-size:11px;color:#FF8A8A;margin-top:8px">${l.rejection_reason}</div>` : ''}
     </div>
   `).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No loans yet.</div></div>';
 
@@ -3745,7 +3783,7 @@ async function refreshCoopScreen() {
         <div style="font-size:13px;color:#E8F5EE">${r.borrower?.name || r.borrower?.phone_normalized} wants to borrow ${fmtNaira(r.principal_kobo)}</div>
         <div style="font-size:11px;color:#9CC4B0;margin:4px 0 10px">${fmtNaira(r.monthly_repayment_kobo)}/month for ${r.repayment_months} months — you'd be their guarantor</div>
         <div style="display:flex;gap:8px">
-          <button onclick="coopGuarantorRespond('${r.id}','DECLINED')" style="flex:1;padding:9px;background:#1A4030;color:#E8F5EE;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Decline</button>
+          <button onclick="coopOpenDeclineReasonModal('${r.id}')" style="flex:1;padding:9px;background:#1A4030;color:#E8F5EE;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Decline</button>
           <button onclick="coopGuarantorRespond('${r.id}','APPROVED')" style="flex:1;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Approve</button>
         </div>
       </div>
@@ -3927,13 +3965,13 @@ async function coopSubmitLoanApplication() {
   }
 }
 
-async function coopGuarantorRespond(loanId, decision) {
+async function coopGuarantorRespond(loanId, decision, reason) {
   const token = STATE.user?.token || STATE.user?.agentToken || '';
   try {
     const res = await fetch(`${API}/coop-loan-guarantor-respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ loan_id: loanId, decision }),
+      body: JSON.stringify({ loan_id: loanId, decision, reason }),
     });
     const data = await res.json();
     if (!res.ok) { toast(data.error || 'Failed to respond', true); return; }
@@ -3942,6 +3980,21 @@ async function coopGuarantorRespond(loanId, decision) {
   } catch (e) {
     toast('Network error: ' + e.message, true);
   }
+}
+
+let coopDeclineLoanId = null;
+function coopOpenDeclineReasonModal(loanId) {
+  coopDeclineLoanId = loanId;
+  document.getElementById('coop-decline-reason').value = '';
+  document.getElementById('coop-decline-error').style.display = 'none';
+  document.getElementById('modal-coop-decline').style.display = 'flex';
+}
+async function coopSubmitDecline() {
+  const errEl = document.getElementById('coop-decline-error');
+  const reason = document.getElementById('coop-decline-reason').value.trim();
+  if (!reason) { errEl.textContent = 'Let the borrower know why, so they can act on it.'; errEl.style.display = 'block'; return; }
+  document.getElementById('modal-coop-decline').style.display = 'none';
+  await coopGuarantorRespond(coopDeclineLoanId, 'DECLINED', reason);
 }
 
 // Reusable for both savings (per-plan) and dues (per-member) — looks up
