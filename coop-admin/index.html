@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Zillion Coop — Society Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -627,6 +628,34 @@ tr:last-child td{border-bottom:none}
     <div id="gc-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitConfigureGuarantors()" id="gc-btn">Save</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-guarantors')">Cancel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-join-link">
+  <div class="modal-box">
+    <div class="modal-title">Share this to let people join</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Anyone with this link or QR code can apply to join your society directly — no invite needed. They fill in their details<span id="jl-fee-note"></span>.</div>
+    <div style="text-align:center;background:#fff;border-radius:10px;padding:16px;margin-bottom:14px" id="jl-qr-box"></div>
+    <div class="field">
+      <label>Link</label>
+      <input type="text" id="jl-url" readonly style="font-family:monospace;font-size:12px">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="copyJoinLink()">Copy link</button>
+    <button class="btn btn-ghost" style="width:100%" onclick="closeModal('modal-join-link')">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-configure-joining-fee">
+  <div class="modal-box">
+    <div class="modal-title">Joining fee</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">What a prospect pays to join via your link or QR code. Set to 0 for free, instant joining with no payment step. Applies only to new applications from the point you change it.</div>
+    <div class="field">
+      <label>Joining fee (₦)</label>
+      <input type="number" id="jfee-amount" min="0" step="1" placeholder="0">
+    </div>
+    <div id="jfee-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitConfigureJoiningFee()" id="jfee-btn">Save</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-configure-joining-fee')">Cancel</button>
   </div>
 </div>
 
@@ -1294,6 +1323,8 @@ function renderMembers() {
         <div style="display:flex;gap:8px">
           ${hasPortalAction('members', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>` : ''}
           ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openJoinLinkModal()">🔗 Get join link</button>
+          ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureJoiningFeeModal()">Joining fee: ${fmtNaira(d.society.joining_fee_kobo || 0)}</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="printSection('members-report-card', 'Members Report')">🖨️ Print / Download</button>
         </div>
       </div>
@@ -2261,6 +2292,61 @@ async function submitConfigureGuarantors() {
     if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
     notify(`Guarantor requirement set to ${count}`);
     closeModal('modal-configure-guarantors');
+    btn.disabled = false; btn.textContent = 'Save';
+    await refreshAndRender();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+function openJoinLinkModal() {
+  const s = portalData.society;
+  const url = `${location.origin}/join/?coop_id=${encodeURIComponent(s.coop_id)}`;
+  document.getElementById('jl-url').value = url;
+  document.getElementById('jl-fee-note').textContent = (s.joining_fee_kobo || 0) > 0
+    ? ` and pay a ${fmtNaira(s.joining_fee_kobo)} joining fee`
+    : ' — joining is free, so they\'re added instantly';
+
+  const qrBox = document.getElementById('jl-qr-box');
+  qrBox.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(qrBox, { text: url, width: 220, height: 220, colorDark: '#0D1F1A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  } else {
+    qrBox.innerHTML = `<div style="padding:12px;color:#0D1F1A;word-break:break-all;font-size:11px;font-family:monospace">${url}</div>`;
+  }
+  openModal('modal-join-link');
+}
+
+function copyJoinLink() {
+  const input = document.getElementById('jl-url');
+  input.select();
+  navigator.clipboard?.writeText(input.value).then(() => notify('Link copied')).catch(() => document.execCommand('copy'));
+}
+
+function openConfigureJoiningFeeModal() {
+  document.getElementById('jfee-amount').value = (portalData.society.joining_fee_kobo || 0) / 100;
+  document.getElementById('jfee-error').style.display = 'none';
+  openModal('modal-configure-joining-fee');
+}
+
+async function submitConfigureJoiningFee() {
+  const errEl = document.getElementById('jfee-error');
+  errEl.style.display = 'none';
+  const naira = parseFloat(document.getElementById('jfee-amount').value);
+  if (isNaN(naira) || naira < 0) { errEl.textContent = 'Enter a valid amount (0 or more).'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('jfee-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-portal-configure-joining-fee`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ joining_fee_kobo: Math.round(naira * 100) }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
+    notify(naira > 0 ? `Joining fee set to ${fmtNaira(Math.round(naira * 100))}` : 'Joining is now free');
+    closeModal('modal-configure-joining-fee');
     btn.disabled = false; btn.textContent = 'Save';
     await refreshAndRender();
   } catch (e) {
