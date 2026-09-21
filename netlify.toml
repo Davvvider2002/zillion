@@ -715,6 +715,26 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-public-society-info"
+  to   = "/.netlify/functions/coop-public-society-info"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-public-join-init"
+  to   = "/.netlify/functions/coop-public-join-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-public-join-verify"
+  to   = "/.netlify/functions/coop-public-join-verify"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-configure-joining-fee"
+  to   = "/.netlify/functions/coop-portal-configure-joining-fee"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-create-coop-society"
   to   = "/.netlify/functions/admin-create-coop-society"
   status = 200
