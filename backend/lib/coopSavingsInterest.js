@@ -84,7 +84,15 @@ async function applyMonthlyInterestIfEligible(db, plan, pkg, now) {
       const expense = accounts[INTEREST_EXPENSE_ACCOUNT_CODE];
       const payable = accounts[MEMBER_SAVINGS_PAYABLE_ACCOUNT_CODE];
       if (expense && payable) {
-        await postEntry(db, plan.coop_id, `Savings interest credited — ${pkg.name}`, 'system:scheduled-reconcile', expense, payable, interestKobo);
+        let description = `Savings interest credited — ${pkg.name}`;
+        if (plan.member_id) {
+          const { data: member } = await db.from('coop_members').select('id, name').eq('id', plan.member_id).maybeSingle();
+          if (member) {
+            const memberLabel = member.name ? `${member.name} (Member #${String(member.id).slice(0, 8)})` : `Member #${String(member.id).slice(0, 8)}`;
+            description = `${description} — ${memberLabel}`;
+          }
+        }
+        await postEntry(db, plan.coop_id, description, 'system:scheduled-reconcile', expense, payable, interestKobo);
       }
     }
   } catch (e) {
