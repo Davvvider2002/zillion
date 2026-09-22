@@ -735,6 +735,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-coop-archive"
+  to   = "/.netlify/functions/admin-coop-archive"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-create-coop-society"
   to   = "/.netlify/functions/admin-create-coop-society"
   status = 200
