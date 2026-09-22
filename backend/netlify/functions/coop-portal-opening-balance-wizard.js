@@ -89,7 +89,8 @@ exports.handler = async (event) => {
   const nextNumber = (lastEntry?.entry_number || 0) + 1;
 
   const { data: entry, error: entryErr } = await db.from('coop_journal_entries').insert({
-    coop_id: coopId, entry_number: nextNumber, entry_date: openingDate, description: 'Opening balances',
+    coop_id: coopId, entry_number: nextNumber, entry_date: openingDate,
+    description: `Opening balances — ${resolvedBalances.length} account${resolvedBalances.length === 1 ? '' : 's'}, as of ${openingDate}`,
     entry_type: 'opening_balance', created_by: `portal:${auth.payload.merchant_id}`,
   }).select().single();
   if (entryErr) return err(500, `Failed to create opening balance entry: ${entryErr.message}`);
