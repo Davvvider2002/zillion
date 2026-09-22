@@ -641,6 +641,7 @@ tr:last-child td{border-bottom:none}
       <input type="text" id="jl-url" readonly style="font-family:monospace;font-size:12px">
     </div>
     <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="copyJoinLink()">Copy link</button>
+    <button class="btn btn-ghost" style="width:100%;margin-bottom:8px" onclick="shareJoinQr()" id="jl-share-btn">📤 Share / Download QR</button>
     <button class="btn btn-ghost" style="width:100%" onclick="closeModal('modal-join-link')">Close</button>
   </div>
 </div>
@@ -2322,6 +2323,53 @@ function copyJoinLink() {
   const input = document.getElementById('jl-url');
   input.select();
   navigator.clipboard?.writeText(input.value).then(() => notify('Link copied')).catch(() => document.execCommand('copy'));
+}
+
+// qrcodejs renders a <canvas> (and, for older-browser fallback, an
+// <img> using the same canvas's data) inside the container - canvas
+// is checked first since toDataURL() on it is the most direct route
+// to the actual image, with the img as a fallback for whichever
+// browser situation left only that behind.
+function getJoinQrDataUrl() {
+  const qrBox = document.getElementById('jl-qr-box');
+  const canvas = qrBox.querySelector('canvas');
+  if (canvas) return canvas.toDataURL('image/png');
+  const img = qrBox.querySelector('img');
+  if (img && img.src) return img.src;
+  return null;
+}
+
+async function shareJoinQr() {
+  const dataUrl = getJoinQrDataUrl();
+  if (!dataUrl) { notify('QR code isn\'t available to share right now — try Copy link instead.', true); return; }
+
+  const s = portalData.society;
+  const url = document.getElementById('jl-url').value;
+  const shareText = `Join ${s.name} on Zillion Coop: ${url}`;
+
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const file = new File([blob], `${s.name.replace(/[^a-z0-9]+/gi, '-')}-join-qr.png`, { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: `Join ${s.name}`, text: shareText });
+      return;
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return; // user cancelled the share sheet - not an error
+    // fall through to download below
+  }
+
+  // No Web Share support (most desktop browsers) or sharing failed for
+  // a reason other than the user cancelling - download the PNG instead
+  // so the admin still has something to send manually.
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = `${s.name.replace(/[^a-z0-9]+/gi, '-')}-join-qr.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  notify('QR code downloaded — attach it wherever you\'d like to share it.');
 }
 
 function openConfigureJoiningFeeModal() {
