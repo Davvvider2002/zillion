@@ -46,7 +46,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: loan } = await db.from('coop_loans').select('id, coop_id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, coop_id, member_id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).maybeSingle();
   if (!loan) return err(404, 'Loan not found');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
@@ -64,7 +64,8 @@ exports.handler = async (event) => {
 
   if (insertErr) return err(500, `Failed to record repayment: ${insertErr.message}`);
 
-  await recordLoanRepaymentJournalEntry(db, loan.coop_id, amountKobo, source, `admin:${auth.payload.username || auth.payload.sub}`, principalPortionKobo, interestPortionKobo);
+  const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', loan.member_id).maybeSingle();
+  await recordLoanRepaymentJournalEntry(db, loan.coop_id, amountKobo, source, `admin:${auth.payload.username || auth.payload.sub}`, principalPortionKobo, interestPortionKobo, borrower ? { id: borrower.id, name: borrower.name } : null);
 
   // Move to REPAYING on the first repayment — DISBURSED alone doesn't
   // distinguish "nothing paid yet" from "actively being paid down".
