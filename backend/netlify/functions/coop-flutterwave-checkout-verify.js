@@ -118,7 +118,8 @@ exports.handler = async (event) => {
   await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
 
   if (session.type === 'dues') {
-    await recordDuesPaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3');
+    const { data: duesMember } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
+    await recordDuesPaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3', duesMember ? { id: duesMember.id, name: duesMember.name } : null);
   }
 
   return ok({
