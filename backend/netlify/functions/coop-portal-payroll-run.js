@@ -209,7 +209,7 @@ exports.handler = async (event) => {
         const employerPensionExpense = accounts[EMPLOYER_PENSION_EXPENSE_CODE];
 
         if (bank && staffLoansReceivable && payePayable && pensionPayable && nhfPayable && nsitfPayable && staffCosts && employerPensionExpense) {
-          const description = `Payroll — ${run.period_label}`;
+          const description = `Payroll — ${run.period_label}, ${lines.length} employee${lines.length === 1 ? '' : 's'}`;
           const lineItems = [
             { account: staffCosts, type: 'debit', amountKobo: totalGross + totalNsitf },
             { account: employerPensionExpense, type: 'debit', amountKobo: totalEmployerPension },
