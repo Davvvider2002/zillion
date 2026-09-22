@@ -59,6 +59,21 @@ function sourceToAccountCode(source) {
   return source === 'cash_in_person' ? CASH_ACCOUNT_CODE : BANK_ACCOUNT_CODE;
 }
 
+// Human-readable label for the journal description/memo - the exact
+// set of values passed by every caller (confirmed against each one
+// directly, not guessed): 'cash_in_person', 'bank_transfer_manual'
+// (both entered by an admin), 'flutterwave_checkout' (member self-pay
+// via the hosted checkout page). Anything unrecognised still gets a
+// readable fallback rather than silently showing the raw code.
+function sourceToLabel(source) {
+  const labels = {
+    cash_in_person: 'Cash (in person)',
+    bank_transfer_manual: 'Bank transfer (recorded manually)',
+    flutterwave_checkout: 'Bank transfer (Flutterwave checkout)',
+  };
+  return labels[source] || (source ? source.replace(/_/g, ' ') : 'Bank');
+}
+
 async function accountingIsReady(db, coopId) {
   if (!(await hasAddon(db, coopId, 'accounting'))) return { ready: false };
   const { data: openingDone } = await db.from('coop_journal_entries')
@@ -113,15 +128,22 @@ async function recordDuesAccrual(db, coopId) {
     if (!receivable || !income) return { booked: false, reason: 'accounts_missing' };
 
     const nextNumber = await nextEntryNumber(db, coopId);
+    // This is a genuine aggregate across every active member's new
+    // accrual since the last run - there is no single member to name
+    // here, and attaching one would misrepresent what the entry
+    // actually is. The honest, traceable fix for an aggregate entry is
+    // naming the scope (how many members, as of when), not inventing a
+    // false single-member association.
+    const description = `Dues income accrued — ${(members || []).length} active member${(members || []).length === 1 ? '' : 's'}, as of ${new Date().toISOString().slice(0, 10)}`;
     const { data: entry, error: entryErr } = await db.from('coop_journal_entries').insert({
       coop_id: coopId, entry_number: nextNumber, entry_date: new Date().toISOString().slice(0, 10),
-      description: 'Dues income accrued', entry_type: 'manual', created_by: 'system:dues_accrual',
+      description, entry_type: 'manual', created_by: 'system:dues_accrual',
     }).select().single();
     if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
 
     const { error: linesErr } = await db.from('coop_journal_entry_lines').insert([
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: receivable.id, line_type: 'debit', amount: delta, currency: receivable.currency, exchange_rate: 1, base_amount: delta, memo: 'Auto-booked dues accrual' },
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: income.id, line_type: 'credit', amount: delta, currency: income.currency, exchange_rate: 1, base_amount: delta, memo: 'Auto-booked dues accrual' },
+      { journal_entry_id: entry.id, coop_id: coopId, account_id: receivable.id, line_type: 'debit', amount: delta, currency: receivable.currency, exchange_rate: 1, base_amount: delta, memo: description },
+      { journal_entry_id: entry.id, coop_id: coopId, account_id: income.id, line_type: 'credit', amount: delta, currency: income.currency, exchange_rate: 1, base_amount: delta, memo: description },
     ]);
     if (linesErr) {
       await db.from('coop_journal_entries').delete().eq('id', entry.id);
@@ -141,8 +163,15 @@ async function recordDuesAccrual(db, coopId) {
  * Debit Cash/Bank, Credit Dues Receivable. Never credits Dues Income
  * directly: that recognition already happened (or will, on the next
  * accrual run) via recordDuesAccrual above.
+ *
+ * member is optional ({ id, name }) but should always be passed when
+ * available - without it, the entry and its lines fall back to a
+ * generic description, exactly the gap that made these entries hard
+ * to trace back to who a payment was actually for. Backward
+ * compatible: existing callers that don't pass it still work, just
+ * without the richer description.
  */
-async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, createdBy) {
+async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, createdBy, member = null) {
   try {
     const { ready } = await accountingIsReady(db, coopId);
     if (!ready) return { booked: false, reason: 'accounting_not_ready' };
@@ -153,16 +182,22 @@ async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, cre
     const receivable = accounts[DUES_RECEIVABLE_ACCOUNT_CODE];
     if (!debitAccount || !receivable) return { booked: false, reason: 'accounts_missing' };
 
+    const memberLabel = member?.name ? `${member.name} (Member #${String(member.id).slice(0, 8)})` : (member?.id ? `Member #${String(member.id).slice(0, 8)}` : null);
+    const sourceLabel = sourceToLabel(source);
+    const description = memberLabel
+      ? `Dues payment received — ${memberLabel} via ${sourceLabel}`
+      : `Dues payment received via ${sourceLabel}`;
+
     const nextNumber = await nextEntryNumber(db, coopId);
     const { data: entry, error: entryErr } = await db.from('coop_journal_entries').insert({
       coop_id: coopId, entry_number: nextNumber, entry_date: new Date().toISOString().slice(0, 10),
-      description: 'Dues payment received', entry_type: 'manual', created_by: createdBy,
+      description, entry_type: 'manual', created_by: createdBy,
     }).select().single();
     if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
 
     const { error: linesErr } = await db.from('coop_journal_entry_lines').insert([
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: debitAccount.id, line_type: 'debit', amount: amountKobo, currency: debitAccount.currency, exchange_rate: 1, base_amount: amountKobo, memo: 'Auto-booked from dues payment' },
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: receivable.id, line_type: 'credit', amount: amountKobo, currency: receivable.currency, exchange_rate: 1, base_amount: amountKobo, memo: 'Settles accrued dues receivable' },
+      { journal_entry_id: entry.id, coop_id: coopId, account_id: debitAccount.id, line_type: 'debit', amount: amountKobo, currency: debitAccount.currency, exchange_rate: 1, base_amount: amountKobo, memo: description },
+      { journal_entry_id: entry.id, coop_id: coopId, account_id: receivable.id, line_type: 'credit', amount: amountKobo, currency: receivable.currency, exchange_rate: 1, base_amount: amountKobo, memo: description },
     ]);
     if (linesErr) {
       await db.from('coop_journal_entries').delete().eq('id', entry.id);
