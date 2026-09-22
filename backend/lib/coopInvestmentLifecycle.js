@@ -83,9 +83,22 @@ async function applyMonthlyAccrualIfEligible(db, investment, product, now) {
   });
   if (insertErr) return { applied: false, reason: 'insert_failed' };
 
-  await postAccrualEntry(db, investment.coop_id, `Investment accrual — ${product.name}`, accrualKobo);
+  await postAccrualEntry(db, investment.coop_id, await buildInvestmentDescription(db, investment, `Investment accrual — ${product.name}`), accrualKobo);
 
   return { applied: true, amountKobo: accrualKobo };
+}
+
+// Every caller here already has the investment row (with member_id)
+// in hand - one small lookup for the member's name turns a description
+// that only ever said which PRODUCT accrued into one that also says
+// WHO it belongs to, without needing to touch any caller's own select
+// statement.
+async function buildInvestmentDescription(db, investment, baseDescription) {
+  if (!investment.member_id) return baseDescription;
+  const { data: member } = await db.from('coop_members').select('id, name').eq('id', investment.member_id).maybeSingle();
+  if (!member) return baseDescription;
+  const memberLabel = member.name ? `${member.name} (Member #${String(member.id).slice(0, 8)})` : `Member #${String(member.id).slice(0, 8)}`;
+  return `${baseDescription} — ${memberLabel}`;
 }
 
 /**
@@ -147,7 +160,8 @@ async function processEarlyWithdrawal(db, investment, product) {
         const payable = accounts[MEMBER_INVESTMENT_PAYABLE_CODE];
         const penaltyIncome = accounts[EARLY_WITHDRAWAL_PENALTY_INCOME_CODE];
         if (payable && penaltyIncome) {
-          await postEntry(db, investment.coop_id, `Early withdrawal penalty — ${product.name}`, 'system:early-withdrawal', payable, penaltyIncome, penaltyKobo);
+          const description = await buildInvestmentDescription(db, investment, `Early withdrawal penalty — ${product.name}`);
+          await postEntry(db, investment.coop_id, description, 'system:early-withdrawal', payable, penaltyIncome, penaltyKobo);
         }
       }
     } catch (e) {
