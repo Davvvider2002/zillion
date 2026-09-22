@@ -52,7 +52,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: member } = await db.from('coop_members').select('id, coop_id, status').eq('id', memberId).maybeSingle();
+  const { data: member } = await db.from('coop_members').select('id, coop_id, status, name').eq('id', memberId).maybeSingle();
   if (!member) return err(404, 'Member not found');
   if (member.status !== 'ACTIVE') return err(409, `This member's status is ${member.status}, not ACTIVE`);
 
@@ -67,7 +67,7 @@ exports.handler = async (event) => {
 
   if (insertErr) return err(500, `Failed to record dues payment: ${insertErr.message}`);
 
-  await recordDuesPaymentJournalEntry(db, member.coop_id, amountKobo, source, auth.payload.username || auth.payload.sub);
+  await recordDuesPaymentJournalEntry(db, member.coop_id, amountKobo, source, auth.payload.username || auth.payload.sub, { id: member.id, name: member.name });
 
   await auditLog(db, {
     action:       'COOP_DUES_PAYMENT_RECORDED',
