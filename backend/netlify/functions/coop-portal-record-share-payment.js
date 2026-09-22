@@ -58,7 +58,7 @@ exports.handler = async (event) => {
   if (source === 'cash_in_person' && !reference)
     return err(400, 'A reference (receipt number, member name, etc.) is required when recording a cash payment.');
 
-  const { data: member } = await db.from('coop_members').select('id, coop_id, status').eq('id', memberId).maybeSingle();
+  const { data: member } = await db.from('coop_members').select('id, coop_id, status, name').eq('id', memberId).maybeSingle();
   if (!member) return err(404, 'Member not found');
   if (member.coop_id !== coopId) return err(403, 'This member does not belong to your society.');
   if (member.status !== 'ACTIVE') return err(409, `This member's status is ${member.status}, not ACTIVE`);
@@ -81,7 +81,9 @@ exports.handler = async (event) => {
       const debitAccount = accounts[debitCode];
       const shareCapital = accounts[SHARE_CAPITAL_ACCOUNT_CODE];
       if (debitAccount && shareCapital) {
-        await postEntry(db, coopId, 'Share capital contribution', `portal:${auth.payload.merchant_id}`, debitAccount, shareCapital, amountKobo);
+        const memberLabel = member.name ? `${member.name} (Member #${String(member.id).slice(0, 8)})` : `Member #${String(member.id).slice(0, 8)}`;
+        const sourceLabel = source === 'cash_in_person' ? 'Cash (in person)' : 'Bank transfer (recorded manually)';
+        await postEntry(db, coopId, `Share capital contribution — ${memberLabel} via ${sourceLabel}`, `portal:${auth.payload.merchant_id}`, debitAccount, shareCapital, amountKobo);
       }
     }
   } catch (e) {
