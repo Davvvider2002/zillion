@@ -162,6 +162,7 @@
 /api/v1/coop-public-join-init    /.netlify/functions/coop-public-join-init    200
 /api/v1/coop-public-join-verify    /.netlify/functions/coop-public-join-verify    200
 /api/v1/coop-portal-configure-joining-fee    /.netlify/functions/coop-portal-configure-joining-fee    200
+/api/v1/admin-coop-archive    /.netlify/functions/admin-coop-archive    200
 /api/v1/admin-create-coop-society        /.netlify/functions/admin-create-coop-society        200
 /api/v1/admin-create-coop-subaccount     /.netlify/functions/admin-create-coop-subaccount     200
 /api/v1/admin-list-flutterwave-subaccounts     /.netlify/functions/admin-list-flutterwave-subaccounts     200
