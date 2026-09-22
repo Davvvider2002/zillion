@@ -2,15 +2,28 @@
  * zillion/backend/netlify/functions/admin-coop-archive.js
  *
  * GET  /api/v1/admin-coop-archive                          — list archived societies
- * POST /api/v1/admin-coop-archive  { coop_id, action }      — 'restore' | 'delete'
+ * POST /api/v1/admin-coop-archive  { coop_id, action, extend_days?, plan? }
+ *   action: 'restore' | 'delete'
+ *   restore requires extend_days (7 or 14) - a fresh trial window, not
+ *   just putting the society back exactly as it was, since it was
+ *   sitting expired. plan (launch/growth/scale) is optional - sets
+ *   subscription_plan directly, a plain field update, deliberately NOT
+ *   the same as the separate "Change plan" action elsewhere in the
+ *   admin panel, which triggers a real Flutterwave payment flow -
+ *   restoring a lapsed trial should be a lightweight administrative
+ *   decision, not something that immediately bills the society.
  *
  * Societies land here automatically when a trial expires with no
  * payment (scheduled-reconcile.js sets archived_at at that moment) -
  * this endpoint is where an admin reviews what's been archived and
  * decides what to do with it.
  *
- * Restore: clears archived_at/archive_reason, putting the society
- * straight back into the main list exactly as it was.
+ * Restore: gives the society a fresh trial window (7 or 14 days,
+ * admin's choice) and clears archived_at/archive_reason - also resets
+ * trial_reminder_sent_at, since without that reset the "trial ending
+ * soon" reminder would never fire again for this new window (it stays
+ * set from the original trial). An optional plan can be recorded at
+ * the same time - a plain field update, not a payment trigger.
  *
  * Delete: a genuine hard delete of the coop_societies row - and
  * deliberately NOT wrapped in extra "does this have real data" checks
@@ -63,13 +76,36 @@ exports.handler = async (event) => {
     if (!coopId) return err(400, 'coop_id is required');
     if (!['restore', 'delete'].includes(action)) return err(400, "action must be 'restore' or 'delete'");
 
+    const VALID_PLANS = ['launch', 'growth', 'scale'];
+    const VALID_EXTEND_DAYS = [7, 14];
+    if (action === 'restore') {
+      const extendDays = Number(body.extend_days);
+      if (!VALID_EXTEND_DAYS.includes(extendDays)) return err(400, 'extend_days must be 7 or 14');
+      if (body.plan && !VALID_PLANS.includes(body.plan)) return err(400, `plan must be one of: ${VALID_PLANS.join(', ')}`);
+    }
+
     const { data: society } = await db.from('coop_societies').select('coop_id, name, archived_at').eq('coop_id', coopId).maybeSingle();
     if (!society) return err(404, 'Society not found');
     if (!society.archived_at) return err(409, 'This society is not archived');
 
     if (action === 'restore') {
+      const extendDays = Number(body.extend_days);
+      const newTrialEndsAt = new Date(Date.now() + extendDays * 24 * 3600 * 1000).toISOString();
+
+      // subscription_status resets to 'trial' (it was 'trial_expired') and
+      // trial_reminder_sent_at resets to null - without that reset, the
+      // scheduled reminder job's .is('trial_reminder_sent_at', null) filter
+      // would permanently skip this society, since that flag is still set
+      // from the ORIGINAL trial period. This fresh trial window needs its
+      // own chance at the "ending soon" reminder.
+      const restoreUpdate = {
+        archived_at: null, archive_reason: null,
+        subscription_status: 'trial', trial_ends_at: newTrialEndsAt, trial_reminder_sent_at: null,
+      };
+      if (body.plan) restoreUpdate.subscription_plan = body.plan;
+
       const { data: updated, error: updateErr } = await db.from('coop_societies')
-        .update({ archived_at: null, archive_reason: null }).eq('coop_id', coopId).select().single();
+        .update(restoreUpdate).eq('coop_id', coopId).select().single();
       if (updateErr) return err(500, `Failed to restore: ${updateErr.message}`);
 
       await auditLog(db, {
@@ -78,7 +114,10 @@ exports.handler = async (event) => {
         resourceType: 'coop_society', resourceId: coopId, requestBody: body, result: 'SUCCESS',
       });
 
-      return ok({ success: true, society: updated, message: `${society.name} restored to the active list.` });
+      return ok({
+        success: true, society: updated,
+        message: `${society.name} restored with a fresh ${extendDays}-day trial${body.plan ? ` on the ${body.plan} plan` : ''}.`,
+      });
     }
 
     // action === 'delete'
