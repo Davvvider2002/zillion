@@ -78,7 +78,7 @@ exports.handler = async (event) => {
   if (!product_id) return err(400, 'product_id is required');
   if (!Number.isInteger(units) || units <= 0) return err(400, 'units must be a positive integer');
 
-  const { data: member } = await db.from('coop_members').select('id').eq('id', member_id).eq('coop_id', coopId).maybeSingle();
+  const { data: member } = await db.from('coop_members').select('id, name').eq('id', member_id).eq('coop_id', coopId).maybeSingle();
   if (!member) return err(400, 'That member does not belong to this society');
 
   const { data: product } = await db.from('coop_investment_products').select('*').eq('id', product_id).eq('coop_id', coopId).eq('active', true).maybeSingle();
@@ -109,7 +109,8 @@ exports.handler = async (event) => {
       const bank = accounts[BANK_ACCOUNT_CODE];
       const investmentPayable = accounts[MEMBER_INVESTMENT_PAYABLE_CODE];
       if (bank && investmentPayable) {
-        await postEntry(db, coopId, `Investment purchase — ${product.name}`, `portal:${auth.payload.merchant_id}`, bank, investmentPayable, principalKobo);
+        const memberLabel = member.name ? `${member.name} (Member #${String(member.id).slice(0, 8)})` : `Member #${String(member.id).slice(0, 8)}`;
+        await postEntry(db, coopId, `Investment purchase — ${product.name} — ${memberLabel}`, `portal:${auth.payload.merchant_id}`, bank, investmentPayable, principalKobo);
       }
     }
   } catch (e) {
