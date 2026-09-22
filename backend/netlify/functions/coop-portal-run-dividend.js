@@ -103,7 +103,10 @@ exports.handler = async (event) => {
         const retained = accounts[RETAINED_EARNINGS_ACCOUNT_CODE];
         const payable = accounts[DIVIDEND_PAYABLE_ACCOUNT_CODE];
         if (retained && payable) {
-          const result = await postEntry(db, coopId, `Dividend approved — ${fy.year_label}`, resolved.society.merchant_id, retained, payable, existingRun.total_distributable_kobo);
+          const { count: entitlementCount } = await db.from('coop_dividend_entitlements')
+            .select('id', { count: 'exact', head: true }).eq('dividend_run_id', existingRun.id);
+          const description = `Dividend approved — ${fy.year_label}${entitlementCount ? `, ${entitlementCount} member${entitlementCount === 1 ? '' : 's'} entitled` : ''}`;
+          const result = await postEntry(db, coopId, description, resolved.society.merchant_id, retained, payable, existingRun.total_distributable_kobo);
           if (result.booked) await db.from('coop_dividend_runs').update({ payable_booked: true }).eq('id', existingRun.id);
         }
       }
