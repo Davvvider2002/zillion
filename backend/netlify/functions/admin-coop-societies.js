@@ -1,8 +1,8 @@
 /**
  * zillion/backend/netlify/functions/admin-coop-societies.js
  *
- * GET /api/v1/admin-coop-societies                — list all societies
- * GET /api/v1/admin-coop-societies?coop_id=X       — full detail for one
+ * GET /api/v1/admin-coop-societies                — list all NON-ARCHIVED societies
+ * GET /api/v1/admin-coop-societies?coop_id=X       — full detail for one (archived or not)
  *
  * One comprehensive endpoint rather than many small ones — the admin
  * detail view needs members (each with live dues status), savings
@@ -39,7 +39,8 @@ exports.handler = async (event) => {
 
   if (!coopId) {
     const { data: societies, error } = await db.from('coop_societies')
-      .select('coop_id, name, status, trial_ends_at, merchant_id, phone, owner_name, flutterwave_subaccount_id, subscription_status, subscription_plan, subscription_cycle, subscription_paid_until, signup_source, never_expires')
+      .select('coop_id, name, status, trial_ends_at, merchant_id, phone, owner_name, flutterwave_subaccount_id, subscription_status, subscription_plan, subscription_cycle, subscription_paid_until, signup_source, never_expires, archived_at')
+      .is('archived_at', null)
       .order('name');
     if (error) return err(500, error.message);
 
