@@ -1119,6 +1119,30 @@ tbody tr:last-child td{border-bottom:none;}
 </div>
 
 <!-- Delete Archived Society modal -->
+<div id="modal-restore-society" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:400px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="rs-society-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:16px">Restoring gives this society a fresh trial window, not just putting it back as it was expired.</div>
+    <label class="field-label">Extend trial by</label>
+    <select id="rs-extend-days" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="7">7 days</option>
+      <option value="14" selected>14 days</option>
+    </select>
+    <label class="field-label">Plan (optional)</label>
+    <select id="rs-plan" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="">Leave as-is</option>
+      <option value="launch">Launch</option>
+      <option value="growth">Growth</option>
+      <option value="scale">Scale</option>
+    </select>
+    <div id="rs-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeRestoreSocietyModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitRestoreSociety()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit" id="rs-btn">Restore</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-delete-society" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
     <div style="font-size:17px;font-weight:700;margin-bottom:4px;color:#e74c3c">Permanently delete this society?</div>
@@ -3550,18 +3574,44 @@ function renderArchiveTable(societies) {
   `).join('');
 }
 
-async function restoreArchivedSociety(coopId, name) {
-  if (!confirm(`Restore "${name}" to the active societies list?`)) return;
+let pendingRestoreSociety = null;
+
+function restoreArchivedSociety(coopId, name) {
+  pendingRestoreSociety = { coopId, name };
+  document.getElementById('rs-society-name').textContent = name;
+  document.getElementById('rs-extend-days').value = '14';
+  document.getElementById('rs-plan').value = '';
+  document.getElementById('rs-error').style.display = 'none';
+  document.getElementById('modal-restore-society').style.display = 'flex';
+}
+
+function closeRestoreSocietyModal() {
+  document.getElementById('modal-restore-society').style.display = 'none';
+}
+
+async function submitRestoreSociety() {
+  const errEl = document.getElementById('rs-error');
+  errEl.style.display = 'none';
+  const extendDays = document.getElementById('rs-extend-days').value;
+  const plan = document.getElementById('rs-plan').value;
+
+  const btn = document.getElementById('rs-btn');
+  btn.disabled = true; btn.textContent = 'Restoring...';
   try {
     const res = await fetch(`${API}/admin-coop-archive`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
-      body: JSON.stringify({ coop_id: coopId, action: 'restore' }),
+      body: JSON.stringify({ coop_id: pendingRestoreSociety.coopId, action: 'restore', extend_days: Number(extendDays), plan: plan || undefined }),
     });
     const data = await res.json();
-    if (!res.ok) { notify('Restore: ' + (data.error || 'failed'), true); return; }
+    btn.disabled = false; btn.textContent = 'Restore';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to restore.'; errEl.style.display = 'block'; return; }
+    closeRestoreSocietyModal();
     notify(data.message || 'Restored');
     loadArchivedSocieties();
-  } catch (e) { notify('Restore: ' + e.message, true); }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Restore';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
 }
 
 let pendingDeleteSociety = null;
