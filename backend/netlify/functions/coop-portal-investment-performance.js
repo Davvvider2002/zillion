@@ -89,7 +89,7 @@ exports.handler = async (event) => {
       const expense = accounts[INVESTMENT_RETURN_EXPENSE_CODE];
       const payable = accounts[MEMBER_INVESTMENT_PAYABLE_CODE];
       if (expense && payable) {
-        const description = `Venture performance — ${product.name} (${period_label})`;
+        const description = `Venture performance — ${product.name} (${period_label}), ${investments.length} active investor${investments.length === 1 ? '' : 's'}`;
         if (net_performance_kobo > 0) {
           await postEntry(db, coopId, description, `portal:${auth.payload.merchant_id}`, expense, payable, net_performance_kobo);
         } else {
