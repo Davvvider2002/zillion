@@ -188,6 +188,17 @@ exports.handler = async () => {
   // non-repeating, since the status change away from 'trial' means this
   // query no longer matches that society on the next run.
   //
+  // Also sets archived_at at this same moment - the admin panel's main
+  // societies list excludes archived societies, moving them into a
+  // dedicated Archive view instead (admin-coop-archive.js). Deletion
+  // from there is a real hard delete, but every table referencing
+  // coop_societies uses ON DELETE NO ACTION (confirmed directly against
+  // the schema, not assumed) - Postgres itself refuses the delete if
+  // the society has any real data (members, loans, transactions,
+  // anything), so a genuinely-unused trial can be removed while one
+  // with real activity is protected by the database, not by
+  // application logic that could have a gap in it.
+  //
   // The "your trial ends soon" reminder now happens above (Brevo email,
   // 3 days out) — this alert stays as the internal admin-facing signal
   // for the moment it actually expires, on top of that.
@@ -201,12 +212,16 @@ exports.handler = async () => {
     for (const society of (trialSocieties || [])) {
       const expired = new Date(society.trial_ends_at) < now;
       if (expired && !society.subscription_paid_until) {
-        await db.from('coop_societies').update({ subscription_status: 'trial_expired' }).eq('coop_id', society.coop_id);
+        await db.from('coop_societies').update({
+          subscription_status: 'trial_expired',
+          archived_at: now.toISOString(),
+          archive_reason: 'Trial ended with no payment',
+        }).eq('coop_id', society.coop_id);
         alertsRaised++;
         await logAlert(db, {
           severity: 'WARNING',
           source:   SOURCE,
-          message:  `${society.name}'s free trial has ended with no payment — worth a follow-up call`,
+          message:  `${society.name}'s free trial has ended with no payment — archived, worth a follow-up call`,
           context:  { coop_id: society.coop_id, trial_ends_at: society.trial_ends_at },
         });
         if (society.subscription_email) {
