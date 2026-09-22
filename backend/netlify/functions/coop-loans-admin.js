@@ -125,7 +125,8 @@ exports.handler = async (event) => {
       // insert error would be worse than a loan that needs its
       // schedule regenerated manually.
 
-      await recordLoanDisbursementJournalEntry(db, loan.coop_id, loan.principal_kobo, `admin:${adminName}`, loan.interest_kobo);
+      const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', loan.member_id).maybeSingle();
+      await recordLoanDisbursementJournalEntry(db, loan.coop_id, loan.principal_kobo, `admin:${adminName}`, loan.interest_kobo, borrower ? { id: borrower.id, name: borrower.name } : null);
     }
 
     await auditLog(db, {
