@@ -53,7 +53,7 @@ exports.handler = async (event) => {
   if (source === 'cash_in_person' && !reference)
     return err(400, 'A reference (receipt number, etc.) is required when recording a cash payment.');
 
-  const { data: member } = await db.from('coop_members').select('id, coop_id, status').eq('id', memberId).maybeSingle();
+  const { data: member } = await db.from('coop_members').select('id, coop_id, status, name').eq('id', memberId).maybeSingle();
   if (!member) return err(404, 'Member not found');
   if (member.coop_id !== coopId) return err(403, 'This member does not belong to your society.');
   if (member.status !== 'ACTIVE') return err(409, `This member's status is ${member.status}, not ACTIVE`);
@@ -69,7 +69,7 @@ exports.handler = async (event) => {
 
   if (insertErr) return err(500, `Failed to record dues payment: ${insertErr.message}`);
 
-  await recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`);
+  await recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`, { id: member.id, name: member.name });
 
   await auditLog(db, {
     action:       'COOP_PORTAL_DUES_PAYMENT_RECORDED',
