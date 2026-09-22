@@ -51,7 +51,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const member = await resolveMemberForZillionId(db, zillionId, 'id');
+  const member = await resolveMemberForZillionId(db, zillionId, 'id, name');
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
   const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
@@ -105,7 +105,7 @@ exports.handler = async (event) => {
     await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
   }
 
-  await recordLoanRepaymentJournalEntry(db, plan.coop_id, amountKobo, 'savings_deduction', 'member:savings_deduction', principalPortionKobo, interestPortionKobo);
+  await recordLoanRepaymentJournalEntry(db, plan.coop_id, amountKobo, 'savings_deduction', 'member:savings_deduction', principalPortionKobo, interestPortionKobo, { id: member.id, name: member.name });
 
   return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} moved from your savings to repay this loan.` });
 };
