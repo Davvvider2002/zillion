@@ -546,6 +546,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('coopthrift',this);loadCoopThriftSocieties()">
         <span class="si">🏦</span> Thrift &amp; Loan
       </button>
+      <button class="snav-item" id="nav-coopArchive"
+              onclick="showSec('coopArchive',this);loadArchivedSocieties()">
+        <span class="si">🗄️</span> Archive
+      </button>
       <button class="snav-item" id="nav-coopanalytics"
               onclick="showSec('coopanalytics',this);loadCoopAnalytics()">
         <span class="si">📊</span> Coop Analytics
@@ -991,6 +995,21 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<div id="sec-coopArchive" class="sec">
+  <div class="card">
+    <div class="card-title">Archived Societies
+      <button class="rbtn" onclick="loadArchivedSocieties()">&#x21BB;</button>
+    </div>
+    <div class="card-sub">Trials that ended with no payment are moved here automatically. Restore one back to the active list, or delete it permanently — deletion is blocked by the database itself if the society still has any real members, loans, or transactions attached.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Society</th><th>Owner</th><th>Reason</th><th>Archived</th><th></th></tr></thead>
+        <tbody id="coop-archive-table-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="sec-ajooverview" class="sec">
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Zillion Ajo — Platform Overview
@@ -1095,6 +1114,21 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:10px">
       <button onclick="closeRejectLoanModalAdmin()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitRejectLoanAdmin()" style="flex:1;padding:11px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Reject loan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Archived Society modal -->
+<div id="modal-delete-society" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px;color:#e74c3c">Permanently delete this society?</div>
+    <div style="font-size:12.5px;color:var(--tx3);margin-bottom:14px">This cannot be undone. If <span id="ds-society-name" style="font-weight:700;color:var(--tx1)"></span> still has any members, loans, savings, or other real records attached, the deletion will be refused automatically — this only succeeds for a society that was genuinely never used.</div>
+    <label class="field-label">Type the society's name to confirm</label>
+    <input class="field-input" type="text" id="ds-confirm-name" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="ds-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeDeleteSocietyModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitDeleteSociety()" style="flex:1;padding:11px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit" id="ds-btn">Delete permanently</button>
     </div>
   </div>
 </div>
@@ -3486,6 +3520,91 @@ async function loadCoopThriftSocieties() {
     if (!res.ok) { notify('Societies: ' + (data.error || 'error'), true); return; }
     renderCoopThriftTable(data.societies || []);
   } catch (e) { notify('Societies: ' + e.message, true); }
+}
+
+async function loadArchivedSocieties() {
+  const tbody = document.getElementById('coop-archive-table-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin-coop-archive`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { notify('Archive: ' + (data.error || 'error'), true); return; }
+    renderArchiveTable(data.societies || []);
+  } catch (e) { notify('Archive: ' + e.message, true); }
+}
+
+function renderArchiveTable(societies) {
+  const tbody = document.getElementById('coop-archive-table-body');
+  if (!societies.length) { tbody.innerHTML = '<tr><td colspan="5" class="no-data">Nothing archived — trials that end with no payment land here automatically.</td></tr>'; return; }
+  tbody.innerHTML = societies.map(s => `
+    <tr>
+      <td style="font-weight:600">${s.name}</td>
+      <td>${s.owner_name || '—'}</td>
+      <td style="color:var(--tx3);font-size:12.5px">${s.archive_reason || '—'}</td>
+      <td>${s.archived_at ? new Date(s.archived_at).toLocaleDateString() : '—'}</td>
+      <td>
+        <button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="restoreArchivedSociety('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}')">Restore</button>
+        <button class="rbtn" style="background:#fde8e8;color:#e74c3c" onclick="openDeleteSocietyModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}')">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function restoreArchivedSociety(coopId, name) {
+  if (!confirm(`Restore "${name}" to the active societies list?`)) return;
+  try {
+    const res = await fetch(`${API}/admin-coop-archive`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: coopId, action: 'restore' }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('Restore: ' + (data.error || 'failed'), true); return; }
+    notify(data.message || 'Restored');
+    loadArchivedSocieties();
+  } catch (e) { notify('Restore: ' + e.message, true); }
+}
+
+let pendingDeleteSociety = null;
+
+function openDeleteSocietyModal(coopId, name) {
+  pendingDeleteSociety = { coopId, name };
+  document.getElementById('ds-society-name').textContent = name;
+  document.getElementById('ds-confirm-name').value = '';
+  document.getElementById('ds-error').style.display = 'none';
+  document.getElementById('modal-delete-society').style.display = 'flex';
+}
+
+function closeDeleteSocietyModal() {
+  document.getElementById('modal-delete-society').style.display = 'none';
+}
+
+async function submitDeleteSociety() {
+  const errEl = document.getElementById('ds-error');
+  errEl.style.display = 'none';
+  const typed = document.getElementById('ds-confirm-name').value.trim();
+  if (typed !== pendingDeleteSociety.name) {
+    errEl.textContent = 'Type the society\'s name exactly to confirm.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('ds-btn');
+  btn.disabled = true; btn.textContent = 'Deleting...';
+  try {
+    const res = await fetch(`${API}/admin-coop-archive`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: pendingDeleteSociety.coopId, action: 'delete' }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Delete permanently';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to delete.'; errEl.style.display = 'block'; return; }
+    closeDeleteSocietyModal();
+    notify(data.message || 'Deleted');
+    loadArchivedSocieties();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Delete permanently';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
 }
 
 function renderCoopThriftTable(societies) {
