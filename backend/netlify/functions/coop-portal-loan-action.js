@@ -97,7 +97,8 @@ exports.handler = async (event) => {
     );
     if (scheduleErr) console.error('[coop-portal-loan-action] Schedule generation failed:', scheduleErr.message);
 
-    await recordLoanDisbursementJournalEntry(db, coopId, loan.principal_kobo, actorName, loan.interest_kobo);
+    const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', loan.member_id).maybeSingle();
+    await recordLoanDisbursementJournalEntry(db, coopId, loan.principal_kobo, actorName, loan.interest_kobo, borrower ? { id: borrower.id, name: borrower.name } : null);
   }
 
   await auditLog(db, {
