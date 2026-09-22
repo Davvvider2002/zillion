@@ -49,6 +49,23 @@
 const { accountingIsReady, getAccounts, postEntry, postEntryLines } = require('./coopAccountingHelpers');
 const { computeReducingBalanceSplit } = require('./coopReducingBalanceSplit');
 
+// Human-readable label for the journal description - the source
+// values actually used for loan repayments, confirmed directly
+// against the code above (CASH_ACCOUNT_CODE / MEMBER_SAVINGS_PAYABLE
+// / BANK_ACCOUNT_CODE branches): 'cash_in_person', 'savings_deduction',
+// 'bank_transfer_manual', and 'offline_zil' (paid via the offline
+// Zillion coin wallet). Anything unrecognised still gets a readable
+// fallback.
+function loanSourceToLabel(source) {
+  const labels = {
+    cash_in_person: 'Cash (in person)',
+    savings_deduction: 'Deducted from savings',
+    bank_transfer_manual: 'Bank transfer (recorded manually)',
+    offline_zil: 'Offline Zillion wallet',
+  };
+  return labels[source] || (source ? source.replace(/_/g, ' ') : 'Bank');
+}
+
 const CASH_ACCOUNT_CODE = '1000';
 const BANK_ACCOUNT_CODE = '1010';
 const LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE = '1100';
@@ -109,9 +126,14 @@ async function computeRepaymentSplitForLoan(db, loanId, amountKobo, loanInterest
   return computeRepaymentSplit(amountKobo, loanInterestKobo, loanTotalRepayableKobo, interestAlreadyPaidKobo);
 }
 
-async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, createdBy, interestKobo = 0) {
+async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, createdBy, interestKobo = 0, borrower = null) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
+
+    const borrowerLabel = borrower?.name ? `${borrower.name} (Member #${String(borrower.id).slice(0, 8)})` : (borrower?.id ? `Member #${String(borrower.id).slice(0, 8)}` : null);
+    const disbursementDescription = borrowerLabel
+      ? (interestKobo > 0 ? `Loan disbursed (principal + interest) — ${borrowerLabel}` : `Loan disbursed — ${borrowerLabel}`)
+      : (interestKobo > 0 ? 'Loan disbursed (principal + interest)' : 'Loan disbursed');
 
     if (interestKobo > 0) {
       const accounts = await getAccounts(db, coopId, [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE, BANK_ACCOUNT_CODE, INTEREST_INCOME_ACCOUNT_CODE]);
@@ -121,7 +143,7 @@ async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, cre
       const interestIncome = accounts[INTEREST_INCOME_ACCOUNT_CODE];
       if (!principalReceivable || !interestReceivable || !bank || !interestIncome) return { booked: false, reason: 'accounts_missing' };
 
-      return await postEntryLines(db, coopId, 'Loan disbursed (principal + interest)', createdBy, [
+      return await postEntryLines(db, coopId, disbursementDescription, createdBy, [
         { account: principalReceivable, type: 'debit', amountKobo: principalKobo },
         { account: interestReceivable, type: 'debit', amountKobo: interestKobo },
         { account: bank, type: 'credit', amountKobo: principalKobo },
@@ -133,7 +155,7 @@ async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, cre
     const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
     const bank = accounts[BANK_ACCOUNT_CODE];
     if (!principalReceivable || !bank) return { booked: false, reason: 'accounts_missing' };
-    return await postEntry(db, coopId, 'Loan disbursed', createdBy, principalReceivable, bank, principalKobo);
+    return await postEntry(db, coopId, disbursementDescription, createdBy, principalReceivable, bank, principalKobo);
   } catch (e) {
     console.error('[coopLoanAccounting] recordLoanDisbursementJournalEntry non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };
@@ -144,7 +166,7 @@ async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, cre
  * @param {number} principalPortionKobo  from computeRepaymentSplitForLoan, computed ONCE by the caller before inserting the new repayment row
  * @param {number} interestPortionKobo   from the same call - never recomputed here
  */
-async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, createdBy, principalPortionKobo = null, interestPortionKobo = 0) {
+async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, createdBy, principalPortionKobo = null, interestPortionKobo = 0, borrower = null) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
 
@@ -157,7 +179,10 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
     // didn't pass a split (e.g. a no-interest loan) - amountKobo is
     // always the true total either way.
     const resolvedPrincipal = principalPortionKobo != null ? principalPortionKobo : amountKobo;
-    const description = source === 'savings_deduction' ? 'Loan repaid from savings' : 'Loan repayment received';
+    const borrowerLabel = borrower?.name ? `${borrower.name} (Member #${String(borrower.id).slice(0, 8)})` : (borrower?.id ? `Member #${String(borrower.id).slice(0, 8)}` : null);
+    const sourceLabel = loanSourceToLabel(source);
+    const baseDescription = source === 'savings_deduction' ? 'Loan repaid from savings' : 'Loan repayment received';
+    const description = borrowerLabel ? `${baseDescription} — ${borrowerLabel} via ${sourceLabel}` : `${baseDescription} via ${sourceLabel}`;
 
     if (interestPortionKobo > 0) {
       const accounts = await getAccounts(db, coopId, [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE, debitCode]);
