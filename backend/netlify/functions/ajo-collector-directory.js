@@ -28,13 +28,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
-
-function standingLabel(score) {
-  if (score >= 90) return 'Excellent';
-  if (score >= 75) return 'Good';
-  if (score >= 60) return 'Fair';
-  return 'Poor';
-}
+const { standingLabel }    = require('../../lib/ajoCollectorStanding');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
