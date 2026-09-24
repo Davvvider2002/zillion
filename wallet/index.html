@@ -1310,6 +1310,11 @@ function triggerPWAInstall() {
     <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Target — number of contributions</label>
     <input type="number" id="acp-periods" placeholder="e.g. 12" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:6px;box-sizing:border-box">
     <div style="font-size:11px;color:#7A9A85;margin-bottom:14px">Just a target to track toward — you can withdraw anytime, even before you reach it.</div>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Choose a collector</label>
+    <select id="acp-collector" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:6px;box-sizing:border-box">
+      <option value="">Loading collectors…</option>
+    </select>
+    <div style="font-size:11px;color:#7A9A85;margin-bottom:14px">Every savings pot has a verified collector — their compliance rating is shown so you can choose with confidence.</div>
     <div id="acp-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
     <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoSubmitCreatePersonal()" id="acp-btn">Create savings pot</button>
     <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-create-personal').style.display='none'">Cancel</button>
@@ -2721,14 +2726,34 @@ function ajoOpenCreatePersonalModal() {
   document.getElementById('acp-amount').value = '';
   document.getElementById('acp-periods').value = '';
   document.getElementById('acp-error').style.display = 'none';
+  document.getElementById('acp-collector').innerHTML = '<option value="">Loading collectors…</option>';
   document.getElementById('modal-ajo-create-personal').style.display = 'flex';
+  ajoLoadCollectorDirectoryForPersonalSavings();
+}
+
+async function ajoLoadCollectorDirectoryForPersonalSavings() {
+  const token = (STATE.user && STATE.user.token) || '';
+  const select = document.getElementById('acp-collector');
+  try {
+    const res = await fetch(`${API}/ajo-collector-directory`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const collectors = data.collectors || [];
+    select.innerHTML = collectors.length
+      ? '<option value="">Select a collector…</option>' + collectors.map(c => `<option value="${c.collector_profile_id}">${c.phone_normalized || 'Collector'} — ${c.standing} (${c.compliance_score}/100)</option>`).join('')
+      : '<option value="">No verified collectors available yet</option>';
+  } catch (e) {
+    select.innerHTML = '<option value="">Failed to load collectors</option>';
+  }
 }
 
 // Reuses the same scheme-creation endpoint the group-admin portal
 // uses - it only ever checks that the caller is a signed-in wallet
 // user, nothing "admin" about it, so a personal pot needs no separate
 // backend path. payout_order is left unset (defaults server-side) -
-// meaningless for a solo saver with nothing to rotate.
+// meaningless for a solo saver with nothing to rotate. A verified
+// collector must be chosen (loaded from ajo-collector-directory.js
+// when the modal opens) - personal savings has no separate group
+// admin who could assign one afterward, so this has to happen now.
 async function ajoSubmitCreatePersonal() {
   const errEl = document.getElementById('acp-error');
   errEl.style.display = 'none';
@@ -2738,9 +2763,11 @@ async function ajoSubmitCreatePersonal() {
   const name = document.getElementById('acp-name').value.trim();
   const amountNaira = parseFloat(document.getElementById('acp-amount').value);
   const periods = parseInt(document.getElementById('acp-periods').value, 10);
+  const collectorProfileId = document.getElementById('acp-collector').value;
   if (!name) { errEl.textContent = 'Give your savings pot a name.'; errEl.style.display = 'block'; return; }
   if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
   if (!periods || periods <= 0) { errEl.textContent = 'Enter a valid target number of contributions.'; errEl.style.display = 'block'; return; }
+  if (!collectorProfileId) { errEl.textContent = 'Choose a collector to continue.'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('acp-btn');
   btn.disabled = true; btn.textContent = 'Creating...';
@@ -2752,6 +2779,7 @@ async function ajoSubmitCreatePersonal() {
         contribution_amount_kobo: Math.round(amountNaira * 100),
         frequency: document.getElementById('acp-frequency').value,
         cycle_length: periods,
+        collector_profile_id: collectorProfileId,
       }),
     });
     const data = await res.json();
