@@ -22,8 +22,9 @@
  */
 'use strict';
 
-const { getServiceClient } = require('../../lib/supabase');
-const { verifyJWT }        = require('../../lib/validators');
+const { getServiceClient }     = require('../../lib/supabase');
+const { verifyJWT }            = require('../../lib/validators');
+const { applyComplianceEvent } = require('../../lib/ajoCollectorCompliance');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -51,7 +52,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: collector } = await db.from('ajo_collectors').select('id').eq('scheme_id', schemeId).eq('zillion_id', collectorZillionId).eq('status', 'ACTIVE').maybeSingle();
+  const { data: collector } = await db.from('ajo_collectors').select('id, collector_profile_id').eq('scheme_id', schemeId).eq('zillion_id', collectorZillionId).eq('status', 'ACTIVE').maybeSingle();
   if (!collector) return err(403, 'You are not an active collector for this scheme');
 
   // Expected = every cash contribution THIS collector recorded, for
@@ -67,14 +68,45 @@ exports.handler = async (event) => {
 
   const expectedKobo = (cashContributions || []).reduce((s, c) => s + c.amount_kobo, 0);
 
+  // Idempotent by construction: a collector calling this twice for
+  // the same date (a retry, a double-tap, a buggy client) must never
+  // apply a second compliance event for what is really one real
+  // reconciliation - a real unique constraint on (collector_id,
+  // reconciliation_date) backs this, not just this check alone.
+  const { data: existingEntry } = await db.from('ajo_reconciliation_log')
+    .select('*').eq('collector_id', collector.id).eq('reconciliation_date', reconciliationDate).maybeSingle();
+  if (existingEntry) {
+    return ok({ success: true, reconciliation: existingEntry, balanced: existingEntry.variance_kobo === 0, already_reconciled: true });
+  }
+
   const { data: logEntry, error } = await db.from('ajo_reconciliation_log').insert({
     collector_id: collector.id, reconciliation_date: reconciliationDate,
     expected_kobo: expectedKobo, actual_kobo: actualKobo,
   }).select().single();
   if (error) return err(500, `Failed to record reconciliation: ${error.message}`);
 
+  const balanced = logEntry.variance_kobo === 0;
+
+  // collector_profile_id is defensive, not an assumption - any
+  // collector who reached ACTIVE status through the current gate
+  // always has one, but a row created before this feature existed
+  // might not. Reconciliation itself must never fail over a missing
+  // compliance link; the cash-accuracy record is the important part,
+  // scoring is a secondary consequence of it.
+  let compliance = null;
+  if (collector.collector_profile_id) {
+    const result = await applyComplianceEvent(db, {
+      collectorProfileId: collector.collector_profile_id,
+      eventType: balanced ? 'CASH_RECONCILE_MATCH' : 'CASH_RECONCILE_VARIANCE',
+      notes: balanced
+        ? `Reconciliation ${reconciliationDate}: expected ₦${(expectedKobo / 100).toLocaleString()} matched actual`
+        : `Reconciliation ${reconciliationDate}: expected ₦${(expectedKobo / 100).toLocaleString()}, actual ₦${(actualKobo / 100).toLocaleString()} (variance ₦${(logEntry.variance_kobo / 100).toLocaleString()})`,
+      createdBy: `collector:${collectorZillionId}`,
+    });
+    if (result.ok) compliance = { new_score: result.profile.compliance_score, delisted: result.delisted };
+  }
+
   return ok({
-    success: true, reconciliation: logEntry,
-    balanced: logEntry.variance_kobo === 0,
+    success: true, reconciliation: logEntry, balanced, compliance,
   });
 };
