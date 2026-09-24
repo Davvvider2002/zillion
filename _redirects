@@ -114,6 +114,8 @@
 /api/v1/ajo-collector-my-schemes  /.netlify/functions/ajo-collector-my-schemes  200
 /api/v1/ajo-collector-scheme-members  /.netlify/functions/ajo-collector-scheme-members  200
 /api/v1/ajo-admin-manage-collector  /.netlify/functions/ajo-admin-manage-collector  200
+/api/v1/ajo-collector-provision-escrow  /.netlify/functions/ajo-collector-provision-escrow  200
+/api/v1/ajo-admin-verify-collector-escrow  /.netlify/functions/ajo-admin-verify-collector-escrow  200
 /api/v1/ajo-collector-record-cash  /.netlify/functions/ajo-collector-record-cash  200
 /api/v1/ajo-collector-reconcile  /.netlify/functions/ajo-collector-reconcile  200
 /api/v1/ajo-member-switch-scheme  /.netlify/functions/ajo-member-switch-scheme  200
