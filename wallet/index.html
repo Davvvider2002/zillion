@@ -1282,7 +1282,7 @@ function triggerPWAInstall() {
       <div style="font-size:12px;color:#9CC4B0;margin-bottom:8px">Have a group's join link or code?</div>
       <input id="ajo-join-input" type="text" placeholder="Paste join link or group ID" style="width:100%;padding:10px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:10px;box-sizing:border-box">
       <div id="ajo-join-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:8px"></div>
-      <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoJoinFromInput()" id="ajo-join-btn">Join group</button>
+      <button class="btn" style="width:100%;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoPreviewGroupFromInput()" id="ajo-join-btn">Preview group</button>
     </div>
 
     <div class="section-header"><div class="section-title">Your groups</div></div>
@@ -1383,6 +1383,26 @@ function triggerPWAInstall() {
   </div>
   <div class="scroll-body" style="padding:16px">
     <div id="ajo-collector-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajo-scheme-preview" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px;max-height:85vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px" id="asp-name">—</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="asp-subtitle"></div>
+
+    <div style="background:#081A11;border:1px solid #234A38;border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:#7A9A85">Contribution</span><span style="font-size:13px;color:#E8F5EE;font-weight:600" id="asp-amount">—</span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:#7A9A85">Frequency</span><span style="font-size:13px;color:#E8F5EE;font-weight:600" id="asp-frequency">—</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:#7A9A85">Members</span><span style="font-size:13px;color:#E8F5EE;font-weight:600" id="asp-members">—</span></div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:8px">Collector</div>
+    <div id="asp-collector-box" style="background:#081A11;border:1px solid #234A38;border-radius:10px;padding:14px;margin-bottom:16px">Loading…</div>
+
+    <div id="asp-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoConfirmJoinGroup()" id="asp-join-btn">Confirm &amp; join</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-scheme-preview').style.display='none'">Cancel</button>
   </div>
 </div>
 
@@ -2692,7 +2712,9 @@ function extractSchemeId(input) {
   return trimmed;
 }
 
-async function ajoJoinFromInput() {
+let ajoPreviewedSchemeId = null;
+
+async function ajoPreviewGroupFromInput() {
   const errEl = document.getElementById('ajo-join-error');
   errEl.style.display = 'none';
   const raw = document.getElementById('ajo-join-input').value;
@@ -2703,20 +2725,61 @@ async function ajoJoinFromInput() {
   if (!token) { errEl.textContent = 'Sign in first.'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('ajo-join-btn');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  try {
+    const res = await fetch(`${API}/ajo-scheme-preview?scheme_id=${encodeURIComponent(schemeId)}`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Preview group';
+    if (!res.ok) { errEl.textContent = data.error || 'Could not find that group.'; errEl.style.display = 'block'; return; }
+
+    ajoPreviewedSchemeId = data.scheme.id;
+    document.getElementById('asp-name').textContent = data.scheme.name;
+    document.getElementById('asp-subtitle').textContent = data.scheme.scheme_type.replace(/_/g, ' ');
+    document.getElementById('asp-amount').textContent = fmtNaira(data.scheme.contribution_amount_kobo);
+    document.getElementById('asp-frequency').textContent = data.scheme.frequency;
+    document.getElementById('asp-members').textContent = data.scheme.member_count;
+    document.getElementById('asp-error').style.display = 'none';
+
+    const c = data.collector_rating;
+    document.getElementById('asp-collector-box').innerHTML = c
+      ? `<div style="display:flex;justify-content:space-between;align-items:center">
+           <div>
+             <div style="font-size:13px;color:#E8F5EE;font-weight:600">${c.phone_normalized || 'Verified collector'}</div>
+             <div style="font-size:11px;color:#7A9A85;margin-top:2px">Compliance score: ${c.compliance_score}/100</div>
+           </div>
+           <div style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${c.standing === 'Excellent' || c.standing === 'Good' ? '#00C89622' : '#F5B87A22'};color:${c.standing === 'Excellent' || c.standing === 'Good' ? '#00E0AC' : '#F5B87A'}">${c.standing}</div>
+         </div>`
+      : `<div style="font-size:12px;color:#F5B87A">No verified collector is assigned to this group yet — contributions may not be collectable in cash until one is confirmed.</div>`;
+
+    document.getElementById('modal-ajo-scheme-preview').style.display = 'flex';
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Preview group';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function ajoConfirmJoinGroup() {
+  const errEl = document.getElementById('asp-error');
+  errEl.style.display = 'none';
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token || !ajoPreviewedSchemeId) return;
+
+  const btn = document.getElementById('asp-join-btn');
   btn.disabled = true; btn.textContent = 'Joining...';
   try {
     const res = await fetch(`${API}/ajo-member-join-scheme`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ scheme_id: schemeId }),
+      body: JSON.stringify({ scheme_id: ajoPreviewedSchemeId }),
     });
     const data = await res.json();
-    btn.disabled = false; btn.textContent = 'Join group';
+    btn.disabled = false; btn.textContent = 'Confirm & join';
     if (!res.ok) { errEl.textContent = data.error || 'Failed to join.'; errEl.style.display = 'block'; return; }
+    document.getElementById('modal-ajo-scheme-preview').style.display = 'none';
     document.getElementById('ajo-join-input').value = '';
     toast(data.rejoined ? 'Welcome back!' : 'You joined the group.');
     loadAjoHomeScreen();
   } catch (e) {
-    btn.disabled = false; btn.textContent = 'Join group';
+    btn.disabled = false; btn.textContent = 'Confirm & join';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
