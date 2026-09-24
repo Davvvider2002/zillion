@@ -384,6 +384,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-collector-escrow-disburse"
+  to   = "/.netlify/functions/ajo-collector-escrow-disburse"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-admin-confirm-escrow-disbursement"
+  to   = "/.netlify/functions/ajo-admin-confirm-escrow-disbursement"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-collector-record-cash"
   to   = "/.netlify/functions/ajo-collector-record-cash"
   status = 200
