@@ -25,8 +25,17 @@
  *    code is never an error; it just means this scheme has no
  *    referring agent, which is the normal case for most schemes.
  *
+ * personal_savings additionally requires collector_profile_id - every
+ * Ajo participant, solo or grouped, now goes through a verified
+ * collector, and a personal savings scheme has no separate group
+ * admin who could assign one later the way a group scheme does. Must
+ * already be a real, ACTIVE, non-delisted collector profile - exactly
+ * what ajo-collector-directory.js shows a person choosing from before
+ * they ever reach this endpoint.
+ *
  * Body: { name, scheme_type, contribution_amount_kobo, frequency,
- *         cycle_length, payout_order?, referral_code? }
+ *         cycle_length, payout_order?, referral_code?,
+ *         collector_profile_id (required for personal_savings) }
  * Auth: wallet JWT (zillion_id).
  */
 'use strict';
@@ -69,6 +78,24 @@ exports.handler = async (event) => {
   if (!PAYOUT_ORDERS.includes(payoutOrder)) return err(400, `payout_order must be one of: ${PAYOUT_ORDERS.join(', ')}`);
 
   const db = getServiceClient();
+
+  // Personal savings has no separate group admin to assign a
+  // collector later, the way a group scheme does - the creator IS
+  // the sole member, so a collector has to be chosen at the moment of
+  // creation, not left to a step that never comes. Must already be a
+  // real, verified, non-delisted collector - exactly what
+  // ajo-collector-directory.js would show the person choosing from,
+  // not just any zillion_id.
+  let collectorProfile = null;
+  if (schemeType === 'personal_savings') {
+    const collectorProfileId = (body.collector_profile_id || '').trim();
+    if (!collectorProfileId) return err(400, 'collector_profile_id is required for personal_savings — choose a verified collector from the directory first');
+    const { data: profile } = await db.from('ajo_collector_profiles').select('id, zillion_id, escrow_status, delisted_at').eq('id', collectorProfileId).maybeSingle();
+    if (!profile) return err(404, 'Selected collector not found');
+    if (profile.escrow_status !== 'ACTIVE' || profile.delisted_at) return err(400, 'Selected collector is not currently available — their escrow is not active or they have been delisted');
+    collectorProfile = profile;
+  }
+
   const { data: scheme, error } = await db.from('ajo_schemes').insert({
     name, scheme_type: schemeType, contribution_amount_kobo: amountKobo,
     frequency, cycle_length: cycleLength, payout_order: payoutOrder,
@@ -94,6 +121,18 @@ exports.handler = async (event) => {
   // exception, since there's no one else who could ever join.
   if (schemeType === 'personal_savings') {
     await db.from('ajo_scheme_members').insert({ scheme_id: scheme.id, zillion_id: zillionId, cycle_position: 1 });
+
+    // Goes straight to ACTIVE, not PENDING_ESCROW - collectorProfile
+    // was already confirmed ACTIVE and non-delisted above, at
+    // selection time. Re-gating it here would just repeat a check
+    // that already happened.
+    const { error: collectorErr } = await db.from('ajo_collectors').insert({
+      scheme_id: scheme.id, zillion_id: collectorProfile.zillion_id,
+      status: 'ACTIVE', collector_profile_id: collectorProfile.id,
+    });
+    if (collectorErr) {
+      return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but the collector could not be linked: ${collectorErr.message}. Contact support.` });
+    }
   }
 
   let referralAttribution = null;
