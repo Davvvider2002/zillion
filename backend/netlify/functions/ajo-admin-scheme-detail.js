@@ -54,6 +54,24 @@ exports.handler = async (event) => {
   const { data: attribution } = await db.from('ajo_referral_attributions')
     .select('attributed_at, ajo_agents(referral_code)').eq('scheme_id', schemeId).maybeSingle();
 
+  // Whichever collector is currently assigned - ACTIVE or still
+  // PENDING_ESCROW, since a group admin needs to see a pending
+  // assignment too, not just a fully-active one.
+  const { data: collectorRow } = await db.from('ajo_collectors')
+    .select('id, zillion_id, status, assigned_at, ajo_collector_profiles(escrow_status, compliance_score, delisted_at)')
+    .eq('scheme_id', schemeId).in('status', ['ACTIVE', 'PENDING_ESCROW']).maybeSingle();
+
+  let collector = null;
+  if (collectorRow) {
+    const { data: identity } = await db.from('zillion_identities').select('phone_normalized').eq('zillion_id', collectorRow.zillion_id).maybeSingle();
+    collector = {
+      collector_id: collectorRow.id, phone_normalized: identity?.phone_normalized || null,
+      status: collectorRow.status, escrow_status: collectorRow.ajo_collector_profiles?.escrow_status || null,
+      compliance_score: collectorRow.ajo_collector_profiles?.compliance_score ?? null,
+      delisted_at: collectorRow.ajo_collector_profiles?.delisted_at || null,
+    };
+  }
+
   const cyclesWithDetail = (cycles || []).map(c => ({
     ...c,
     contributions: (contributions || []).filter(x => x.cycle_id === c.id),
@@ -65,5 +83,6 @@ exports.handler = async (event) => {
     members: members || [],
     cycles: cyclesWithDetail,
     referred_by: attribution ? { referral_code: attribution.ajo_agents?.referral_code, attributed_at: attribution.attributed_at } : null,
+    collector,
   });
 };
