@@ -580,6 +580,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('ajoagents',this);loadAjoAgents()">
         <span class="si">🧑‍🤝‍🧑</span> Ajo Agents
       </button>
+      <button class="snav-item" id="nav-ajocollectors"
+              onclick="showSec('ajocollectors',this);loadAjoCollectorsAdmin()">
+        <span class="si">🏦</span> Ajo Collectors
+      </button>
 
       <div class="sb-section-label">Finance</div>
       <button class="snav-item" id="nav-coins"
@@ -1073,6 +1077,39 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<div id="sec-ajocollectors" class="sec">
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Pending Escrow Verifications
+      <button class="rbtn" onclick="loadAjoCollectorsAdmin()">&#x21BB;</button>
+    </div>
+    <div class="card-sub">A collector submitted KYC and is waiting on manual confirmation with the bank — Wema has no live API yet, so this is the real, usable path today. Approving activates every scheme this person has been assigned to.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name submitted</th><th>Submitted</th><th></th></tr></thead>
+      <tbody id="ajo-pending-verifications-body"><tr><td colspan="3" class="no-data">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Collector Compliance</div>
+    <div class="card-sub">Every verified collector, their live compliance score, and standing. A score that drops to 50 or below auto-delists the person across every scheme they collect for.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Collector</th><th>Status</th><th>Score</th><th>Standing</th><th></th></tr></thead>
+      <tbody id="ajo-collector-compliance-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Escrow Disbursements
+      <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openInitiateDisbursementModal()">&#x2795; New Disbursement</button>
+    </div>
+    <div class="card-sub">Money released from a collector's escrow. Confirm each one against the bank's own withdrawal notice — a match costs nothing, a mismatch feeds the collector's compliance score directly.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Collector</th><th>Reason</th><th>Intended</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
+      <tbody id="ajo-disbursements-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
 <div id="sec-coopanalytics" class="sec">
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Coop Analytics
@@ -1114,6 +1151,62 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:10px">
       <button onclick="closeRejectLoanModalAdmin()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitRejectLoanAdmin()" style="flex:1;padding:11px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Reject loan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Verify Escrow modal -->
+<div id="modal-verify-escrow" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">Verify escrow — <span id="ve-name"></span></div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:16px">Confirm these details directly with the bank before approving. Approving activates every scheme this person is waiting on.</div>
+    <label class="field-label">Account number (confirmed with bank)</label>
+    <input class="field-input" type="text" id="ve-account-number" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Account name (confirmed with bank)</label>
+    <input class="field-input" type="text" id="ve-account-name" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">— or, if rejecting — reason</label>
+    <input class="field-input" type="text" id="ve-reject-reason" placeholder="e.g. Name does not match NIN records" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="ve-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <button onclick="submitVerifyEscrow('reject')" style="flex:1;padding:11px;background:transparent;border:1px solid #e74c3c;color:#e74c3c;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">Reject</button>
+      <button onclick="submitVerifyEscrow('approve')" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Approve</button>
+    </div>
+    <button onclick="closeVerifyEscrowModal()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+  </div>
+</div>
+
+<!-- Initiate Disbursement modal -->
+<div id="modal-initiate-disbursement" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">New escrow disbursement</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:16px">Records what's intended to be released — confirm the real amount against the bank's own notice afterward.</div>
+    <label class="field-label">Collector</label>
+    <select class="field-input" id="id-collector" style="margin-bottom:12px;width:100%;box-sizing:border-box"></select>
+    <label class="field-label">Amount (₦)</label>
+    <input class="field-input" type="number" id="id-amount" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Reason</label>
+    <input class="field-input" type="text" id="id-reason" placeholder="e.g. Weekly payout draw for Market Women Daily" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="id-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeInitiateDisbursementModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitInitiateDisbursement()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Record intent</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Disbursement modal -->
+<div id="modal-confirm-disbursement" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">Confirm disbursement</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:16px">Reference: <span id="cdisb-reference" style="font-family:monospace"></span> — enter exactly what the bank's own withdrawal notice shows, not what was intended.</div>
+    <label class="field-label">Amount the bank notice actually shows (₦)</label>
+    <input class="field-input" type="number" id="cdisb-amount" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Bank notice reference (optional)</label>
+    <input class="field-input" type="text" id="cdisb-bank-ref" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="cdisb-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeConfirmDisbursementModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitConfirmDisbursement()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Confirm</button>
     </div>
   </div>
 </div>
@@ -3439,6 +3532,178 @@ async function loadAjoAgents() {
   } catch (e) {
     body.innerHTML = `<tr><td colspan="8" class="no-data">Network error: ${e.message}</td></tr>`;
   }
+}
+
+async function loadAjoCollectorsAdmin() {
+  const pvBody = document.getElementById('ajo-pending-verifications-body');
+  const compBody = document.getElementById('ajo-collector-compliance-body');
+  const disbBody = document.getElementById('ajo-disbursements-body');
+  pvBody.innerHTML = '<tr><td colspan="3" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/ajo-admin-collectors-overview`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = `<tr><td colspan="6" class="no-data">${data.error || 'Unable to load'}</td></tr>`;
+      pvBody.innerHTML = msg; compBody.innerHTML = msg; disbBody.innerHTML = msg;
+      return;
+    }
+    ajoCollectorsOverviewCache = data;
+    renderAjoPendingVerifications(data.pending_verifications || []);
+    renderAjoCollectorCompliance(data.collectors || []);
+    renderAjoDisbursements(data.pending_disbursements || []);
+  } catch (e) {
+    const msg = `<tr><td colspan="6" class="no-data">Network error: ${e.message}</td></tr>`;
+    pvBody.innerHTML = msg; compBody.innerHTML = msg; disbBody.innerHTML = msg;
+  }
+}
+
+let ajoCollectorsOverviewCache = null;
+
+function renderAjoPendingVerifications(list) {
+  const body = document.getElementById('ajo-pending-verifications-body');
+  body.innerHTML = list.length ? list.map(c => `
+    <tr>
+      <td>${c.escrow_account_name || c.phone_normalized || '—'}</td>
+      <td>${new Date(c.created_at).toLocaleDateString()}</td>
+      <td><button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="openVerifyEscrowModal('${c.id}','${(c.escrow_account_name || c.phone_normalized || 'this collector').replace(/'/g,"&apos;")}')">Review</button></td>
+    </tr>`).join('') : '<tr><td colspan="3" class="no-data">Nothing pending.</td></tr>';
+}
+
+function renderAjoCollectorCompliance(list) {
+  const body = document.getElementById('ajo-collector-compliance-body');
+  const statusPill = s => ({ ACTIVE: 'b-ok', PENDING_VERIFICATION: 'b-warn', NOT_STARTED: 'b-grey', REJECTED: 'b-err', SUSPENDED: 'b-err' }[s] || 'b-grey');
+  const standing = score => score >= 90 ? 'Excellent' : score >= 75 ? 'Good' : score >= 60 ? 'Fair' : 'Poor';
+  body.innerHTML = list.length ? list.map(c => `
+    <tr>
+      <td>${c.phone_normalized || c.zillion_id}</td>
+      <td><span class="badge ${c.delisted_at ? 'b-err' : statusPill(c.escrow_status)}">${c.delisted_at ? 'DELISTED' : c.escrow_status}</span></td>
+      <td>${c.compliance_score}/100</td>
+      <td>${standing(c.compliance_score)}</td>
+      <td>${c.delisted_at ? `<span style="font-size:11.5px;color:var(--tx3)">${c.delisted_reason || ''}</span>` : ''}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="no-data">No collectors yet.</td></tr>';
+}
+
+function renderAjoDisbursements(list) {
+  const body = document.getElementById('ajo-disbursements-body');
+  body.innerHTML = list.length ? list.map(d => `
+    <tr>
+      <td>${d.collector_phone || '—'}</td>
+      <td style="font-size:12.5px">${d.intended_reason}</td>
+      <td>${fmtNaira(d.intended_amount_kobo)}</td>
+      <td>${d.confirmed_amount_kobo != null ? fmtNaira(d.confirmed_amount_kobo) : '—'}</td>
+      <td><span class="badge b-warn">${d.status}</span></td>
+      <td><button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="openConfirmDisbursementModal('${d.id}','${d.reference}')">Confirm</button></td>
+    </tr>`).join('') : '<tr><td colspan="6" class="no-data">No disbursements awaiting confirmation.</td></tr>';
+}
+
+// --- Escrow verification modal ---
+let pendingVerifyProfileId = null;
+
+function openVerifyEscrowModal(profileId, name) {
+  pendingVerifyProfileId = profileId;
+  document.getElementById('ve-name').textContent = name;
+  document.getElementById('ve-account-number').value = '';
+  document.getElementById('ve-account-name').value = '';
+  document.getElementById('ve-reject-reason').value = '';
+  document.getElementById('ve-error').style.display = 'none';
+  document.getElementById('modal-verify-escrow').style.display = 'flex';
+}
+
+function closeVerifyEscrowModal() { document.getElementById('modal-verify-escrow').style.display = 'none'; }
+
+async function submitVerifyEscrow(action) {
+  const errEl = document.getElementById('ve-error');
+  errEl.style.display = 'none';
+  const body = { collector_profile_id: pendingVerifyProfileId, action };
+  if (action === 'approve') {
+    body.account_number = document.getElementById('ve-account-number').value.trim();
+    body.account_name = document.getElementById('ve-account-name').value.trim();
+    if (!body.account_number || !body.account_name) { errEl.textContent = 'Enter the account number and name you actually confirmed with the bank.'; errEl.style.display = 'block'; return; }
+  } else {
+    body.reason = document.getElementById('ve-reject-reason').value.trim();
+    if (!body.reason) { errEl.textContent = 'Enter a reason for rejecting.'; errEl.style.display = 'block'; return; }
+  }
+  try {
+    const res = await fetch(`${API}/ajo-admin-verify-collector-escrow`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed.'; errEl.style.display = 'block'; return; }
+    closeVerifyEscrowModal();
+    notify(data.message || 'Done');
+    loadAjoCollectorsAdmin();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+// --- Initiate disbursement modal ---
+function openInitiateDisbursementModal() {
+  const activeCollectors = (ajoCollectorsOverviewCache?.collectors || []).filter(c => c.escrow_status === 'ACTIVE' && !c.delisted_at);
+  document.getElementById('id-collector').innerHTML = activeCollectors.length
+    ? activeCollectors.map(c => `<option value="${c.id}">${c.phone_normalized || c.zillion_id}</option>`).join('')
+    : '<option value="">No active collectors available</option>';
+  document.getElementById('id-amount').value = '';
+  document.getElementById('id-reason').value = '';
+  document.getElementById('id-error').style.display = 'none';
+  document.getElementById('modal-initiate-disbursement').style.display = 'flex';
+}
+
+function closeInitiateDisbursementModal() { document.getElementById('modal-initiate-disbursement').style.display = 'none'; }
+
+async function submitInitiateDisbursement() {
+  const errEl = document.getElementById('id-error');
+  errEl.style.display = 'none';
+  const collectorProfileId = document.getElementById('id-collector').value;
+  const amountNaira = parseFloat(document.getElementById('id-amount').value);
+  const reason = document.getElementById('id-reason').value.trim();
+  if (!collectorProfileId) { errEl.textContent = 'Select a collector.'; errEl.style.display = 'block'; return; }
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (!reason) { errEl.textContent = 'Enter a reason.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/ajo-collector-escrow-disburse`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ collector_profile_id: collectorProfileId, amount_kobo: Math.round(amountNaira * 100), reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed.'; errEl.style.display = 'block'; return; }
+    closeInitiateDisbursementModal();
+    notify(data.message || 'Disbursement recorded');
+    loadAjoCollectorsAdmin();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+// --- Confirm disbursement modal ---
+let pendingConfirmDisbursementId = null;
+
+function openConfirmDisbursementModal(disbursementId, reference) {
+  pendingConfirmDisbursementId = disbursementId;
+  document.getElementById('cdisb-reference').textContent = reference;
+  document.getElementById('cdisb-amount').value = '';
+  document.getElementById('cdisb-bank-ref').value = '';
+  document.getElementById('cdisb-error').style.display = 'none';
+  document.getElementById('modal-confirm-disbursement').style.display = 'flex';
+}
+
+function closeConfirmDisbursementModal() { document.getElementById('modal-confirm-disbursement').style.display = 'none'; }
+
+async function submitConfirmDisbursement() {
+  const errEl = document.getElementById('cdisb-error');
+  errEl.style.display = 'none';
+  const amountNaira = parseFloat(document.getElementById('cdisb-amount').value);
+  if (isNaN(amountNaira) || amountNaira < 0) { errEl.textContent = 'Enter the amount the bank notice actually shows.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API}/ajo-admin-confirm-escrow-disbursement`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({
+        disbursement_id: pendingConfirmDisbursementId, confirmed_amount_kobo: Math.round(amountNaira * 100),
+        bank_notice_reference: document.getElementById('cdisb-bank-ref').value.trim() || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed.'; errEl.style.display = 'block'; return; }
+    closeConfirmDisbursementModal();
+    notify(data.message || 'Confirmed');
+    loadAjoCollectorsAdmin();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
 
 async function toggleAjoAgentStatus(agentId, action) {
