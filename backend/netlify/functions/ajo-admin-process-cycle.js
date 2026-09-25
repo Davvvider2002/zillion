@@ -88,7 +88,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: scheme } = await db.from('ajo_schemes')
-    .select('id, name, scheme_type, payout_order, cycle_length, created_by_zillion_id, status').eq('id', schemeId).maybeSingle();
+    .select('id, name, scheme_type, payout_order, cycle_length, created_by_zillion_id, status, collector_compensation_type, collector_compensation_value').eq('id', schemeId).maybeSingle();
   if (!scheme) return err(404, 'Scheme not found');
   if (scheme.scheme_type === 'personal_savings') return err(400, 'Personal savings has no rotation to process — use the withdraw action instead.');
   if (scheme.created_by_zillion_id !== zillionId) return err(403, 'Only this scheme\'s own group admin can process a cycle');
@@ -125,7 +125,28 @@ exports.handler = async (event) => {
 
   const feeRate = await resolveFeeRate(db, 'payout', cycle.started_at);
   const feeKobo = computeFeeKobo(feeRate, poolKobo);
-  const netPayoutKobo = Math.max(0, poolKobo - feeKobo);
+
+  // Group collector compensation - mirrors how the platform fee
+  // itself is computed: once per cycle payout, on the total pool,
+  // not per-member and not per-contribution. "Usually the monthly/
+  // daily amount contribution" as specified is read as ONE
+  // contribution-worth taken from the pool, not that amount
+  // multiplied by every member who contributed - multiplying would
+  // make a 'fixed' compensation scale directly with group size in a
+  // way nothing in how this was described actually asked for, and
+  // risks an unreasonably large cut from a large group's pool. A
+  // scheme with no active collector (shouldn't happen post-merge,
+  // but checked defensively) simply pays none.
+  const { data: activeCollector } = await db.from('ajo_collectors')
+    .select('collector_profile_id').eq('scheme_id', schemeId).eq('status', 'ACTIVE').maybeSingle();
+  let collectorCompensationKobo = 0;
+  if (activeCollector?.collector_profile_id) {
+    collectorCompensationKobo = scheme.collector_compensation_type === 'percentage'
+      ? Math.round(poolKobo * scheme.collector_compensation_value / 10000)
+      : Math.min(scheme.collector_compensation_value, poolKobo);
+  }
+
+  const netPayoutKobo = Math.max(0, poolKobo - feeKobo - collectorCompensationKobo);
 
   const { data: payout, error: payoutErr } = await db.from('ajo_payouts').insert({
     cycle_id: cycle.id, scheme_member_id: payee.id, amount_kobo: netPayoutKobo, fee_kobo: feeKobo,
@@ -134,6 +155,17 @@ exports.handler = async (event) => {
   if (payoutErr) return err(500, `Failed to record payout: ${payoutErr.message}`);
 
   await db.from('ajo_ledger').insert({ scheme_id: schemeId, entry_type: 'payout', amount_kobo: netPayoutKobo, reference_id: payout.id });
+
+  if (collectorCompensationKobo > 0 && activeCollector?.collector_profile_id) {
+    // The unique index on (source_event_type, source_event_id) means
+    // this can never double-credit the same payout even if this
+    // endpoint were somehow called twice for the same cycle.
+    await db.from('ajo_collector_earnings').insert({
+      collector_profile_id: activeCollector.collector_profile_id, scheme_id: schemeId,
+      source_event_type: 'group_contribution', source_event_id: payout.id,
+      compensation_kobo: collectorCompensationKobo,
+    });
+  }
 
   let agentCommissionKobo = 0;
   if (feeKobo > 0) {
@@ -184,7 +216,7 @@ exports.handler = async (event) => {
 
   return ok({
     success: true, payout: payoutWithTransfer || payout, payee_scheme_member_id: payee.id,
-    fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo,
+    fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo, collector_compensation_kobo: collectorCompensationKobo,
     next_cycle: nextCycle, scheme_completed: schemeCompleted,
     transfer_status: transferOutcome.transfer_status,
   });
