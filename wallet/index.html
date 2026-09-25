@@ -1387,6 +1387,35 @@ function triggerPWAInstall() {
   </div>
 </div>
 
+<!-- Collection Mode — focused, one-scheme-at-a-time flow for rapid
+     repeated field collection. Stays in this screen between
+     collections instead of returning to Collector Tools each time. -->
+<div id="screen-ajo-collection-mode" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <button class="back-btn" onclick="ajoExitCollectionMode()">‹</button>
+    <div class="hdr-title" id="acm-scheme-name">Collecting</div>
+  </div>
+  <div style="padding:14px 16px;background:#0F2B1D;border-bottom:1px solid #1A4030;display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:12px;color:#7A9A85">This session</div>
+    <div style="font-size:14px;font-weight:700;color:#00E0AC" id="acm-tally">0 collected · ₦0.00</div>
+  </div>
+  <div class="scroll-body" style="padding:16px">
+    <input id="acm-search" type="text" inputmode="numeric" placeholder="Search by phone number…" style="width:100%;padding:13px;background:#081A11;border:1px solid #234A38;border-radius:10px;color:#E8F5EE;font-size:15px;margin-bottom:14px;box-sizing:border-box" oninput="ajoCollectionModeFilter()">
+    <div id="acm-member-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-acm-amount" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px" id="acm-amount-member">—</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px">Standard amount is pre-filled — change it only if this collection is different.</div>
+    <input id="acm-amount" type="number" style="width:100%;padding:14px;background:#081A11;border:1px solid #234A38;border-radius:10px;color:#E8F5EE;font-size:20px;font-weight:700;margin-bottom:16px;box-sizing:border-box;text-align:center">
+    <button class="btn" style="width:100%;padding:14px;background:#E8930C;color:#1A2E1A;border:none;border-radius:10px;font-weight:700;font-size:15px;margin-bottom:8px" onclick="ajoCollectionModeSubmit()" id="acm-amount-btn">Record &amp; next</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-acm-amount').style.display='none'">Cancel</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-ajo-scheme-preview" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px;max-height:85vh;overflow-y:auto">
     <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px" id="asp-name">—</div>
@@ -3080,9 +3109,10 @@ async function loadAjoCollectorScreen() {
         <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:2px">${a.scheme_name}</div>
           <div style="font-size:12px;color:#9CC4B0;text-transform:capitalize;margin-bottom:12px">${(a.scheme_type || '').replace(/_/g, ' ')} · ${fmtNaira(a.contribution_amount_kobo)} standard amount</div>
+          <button class="btn" style="width:100%;padding:12px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:14px;margin-bottom:8px" onclick="ajoEnterCollectionMode('${a.scheme_id}','${a.scheme_name.replace(/'/g, "\\'")}',${a.contribution_amount_kobo})">📋 Start collecting</button>
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <button class="btn" style="flex:1;padding:10px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenCollectCashModal('${a.scheme_id}','${a.scheme_name.replace(/'/g, "\\'")}')">Record cash</button>
-            <button class="btn" style="flex:1;padding:10px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenReconcileModal('${a.scheme_id}','${a.collector_id}','${a.scheme_name.replace(/'/g, "\\'")}')">${a.reconciled_today ? 'Reconciled today ✓' : 'Reconcile today'}</button>
+            <button class="btn" style="flex:1;padding:9px;background:transparent;color:#9CC4B0;border:1px solid #1A4030;border-radius:8px;font-weight:600;font-size:12.5px" onclick="ajoOpenCollectCashModal('${a.scheme_id}','${a.scheme_name.replace(/'/g, "\\'")}')">Quick record (one)</button>
+            <button class="btn" style="flex:1;padding:9px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:12.5px" onclick="ajoOpenReconcileModal('${a.scheme_id}','${a.collector_id}','${a.scheme_name.replace(/'/g, "\\'")}')">${a.reconciled_today ? 'Reconciled today ✓' : 'Reconcile today'}</button>
           </div>
           ${a.reconciled_today ? `<div style="font-size:11px;color:${a.todays_reconciliation.variance_kobo === 0 ? '#00E0AC' : '#F5B87A'}">Today: expected ${fmtNaira(a.todays_reconciliation.expected_kobo)}, counted ${fmtNaira(a.todays_reconciliation.actual_kobo)}${a.todays_reconciliation.variance_kobo !== 0 ? ` (variance ${fmtNaira(a.todays_reconciliation.variance_kobo)})` : ' — balanced'}</div>` : ''}
         </div>`;
@@ -3239,51 +3269,151 @@ async function ajoOfflineQueueSync() {
 window.addEventListener('online', () => { setTimeout(ajoOfflineQueueSync, 1000); });
 setInterval(ajoOfflineQueueSync, 30000);
 
-async function ajoSubmitCollectCash() {
-  const errEl = document.getElementById('acc-error');
-  errEl.style.display = 'none';
+// Shared core for recording a cash collection, offline-aware. Both
+// the original modal flow and Collection Mode call this exact same
+// function - the offline queueing logic lives in exactly one place,
+// never duplicated between the two UIs.
+async function ajoRecordCashCore(schemeId, schemeName, memberZillionId, amountKobo) {
   const token = (STATE.user && STATE.user.token) || '';
-  if (!token || !ajoCollectSchemeId) return;
+  if (!token) return { ok: false, error: 'Not signed in.' };
 
-  const memberZillionId = document.getElementById('acc-member').value;
-  if (!memberZillionId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
-  const amountNaira = document.getElementById('acc-amount').value.trim();
-  const payload = { scheme_id: ajoCollectSchemeId, member_zillion_id: memberZillionId };
-  if (amountNaira) payload.amount_kobo = Math.round(parseFloat(amountNaira) * 100);
+  const payload = { scheme_id: schemeId, member_zillion_id: memberZillionId };
+  if (amountKobo) payload.amount_kobo = amountKobo;
 
-  // No signal at all - don't even attempt the request, queue
-  // immediately so the collector isn't left waiting on a fetch that
-  // can only time out.
   if (!STATE.isOnline) {
-    ajoOfflineQueueAdd({ ...payload, scheme_name: ajoCollectSchemeName });
-    document.getElementById('modal-ajo-collect-cash').style.display = 'none';
-    toast('No signal — saved on this device. Will sync automatically once you\'re back online.');
-    return;
+    ajoOfflineQueueAdd({ ...payload, scheme_name: schemeName });
+    return { ok: true, queued: true };
   }
 
-  const btn = document.getElementById('acc-btn');
-  btn.disabled = true; btn.textContent = 'Recording...';
   try {
     const res = await fetch(`${API}/ajo-collector-record-cash`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    btn.disabled = false; btn.textContent = 'Record';
-    if (!res.ok) { errEl.textContent = data.error || 'Failed to record.'; errEl.style.display = 'block'; return; }
-    document.getElementById('modal-ajo-collect-cash').style.display = 'none';
-    toast(`${fmtNaira(data.contribution.amount_kobo)} recorded.`);
+    if (!res.ok) return { ok: false, error: data.error || 'Failed to record.' };
+    return { ok: true, queued: false, contribution: data.contribution };
   } catch (e) {
-    // A network error here means the request itself never reached
-    // the server - genuinely different from a 4xx/5xx response
-    // above, which did. Queue it rather than just reporting failure,
-    // since the alternative is asking the collector to remember to
-    // manually retry later.
-    btn.disabled = false; btn.textContent = 'Record';
-    ajoOfflineQueueAdd({ ...payload, scheme_name: ajoCollectSchemeName });
-    document.getElementById('modal-ajo-collect-cash').style.display = 'none';
-    toast('Connection dropped — saved on this device. Will sync automatically once you\'re back online.');
+    ajoOfflineQueueAdd({ ...payload, scheme_name: schemeName });
+    return { ok: true, queued: true, connectionDropped: true };
   }
+}
+
+async function ajoSubmitCollectCash() {
+  const errEl = document.getElementById('acc-error');
+  errEl.style.display = 'none';
+  if (!ajoCollectSchemeId) return;
+
+  const memberZillionId = document.getElementById('acc-member').value;
+  if (!memberZillionId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  const amountNaira = document.getElementById('acc-amount').value.trim();
+  const amountKobo = amountNaira ? Math.round(parseFloat(amountNaira) * 100) : null;
+
+  const btn = document.getElementById('acc-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  const result = await ajoRecordCashCore(ajoCollectSchemeId, ajoCollectSchemeName, memberZillionId, amountKobo);
+  btn.disabled = false; btn.textContent = 'Record';
+
+  if (!result.ok) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+  document.getElementById('modal-ajo-collect-cash').style.display = 'none';
+  if (result.queued) {
+    toast(result.connectionDropped ? 'Connection dropped — saved on this device. Will sync automatically once you\'re back online.' : 'No signal — saved on this device. Will sync automatically once you\'re back online.');
+  } else {
+    toast(`${fmtNaira(result.contribution.amount_kobo)} recorded.`);
+  }
+}
+
+// -- Collection Mode -------------------------------------------------
+// A focused, one-scheme-at-a-time flow for rapid repeated field
+// collection - the friction the original modal-per-collection flow
+// had was real: closing back to Collector Tools and re-opening a
+// fresh modal for every single person adds up fast across dozens of
+// collections in one sitting. This stays on one screen the whole
+// time; only the amount-entry step is a modal, and it returns
+// straight back here rather than closing the whole flow.
+let acmSchemeId = null;
+let acmSchemeName = null;
+let acmStandardAmountKobo = 0;
+let acmMembers = [];
+let acmSelectedMemberId = null;
+let acmSelectedMemberLabel = null;
+let acmTally = { count: 0, totalKobo: 0 };
+
+async function ajoEnterCollectionMode(schemeId, schemeName, standardAmountKobo) {
+  acmSchemeId = schemeId;
+  acmSchemeName = schemeName;
+  acmStandardAmountKobo = standardAmountKobo || 0;
+  acmTally = { count: 0, totalKobo: 0 };
+  document.getElementById('acm-scheme-name').textContent = schemeName;
+  document.getElementById('acm-search').value = '';
+  ajoCollectionModeUpdateTally();
+  goTo('screen-ajo-collection-mode');
+
+  const token = (STATE.user && STATE.user.token) || '';
+  const listEl = document.getElementById('acm-member-list');
+  listEl.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div>';
+  try {
+    const res = await fetch(`${API}/ajo-collector-scheme-members?scheme_id=${schemeId}`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    acmMembers = data.members || [];
+    ajoCollectionModeRenderList(acmMembers);
+  } catch (e) {
+    listEl.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">Failed to load members: ${e.message}</div>`;
+  }
+}
+
+function ajoCollectionModeUpdateTally() {
+  document.getElementById('acm-tally').textContent = `${acmTally.count} collected · ${fmtNaira(acmTally.totalKobo)}`;
+}
+
+function ajoCollectionModeRenderList(members) {
+  const listEl = document.getElementById('acm-member-list');
+  if (!members.length) { listEl.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">No members match.</div>'; return; }
+  listEl.innerHTML = members.map(m => `
+    <button onclick="ajoCollectionModeSelectMember('${m.zillion_id}','${(m.phone_normalized || m.zillion_id).replace(/'/g, "\\'")}')" style="display:flex;justify-content:space-between;align-items:center;width:100%;padding:14px;background:#0F2B1D;border:1px solid #1A4030;border-radius:10px;margin-bottom:8px;color:#E8F5EE;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;text-align:left">
+      <span>${m.phone_normalized || m.zillion_id}</span>
+      <span style="color:#7A9A85;font-size:12px;font-weight:400">${m.cycle_position ? `Position ${m.cycle_position}` : ''} ›</span>
+    </button>`).join('');
+}
+
+function ajoCollectionModeFilter() {
+  const q = document.getElementById('acm-search').value.replace(/\D/g, '');
+  if (!q) { ajoCollectionModeRenderList(acmMembers); return; }
+  ajoCollectionModeRenderList(acmMembers.filter(m => (m.phone_normalized || '').replace(/\D/g, '').includes(q)));
+}
+
+function ajoCollectionModeSelectMember(zillionId, label) {
+  acmSelectedMemberId = zillionId;
+  acmSelectedMemberLabel = label;
+  document.getElementById('acm-amount-member').textContent = label;
+  document.getElementById('acm-amount').value = acmStandardAmountKobo ? (acmStandardAmountKobo / 100) : '';
+  document.getElementById('modal-acm-amount').style.display = 'flex';
+}
+
+async function ajoCollectionModeSubmit() {
+  const amountNaira = document.getElementById('acm-amount').value.trim();
+  const amountKobo = amountNaira ? Math.round(parseFloat(amountNaira) * 100) : null;
+
+  const btn = document.getElementById('acm-amount-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  const result = await ajoRecordCashCore(acmSchemeId, acmSchemeName, acmSelectedMemberId, amountKobo);
+  btn.disabled = false; btn.textContent = 'Record & next';
+
+  if (!result.ok) { toast(result.error, true); return; }
+
+  document.getElementById('modal-acm-amount').style.display = 'none';
+  acmTally.count += 1;
+  acmTally.totalKobo += (amountKobo || acmStandardAmountKobo || 0);
+  ajoCollectionModeUpdateTally();
+  document.getElementById('acm-search').value = '';
+  ajoCollectionModeRenderList(acmMembers);
+
+  toast(result.queued ? `Saved offline for ${acmSelectedMemberLabel}.` : `${fmtNaira(result.contribution.amount_kobo)} recorded for ${acmSelectedMemberLabel}.`);
+}
+
+function ajoExitCollectionMode() {
+  if (acmTally.count > 0 && !confirm(`You collected from ${acmTally.count} member${acmTally.count === 1 ? '' : 's'} this session (${fmtNaira(acmTally.totalKobo)}). Leave collection mode?`)) return;
+  goTo('screen-ajo-collector');
 }
 
 function ajoOpenReconcileModal(schemeId, collectorId, schemeName) {
