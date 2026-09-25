@@ -1382,6 +1382,7 @@ function triggerPWAInstall() {
     <div class="hdr-title">Collector Tools</div>
   </div>
   <div class="scroll-body" style="padding:16px">
+    <div id="ajo-offline-queue-badge" style="display:none;background:#3A2A0F;border:1px solid #5A4420;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#F5B87A;font-weight:600"></div>
     <div id="ajo-collector-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
   </div>
 </div>
@@ -3039,6 +3040,7 @@ async function ajoSubmitProvision() {
 
 // -- Ajo collector tools -------------------------------------------------
 let ajoCollectSchemeId = null;
+let ajoCollectSchemeName = null;
 let ajoReconcileSchemeId = null;
 let ajoReconcileCollectorId = null;
 
@@ -3046,6 +3048,9 @@ async function loadAjoCollectorScreen() {
   const el = document.getElementById('ajo-collector-list');
   const token = (STATE.user && STATE.user.token) || '';
   if (!token) { el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Sign in first.</div>'; return; }
+
+  ajoUpdateOfflineQueueBadge();
+  ajoOfflineQueueSync();
 
   el.innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div>';
   try {
@@ -3136,6 +3141,7 @@ function ajoRenderEscrowStatusCard(profile) {
 
 async function ajoOpenCollectCashModal(schemeId, schemeName) {
   ajoCollectSchemeId = schemeId;
+  ajoCollectSchemeName = schemeName;
   document.getElementById('acc-title').textContent = `Record cash — ${schemeName}`;
   document.getElementById('acc-amount').value = '';
   document.getElementById('acc-error').style.display = 'none';
@@ -3157,6 +3163,82 @@ async function ajoOpenCollectCashModal(schemeId, schemeName) {
 
 function openModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'flex'; }
 
+// -- Ajo collector offline queue -----------------------------------
+// Cash-recording is the one collector action that genuinely cannot
+// afford to fail silently in the field - a contributor hands over
+// real money at that exact moment, and "no signal, try again later"
+// isn't an option the collector controls. This mirrors the spirit of
+// the vault's own offline-first design (STATE.vault / PENDING_SYNC /
+// trySync()) but as its own small, focused queue - the vault's own
+// mechanism is tightly coupled to cryptographic coin objects and
+// isn't something a scheme_id/member_id/amount_kobo record can
+// reuse directly. localStorage, not IndexedDB - this queue only ever
+// holds a handful of small pending records at once, not the vault's
+// full coin set, so the added complexity of IndexedDB isn't earned
+// here.
+const AJO_OFFLINE_QUEUE_KEY = 'zillion_ajo_offline_queue';
+
+function ajoOfflineQueueLoad() {
+  try { return JSON.parse(localStorage.getItem(AJO_OFFLINE_QUEUE_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+
+function ajoOfflineQueueSave(queue) {
+  try { localStorage.setItem(AJO_OFFLINE_QUEUE_KEY, JSON.stringify(queue)); } catch (e) {}
+}
+
+function ajoOfflineQueueAdd(item) {
+  const queue = ajoOfflineQueueLoad();
+  queue.push({ ...item, _localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, _queuedAt: new Date().toISOString() });
+  ajoOfflineQueueSave(queue);
+  ajoUpdateOfflineQueueBadge();
+}
+
+function ajoUpdateOfflineQueueBadge() {
+  const badge = document.getElementById('ajo-offline-queue-badge');
+  if (!badge) return;
+  const count = ajoOfflineQueueLoad().length;
+  badge.style.display = count > 0 ? 'block' : 'none';
+  badge.textContent = count > 0 ? `${count} collection${count === 1 ? '' : 's'} waiting to sync` : '';
+}
+
+// Only removes an item from the queue on a DEFINITIVE server response
+// (successfully recorded, or a real validation rejection like "member
+// not found") - a network failure mid-sync leaves the item queued for
+// the next attempt rather than being silently dropped either way.
+async function ajoOfflineQueueSync() {
+  if (!STATE.isOnline) return;
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) return;
+  const queue = ajoOfflineQueueLoad();
+  if (!queue.length) return;
+
+  let syncedCount = 0;
+  const remaining = [];
+  for (const item of queue) {
+    try {
+      const res = await fetch(`${API}/ajo-collector-record-cash`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ scheme_id: item.scheme_id, member_zillion_id: item.member_zillion_id, ...(item.amount_kobo ? { amount_kobo: item.amount_kobo } : {}) }),
+      });
+      if (res.ok) { syncedCount++; continue; }
+      // A real rejection from the server (already recorded, member no
+      // longer active, etc.) - drop it rather than retry forever, but
+      // tell the collector so it doesn't just vanish silently.
+      const data = await res.json().catch(() => ({}));
+      toast(`An offline collection for ${item.scheme_name || 'a group'} couldn't sync: ${data.error || 'rejected'}`, true, 5000);
+    } catch (e) {
+      remaining.push(item); // network error - keep it queued, try again next time
+    }
+  }
+  ajoOfflineQueueSave(remaining);
+  ajoUpdateOfflineQueueBadge();
+  if (syncedCount > 0) toast(`${syncedCount} offline collection${syncedCount === 1 ? '' : 's'} synced.`);
+}
+
+window.addEventListener('online', () => { setTimeout(ajoOfflineQueueSync, 1000); });
+setInterval(ajoOfflineQueueSync, 30000);
+
 async function ajoSubmitCollectCash() {
   const errEl = document.getElementById('acc-error');
   errEl.style.display = 'none';
@@ -3166,12 +3248,22 @@ async function ajoSubmitCollectCash() {
   const memberZillionId = document.getElementById('acc-member').value;
   if (!memberZillionId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
   const amountNaira = document.getElementById('acc-amount').value.trim();
+  const payload = { scheme_id: ajoCollectSchemeId, member_zillion_id: memberZillionId };
+  if (amountNaira) payload.amount_kobo = Math.round(parseFloat(amountNaira) * 100);
+
+  // No signal at all - don't even attempt the request, queue
+  // immediately so the collector isn't left waiting on a fetch that
+  // can only time out.
+  if (!STATE.isOnline) {
+    ajoOfflineQueueAdd({ ...payload, scheme_name: ajoCollectSchemeName });
+    document.getElementById('modal-ajo-collect-cash').style.display = 'none';
+    toast('No signal — saved on this device. Will sync automatically once you\'re back online.');
+    return;
+  }
 
   const btn = document.getElementById('acc-btn');
   btn.disabled = true; btn.textContent = 'Recording...';
   try {
-    const payload = { scheme_id: ajoCollectSchemeId, member_zillion_id: memberZillionId };
-    if (amountNaira) payload.amount_kobo = Math.round(parseFloat(amountNaira) * 100);
     const res = await fetch(`${API}/ajo-collector-record-cash`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify(payload),
@@ -3182,8 +3274,15 @@ async function ajoSubmitCollectCash() {
     document.getElementById('modal-ajo-collect-cash').style.display = 'none';
     toast(`${fmtNaira(data.contribution.amount_kobo)} recorded.`);
   } catch (e) {
+    // A network error here means the request itself never reached
+    // the server - genuinely different from a 4xx/5xx response
+    // above, which did. Queue it rather than just reporting failure,
+    // since the alternative is asking the collector to remember to
+    // manually retry later.
     btn.disabled = false; btn.textContent = 'Record';
-    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+    ajoOfflineQueueAdd({ ...payload, scheme_name: ajoCollectSchemeName });
+    document.getElementById('modal-ajo-collect-cash').style.display = 'none';
+    toast('Connection dropped — saved on this device. Will sync automatically once you\'re back online.');
   }
 }
 
