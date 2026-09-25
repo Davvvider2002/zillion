@@ -162,6 +162,27 @@ exports.handler = async (event) => {
     if (collectorErr) {
       return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but the collector could not be linked: ${collectorErr.message}. Contact support.` });
     }
+
+    // "The Ajo agent is also a collector" for individual savers -
+    // the same person, one identity. Get-or-create their ajo_agents
+    // row and link it to the collector profile they were just
+    // assigned as, rather than leaving these as two disconnected
+    // records for the same person. This does not create a referral
+    // attribution by itself (that stays tied to an explicit
+    // referral_code, entered deliberately, not inferred from
+    // choosing a collector) - it only ensures the identity link
+    // exists so their agent and collector records are provably the
+    // same person, not that this scheme now credits referral
+    // commission automatically.
+    let { data: linkedAgent } = await db.from('ajo_agents').select('id, collector_profile_id').eq('zillion_id', collectorProfile.zillion_id).maybeSingle();
+    if (linkedAgent && !linkedAgent.collector_profile_id) {
+      await db.from('ajo_agents').update({ collector_profile_id: collectorProfile.id }).eq('id', linkedAgent.id);
+    }
+    // No agent row existing yet is the normal case for most
+    // collectors - not every collector is also a referring agent,
+    // and one isn't created here just because they collected for a
+    // personal savings scheme. The link only applies when an agent
+    // identity already exists for this same person.
   }
 
   // Group schemes: the admin IS the collector, not two entities that
