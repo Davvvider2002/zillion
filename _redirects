@@ -121,6 +121,7 @@
 /api/v1/ajo-collector-directory  /.netlify/functions/ajo-collector-directory  200
 /api/v1/ajo-scheme-preview  /.netlify/functions/ajo-scheme-preview  200
 /api/v1/ajo-admin-collectors-overview  /.netlify/functions/ajo-admin-collectors-overview  200
+/api/v1/ajo-collector-my-history  /.netlify/functions/ajo-collector-my-history  200
 /api/v1/ajo-collector-record-cash  /.netlify/functions/ajo-collector-record-cash  200
 /api/v1/ajo-collector-reconcile  /.netlify/functions/ajo-collector-reconcile  200
 /api/v1/ajo-member-switch-scheme  /.netlify/functions/ajo-member-switch-scheme  200
