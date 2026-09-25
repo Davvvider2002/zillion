@@ -32,7 +32,9 @@ body{background:var(--ink);color:var(--cream);font-family:-apple-system,BlinkMac
 .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .pill-amber{background:rgba(245,158,11,.15);color:var(--amber)}
 .pill-green{background:var(--greenl);color:var(--green-lt)}
+.pill-red{background:var(--redl);color:var(--red)}
 .pill-muted{background:var(--line);color:var(--muted)}
+.score-ring{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;flex-shrink:0}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
@@ -88,13 +90,50 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
     <button class="btn btn-ghost btn-sm" onclick="signOut()">Sign out</button>
   </div>
   <div class="wrap">
+    <div class="card" id="escrow-status-card">
+      <div class="no-data">Loading…</div>
+    </div>
+
+    <div class="card" id="collector-history-card" style="display:none">
+      <div class="card-title">Compliance history</div>
+      <div class="card-sub">Every event behind your score — not just the current number.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Event</th><th>Change</th><th>Score after</th><th>Notes</th></tr></thead>
+        <tbody id="cp-compliance-body"><tr><td colspan="5" class="no-data">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="card" id="collector-disbursements-card" style="display:none">
+      <div class="card-title">Disbursement history</div>
+      <div class="card-sub">Money released from your escrow, and whether it matched the bank's own confirmation.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Reason</th><th>Intended</th><th>Confirmed</th><th>Status</th></tr></thead>
+        <tbody id="cp-disbursements-body"><tr><td colspan="5" class="no-data">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+
     <div class="card">
       <div class="card-title">Your groups
         <button class="btn btn-primary btn-sm" onclick="openCreateSchemeModal()">+ Create group</button>
       </div>
-      <div class="card-sub">Every group you administer — configure once, the rotation runs itself from there.</div>
+      <div class="card-sub">Every group you administer — configure once, the rotation runs itself from there. As admin, you're also this group's collector.</div>
       <div id="schemes-list"><div class="no-data">Loading…</div></div>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-escrow-setup">
+  <div class="modal-box">
+    <div class="modal-title">Set up your escrow account</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Required before you can start collecting cash. Verified once here, active across every group you administer or collect for — your ID number itself is never stored, only the resulting account details.</div>
+    <div class="field"><label>First name</label><input type="text" id="es-first-name"></div>
+    <div class="field"><label>Last name</label><input type="text" id="es-last-name"></div>
+    <div class="field"><label>NIN (11 digits)</label><input type="text" inputmode="numeric" maxlength="11" id="es-nin"></div>
+    <div class="field"><label>Phone number</label><input type="tel" id="es-phone"></div>
+    <div class="field"><label>Email (optional)</label><input type="email" id="es-email"></div>
+    <div id="es-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitEscrowSetup()" id="es-btn">Submit</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-escrow-setup')">Cancel</button>
   </div>
 </div>
 
@@ -264,6 +303,8 @@ function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'block';
   loadSchemes();
+  loadCollectorProfile();
+  loadCollectorHistory();
 }
 
 async function loadSchemes() {
@@ -350,8 +391,141 @@ function ajoRenderCollectorSummary(collector, schemeId) {
     <div>
       <div style="font-weight:700">${collector.phone_normalized || 'You'} (as group admin, you collect for this group)</div>
       <div style="font-size:12px;color:${escrowColor};margin-top:2px">${escrowLabel}${collector.status === 'ACTIVE' && collector.compliance_score != null ? ` · Score ${collector.compliance_score}/100` : ''}</div>
-      ${needsSetup ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">Complete escrow setup in your wallet's Collector Tools before you can start collecting cash for this group.</div>` : ''}
+      ${needsSetup ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">Complete your escrow setup above before you can start collecting cash for this group.</div>` : ''}
     </div>`;
+}
+
+function standingColor(score) {
+  if (score >= 75) return 'var(--green-lt)';
+  if (score >= 60) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+async function loadCollectorProfile() {
+  const card = document.getElementById('escrow-status-card');
+  try {
+    const res = await fetch(`${API}/ajo-collector-my-schemes`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { card.innerHTML = `<div class="no-data">${data.error || 'Unable to load your collector profile'}</div>`; return; }
+
+    const profile = data.collector_profile;
+    if (!profile || profile.escrow_status === 'NOT_STARTED') {
+      card.innerHTML = `
+        <div class="card-title">Set up your collector account</div>
+        <div class="card-sub">Since you administer groups here, you're also their collector — this is required once before any of your groups can collect cash, and stays active across every group you create afterward.</div>
+        <button class="btn btn-primary" onclick="openEscrowSetupModal()">Start escrow setup</button>`;
+    } else if (profile.delisted_at) {
+      card.innerHTML = `<div class="card-title" style="color:var(--red)">Delisted as a collector</div><div style="font-size:14px;color:var(--red)">${profile.delisted_reason || 'Compliance threshold not met.'}</div>`;
+    } else if (profile.escrow_status === 'PENDING_VERIFICATION') {
+      card.innerHTML = `<div class="card-title">Escrow verification pending</div><div style="font-size:13px;color:var(--muted)">Your details have been submitted. A platform admin will confirm your escrow account before you can start collecting.</div>`;
+    } else if (profile.escrow_status === 'REJECTED') {
+      card.innerHTML = `
+        <div class="card-title" style="color:var(--red)">Escrow verification not approved</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px">${profile.escrow_rejection_reason || ''}</div>
+        <button class="btn btn-primary" onclick="openEscrowSetupModal()">Resubmit details</button>`;
+    } else {
+      const score = profile.compliance_score;
+      card.innerHTML = `
+        <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+          <div class="score-ring" style="background:${standingColor(score)}22;color:${standingColor(score)};border:2px solid ${standingColor(score)}">${score}</div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:17px;font-weight:700;margin-bottom:4px">Escrow verified</div>
+            <div style="font-size:13px;color:var(--muted)">${profile.escrow_account_name ? `${profile.escrow_account_name} · ${profile.escrow_account_number || ''}` : ''}</div>
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('collector-history-card').style.display = profile ? '' : 'none';
+    document.getElementById('collector-disbursements-card').style.display = profile ? '' : 'none';
+  } catch (e) {
+    card.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function openEscrowSetupModal() {
+  document.getElementById('es-first-name').value = '';
+  document.getElementById('es-last-name').value = '';
+  document.getElementById('es-nin').value = '';
+  document.getElementById('es-phone').value = '';
+  document.getElementById('es-email').value = '';
+  document.getElementById('es-error').style.display = 'none';
+  openModal('modal-escrow-setup');
+}
+
+async function submitEscrowSetup() {
+  const errEl = document.getElementById('es-error');
+  errEl.style.display = 'none';
+  const firstName = document.getElementById('es-first-name').value.trim();
+  const lastName = document.getElementById('es-last-name').value.trim();
+  const nin = document.getElementById('es-nin').value.trim();
+  const phone = document.getElementById('es-phone').value.trim();
+  const email = document.getElementById('es-email').value.trim();
+
+  if (!firstName) { errEl.textContent = 'Enter your first name.'; errEl.style.display = 'block'; return; }
+  if (!lastName) { errEl.textContent = 'Enter your last name.'; errEl.style.display = 'block'; return; }
+  if (!/^\d{11}$/.test(nin)) { errEl.textContent = 'NIN must be exactly 11 digits.'; errEl.style.display = 'block'; return; }
+  if (!phone) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('es-btn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    const res = await fetch(`${API}/ajo-collector-provision-escrow`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ first_name: firstName, last_name: lastName, nin, phone, email: email || undefined }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Submit';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to submit.'; errEl.style.display = 'block'; return; }
+    closeModal('modal-escrow-setup');
+    toast(data.message || 'Submitted.');
+    loadCollectorProfile();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Submit';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function loadCollectorHistory() {
+  const compBody = document.getElementById('cp-compliance-body');
+  const disbBody = document.getElementById('cp-disbursements-body');
+  try {
+    const res = await fetch(`${API}/ajo-collector-my-history`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = `<tr><td colspan="5" class="no-data">${data.error || 'Unable to load'}</td></tr>`;
+      compBody.innerHTML = msg; disbBody.innerHTML = msg;
+      return;
+    }
+
+    const eventLabel = t => ({
+      CASH_RECONCILE_MATCH: 'Cash reconciliation — matched', CASH_RECONCILE_VARIANCE: 'Cash reconciliation — variance',
+      ESCROW_DISBURSEMENT_MATCH: 'Disbursement — matched', ESCROW_DISBURSEMENT_VARIANCE: 'Disbursement — variance',
+      MANUAL_ADJUSTMENT: 'Manual adjustment', DELISTED: 'Delisted', REINSTATED: 'Reinstated',
+    }[t] || t);
+
+    const compRows = (data.compliance_events || []).map(e => `
+      <tr>
+        <td>${new Date(e.created_at).toLocaleDateString()}</td>
+        <td>${eventLabel(e.event_type)}</td>
+        <td style="color:${e.score_delta < 0 ? 'var(--red)' : (e.score_delta > 0 ? 'var(--green-lt)' : 'var(--muted)')}">${e.score_delta > 0 ? '+' : ''}${e.score_delta}</td>
+        <td>${e.score_after}</td>
+        <td style="font-size:12px;color:var(--muted)">${e.notes || ''}</td>
+      </tr>`).join('');
+    compBody.innerHTML = compRows || '<tr><td colspan="5" class="no-data">No events yet — a clean record so far.</td></tr>';
+
+    const disbRows = (data.disbursements || []).map(d => `
+      <tr>
+        <td>${new Date(d.created_at).toLocaleDateString()}</td>
+        <td style="font-size:12.5px">${d.intended_reason}</td>
+        <td>${fmtNaira(d.intended_amount_kobo)}</td>
+        <td>${d.confirmed_amount_kobo != null ? fmtNaira(d.confirmed_amount_kobo) : '—'}</td>
+        <td><span class="pill ${d.status === 'CONFIRMED' ? 'pill-green' : (d.status === 'VARIANCE' ? 'pill-red' : 'pill-amber')}">${d.status}</span></td>
+      </tr>`).join('');
+    disbBody.innerHTML = disbRows || '<tr><td colspan="5" class="no-data">No disbursements recorded yet.</td></tr>';
+  } catch (e) {
+    const msg = `<tr><td colspan="5" class="no-data">Network error: ${e.message}</td></tr>`;
+    compBody.innerHTML = msg; disbBody.innerHTML = msg;
+  }
 }
 
 async function openSchemeDetail(schemeId) {
