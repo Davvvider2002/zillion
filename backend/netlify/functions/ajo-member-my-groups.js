@@ -86,9 +86,15 @@ exports.handler = async (event) => {
     const cyclesSinceJoining = (cycles || []).filter(c => new Date(c.started_at) >= new Date(m.joined_at)).length;
 
     const { data: myContributions } = await db.from('ajo_contributions')
-      .select('amount_kobo, cycle_id').eq('scheme_member_id', m.id).eq('status', 'PAID');
+      .select('amount_kobo, cycle_id, diverted_to_collector').eq('scheme_member_id', m.id).eq('status', 'PAID');
 
-    const totalContributedKobo = (myContributions || []).reduce((s, c) => s + c.amount_kobo, 0);
+    // A diverted contribution (personal_savings' first-of-month
+    // collector compensation) genuinely was never the saver's own
+    // money to begin with - excluded here, not subtracted back out
+    // after being counted, so the balance is honestly correct from
+    // the start rather than looking inflated then corrected.
+    const myOwnContributions = (myContributions || []).filter(c => !c.diverted_to_collector);
+    const totalContributedKobo = myOwnContributions.reduce((s, c) => s + c.amount_kobo, 0);
     const requiredSoFarKobo = Math.max(1, cyclesSinceJoining) * contributionAmountKobo;
     const creditBalanceKobo = totalContributedKobo - requiredSoFarKobo;
 
@@ -98,7 +104,7 @@ exports.handler = async (event) => {
     const availableBalanceKobo = Math.max(0, totalContributedKobo - totalWithdrawnKobo);
 
     const contributedThisCycleKobo = openCycle
-      ? (myContributions || []).filter(c => c.cycle_id === openCycle.id).reduce((s, c) => s + c.amount_kobo, 0)
+      ? myOwnContributions.filter(c => c.cycle_id === openCycle.id).reduce((s, c) => s + c.amount_kobo, 0)
       : 0;
 
     const { count: activeMemberCount } = await db.from('ajo_scheme_members')
