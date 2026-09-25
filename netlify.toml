@@ -414,6 +414,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-member-contribution-history"
+  to   = "/.netlify/functions/ajo-member-contribution-history"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-collector-record-cash"
   to   = "/.netlify/functions/ajo-collector-record-cash"
   status = 200
