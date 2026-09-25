@@ -1416,6 +1416,15 @@ function triggerPWAInstall() {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-ajo-contribution-history" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:400px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px;max-height:85vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px" id="ach-scheme-name">Contribution history</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px">Every contribution you've made — any month diverted to your collector is marked clearly, not silently missing.</div>
+    <div id="ach-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px;margin-top:14px" onclick="document.getElementById('modal-ajo-contribution-history').style.display='none'">Close</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-ajo-scheme-preview" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px;max-height:85vh;overflow-y:auto">
     <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px" id="asp-name">—</div>
@@ -2693,8 +2702,9 @@ async function loadAjoHomeScreen() {
             <button class="btn" style="flex:1;padding:10px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px" onclick="ajoOpenWithdrawModal('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')">Withdraw</button>
           </div>
           ${g.dedicated_account_number
-            ? `<div style="font-size:11px;color:#7A9A85;text-align:center">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number} · <a href="#" onclick="ajoOpenProvisionModal('${g.scheme_id}');return false" style="color:#00E0AC">Edit</a></div>`
-            : `<button type="button" onclick="ajoOpenProvisionModal('${g.scheme_id}')" style="width:100%;background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px">Get a bank account for this pot →</button>`}
+            ? `<div style="font-size:11px;color:#7A9A85;text-align:center;margin-bottom:8px">Bank transfer: ${g.dedicated_account_bank} · ${g.dedicated_account_number} · <a href="#" onclick="ajoOpenProvisionModal('${g.scheme_id}');return false" style="color:#00E0AC">Edit</a></div>`
+            : `<button type="button" onclick="ajoOpenProvisionModal('${g.scheme_id}')" style="width:100%;background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px;margin-bottom:4px">Get a bank account for this pot →</button>`}
+          <button type="button" onclick="ajoOpenContributionHistory('${g.scheme_id}','${g.scheme_name.replace(/'/g, "\\'")}')" style="width:100%;background:none;border:none;color:#7A9A85;font-size:11.5px;font-weight:600;cursor:pointer;padding:4px">View contribution history</button>
         </div>`;
       }
 
@@ -2763,6 +2773,45 @@ function extractSchemeId(input) {
 }
 
 let ajoPreviewedSchemeId = null;
+
+async function ajoOpenContributionHistory(schemeId, schemeName) {
+  document.getElementById('ach-scheme-name').textContent = schemeName;
+  document.getElementById('ach-list').innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div>';
+  document.getElementById('modal-ajo-contribution-history').style.display = 'flex';
+
+  const token = (STATE.user && STATE.user.token) || '';
+  const listEl = document.getElementById('ach-list');
+  try {
+    const res = await fetch(`${API}/ajo-member-contribution-history?scheme_id=${schemeId}`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) { listEl.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">${data.error || 'Unable to load'}</div>`; return; }
+
+    const rows = (data.contributions || []).map(c => {
+      const date = new Date(c.created_at).toLocaleDateString();
+      if (c.diverted_to_collector) {
+        return `
+          <div style="background:#3A2A0F;border:1px solid #5A4420;border-radius:10px;padding:12px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:13px;color:#F5B87A;font-weight:600">${fmtNaira(c.amount_kobo)}</span>
+              <span style="font-size:11px;color:#F5B87A">${date}</span>
+            </div>
+            <div style="font-size:11.5px;color:#D4A56A;margin-top:2px">Went to your collector — this month's service fee, not added to your balance</div>
+          </div>`;
+      }
+      return `
+        <div style="background:#081A11;border:1px solid #1A4030;border-radius:10px;padding:12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;color:#E8F5EE;font-weight:600">${fmtNaira(c.amount_kobo)}</span>
+            <span style="font-size:11px;color:#7A9A85">${date}</span>
+          </div>
+          <div style="font-size:11px;color:#7A9A85;margin-top:2px;text-transform:capitalize">${c.source} · added to your balance</div>
+        </div>`;
+    }).join('');
+    listEl.innerHTML = rows || '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">No contributions yet.</div>';
+  } catch (e) {
+    listEl.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">Network error: ${e.message}</div>`;
+  }
+}
 
 async function ajoPreviewGroupFromInput() {
   const errEl = document.getElementById('ajo-join-error');
