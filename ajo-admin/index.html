@@ -148,17 +148,6 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-assign-collector">
-  <div class="modal-box">
-    <div class="modal-title">Assign a collector</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">They need a Zillion wallet account already — the standard phone sign-up, no separate registration. If they have a verified escrow wallet from another group, they'll be active immediately here too.</div>
-    <div class="field"><label>Collector's phone number</label><input type="tel" id="ac-phone" placeholder="08012345678"></div>
-    <div id="ac-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="submitAssignCollector()" id="ac-btn">Assign collector</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-assign-collector')">Cancel</button>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -348,71 +337,21 @@ async function processAjoCycle(schemeId, schemeName, payoutOrder) {
 
 function ajoRenderCollectorSummary(collector, schemeId) {
   if (!collector) {
-    return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">No collector assigned yet — members can still pay digitally, but there's no one to collect cash for this group.</div>
-      <button class="btn btn-primary btn-sm" onclick="openAssignCollectorModal('${schemeId}')">Assign a collector</button>`;
+    // Shouldn't normally happen for a scheme created after the
+    // admin/collector merge - every group scheme auto-assigns its
+    // creator as collector at creation. A scheme created before that
+    // merge could still show this until it's manually reconciled.
+    return `<div style="font-size:13px;color:var(--muted)">No collector on record for this scheme. Contact support to have this reconciled.</div>`;
   }
-  const escrowLabel = collector.delisted_at ? 'Delisted' : (collector.status === 'PENDING_ESCROW' ? 'Waiting on escrow setup' : (collector.escrow_status || '—'));
+  const escrowLabel = collector.delisted_at ? 'Delisted' : (collector.status === 'PENDING_ESCROW' ? 'Waiting on your escrow setup' : (collector.escrow_status || '—'));
   const escrowColor = collector.delisted_at ? 'var(--red)' : (collector.status === 'PENDING_ESCROW' ? 'var(--amber)' : 'var(--green-lt)');
+  const needsSetup = collector.status === 'PENDING_ESCROW' && !collector.delisted_at;
   return `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div>
-        <div style="font-weight:700">${collector.phone_normalized || 'Collector'}</div>
-        <div style="font-size:12px;color:${escrowColor}">${escrowLabel}${collector.status === 'ACTIVE' && collector.compliance_score != null ? ` · Score ${collector.compliance_score}/100` : ''}</div>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="removeCollector('${schemeId}')">Remove</button>
+    <div>
+      <div style="font-weight:700">${collector.phone_normalized || 'You'} (as group admin, you collect for this group)</div>
+      <div style="font-size:12px;color:${escrowColor};margin-top:2px">${escrowLabel}${collector.status === 'ACTIVE' && collector.compliance_score != null ? ` · Score ${collector.compliance_score}/100` : ''}</div>
+      ${needsSetup ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">Complete escrow setup in your wallet's Collector Tools before you can start collecting cash for this group.</div>` : ''}
     </div>`;
-}
-
-let pendingAssignSchemeId = null;
-
-function openAssignCollectorModal(schemeId) {
-  pendingAssignSchemeId = schemeId;
-  document.getElementById('ac-phone').value = '';
-  document.getElementById('ac-error').style.display = 'none';
-  closeModal('modal-scheme-detail');
-  openModal('modal-assign-collector');
-}
-
-async function submitAssignCollector() {
-  const errEl = document.getElementById('ac-error');
-  errEl.style.display = 'none';
-  const phone = document.getElementById('ac-phone').value.trim();
-  if (!phone) { errEl.textContent = 'Enter the collector\'s phone number.'; errEl.style.display = 'block'; return; }
-
-  const btn = document.getElementById('ac-btn');
-  btn.disabled = true; btn.textContent = 'Assigning...';
-  try {
-    const res = await fetch(`${API}/ajo-admin-manage-collector`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
-      body: JSON.stringify({ scheme_id: pendingAssignSchemeId, phone, action: 'assign' }),
-    });
-    const data = await res.json();
-    btn.disabled = false; btn.textContent = 'Assign collector';
-    if (!res.ok) { errEl.textContent = data.error || 'Failed to assign.'; errEl.style.display = 'block'; return; }
-    closeModal('modal-assign-collector');
-    toast(data.message || 'Collector assigned');
-    openSchemeDetail(pendingAssignSchemeId);
-  } catch (e) {
-    btn.disabled = false; btn.textContent = 'Assign collector';
-    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
-  }
-}
-
-async function removeCollector(schemeId) {
-  if (!confirm('Remove this collector from the group? They will no longer be able to record cash here.')) return;
-  try {
-    // Backend resolves the currently-assigned collector for this
-    // scheme server-side by requiring only scheme_id + action -
-    // phone/zillion_id aren't needed to remove, only to assign.
-    const res = await fetch(`${API}/ajo-admin-manage-collector`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
-      body: JSON.stringify({ scheme_id: schemeId, action: 'remove' }),
-    });
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || 'Failed to remove.', true); return; }
-    toast('Collector removed');
-    openSchemeDetail(schemeId);
-  } catch (e) { toast('Network error: ' + e.message, true); }
 }
 
 async function openSchemeDetail(schemeId) {
