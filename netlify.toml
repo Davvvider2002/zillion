@@ -419,6 +419,26 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-collector-public-join-init"
+  to   = "/.netlify/functions/ajo-collector-public-join-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-collector-public-join-verify"
+  to   = "/.netlify/functions/ajo-collector-public-join-verify"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-collector-public-join-info"
+  to   = "/.netlify/functions/ajo-collector-public-join-info"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-configure-collector-joining-fee"
+  to   = "/.netlify/functions/ajo-configure-collector-joining-fee"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-collector-record-cash"
   to   = "/.netlify/functions/ajo-collector-record-cash"
   status = 200
