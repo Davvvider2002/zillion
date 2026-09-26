@@ -95,7 +95,7 @@ exports.handler = async (event) => {
   // Credit the correct ledger — session.type/amount/member_id/coop_id
   // came from OUR OWN record of what this tx_ref was created for, never
   // from anything the client just sent.
-  const LEDGER_TABLES = { savings: 'coop_savings_transactions', dues: 'coop_dues_transactions', loan_repayment: 'coop_loan_repayments' };
+  const LEDGER_TABLES = { savings: 'coop_savings_transactions', dues: 'coop_dues_transactions', loan_repayment: 'coop_loan_repayments', share_capital: 'coop_share_transactions' };
   const ledgerTable = LEDGER_TABLES[session.type];
   const insertRow = session.type === 'loan_repayment'
     ? { loan_id: session.loan_id, amount_kobo: session.amount_kobo, source: 'flutterwave_checkout', reference: txRef, recorded_by: 'checkout:flutterwave_v3' }
@@ -126,6 +126,6 @@ exports.handler = async (event) => {
     success: true,
     type: session.type,
     amount_kobo: session.amount_kobo,
-    message: `Payment confirmed — ₦${(session.amount_kobo / 100).toLocaleString()} credited to your ${{ savings: 'savings', dues: 'dues', loan_repayment: 'loan repayment' }[session.type]}.`,
+    message: `Payment confirmed — ₦${(session.amount_kobo / 100).toLocaleString()} credited to your ${{ savings: 'savings', dues: 'dues', loan_repayment: 'loan repayment', share_capital: 'share capital' }[session.type]}.`,
   });
 };
