@@ -14,14 +14,18 @@
  * savings. Applies identically regardless of payment source (cash or
  * digital) - an agent's referral drove the scheme's existence, not
  * any one payment method within it.
+ *
+ * The commission rate itself is per-agent, not a single platform-wide
+ * setting - ajo_agents.commission_rate_bps, set by an admin at
+ * creation (admin-ajo-agents.js) and adjustable afterward, defaulting
+ * to 3000 (30%) for any agent nobody has explicitly set a different
+ * rate for. Read fresh from the agent's own row every time rather
+ * than cached, so a rate change an admin makes takes effect on the
+ * very next commission credited, not just future agents.
  */
 'use strict';
 
 const COMMISSION_WINDOW_MONTHS = 24;
-// The commission rate itself - the share of fee revenue an agent
-// earns on a referral still within its window. Not yet exposed as an
-// admin-configurable setting; a fixed 30% until that's built.
-const AGENT_COMMISSION_SHARE_BPS = 3000;
 
 /**
  * @param {object} db
@@ -41,7 +45,10 @@ async function creditAgentCommissionIfApplicable(db, schemeId, feeKobo, sourceEv
   const windowCutoff = new Date(attribution.attributed_at).getTime() + COMMISSION_WINDOW_MONTHS * 30 * 24 * 3600 * 1000;
   if (Date.now() >= windowCutoff) return 0; // past the cap - no row at all, not a zero-value one
 
-  const commissionKobo = Math.round(feeKobo * AGENT_COMMISSION_SHARE_BPS / 10000);
+  const { data: agent } = await db.from('ajo_agents').select('commission_rate_bps').eq('id', attribution.agent_id).maybeSingle();
+  const rateBps = agent?.commission_rate_bps ?? 3000; // defensive fallback only - every real row has this via its own column default
+
+  const commissionKobo = Math.round(feeKobo * rateBps / 10000);
   if (commissionKobo <= 0) return 0;
 
   await db.from('ajo_agent_earnings').insert({
@@ -52,4 +59,4 @@ async function creditAgentCommissionIfApplicable(db, schemeId, feeKobo, sourceEv
   return commissionKobo;
 }
 
-module.exports = { creditAgentCommissionIfApplicable, COMMISSION_WINDOW_MONTHS, AGENT_COMMISSION_SHARE_BPS };
+module.exports = { creditAgentCommissionIfApplicable, COMMISSION_WINDOW_MONTHS };
