@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join an Ajo Group — Zillion</title>
+<style>
+  :root { --bg: #05140D; --card: #0F2B1D; --border: #1A4030; --border2: #234A38; --text: #E8F5EE; --muted: #9CC4B0; --muted2: #7A9A85; --amber: #E8930C; --green: #00C896; --green2: #00E0AC; --red: #FF8A8A; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0); }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 32px 20px; }
+  .logo { text-align: center; margin-bottom: 24px; }
+  .logo .z { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: var(--amber); color: #1A2E1A; font-weight: 800; font-size: 20px; border-radius: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .headline { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .headline-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; text-transform: capitalize; }
+  .detail-box { background: #081A11; border: 1px solid var(--border2); border-radius: 10px; padding: 14px; margin-bottom: 14px }
+  .detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+  .detail-row:last-child { margin-bottom: 0; }
+  .detail-row .val { font-weight: 700; }
+  .collector-box { background: #081A11; border: 1px solid var(--border2); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  .collector-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted2); margin-bottom: 8px; }
+  .pill { display: inline-block; padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted2); margin-bottom: 6px; }
+  input { width: 100%; padding: 12px; background: #081A11; border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 15px; margin-bottom: 14px; box-sizing: border-box; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; }
+  .btn-primary { background: var(--amber); color: #1A2E1A; }
+  .error { color: var(--red); font-size: 13px; margin-bottom: 12px; display: none; }
+  .center { text-align: center; padding: 20px 0; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border2); border-top-color: var(--green2); border-radius: 50%; margin: 0 auto 14px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .success-icon { font-size: 48px; margin-bottom: 10px; }
+  .footer-note { text-align: center; font-size: 11px; color: var(--muted2); margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"><span class="z">Z</span></div>
+  <div class="card" id="card">
+    <div class="center"><div class="spinner"></div><div style="color:var(--muted);font-size:13px">Loading…</div></div>
+  </div>
+  <div class="footer-note">Powered by Zillion Ajo — no joining fee, ever</div>
+</div>
+
+<script>
+const API = '/.netlify/functions';
+const params = new URLSearchParams(location.search);
+const schemeId = params.get('scheme_id') || '';
+let schemeInfo = null;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function fmtNaira(kobo) { return '₦' + (Number(kobo || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function standingColor(standing) { return (standing === 'Excellent' || standing === 'Good') ? '#00C896' : '#F5B87A'; }
+
+async function init() {
+  if (!schemeId) {
+    renderError('This link is missing information about which group to join. Ask the group admin for the correct link or QR code.');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/ajo-scheme-public-info?scheme_id=${encodeURIComponent(schemeId)}`);
+    const data = await res.json();
+    if (!res.ok) { renderError(data.error || 'This group could not be found.'); return; }
+    schemeInfo = data;
+    renderForm();
+  } catch (e) {
+    renderError('Network error: ' + e.message);
+  }
+}
+
+function renderError(msg) {
+  document.getElementById('card').innerHTML = `<div class="center"><div class="success-icon">⚠️</div><div style="font-size:14px;color:var(--muted)">${esc(msg)}</div></div>`;
+}
+
+function renderForm() {
+  const s = schemeInfo.scheme;
+  const c = schemeInfo.collector_rating;
+  document.getElementById('card').innerHTML = `
+    <div class="headline">${esc(s.name)}</div>
+    <div class="headline-sub">${esc(s.scheme_type.replace(/_/g, ' '))}</div>
+    <div class="detail-box">
+      <div class="detail-row"><span style="color:var(--muted)">Contribution</span><span class="val">${fmtNaira(s.contribution_amount_kobo)} / ${esc(s.frequency)}</span></div>
+      <div class="detail-row"><span style="color:var(--muted)">Members</span><span class="val">${s.member_count}</span></div>
+    </div>
+    <div class="collector-label">Collector</div>
+    ${c
+      ? `<div class="collector-box"><div style="display:flex;justify-content:space-between;align-items:center">
+           <div><div style="font-size:13px;font-weight:600">${esc(c.phone_normalized || 'Verified collector')}</div><div style="font-size:11px;color:var(--muted2);margin-top:2px">Compliance score: ${c.compliance_score}/100</div></div>
+           <span class="pill" style="background:${standingColor(c.standing)}22;color:${standingColor(c.standing)}">${esc(c.standing)}</span>
+         </div></div>`
+      : `<div class="collector-box"><div style="font-size:12px;color:#F5B87A">No verified collector is assigned to this group yet — contributions may not be collectable in cash until one is confirmed.</div></div>`}
+    <label>Full name</label>
+    <input id="jf-name" type="text" placeholder="Your full name">
+    <label>Phone number</label>
+    <input id="jf-phone" type="tel" placeholder="08012345678">
+    <div class="error" id="jf-error"></div>
+    <button class="btn btn-primary" id="jf-btn" onclick="submitJoin()">Join this group</button>
+  `;
+}
+
+async function submitJoin() {
+  const errEl = document.getElementById('jf-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('jf-name').value.trim();
+  const phone = document.getElementById('jf-phone').value.trim();
+  if (!name) { errEl.textContent = 'Enter your full name.'; errEl.style.display = 'block'; return; }
+  if (!phone) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('jf-btn');
+  btn.disabled = true; btn.textContent = 'Please wait…';
+  try {
+    const res = await fetch(`${API}/ajo-scheme-public-join`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheme_id: schemeId, name, phone }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Join this group';
+    if (!res.ok || !data.success) { errEl.textContent = data.error || 'Could not join this group.'; errEl.style.display = 'block'; return; }
+    renderSuccess(data.message);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Join this group';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function renderSuccess(message) {
+  document.getElementById('card').innerHTML = `<div class="center"><div class="success-icon">🎉</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">You're in!</div><div style="font-size:13px;color:var(--muted)">${esc(message || '')}</div></div>`;
+}
+
+init();
+</script>
+</body>
+</html>
