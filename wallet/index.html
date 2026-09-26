@@ -1102,6 +1102,64 @@ function triggerPWAInstall() {
       </div>
     </div>
 
+    <div id="home-ajo-hero-section" style="display:none">
+      <div class="balance-card" style="border-color:#E8930C;background:linear-gradient(135deg,#3A2A0F,#1A2E1A)">
+        <div class="bal-label" style="color:#F5C98A">Zillion Ajo</div>
+        <div id="home-ajo-hero-group-name" style="color:#D4A56A;font-size:11px;margin-bottom:4px"></div>
+        <div class="bal-amount" style="color:#fff;font-weight:800" id="home-ajo-hero-balance">₦0.00</div>
+        <div class="bal-sub" style="color:#F5C98A">
+          <span id="home-ajo-hero-sub">Across all your groups</span>
+        </div>
+        <div style="background:#081A11;border-radius:6px;height:8px;overflow:hidden;margin-top:10px">
+          <div id="home-ajo-hero-bar" style="background:#E8930C;height:100%;width:0%"></div>
+        </div>
+      </div>
+
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:14px;gap:8px">
+        <div class="balance-card" style="cursor:pointer;padding:12px 10px;margin:0" onclick="goTo('screen-ajo')">
+          <div class="bal-label" style="font-size:10px">Groups</div>
+          <div class="bal-amount" style="font-size:13px;margin-top:4px;line-height:1.25" id="home-ajo-hero-groups-count">0</div>
+        </div>
+        <div class="balance-card" style="cursor:pointer;padding:12px 10px;margin:0;background:linear-gradient(135deg,#1D6E7A,#0F3E45);border-color:#1D6E7A" onclick="goTo('screen-ajo')">
+          <div class="bal-label" style="font-size:10px;color:#9CDCE6">This round</div>
+          <div class="bal-amount" style="font-size:13px;margin-top:4px;line-height:1.25;color:#fff" id="home-ajo-hero-round-status">—</div>
+        </div>
+        <div class="balance-card" id="home-ajo-hero-collector-card" style="cursor:pointer;padding:12px 10px;margin:0;background:linear-gradient(135deg,#1A5C32,#0F3A22);border-color:#1A5C32;display:none" onclick="goTo('screen-ajo-collector')">
+          <div class="bal-label" style="font-size:10px;color:#9CC4B0">My standing</div>
+          <div class="bal-amount" style="font-size:13px;margin-top:4px;line-height:1.25;color:#fff" id="home-ajo-hero-collector-status">—</div>
+        </div>
+      </div>
+
+      <div class="actions-grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+        <button class="action-btn primary-action" onclick="goTo('screen-ajo')">
+          <span class="action-icon">🤝</span>
+          <div class="action-label">My Groups</div>
+        </button>
+        <button class="action-btn" style="background:linear-gradient(135deg,#1D6E7A,#0F3E45);border-color:#1D6E7A" onclick="ajoOpenCreatePersonalModal()">
+          <span class="action-icon">🐷</span>
+          <div class="action-label" style="color:#fff">Start Savings</div>
+        </button>
+        <button class="action-btn" onclick="goTo('screen-ajo');setTimeout(()=>document.getElementById('ajo-join-input')?.focus(),100)">
+          <span class="action-icon">➕</span>
+          <div class="action-label">Join a Group</div>
+        </button>
+        <button class="action-btn" id="home-ajo-hero-collector-btn" style="display:none" onclick="goTo('screen-ajo-collector')">
+          <span class="action-icon">📋</span>
+          <div class="action-label">Collector Tools</div>
+        </button>
+      </div>
+
+      <div class="section-header" style="margin-top:20px">
+        <div class="section-title">Recent Activity</div>
+        <div class="section-link" onclick="goTo('screen-history')">See all</div>
+      </div>
+      <div id="home-ajo-activity-preview">
+        <div class="empty-state" style="padding:16px">
+          <div class="empty-sub">Your contributions and payouts will appear here.</div>
+        </div>
+      </div>
+    </div>
+
     <div style="height:24px"></div>
   </div>
   <div class="bnav">
@@ -2356,6 +2414,18 @@ function applyAjoFlavorUI() {
   });
   const hdrLogoEarly = document.getElementById('home-hdr-logo');
   if (hdrLogoEarly) hdrLogoEarly.textContent = 'ZILLION AJO';
+
+  // The actual gap that made the earlier fix incomplete: repurposing
+  // the nav is meaningless if the home screen underneath still shows
+  // the plain Zil coin view instead of the Ajo hero - mirrors exactly
+  // what applyCoopFlavorUI() does for its own hero section, moved
+  // here for the same reason (synchronous, no network round-trip
+  // before the right section becomes visible, no flash of the wrong
+  // screen).
+  const zilSectionEarly = document.getElementById('home-zil-section');
+  const ajoHeroEarly = document.getElementById('home-ajo-hero-section');
+  if (zilSectionEarly) zilSectionEarly.style.display = 'none';
+  if (ajoHeroEarly) ajoHeroEarly.style.display = '';
 }
 if (IS_AJO && !IS_COOP) applyAjoFlavorUI();
 
@@ -4009,6 +4079,7 @@ function refreshHome() {
 
   zilRenderCoopSummary();
   zilCheckAjoFlavorSelfHeal();
+  zilRenderAjoSummary();
 }
 
 // Parallel to zilRenderCoopSummary()'s own self-heal, for the same
@@ -4031,6 +4102,65 @@ async function zilCheckAjoFlavorSelfHeal() {
       applyAjoFlavorUI();
     }
   } catch (e) { /* non-fatal - this is a convenience correction, not a gate */ }
+}
+
+async function zilRenderAjoSummary() {
+  if (!IS_AJO || IS_COOP) return;
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) return;
+
+  try {
+    const res = await fetch(`${API}/ajo-member-my-groups`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const groups = data.groups || [];
+    if (!groups.length) return;
+
+    const totalBalanceKobo = groups.reduce((s, g) => s + (g.available_balance_kobo || g.total_contributed_kobo || 0), 0);
+    document.getElementById('home-ajo-hero-balance').textContent = fmtNaira(totalBalanceKobo);
+    document.getElementById('home-ajo-hero-group-name').textContent = groups.length === 1 ? groups[0].scheme_name : `${groups.length} groups`;
+
+    // The progress bar reflects the first group-type (rotational/
+    // thrift) scheme's current round, since personal_savings has no
+    // "round" concept to show one for - a simplification worth
+    // revisiting once someone regularly has several group schemes at
+    // once, but a real, honest number for the common case today.
+    const groupTypeScheme = groups.find(g => g.scheme_type !== 'personal_savings');
+    if (groupTypeScheme && groupTypeScheme.contribution_amount_kobo > 0) {
+      const pct = Math.min(100, Math.round((groupTypeScheme.contributed_this_cycle_kobo / groupTypeScheme.contribution_amount_kobo) * 100));
+      document.getElementById('home-ajo-hero-bar').style.width = pct + '%';
+      document.getElementById('home-ajo-hero-sub').textContent = `${fmtNaira(groupTypeScheme.contributed_this_cycle_kobo)} of ${fmtNaira(groupTypeScheme.contribution_amount_kobo)} this round`;
+      document.getElementById('home-ajo-hero-round-status').textContent = groupTypeScheme.contributed_this_cycle_kobo >= groupTypeScheme.contribution_amount_kobo ? '✓ Paid' : fmtNaira(groupTypeScheme.contribution_amount_kobo - groupTypeScheme.contributed_this_cycle_kobo) + ' due';
+    } else {
+      document.getElementById('home-ajo-hero-bar').style.width = '100%';
+      document.getElementById('home-ajo-hero-sub').textContent = 'Across all your groups';
+      document.getElementById('home-ajo-hero-round-status').textContent = 'Save anytime';
+    }
+    document.getElementById('home-ajo-hero-groups-count').textContent = String(groups.length);
+
+    const activityEl = document.getElementById('home-ajo-activity-preview');
+    if (activityEl && groups.some(g => g.total_contributed_kobo > 0)) {
+      activityEl.innerHTML = groups.filter(g => g.total_contributed_kobo > 0).slice(0, 5).map(g => `
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #1A4030">
+          <span style="color:#C8E6D4;font-size:13px">${g.scheme_name}</span>
+          <span style="color:#00E0AC;font-weight:700;font-size:13px">${fmtNaira(g.total_contributed_kobo)}</span>
+        </div>`).join('');
+    }
+  } catch (e) { /* home screen must never break over this - leave defaults in place */ }
+
+  // Collector card only appears for someone who actually collects -
+  // most Ajo members never will, so this stays hidden by default and
+  // is only revealed here once a real collector profile is confirmed.
+  try {
+    const res = await fetch(`${API}/ajo-collector-my-schemes`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (data.collector_profile) {
+      const profile = data.collector_profile;
+      document.getElementById('home-ajo-hero-collector-card').style.display = '';
+      document.getElementById('home-ajo-hero-collector-btn').style.display = '';
+      document.getElementById('home-ajo-hero-collector-status').textContent = profile.delisted_at
+        ? 'Delisted' : profile.escrow_status === 'ACTIVE' ? `Score ${profile.compliance_score}/100` : 'Setup needed';
+    }
+  } catch (e) { /* non-fatal - collector card just stays hidden */ }
 }
 
 // -- Thrift & Loan ------------------------------------------------
