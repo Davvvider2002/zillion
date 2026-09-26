@@ -124,5 +124,37 @@ exports.handler = async (event) => {
     return ok({ success: true, agent: updated });
   }
 
-  return err(400, "action must be 'create', 'approve', or 'suspend'");
+  if (body.action === 'record_payout') {
+    const agentId = body.agentId || body.agent_id;
+    if (!agentId) return err(400, 'agent_id is required');
+
+    // Marks every currently-unpaid earning row as paid in one go,
+    // matching how this actually happens in practice - an admin sends
+    // one bank transfer covering the full outstanding balance, not a
+    // separate transfer per referral commission line. Returns the
+    // total so the admin can confirm what they just marked matches
+    // what they actually paid, before the two figures have any chance
+    // to drift apart.
+    const { data: unpaidRows } = await db.from('ajo_agent_earnings')
+      .select('id, commission_kobo').eq('agent_id', agentId).is('paid_out_at', null);
+
+    if (!unpaidRows || !unpaidRows.length) return err(400, 'This agent has no outstanding balance to pay out');
+
+    const totalKobo = unpaidRows.reduce((s, r) => s + r.commission_kobo, 0);
+    const paidAt = new Date().toISOString();
+
+    const { error } = await db.from('ajo_agent_earnings')
+      .update({ paid_out_at: paidAt, paid_out_by: adminId }).eq('agent_id', agentId).is('paid_out_at', null);
+    if (error) return err(500, `Failed to record payout: ${error.message}`);
+
+    await auditLog(db, {
+      action: 'ADMIN_AJO_AGENT_PAYOUT_RECORDED', username: adminId, role: auth.payload.role,
+      ip: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'ajo_agents', resourceId: agentId, requestBody: body, result: 'SUCCESS',
+    });
+
+    return ok({ success: true, agent_id: agentId, rows_marked_paid: unpaidRows.length, total_kobo: totalKobo, paid_out_at: paidAt });
+  }
+
+  return err(400, "action must be 'create', 'approve', 'suspend', or 'record_payout'");
 };
