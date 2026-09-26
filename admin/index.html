@@ -3525,7 +3525,10 @@ async function loadAjoAgents() {
         <td>${fmtNaira(a.total_paid_kobo)}</td>
         <td style="font-weight:700">${fmtNaira(a.outstanding_kobo)}</td>
         <td><span class="badge ${a.status === 'ACTIVE' ? 'b-ok' : 'b-grey'}">${a.status}</span></td>
-        <td><button class="rbtn" onclick="toggleAjoAgentStatus('${a.id}','${a.status === 'ACTIVE' ? 'suspend' : 'approve'}')">${a.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</button></td>
+        <td style="white-space:nowrap">
+          <button class="rbtn" onclick="toggleAjoAgentStatus('${a.id}','${a.status === 'ACTIVE' ? 'suspend' : 'approve'}')">${a.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</button>
+          ${a.outstanding_kobo > 0 ? `<button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="recordAjoAgentPayout('${a.id}','${a.referral_code}',${a.outstanding_kobo})">Record payout</button>` : ''}
+        </td>
       </tr>`;
     }).join('');
     body.innerHTML = rows || '<tr><td colspan="8" class="no-data">No agents yet — add the first one above.</td></tr>';
@@ -3714,6 +3717,22 @@ async function toggleAjoAgentStatus(agentId, action) {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Failed to update agent.'); return; }
+    loadAjoAgents();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function recordAjoAgentPayout(agentId, referralCode, outstandingKobo) {
+  if (!confirm(`Record a payout of ${fmtNaira(outstandingKobo)} to agent ${referralCode}?\n\nOnly do this after you've actually sent the transfer — this marks every outstanding commission line as paid, it doesn't send money anywhere itself.`)) return;
+  try {
+    const res = await fetch(`${API}/admin-ajo-agents`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ action: 'record_payout', agent_id: agentId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to record payout.'); return; }
+    alert(`Recorded: ${fmtNaira(data.total_kobo)} across ${data.rows_marked_paid} commission line(s) for ${referralCode}.`);
     loadAjoAgents();
   } catch (e) {
     alert('Network error: ' + e.message);
