@@ -170,6 +170,18 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-scheme-join-link">
+  <div class="modal-box">
+    <div class="modal-title">Share this to invite savers</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="sjl-scheme-name"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Anyone with this link or QR code can join directly — no joining fee, ever. They'll see your group's details and its collector's rating before joining.</div>
+    <div style="text-align:center;background:#fff;border-radius:10px;padding:16px;margin-bottom:14px" id="sjl-qr-box"></div>
+    <div class="field"><label>Link</label><input type="text" id="sjl-url" readonly style="font-family:monospace;font-size:12px"></div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="copySchemeJoinLink()">Copy link</button>
+    <button class="btn btn-ghost" style="width:100%" onclick="closeModal('modal-scheme-join-link')">Close</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-create-scheme">
   <div class="modal-box">
     <div class="modal-title">Create a group</div>
@@ -588,6 +600,23 @@ function copyRecruitLink() {
   navigator.clipboard?.writeText(input.value).then(() => toast('Link copied')).catch(() => document.execCommand('copy'));
 }
 
+function openSchemeJoinLinkModal(schemeId, schemeName) {
+  document.getElementById('sjl-scheme-name').textContent = schemeName;
+  const url = `${location.origin}/ajo-scheme-join/?scheme_id=${encodeURIComponent(schemeId)}`;
+  document.getElementById('sjl-url').value = url;
+  const qrBox = document.getElementById('sjl-qr-box');
+  qrBox.innerHTML = '';
+  try { new QRCode(qrBox, { text: url, width: 220, height: 220, colorDark: '#0D1F1A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); }
+  catch (e) { qrBox.innerHTML = '<div style="color:#999;font-size:12px;padding:20px">QR code unavailable</div>'; }
+  openModal('modal-scheme-join-link');
+}
+
+function copySchemeJoinLink() {
+  const input = document.getElementById('sjl-url');
+  input.select();
+  navigator.clipboard?.writeText(input.value).then(() => toast('Link copied')).catch(() => document.execCommand('copy'));
+}
+
 async function loadCollectorHistory() {
   const compBody = document.getElementById('cp-compliance-body');
   const disbBody = document.getElementById('cp-disbursements-body');
@@ -676,7 +705,10 @@ async function openSchemeDetail(schemeId) {
       <div style="background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:18px">
         ${ajoRenderCollectorSummary(data.collector, schemeId)}
       </div>
-      <div style="font-weight:700;margin-bottom:6px">Members (${(data.members || []).length})</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-weight:700">Members (${(data.members || []).length})</div>
+        <button class="btn btn-primary btn-sm" onclick="openSchemeJoinLinkModal('${schemeId}','${s.name.replace(/'/g, "\\'")}')">Get join link</button>
+      </div>
       <div class="table-wrap" style="margin-bottom:18px"><table>
         <thead><tr><th>Position</th><th>Zillion ID</th><th>Status</th><th>Joined</th></tr></thead>
         <tbody>${memberRows}</tbody>
