@@ -22,7 +22,7 @@
  *   settlement configured on day one.
  *
  * Auth: wallet JWT.
- * Body: { type: 'savings' | 'dues' | 'loan_repayment', savings_plan_id?, loan_id?, amount_kobo, return_url }
+ * Body: { type: 'savings' | 'dues' | 'loan_repayment' | 'share_capital', savings_plan_id?, loan_id?, amount_kobo, return_url }
  */
 'use strict';
 
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const VALID_TYPES = ['savings', 'dues', 'loan_repayment'];
+  const VALID_TYPES = ['savings', 'dues', 'loan_repayment', 'share_capital'];
   const type            = VALID_TYPES.includes(body.type) ? body.type : 'savings';
   const savingsPlanId     = (body.savings_plan_id || '').trim() || null;
   const loanId              = (body.loan_id || '').trim() || null;
@@ -99,7 +99,7 @@ exports.handler = async (event) => {
       phonenumber: member.phone_normalized,
     },
     customizations: {
-      title: { savings: 'Zillion Coop — Savings', dues: 'Zillion Coop — Membership Dues', loan_repayment: 'Zillion Coop — Loan Repayment' }[type],
+      title: { savings: 'Zillion Coop — Savings', dues: 'Zillion Coop — Membership Dues', loan_repayment: 'Zillion Coop — Loan Repayment', share_capital: 'Zillion Coop — Share Capital' }[type],
     },
   };
 
