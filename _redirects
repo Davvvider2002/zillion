@@ -127,6 +127,8 @@
 /api/v1/ajo-collector-public-join-verify  /.netlify/functions/ajo-collector-public-join-verify  200
 /api/v1/ajo-collector-public-join-info  /.netlify/functions/ajo-collector-public-join-info  200
 /api/v1/ajo-configure-collector-joining-fee  /.netlify/functions/ajo-configure-collector-joining-fee  200
+/api/v1/ajo-scheme-public-info  /.netlify/functions/ajo-scheme-public-info  200
+/api/v1/ajo-scheme-public-join  /.netlify/functions/ajo-scheme-public-join  200
 /api/v1/ajo-collector-record-cash  /.netlify/functions/ajo-collector-record-cash  200
 /api/v1/ajo-collector-reconcile  /.netlify/functions/ajo-collector-reconcile  200
 /api/v1/ajo-member-switch-scheme  /.netlify/functions/ajo-member-switch-scheme  200
