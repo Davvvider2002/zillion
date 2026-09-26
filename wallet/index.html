@@ -2275,6 +2275,21 @@ let IS_COOP = (() => {
   catch { return fromUrl; }
 })();
 
+// Parallel to IS_COOP, for the exact gap found in live testing: a
+// person with real Ajo membership and no Coop membership at all had
+// nothing here auto-detecting that and routing them anywhere useful -
+// they landed on the plain Zil coin wallet with no obvious path to
+// their own Ajo group, unless they happened to find "Open Zillion
+// Ajo" buried in Settings. IS_COOP's own self-heal (below, in OTP
+// verification) already takes priority when someone has both - this
+// only ever applies when Coop genuinely isn't in the picture at all.
+let IS_AJO = (() => {
+  const fromUrl = new URLSearchParams(location.search).get('app') === 'ajo';
+  if (fromUrl) { try { localStorage.setItem('zillion_is_ajo_flavor', '1'); } catch {} }
+  try { return fromUrl || localStorage.getItem('zillion_is_ajo_flavor') === '1'; }
+  catch { return fromUrl; }
+})();
+
 // Bottom nav: repurpose Vault→Thrift and hide Send, across all 4 copies
 // of the nav bar (one per screen — not a shared component in this app).
 // Non-destructive for the regular Zillion app: data-bnav-role tags were
@@ -2321,6 +2336,28 @@ function applyCoopFlavorUI() {
   if (pinSubEarly) pinSubEarly.textContent = 'Secures your account. Never stored — only you know it.';
 }
 if (IS_COOP) applyCoopFlavorUI();
+
+// Mirrors applyCoopFlavorUI() for the Ajo-only case - repurposes the
+// same Vault nav slot to point straight at screen-ajo instead of
+// screen-coop, so there's an obvious, always-visible way back to
+// their own Ajo home from anywhere in the app. Deliberately lighter
+// than the Coop version: no custom hero section on screen-home yet
+// (a real cosmetic upgrade worth doing later), but the actual "can't
+// use the app on its own" problem was about missing navigation and
+// routing, not missing branding - this fixes that part directly.
+function applyAjoFlavorUI() {
+  document.querySelectorAll('[data-bnav-role="vault"]').forEach(btn => {
+    btn.querySelector('.bnav-icon').textContent = '🤝';
+    btn.querySelector('.bnav-label').textContent = 'Ajo';
+    btn.setAttribute('onclick', "goTo('screen-ajo')");
+  });
+  document.querySelectorAll('[data-bnav-role="send"]').forEach(btn => {
+    btn.style.display = 'none';
+  });
+  const hdrLogoEarly = document.getElementById('home-hdr-logo');
+  if (hdrLogoEarly) hdrLogoEarly.textContent = 'ZILLION AJO';
+}
+if (IS_AJO && !IS_COOP) applyAjoFlavorUI();
 
 // -- State -----------------------------------------------------
 let STATE = {
@@ -3591,7 +3628,12 @@ async function verifyOtp() {
     // IS_COOP's starting value. Two directions:
     //  1. Self-heal: a known coop member landed here without ?app=coop
     //     (a fresh device/browser never carrying that param) — correct
-    //     the flavor rather than showing them the wrong app.
+    //     the flavor rather than showing them the wrong app. The same
+    //     self-heal now applies to Ajo-only members too (checked
+    //     separately below, only when Coop doesn't already apply) -
+    //     the exact gap found in live testing, where an Ajo-only
+    //     member had no equivalent correction and landed on the plain
+    //     Zil coin wallet with no path forward.
     //  2. Block: the app IS coop-flavored, but this phone isn't a real,
     //     activated member of any society — signup must not complete.
     //     Real gap found: this branch never existed before, so any
@@ -3599,6 +3641,14 @@ async function verifyOtp() {
     //     zero membership at all. Fails closed on a network error too
     //     (asks to retry) rather than silently letting an unverified
     //     phone through, since fail-open would defeat the point.
+    //
+    // Deliberately still calls coop-member-status exactly as before
+    // for this part, unchanged - resolveMemberForZillionId's own
+    // matching isn't strictly ACTIVE-only in every case, so swapping
+    // this security-relevant block check to a different endpoint's
+    // logic without first confirming they're identical risked quietly
+    // changing who gets blocked. Not worth that risk to save one
+    // extra request in the Ajo-only case below.
     if (STATE._verifiedToken) {
       try {
         const coopCheck = await fetch(`${API}/coop-member-status`, { headers: { Authorization: 'Bearer ' + STATE._verifiedToken } });
@@ -3612,6 +3662,18 @@ async function verifyOtp() {
           errEl.textContent = "⚠️ This phone number isn't registered with any cooperative society yet. Ask your society admin to add you as a member first.";
           errEl.style.display = 'block';
           return;
+        } else if (!IS_COOP && !IS_AJO && !coopData.is_coop_member) {
+          // Coop genuinely doesn't apply here - check Ajo before
+          // giving up and leaving this person flavor-less.
+          try {
+            const ajoCheck = await fetch(`${API}/zillion-member-products`, { headers: { Authorization: 'Bearer ' + STATE._verifiedToken } });
+            const ajoData = await ajoCheck.json();
+            if (ajoData.has_ajo) {
+              IS_AJO = true;
+              try { localStorage.setItem('zillion_is_ajo_flavor', '1'); } catch {}
+              applyAjoFlavorUI();
+            }
+          } catch (e) { /* non-fatal - Ajo self-heal is a convenience, not a gate */ }
         }
       } catch (e) {
         if (IS_COOP) {
@@ -3946,6 +4008,29 @@ function refreshHome() {
   }
 
   zilRenderCoopSummary();
+  zilCheckAjoFlavorSelfHeal();
+}
+
+// Parallel to zilRenderCoopSummary()'s own self-heal, for the same
+// returning-session case: catches someone whose Ajo membership
+// predates this flavor-detection logic existing, or whose flavor
+// preference never got set because they only ever had exactly one
+// product and the dual-product chooser never ran for them. Only
+// checks when Coop genuinely doesn't already apply - Coop's own
+// self-heal above takes priority for anyone who has both.
+async function zilCheckAjoFlavorSelfHeal() {
+  if (IS_COOP || IS_AJO) return;
+  const token = (STATE.user && STATE.user.token) || '';
+  if (!token) return;
+  try {
+    const res = await fetch(`${API}/ajo-member-my-groups`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (res.ok && (data.groups || []).length > 0) {
+      IS_AJO = true;
+      try { localStorage.setItem('zillion_is_ajo_flavor', '1'); } catch {}
+      applyAjoFlavorUI();
+    }
+  } catch (e) { /* non-fatal - this is a convenience correction, not a gate */ }
 }
 
 // -- Thrift & Loan ------------------------------------------------
