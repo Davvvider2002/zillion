@@ -439,6 +439,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-scheme-public-info"
+  to   = "/.netlify/functions/ajo-scheme-public-info"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-scheme-public-join"
+  to   = "/.netlify/functions/ajo-scheme-public-join"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-collector-record-cash"
   to   = "/.netlify/functions/ajo-collector-record-cash"
   status = 200
