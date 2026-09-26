@@ -90,11 +90,18 @@ exports.handler = async (event) => {
     if (!zillionId) return err(400, 'zillion_id is required');
     if (!referralCode) return err(400, 'referral_code is required');
 
-    const { data: created, error } = await db.from('ajo_agents').insert({
+    const insertRow = {
       zillion_id: zillionId, referral_code: referralCode,
       payout_bank_name: body.payout_bank_name || null, payout_account_number: body.payout_account_number || null,
       status: 'ACTIVE', approved_by: adminId, approved_at: new Date().toISOString(),
-    }).select().single();
+    };
+    if (body.commission_rate_bps != null) {
+      const rateBps = Number(body.commission_rate_bps);
+      if (!Number.isInteger(rateBps) || rateBps <= 0 || rateBps > 10000) return err(400, 'commission_rate_bps must be a whole number between 1 and 10000 (basis points)');
+      insertRow.commission_rate_bps = rateBps;
+    } // omitted entirely -> the column's own default (3000, 30%) applies
+
+    const { data: created, error } = await db.from('ajo_agents').insert(insertRow).select().single();
 
     if (error) return err(error.code === '23505' ? 409 : 500, error.code === '23505' ? 'That zillion_id or referral_code is already an agent' : `Failed to create agent: ${error.message}`);
 
@@ -156,5 +163,28 @@ exports.handler = async (event) => {
     return ok({ success: true, agent_id: agentId, rows_marked_paid: unpaidRows.length, total_kobo: totalKobo, paid_out_at: paidAt });
   }
 
-  return err(400, "action must be 'create', 'approve', 'suspend', or 'record_payout'");
+  if (body.action === 'update_rate') {
+    const agentId = body.agentId || body.agent_id;
+    const rateBps = Number(body.commission_rate_bps);
+    if (!agentId) return err(400, 'agent_id is required');
+    if (!Number.isInteger(rateBps) || rateBps <= 0 || rateBps > 10000) return err(400, 'commission_rate_bps must be a whole number between 1 and 10000 (basis points)');
+
+    // Deliberately affects only commission credited from this point
+    // forward - ajo_agent_earnings rows already written keep whatever
+    // rate was in effect when they were actually earned, since a rate
+    // change today has no bearing on what a referral already paid out
+    // under the old rate.
+    const { data: updated, error } = await db.from('ajo_agents').update({ commission_rate_bps: rateBps }).eq('id', agentId).select().single();
+    if (error) return err(500, `Failed to update commission rate: ${error.message}`);
+
+    await auditLog(db, {
+      action: 'ADMIN_AJO_AGENT_RATE_UPDATED', username: adminId, role: auth.payload.role,
+      ip: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'ajo_agents', resourceId: agentId, requestBody: body, result: 'SUCCESS',
+    });
+
+    return ok({ success: true, agent: updated });
+  }
+
+  return err(400, "action must be 'create', 'approve', 'suspend', 'record_payout', or 'update_rate'");
 };
