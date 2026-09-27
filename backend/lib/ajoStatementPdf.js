@@ -1,0 +1,116 @@
+/**
+ * zillion/backend/lib/ajoStatementPdf.js
+ *
+ * Renders a member's Ajo contribution statement as a formal PDF -
+ * mirrors coopBankReconciliationPdf.js's visual conventions (A4, 40pt
+ * margins, Helvetica/Helvetica-Bold, the same header-row pattern) for
+ * visual consistency across every PDF this platform produces, rather
+ * than starting a second, different-looking style.
+ *
+ * A diverted contribution (personal_savings' first-of-month collector
+ * compensation) is shown as its own clearly-labeled line, exactly as
+ * the in-app history already does - a statement is exactly the kind
+ * of document a saver might keep or show someone else, so the same
+ * honesty about where a payment actually went belongs here too, not
+ * just in the app.
+ */
+'use strict';
+
+const PDFDocument = require('pdfkit');
+
+function fmtNaira(kobo) {
+  if (kobo == null) return '';
+  const naira = kobo / 100;
+  const sign = naira < 0 ? '-' : '';
+  return sign + 'NGN ' + Math.abs(naira).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtDate(d) {
+  if (!d) return '\u2014';
+  return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
+ * @param {object} data
+ * @param {object} data.scheme          { name, scheme_type, contribution_amount_kobo, frequency }
+ * @param {object} data.member          { phone_normalized }
+ * @param {Array}  data.contributions   { created_at, amount_kobo, source, diverted_to_collector }
+ * @param {number} data.totalOwnKobo    sum excluding diverted lines - what actually counts as this member's own balance
+ * @param {number} data.totalDivertedKobo
+ * @returns {Promise<Buffer>}
+ */
+function generateAjoStatementPdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const { scheme, member, contributions, totalOwnKobo, totalDivertedKobo } = data;
+    const PAGE_W = 515;
+    const L = 40;
+
+    // ---- Header -------------------------------------------------------
+    doc.fontSize(15).font('Helvetica-Bold').text('AJO CONTRIBUTION STATEMENT', { align: 'center' });
+    doc.moveDown(1);
+
+    doc.fontSize(9.5).font('Helvetica');
+    const headerRow = (label, value) => {
+      doc.font('Helvetica-Bold').text(label, L, doc.y, { continued: true, width: 180 });
+      doc.font('Helvetica').text(value || '\u2014');
+    };
+    headerRow('Group / Pot:', scheme.name);
+    headerRow('Type:', scheme.scheme_type.replace(/_/g, ' '));
+    headerRow('Standard Contribution:', `${fmtNaira(scheme.contribution_amount_kobo)} / ${scheme.frequency}`);
+    headerRow('Member:', member.phone_normalized || '\u2014');
+    headerRow('Statement Generated:', fmtDate(new Date()));
+    doc.moveDown(1);
+
+    // ---- Summary --------------------------------------------------------
+    doc.fontSize(11).font('Helvetica-Bold').text('SUMMARY', L, doc.y);
+    doc.moveDown(0.3);
+    doc.fontSize(9.5);
+    headerRow('Total Added to Balance:', fmtNaira(totalOwnKobo));
+    if (totalDivertedKobo > 0) headerRow('Total Diverted to Collector:', fmtNaira(totalDivertedKobo));
+    doc.moveDown(1);
+
+    // ---- Itemized table -------------------------------------------------
+    doc.fontSize(11).font('Helvetica-Bold').text('CONTRIBUTION HISTORY', L, doc.y);
+    doc.moveDown(0.5);
+
+    const colDate = L, colDesc = L + 90, colSource = L + 300, colAmount = L + 400;
+    const tableTop = doc.y;
+    doc.fontSize(9).font('Helvetica-Bold');
+    doc.text('Date', colDate, tableTop, { width: 85 });
+    doc.text('Status', colDesc, tableTop, { width: 205 });
+    doc.text('Source', colSource, tableTop, { width: 95 });
+    doc.text('Amount', colAmount, tableTop, { width: PAGE_W - (colAmount - L), align: 'right' });
+    doc.moveTo(L, doc.y + 3).lineTo(L + PAGE_W, doc.y + 3).strokeColor('#999').stroke();
+    doc.moveDown(0.5);
+
+    doc.font('Helvetica').fontSize(9);
+    for (const c of (contributions || [])) {
+      const y = doc.y;
+      if (y > 760) { doc.addPage(); doc.y = 40; }
+      const rowY = doc.y;
+      doc.text(fmtDate(c.created_at), colDate, rowY, { width: 85 });
+      doc.fillColor(c.diverted_to_collector ? '#B8860B' : '#000')
+        .text(c.diverted_to_collector ? 'Diverted to collector' : 'Added to balance', colDesc, rowY, { width: 205 });
+      doc.fillColor('#000').text(c.source, colSource, rowY, { width: 95 });
+      doc.text(fmtNaira(c.amount_kobo), colAmount, rowY, { width: PAGE_W - (colAmount - L), align: 'right' });
+      doc.moveDown(0.6);
+    }
+
+    if (!(contributions || []).length) {
+      doc.font('Helvetica-Oblique').fillColor('#666').text('No contributions recorded yet.', L, doc.y);
+    }
+
+    doc.moveDown(1.5);
+    doc.fontSize(8).font('Helvetica-Oblique').fillColor('#888')
+      .text('Generated by Zillion Ajo. This statement reflects records as of the generation date above.', L, doc.y, { width: PAGE_W, align: 'center' });
+
+    doc.end();
+  });
+}
+
+module.exports = { generateAjoStatementPdf };
