@@ -1055,12 +1055,43 @@ tbody tr:last-child td{border-bottom:none;}
     <div id="ajo-fee-error" style="display:none;color:#e74c3c;font-size:13px;margin-bottom:12px"></div>
     <button class="rbtn" style="background:var(--am);color:#1a1a1a;font-weight:700" onclick="submitAjoFeeRate()" id="ajo-fee-submit-btn">Set rate</button>
   </div>
-  <div class="card">
+  <div class="card" style="margin-bottom:16px">
     <div class="card-title">Rate history</div>
     <div class="table-wrap"><table>
       <thead><tr><th>Applies to</th><th>Type</th><th>Value</th><th>Effective from</th><th>Set by</th></tr></thead>
       <tbody id="ajo-fee-history-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
     </table></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Per-scheme fee override</div>
+    <div class="card-sub">Overrides the platform default for one specific scheme only — a pricing decision, so this stays here, never something a scheme's own group admin can set for themselves.</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input type="text" id="ajo-scheme-override-id" placeholder="Scheme ID" style="flex:1;padding:10px 12px;border-radius:8px">
+      <button class="rbtn" onclick="loadAjoSchemeFeeOverride()">Load</button>
+    </div>
+    <div id="ajo-scheme-override-current" style="margin-bottom:14px"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--tx2);margin-bottom:6px">Applies to</label>
+        <select id="ajo-scheme-override-applies-to" style="width:100%;padding:10px 12px;border-radius:8px">
+          <option value="contribution">Contribution</option>
+          <option value="payout">Payout</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--tx2);margin-bottom:6px">Type</label>
+        <select id="ajo-scheme-override-type" onchange="onAjoSchemeOverrideTypeChange()" style="width:100%;padding:10px 12px;border-radius:8px">
+          <option value="flat">Flat (₦)</option>
+          <option value="percentage">Percentage (%)</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--tx2);margin-bottom:6px" id="ajo-scheme-override-value-label">Amount (₦)</label>
+        <input type="number" id="ajo-scheme-override-value" placeholder="0" style="width:100%;padding:10px 12px;border-radius:8px">
+      </div>
+    </div>
+    <div id="ajo-scheme-override-error" style="display:none;color:#e74c3c;font-size:13px;margin-bottom:12px"></div>
+    <button class="rbtn" style="background:var(--am);color:#1a1a1a;font-weight:700" onclick="submitAjoSchemeFeeOverride()" id="ajo-scheme-override-submit-btn">Set override</button>
   </div>
 </div>
 
@@ -3500,6 +3531,62 @@ async function submitAjoFeeRate() {
     loadAjoFeeConfig();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Set rate';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function onAjoSchemeOverrideTypeChange() {
+  const type = document.getElementById('ajo-scheme-override-type').value;
+  document.getElementById('ajo-scheme-override-value-label').textContent = type === 'flat' ? 'Amount (₦)' : 'Rate (%)';
+}
+
+async function loadAjoSchemeFeeOverride() {
+  const schemeId = document.getElementById('ajo-scheme-override-id').value.trim();
+  const currentEl = document.getElementById('ajo-scheme-override-current');
+  if (!schemeId) { currentEl.innerHTML = '<div class="no-data">Enter a scheme ID first.</div>'; return; }
+  currentEl.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/admin-ajo-fee-config?scheme_id=${encodeURIComponent(schemeId)}`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { currentEl.innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+
+    const fmtRate = r => !r ? '<span class="no-data">No override — using platform default</span>' : (r.fee_type === 'flat' ? fmtNaira(r.fee_value) : (r.fee_value / 100).toFixed(2) + '%');
+    currentEl.innerHTML = `
+      <div class="metrics" style="grid-template-columns:1fr 1fr">
+        <div class="metric"><div class="mlabel">Contribution Override</div><div class="mvalue">${fmtRate(data.current.contribution)}</div></div>
+        <div class="metric"><div class="mlabel">Payout Override</div><div class="mvalue">${fmtRate(data.current.payout)}</div></div>
+      </div>`;
+  } catch (e) {
+    currentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+async function submitAjoSchemeFeeOverride() {
+  const errEl = document.getElementById('ajo-scheme-override-error');
+  errEl.style.display = 'none';
+  const schemeId = document.getElementById('ajo-scheme-override-id').value.trim();
+  const appliesTo = document.getElementById('ajo-scheme-override-applies-to').value;
+  const feeType = document.getElementById('ajo-scheme-override-type').value;
+  const rawValue = parseFloat(document.getElementById('ajo-scheme-override-value').value);
+  if (!schemeId) { errEl.textContent = 'Enter a scheme ID first.'; errEl.style.display = 'block'; return; }
+  if (!rawValue || rawValue < 0) { errEl.textContent = 'Enter a valid, non-negative value.'; errEl.style.display = 'block'; return; }
+
+  const feeValue = Math.round(rawValue * 100);
+
+  const btn = document.getElementById('ajo-scheme-override-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/admin-ajo-fee-config`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ fee_applies_to: appliesTo, fee_type: feeType, fee_value: feeValue, scheme_id: schemeId }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Set override';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to set override.'; errEl.style.display = 'block'; return; }
+    document.getElementById('ajo-scheme-override-value').value = '';
+    loadAjoSchemeFeeOverride();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Set override';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
