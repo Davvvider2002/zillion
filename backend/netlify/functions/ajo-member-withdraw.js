@@ -89,7 +89,7 @@ exports.handler = async (event) => {
   const availableKobo = Math.max(0, totalContributedKobo - totalWithdrawnKobo);
   if (requestedKobo > availableKobo) return err(400, `You can withdraw up to ${(availableKobo / 100).toFixed(2)} — that's your full available balance.`);
 
-  const feeRate = await resolveFeeRate(db, 'payout', cycle.started_at);
+  const feeRate = await resolveFeeRate(db, schemeId, 'payout', cycle.started_at);
   const feeKobo = computeFeeKobo(feeRate, requestedKobo);
   const netWithdrawalKobo = Math.max(0, requestedKobo - feeKobo);
 
