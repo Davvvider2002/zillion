@@ -449,6 +449,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-member-statement-pdf"
+  to   = "/.netlify/functions/ajo-member-statement-pdf"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-collector-record-cash"
   to   = "/.netlify/functions/ajo-collector-record-cash"
   status = 200
