@@ -4515,6 +4515,7 @@ async function refreshCoopScreen() {
       <div style="font-size:12px;color:#9CC4B0;margin-top:4px">${fmtNaira(l.monthly_repayment_kobo)}/month for ${l.repayment_months} months · Guarantor${(l.guarantors || []).length === 1 ? '' : 's'}: ${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</div>
       <div style="display:flex;margin-top:10px">${coopLoanStepper(l.status)}</div>
       ${l.rejection_reason ? `<div style="font-size:11px;color:#FF8A8A;margin-top:8px">${l.rejection_reason}</div>` : ''}
+      ${['DISBURSED', 'REPAYING'].includes(l.status) ? `<button onclick="coopShowPayNowModal('loan_repayment','${l.id}')" style="width:100%;margin-top:10px;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Repay Now</button>` : ''}
     </div>
   `).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-sub">No loans yet.</div></div>';
 
@@ -4758,6 +4759,19 @@ function coopShowPayNowModal(type, planId) {
     accountNumber = plan?.flutterwave_account_number;
     bankName = plan?.flutterwave_bank_name;
     defaultAmountKobo = plan?.monthly_contribution_kobo || 0;
+  } else if (type === 'loan_repayment') {
+    // No due-date gate here on purpose - a member with funds ready
+    // shouldn't have to wait for their next scheduled installment
+    // just because nothing is technically due yet. The monthly
+    // repayment amount is a sensible starting point, pre-filled but
+    // fully editable, since someone paying early or extra may want to
+    // send more than one installment's worth at once.
+    const loan = (_coopLatestStatus?.loans || []).find(l => l.id === planId);
+    title.textContent = 'Repay Your Loan';
+    subtitle.textContent = loan ? `${fmtNaira(loan.monthly_repayment_kobo)} / month scheduled — pay this or more anytime` : '';
+    accountNumber = null;
+    bankName = null;
+    defaultAmountKobo = loan?.monthly_repayment_kobo || 0;
   } else if (type === 'share_capital') {
     // No dedicated account for shares - a member doesn't have their
     // own share-collection virtual account the way they do for
@@ -4826,7 +4840,8 @@ async function coopStartHostedCheckout(type, planId) {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({
         type,
-        savings_plan_id: planId || undefined,
+        savings_plan_id: type === 'savings' ? (planId || undefined) : undefined,
+        loan_id: type === 'loan_repayment' ? (planId || undefined) : undefined,
         amount_kobo: Math.round(amountNaira * 100),
         return_url: (() => {
           const base = window.location.href.split('?')[0];
