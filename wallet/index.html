@@ -4802,7 +4802,7 @@ function coopShowPayNowModal(type, planId) {
       </div>
       <div style="font-size:11px;color:#7FA894;margin-top:10px;text-align:center">Send from any Nigerian bank — your payment is detected and credited automatically.</div>
       <div style="text-align:center;margin:14px 0;color:#5A8069;font-size:11px">— OR —</div>`;
-  } else if (type !== 'share_capital') {
+  } else if (!['share_capital', 'loan_repayment'].includes(type)) {
     html += `
       <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
         <div style="font-size:13px;color:#F5B87A">No dedicated account set up yet</div>
