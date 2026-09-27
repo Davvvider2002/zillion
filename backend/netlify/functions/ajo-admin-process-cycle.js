@@ -123,7 +123,7 @@ exports.handler = async (event) => {
   const poolKobo = (cycleContributions || []).reduce((s, c) => s + c.amount_kobo, 0);
   if (poolKobo <= 0) return err(400, 'No contributions have been recorded for this cycle yet — nothing to pay out.');
 
-  const feeRate = await resolveFeeRate(db, 'payout', cycle.started_at);
+  const feeRate = await resolveFeeRate(db, schemeId, 'payout', cycle.started_at);
   const feeKobo = computeFeeKobo(feeRate, poolKobo);
 
   // Group collector compensation - mirrors how the platform fee
