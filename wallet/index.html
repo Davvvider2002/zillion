@@ -1479,7 +1479,8 @@ function triggerPWAInstall() {
     <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px" id="ach-scheme-name">Contribution history</div>
     <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px">Every contribution you've made — any month diverted to your collector is marked clearly, not silently missing.</div>
     <div id="ach-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
-    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px;margin-top:14px" onclick="document.getElementById('modal-ajo-contribution-history').style.display='none'">Close</button>
+    <button class="btn" id="ach-download-btn" style="width:100%;padding:12px;background:#00C896;color:#05140D;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-top:14px" onclick="ajoDownloadStatement()">Download statement (PDF)</button>
+    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px;margin-top:8px" onclick="document.getElementById('modal-ajo-contribution-history').style.display='none'">Close</button>
   </div>
 </div>
 
@@ -2881,7 +2882,12 @@ function extractSchemeId(input) {
 
 let ajoPreviewedSchemeId = null;
 
+let achCurrentSchemeId = null;
+let achCurrentSchemeName = null;
+
 async function ajoOpenContributionHistory(schemeId, schemeName) {
+  achCurrentSchemeId = schemeId;
+  achCurrentSchemeName = schemeName;
   document.getElementById('ach-scheme-name').textContent = schemeName;
   document.getElementById('ach-list').innerHTML = '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div>';
   document.getElementById('modal-ajo-contribution-history').style.display = 'flex';
@@ -2917,6 +2923,35 @@ async function ajoOpenContributionHistory(schemeId, schemeName) {
     listEl.innerHTML = rows || '<div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">No contributions yet.</div>';
   } catch (e) {
     listEl.innerHTML = `<div style="padding:20px;text-align:center;color:#FF8A8A;font-size:13px">Network error: ${e.message}</div>`;
+  }
+}
+
+function base64ToBlob(base64, mime) {
+  const byteChars = atob(base64);
+  const byteNumbers = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+  return new Blob([new Uint8Array(byteNumbers)], { type: mime });
+}
+
+async function ajoDownloadStatement() {
+  if (!achCurrentSchemeId) return;
+  const token = (STATE.user && STATE.user.token) || '';
+  const btn = document.getElementById('ach-download-btn');
+  btn.disabled = true; btn.textContent = 'Generating...';
+  try {
+    const res = await fetch(`${API}/ajo-member-statement-pdf?scheme_id=${achCurrentSchemeId}`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Download statement (PDF)';
+    if (!res.ok) { toast(data.error || 'Failed to generate statement.', true); return; }
+    const blob = base64ToBlob(data.pdf_base64, 'application/pdf');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = data.filename || `ajo-statement-${achCurrentSchemeName}.pdf`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Download statement (PDF)';
+    toast('Network error: ' + e.message, true);
   }
 }
 
