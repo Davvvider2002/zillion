@@ -73,7 +73,7 @@ async function creditContribution(db, { schemeId, schemeMemberId, amountKobo, so
     .order('cycle_number', { ascending: false }).limit(1).maybeSingle();
   if (!cycle) return { ok: false, error: 'This scheme has no open cycle to contribute to right now' };
 
-  const feeRate = await resolveFeeRate(db, 'contribution', cycle.started_at);
+  const feeRate = await resolveFeeRate(db, schemeId, 'contribution', cycle.started_at);
   const feeKobo = computeFeeKobo(feeRate, amountKobo);
 
   // Diversion only ever applies to personal_savings, and only when
