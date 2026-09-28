@@ -920,6 +920,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-record-loan-repayment"
+  to   = "/.netlify/functions/coop-portal-record-loan-repayment"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-loan-action"
   to   = "/.netlify/functions/coop-portal-loan-action"
   status = 200
