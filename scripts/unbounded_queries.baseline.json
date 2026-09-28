@@ -27,6 +27,8 @@
  "netlify/functions/admin-cooperatives.js|cooperative_members": 1,
  "netlify/functions/admin-cooperatives.js|cooperatives": 1,
  "netlify/functions/admin-flutterwave-settlements.js|coop_subscription_payments": 1,
+ "netlify/functions/admin-kyc-usage.js|coop_kyc_invoices": 1,
+ "netlify/functions/admin-kyc-usage.js|coop_kyc_verifications": 1,
  "netlify/functions/admin-ledger.js|claim_bundles": 1,
  "netlify/functions/admin-ledger.js|coin_ledger": 1,
  "netlify/functions/admin-ledger.js|coins": 5,
