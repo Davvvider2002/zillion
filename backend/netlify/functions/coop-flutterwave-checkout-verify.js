@@ -28,6 +28,7 @@ const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting'
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { settleLoanAfterRepayment } = require('../../lib/coopLoanCompletion');
+const { recordSavingsPaymentJournalEntry, recordSharePaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -207,6 +208,15 @@ exports.handler = async (event) => {
     await recordLoanRepaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3',
       splitPortions.principal_portion_kobo, splitPortions.interest_portion_kobo, borrower ? { id: borrower.id, name: borrower.name } : null);
     ({ completed: loanCompleted } = await settleLoanAfterRepayment(db, loanCtx, session.coop_id));
+  }
+
+  // Savings deposits and share purchases paid online used to be credited to the member with
+  // no ledger entry at all (dues and loan repayments already posted one).
+  if (session.type === 'savings' || session.type === 'share_capital') {
+    const { data: payer } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
+    const record = session.type === 'savings' ? recordSavingsPaymentJournalEntry : recordSharePaymentJournalEntry;
+    const posted = await record(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3', payer, txRef);
+    await alertIfNotBooked(db, posted, { source: 'coop-flutterwave-checkout-verify', what: `Online ${session.type === 'savings' ? 'savings' : 'share capital'} payment ${txRef}`, amountKobo: session.amount_kobo });
   }
 
   if (session.type === 'dues') {
