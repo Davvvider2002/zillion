@@ -16,6 +16,7 @@
 'use strict';
 
 const { accountingIsReady, getAccounts, postEntry } = require('./coopAccountingHelpers');
+const { monthlyInterestReference } = require('./coopReference');
 
 const INTEREST_EXPENSE_ACCOUNT_CODE = '5300';
 const MEMBER_SAVINGS_PAYABLE_ACCOUNT_CODE = '2000';
@@ -55,13 +56,15 @@ async function hasInterestBeenCreditedThisMonth(db, savingsPlanId, now) {
  *
  * @returns {Promise<{applied: boolean, reason?: string, amountKobo?: number}>}
  */
-async function applyMonthlyInterestIfEligible(db, plan, pkg, now) {
+async function applyMonthlyInterestIfEligible(db, plan, pkg, now, hints = {}) {
   if (!pkg || !pkg.active) return { applied: false, reason: 'no_active_package' };
 
-  const alreadyCredited = await hasInterestBeenCreditedThisMonth(db, plan.id, now);
+  // hints: a caller that has already read these for a whole page of plans (the nightly job) passes them in, so
+  // this function does not repeat the same two queries once per plan. Omitted = it asks, exactly as before.
+  const alreadyCredited = hints.alreadyCredited !== undefined ? hints.alreadyCredited : await hasInterestBeenCreditedThisMonth(db, plan.id, now);
   if (alreadyCredited) return { applied: false, reason: 'already_credited_this_month' };
 
-  const balanceKobo = await computeSavingsPlanBalance(db, plan.id);
+  const balanceKobo = hints.balanceKobo !== undefined ? hints.balanceKobo : await computeSavingsPlanBalance(db, plan.id);
   if (pkg.min_balance_kobo && balanceKobo < pkg.min_balance_kobo) return { applied: false, reason: 'below_minimum_balance' };
 
   const interestKobo = Math.round(balanceKobo * (pkg.monthly_interest_rate_percent / 100));
@@ -73,10 +76,15 @@ async function applyMonthlyInterestIfEligible(db, plan, pkg, now) {
     savings_plan_id: plan.id,
     amount_kobo: interestKobo,
     source: 'interest_credit',
-    reference: `Monthly interest — ${pkg.name}`,
+    // Deterministic per plan and month: the same reference for every plan on a package collided with the unique index on
+    // reference, so only ONE plan per package could ever be credited, once. Now the database itself refuses a double credit.
+    reference: monthlyInterestReference(pkg.name, plan.id, now),
     recorded_by: 'system:scheduled-reconcile',
   });
-  if (insertErr) return { applied: false, reason: 'insert_failed' };
+  if (insertErr) {
+    if (insertErr.code === '23505') return { applied: false, reason: 'already_credited_this_month' };   // lost a race with another run
+    return { applied: false, reason: 'insert_failed', error: insertErr.message };
+  }
 
   try {
     if (await accountingIsReady(db, plan.coop_id)) {
