@@ -36,6 +36,8 @@ const { getFlutterwaveAccessToken, flutterwaveApiBase } = require('../../lib/flu
 const { logAlert }         = require('../../lib/alerts');
 const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
 const { postZillionSubscriptionRevenue } = require('../../lib/zillionSubscriptionRevenue');
+const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
+const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -169,14 +171,23 @@ exports.handler = async (event) => {
   const { data: plan } = await db.from('coop_savings_plans')
     .select('id, coop_id, member_id, target_amount_kobo')
     .eq('flutterwave_tx_ref', tx_ref).maybeSingle();
+  // A member's dedicated DUES account is provisioned with its own reference
+  // (flutterwave_dues_tx_ref) but nothing here ever looked it up, so a transfer to it
+  // matched no savings plan, raised the alert below, and was dropped: real money
+  // received and never credited. Look it up when no savings plan matches.
+  let duesMember = null;
   if (!plan) {
+    const { data: m } = await db.from('coop_members').select('id, coop_id, name').eq('flutterwave_dues_tx_ref', tx_ref).maybeSingle();
+    duesMember = m || null;
+  }
+  if (!plan && !duesMember) {
     // A payment we genuinely can't attribute to any plan — log it as a
     // critical alert rather than silently dropping real money's worth
     // of notification, but still return 200 (retrying won't help).
     await logAlert(db, {
       severity: 'CRITICAL',
       source:   'coop-flutterwave-webhook',
-      message:  `Received a successful Flutterwave payment (tx_ref: ${tx_ref}) that doesn't match any savings plan`,
+      message:  `Received a successful Flutterwave payment (tx_ref: ${tx_ref}) that doesn't match any savings plan or member dues account`,
       context:  { tx_ref, flw_transaction_id: flwTransactionId, amount, currency },
     });
     return ok({ ignored: true, reason: 'no matching plan' });
@@ -216,6 +227,24 @@ exports.handler = async (event) => {
     return reject(500, 'Verification failed, will retry');
   }
 
+  if (duesMember) {
+    const duesKobo = Math.round(Number(amount) * 100);
+    const { error: duesErr } = await db.from('coop_dues_transactions').insert({
+      coop_id: duesMember.coop_id, member_id: duesMember.id, amount_kobo: duesKobo,
+      source: 'webhook_flutterwave', reference: tx_ref, recorded_by: 'webhook:flutterwave',
+    });
+    if (duesErr) {
+      // The unique index on reference makes a repeat delivery a no-op, exactly as for savings.
+      if (duesErr.code === '23505') return ok({ success: true, idempotent: true });
+      console.error('[coop-flutterwave-webhook] Dues insert failed:', duesErr.message);
+      return reject(500, 'Failed to record payment, will retry');
+    }
+    const duesPosted = await recordDuesPaymentJournalEntry(db, duesMember.coop_id, duesKobo, 'webhook_flutterwave', 'webhook:flutterwave', { id: duesMember.id, name: duesMember.name });
+    await alertIfNotBooked(db, duesPosted, { source: 'coop-flutterwave-webhook', what: `A dues payment (tx_ref ${tx_ref})`, amountKobo: duesKobo });
+    console.log(`[coop-flutterwave-webhook] ✅ Credited ₦${amount} dues to member ${duesMember.id} (tx_ref: ${tx_ref})`);
+    return ok({ success: true, credited: 'dues' });
+  }
+
   const { data: created, error: insertErr } = await db.from('coop_savings_transactions').insert({
     coop_id:          plan.coop_id,
     member_id:         plan.member_id,
@@ -234,6 +263,12 @@ exports.handler = async (event) => {
     console.error('[coop-flutterwave-webhook] Insert failed:', insertErr.message);
     return reject(500, 'Failed to record payment, will retry');
   }
+
+  // Savings deposits detected on a member's dedicated account never reached the ledger.
+  const { data: savingsMember } = await db.from('coop_members').select('id, name').eq('id', plan.member_id).maybeSingle();
+  const savingsKobo = Math.round(Number(amount) * 100);
+  const savingsPosted = await recordSavingsPaymentJournalEntry(db, plan.coop_id, savingsKobo, 'webhook_flutterwave', 'webhook:flutterwave', savingsMember, tx_ref);
+  await alertIfNotBooked(db, savingsPosted, { source: 'coop-flutterwave-webhook', what: `A savings payment (tx_ref ${tx_ref})`, amountKobo: savingsKobo });
 
   console.log(`[coop-flutterwave-webhook] ✅ Credited ₦${amount} to plan ${plan.id} (tx_ref: ${tx_ref})`);
   return ok({ success: true, transaction: created });
