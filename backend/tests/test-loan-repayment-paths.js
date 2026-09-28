@@ -125,7 +125,7 @@ const naira = k => '₦' + (k / 100).toLocaleString('en-NG', { minimumFractionDi
   // ================= OFFLINE =================
   setup();
   const hash = crypto.createHash('sha256').update('+2348011').digest('hex');
-  CURRENT_DB = makeDb({ ...baseTables(), coin_ledger: [{ prev_holder_hash: hash, new_holder_hash: 'MERCHANT-M1', amount: 10000000, changed_at: new Date().toISOString() }] });
+  CURRENT_DB = makeDb({ ...baseTables(), coin_ledger: [{ entry_id: 1, coin_id: 'c1', event_type: 'TRANSFER', prev_holder_hash: hash, new_holder_hash: 'MERCHANT-M1', amount: 10000000, changed_at: new Date().toISOString() }] });
   const offline = load('coop-repay-loan-offline.js');
   r = await call(offline, { loan_id: 'L1', amount_kobo: 10000000 });
   ok('offline: a verified coin transfer that clears the balance closes the loan', r.success && loanStatus('L1') === 'COMPLETED' && r.loan_completed === true);
