@@ -56,6 +56,19 @@ exports.handler = async (event) => {
     if (!(await requirePortalPermission(db, auth, 'accounting', 'view'))) {
       return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
     }
+    // Single-entry mode, used by the report drill-down (posting -> voucher).
+    // Strictly read-only: it deliberately skips the dues-accrual check below,
+    // since merely LOOKING at one voucher must never post new entries.
+    const singleEntryId = event.queryStringParameters?.entry_id;
+    if (singleEntryId) {
+      const { data: one, error: oneErr } = await db.from('coop_journal_entries')
+        .select('*, coop_journal_entry_lines(*, coop_chart_of_accounts(account_code, account_name))')
+        .eq('coop_id', coopId).eq('id', singleEntryId).maybeSingle();
+      if (oneErr) return err(500, oneErr.message);
+      if (!one) return err(404, 'Journal entry not found');
+      return ok({ entry: one });
+    }
+
     await recordDuesAccrual(db, coopId); // on-demand check — doesn't require waiting for the next scheduled run
     const { data: entries, error } = await db.from('coop_journal_entries')
       .select('*, coop_journal_entry_lines(*, coop_chart_of_accounts(account_code, account_name))')
