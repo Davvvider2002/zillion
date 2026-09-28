@@ -20,6 +20,7 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { computeDuesOwing }       = require('../../lib/coopDues');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
+const { fetchAllRows, chunk } = require('../../lib/coopPaginate');
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'COMPLIANCE', 'OPERATIONS', 'SUPPORT', 'AUDITOR', 'VIEWER'];
 
@@ -38,15 +39,15 @@ exports.handler = async (event) => {
   const coopId = (event.queryStringParameters || {}).coop_id;
 
   if (!coopId) {
-    const { data: societies, error } = await db.from('coop_societies')
-      .select('coop_id, name, status, trial_ends_at, merchant_id, phone, owner_name, flutterwave_subaccount_id, subscription_status, subscription_plan, subscription_cycle, subscription_paid_until, signup_source, never_expires, archived_at')
-      .is('archived_at', null)
-      .order('name');
+    let societies, error;
+    try {
+      societies = await fetchAllRows(() => db.from('coop_societies').select('coop_id, name, status, trial_ends_at, merchant_id, phone, owner_name, flutterwave_subaccount_id, subscription_status, subscription_plan, subscription_cycle, subscription_paid_until, signup_source, never_expires, archived_at').is('archived_at', null).order('name').order('coop_id'));
+    } catch (e) { error = e; }
     if (error) return err(500, error.message);
 
     // Member count per society — one query, grouped client-side rather
     // than N separate count queries.
-    const { data: allMembers } = await db.from('coop_members').select('coop_id').eq('status', 'ACTIVE');
+    const allMembers = await fetchAllRows(() => db.from('coop_members').select('coop_id').eq('status', 'ACTIVE').order('id'));
     const memberCounts = {};
     (allMembers || []).forEach(m => { memberCounts[m.coop_id] = (memberCounts[m.coop_id] || 0) + 1; });
 
@@ -56,14 +57,14 @@ exports.handler = async (event) => {
   const { data: society } = await db.from('coop_societies').select('*').eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Society not found');
 
-  const { data: membersRaw } = await db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false });
+  const membersRaw = await fetchAllRows(() => db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false }).order('id'));
   const members = await Promise.all((membersRaw || []).map(async (m) => {
     const dues = await computeDuesOwing(db, m, society);
     return { ...m, dues };
   }));
 
-  const { data: plansRaw } = await db.from('coop_savings_plans')
-    .select('*, coop_members(name, phone_normalized)').eq('coop_id', coopId).order('created_at', { ascending: false });
+  const plansRaw = await fetchAllRows(() => db.from('coop_savings_plans')
+    .select('*, coop_members(name, phone_normalized)').eq('coop_id', coopId).order('created_at', { ascending: false }).order('id'));
 
   // Same fix as coop-portal-society.js — opening balance was missing
   // entirely here, and is credited only to each member's earliest
@@ -78,21 +79,24 @@ exports.handler = async (event) => {
   }
 
   const plans = await Promise.all((plansRaw || []).map(async (p) => {
-    const { data: txns } = await db.from('coop_savings_transactions').select('amount_kobo').eq('savings_plan_id', p.id);
+    const txns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo').eq('savings_plan_id', p.id).order('id'));
     const isEarliestForMember = earliestPlanIdByMember[p.member_id]?.id === p.id;
     const openingBalanceForThisPlan = isEarliestForMember ? (memberById.get(p.member_id)?.opening_balance_kobo || 0) : 0;
     const savedKobo = (txns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + openingBalanceForThisPlan;
     return { ...p, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / p.target_amount_kobo) * 100)) };
   }));
 
-  const { data: loansRaw } = await db.from('coop_loans')
+  const loansRaw = await fetchAllRows(() => db.from('coop_loans')
     .select('*, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized)')
-    .eq('coop_id', coopId).order('requested_at', { ascending: false });
+    .eq('coop_id', coopId).order('requested_at', { ascending: false }).order('id'));
 
   const loanIdsForGuarantors = (loansRaw || []).map(l => l.id);
-  const { data: allLoanGuarantors } = loanIdsForGuarantors.length
-    ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', loanIdsForGuarantors)
-    : { data: [] };
+  // Chunked AND paged: one .in() over every loan id in a society builds a URL long enough to be
+  // rejected, and the error was ignored - guarantors would have silently vanished.
+  const allLoanGuarantors = [];
+  for (const ids of chunk(loanIdsForGuarantors)) {
+    allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
+  }
 
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
     const guarantors = (allLoanGuarantors || []).filter(g => g.loan_id === l.id);
