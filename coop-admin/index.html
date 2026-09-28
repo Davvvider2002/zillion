@@ -108,6 +108,17 @@ tr:last-child td{border-bottom:none}
 }
 .print-header{display:none}
 .print-target .print-header{display:block;margin-bottom:14px;font-size:12px;color:#333}
+
+.drill-row{cursor:pointer}
+.drill-row:hover td{background:rgba(245,158,11,.09)}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;margin-bottom:12px}
+.crumb{color:var(--amber);cursor:pointer;background:none;border:none;padding:0;font:inherit;text-decoration:underline dotted}
+.crumb.current{color:var(--cream);cursor:default;text-decoration:none;font-weight:700}
+.crumb-sep{color:var(--muted)}
+.drill-hint{font-size:11.5px;color:var(--muted);margin:0 0 10px}
+.drill-stats{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.drill-stats b{color:var(--cream)}
+.drill-chip{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11.5px;background:rgba(245,158,11,.14);color:var(--amber);margin:0 8px 10px 0}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -4917,6 +4928,12 @@ async function loadFinancialReport() {
   }
 
   contentEl.innerHTML = '<div class="no-data">Loading...</div>';
+  // Drill-down state: a fresh report starts a fresh trail. The period is kept
+  // so every level below shows figures for exactly the same window as the
+  // number that was clicked - the ledger total must equal the report row.
+  drillTrail = [];
+  drillPeriodQS = periodParams;
+  drillBaseLabel = document.getElementById('report-type-select').selectedOptions[0].textContent;
   try {
     const accountParam = reportType === 'ledger' ? `&account_id=${accountSelect.value}` : '';
     const res = await fetch(`${API}/coop-portal-financial-reports?report=${reportType}${accountParam}${periodParams}`, { headers: { Authorization: 'Bearer ' + portalToken } });
@@ -4926,29 +4943,19 @@ async function loadFinancialReport() {
     if (reportType === 'income_expenditure') renderIncomeExpenditure(data);
     if (reportType === 'balance_sheet') renderBalanceSheet(data);
     if (reportType === 'ledger') renderLedger(data);
+    if (['trial_balance', 'income_expenditure', 'balance_sheet'].includes(reportType)) {
+      contentEl.insertAdjacentHTML('afterbegin', '<div class="drill-hint">Click any row to see what makes up its balance — down to the individual entries.</div>');
+    }
   } catch (e) {
     contentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
   }
 }
 
 function renderLedger(data) {
-  const contentEl = document.getElementById('report-content');
-  contentEl.innerHTML = `
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">${data.account.account_code} — ${data.account.account_name}</div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
-      <tbody>${data.transactions.map(t => `
-        <tr>
-          <td>${fmtDate(t.entry_date)}</td>
-          <td>${t.description} <span style="color:var(--muted);font-size:11px">#${t.entry_number}</span></td>
-          <td>${t.debit_kobo ? fmtNaira(t.debit_kobo) : ''}</td>
-          <td>${t.credit_kobo ? fmtNaira(t.credit_kobo) : ''}</td>
-          <td>${fmtNaira(t.running_balance_kobo)}</td>
-        </tr>
-      `).join('') || '<tr><td colspan="5" class="no-data">No transactions on this account yet.</td></tr>'}</tbody>
-      <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="4">Closing balance</td><td>${fmtNaira(data.closing_balance_kobo)}</td></tr></tfoot>
-    </table></div>
-  `;
+  // Reached through the dropdown: root a fresh trail at this account.
+  drillBaseLabel = '';
+  drillTrail = [{ kind: 'ledger', label: `${data.account.account_code} ${data.account.account_name}`, data }];
+  renderDrillLevel();
 }
 
 function renderTrialBalance(data) {
@@ -4957,7 +4964,7 @@ function renderTrialBalance(data) {
     <div class="table-wrap"><table>
       <thead><tr><th>Code</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
       <tbody>${data.accounts.filter(a => a.total_debit || a.total_credit).map(a => `
-        <tr><td>${a.account_code}</td><td>${a.account_name}</td>
+        <tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_code}</td><td>${a.account_name}</td>
         <td>${a.total_debit ? fmtNaira(a.total_debit) : ''}</td><td>${a.total_credit ? fmtNaira(a.total_credit) : ''}</td></tr>
       `).join('') || '<tr><td colspan="4" class="no-data">No activity yet.</td></tr>'}</tbody>
       <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Total</td><td>${fmtNaira(data.total_debit)}</td><td>${fmtNaira(data.total_credit)}</td></tr></tfoot>
@@ -4973,9 +4980,9 @@ function renderIncomeExpenditure(data) {
       <thead><tr><th>Account</th><th>Amount</th></tr></thead>
       <tbody>
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Income</td></tr>
-        ${data.income.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.income.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Expense</td></tr>
-        ${data.expense.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.expense.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
       </tbody>
     </table></div>
     <div style="margin-top:10px;font-weight:700;color:${data.net >= 0 ? 'var(--green-lt)' : '#e74c3c'}">Net ${data.net >= 0 ? 'surplus' : 'deficit'}: ${fmtNaira(Math.abs(data.net))}</div>
@@ -4988,12 +4995,12 @@ function renderBalanceSheet(data) {
     <div class="table-wrap"><table>
       <tbody>
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Assets</td></tr>
-        ${data.assets.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.assets.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
         <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Assets</td><td>${fmtNaira(data.total_assets)}</td></tr>
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Liabilities</td></tr>
-        ${data.liabilities.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.liabilities.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Equity</td></tr>
-        ${data.equity.filter(a => a.balance).map(a => `<tr><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('')}
+        ${data.equity.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('')}
         <tr><td>Net income (this period)</td><td>${fmtNaira(data.net_income)}</td></tr>
         <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Liabilities + Equity</td><td>${fmtNaira(data.total_liabilities + data.total_equity)}</td></tr>
       </tbody>
@@ -5001,6 +5008,178 @@ function renderBalanceSheet(data) {
     <div style="margin-top:10px;font-weight:700;color:${data.balanced ? 'var(--green-lt)' : '#e74c3c'}">${data.balanced ? '✓ Balanced' : '⚠ Not balanced — contact support'}</div>
   `;
 }
+
+// ── DRILL-DOWN ────────────────────────────────────────────────────────
+// Modelled on Busy's zoom-down: any figure on a report opens what it is made
+// of, all the way to the source document - report -> account (with a monthly
+// summary, as Busy's Account Ledger Monthly Summary) -> month -> posting ->
+// voucher. Each level keeps its own payload so going back never refetches, and
+// every level is a breadcrumb; Esc steps back one, as in Busy.
+let drillTrail = [];
+let drillPeriodQS = '';
+let drillBaseLabel = '';
+
+function drillEsc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+function drillCrumbsHtml() {
+  const parts = [];
+  if (drillBaseLabel) parts.push(`<button class="crumb" onclick="drillJump(-1)">${drillEsc(drillBaseLabel)}</button>`);
+  drillTrail.forEach((lvl, i) => {
+    parts.push(i === drillTrail.length - 1
+      ? `<span class="crumb current">${drillEsc(lvl.label)}</span>`
+      : `<button class="crumb" onclick="drillJump(${i})">${drillEsc(lvl.label)}</button>`);
+  });
+  return `<div class="crumbs">${parts.join('<span class="crumb-sep">›</span>')}</div>`;
+}
+
+function drillJump(i) {
+  if (i < 0) { drillTrail = []; loadFinancialReport(); return; }
+  drillTrail = drillTrail.slice(0, i + 1);
+  renderDrillLevel();
+}
+
+function renderDrillLevel() {
+  const top = drillTrail[drillTrail.length - 1];
+  if (!top) return;
+  if (top.kind === 'entry') renderEntryLevel(top); else renderLedgerLevel(top);
+}
+
+async function drillToAccount(accountId) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = drillCrumbsHtml() + '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-financial-reports?report=ledger&account_id=${encodeURIComponent(accountId)}${drillPeriodQS}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">${drillEsc(data.error || 'Failed to load')}</div>`; return; }
+    drillTrail.push({ kind: 'ledger', label: `${data.account.account_code} ${data.account.account_name}`, data });
+    renderDrillLevel();
+  } catch (e) {
+    contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">Network error: ${drillEsc(e.message)}</div>`;
+  }
+}
+
+function drillToMonth(monthKeyOrAll) {
+  const base = drillTrail[drillTrail.length - 1];
+  drillTrail.push({ kind: 'ledger', label: monthKeyOrAll === 'ALL' ? 'All postings' : drillMonthLabel(monthKeyOrAll), data: base.data, month: monthKeyOrAll });
+  renderDrillLevel();
+}
+
+function drillMonthKey(d) { return String(d).slice(0, 7); }
+function drillMonthLabel(k) { const [y, m] = k.split('-'); return new Date(+y, +m - 1, 1).toLocaleDateString('en-NG', { month: 'short', year: 'numeric' }); }
+
+function renderLedgerLevel(lvl) {
+  const { data, month } = lvl;
+  const contentEl = document.getElementById('report-content');
+  const tx = data.transactions || [];
+
+  const months = new Map();
+  for (const t of tx) {
+    const k = drillMonthKey(t.entry_date);
+    const m = months.get(k) || { debit: 0, credit: 0, closing: 0, count: 0 };
+    m.debit += t.debit_kobo; m.credit += t.credit_kobo; m.closing = t.running_balance_kobo; m.count++;
+    months.set(k, m);
+  }
+
+  // Short ledgers need no month step; long ones start at the monthly summary.
+  const showSummary = !month && months.size > 1;
+  const showAll = !month && (months.size <= 1 || tx.length <= 15);
+  const postings = month && month !== 'ALL' ? tx.filter(t => drillMonthKey(t.entry_date) === month) : (month === 'ALL' || showAll ? tx : []);
+
+  const summaryHtml = showSummary ? `
+    <div style="font-weight:700;font-size:13px;margin:6px 0 6px">Monthly summary</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Month</th><th>Postings</th><th>Debit</th><th>Credit</th><th>Closing balance</th></tr></thead>
+      <tbody>${[...months.entries()].map(([k, m]) => `
+        <tr class="drill-row" onclick="drillToMonth('${k}')"><td>${drillMonthLabel(k)}</td><td>${m.count}</td>
+        <td>${m.debit ? fmtNaira(m.debit) : ''}</td><td>${m.credit ? fmtNaira(m.credit) : ''}</td><td>${fmtNaira(m.closing)}</td></tr>`).join('')}
+      </tbody></table></div>` : '';
+
+  const postingsHtml = (postings.length || month || showAll) ? `
+    <div style="font-weight:700;font-size:13px;margin:14px 0 6px">${month && month !== 'ALL' ? drillMonthLabel(month) + ' — postings' : 'Postings'}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+      <tbody>${postings.map(t => `
+        <tr class="${t.journal_entry_id ? 'drill-row' : ''}" ${t.journal_entry_id ? `onclick="drillToEntry('${t.journal_entry_id}')"` : ''}>
+          <td>${fmtDate(t.entry_date)}</td>
+          <td>${drillEsc(t.description)} <span style="color:var(--muted);font-size:11px">#${t.entry_number}</span></td>
+          <td>${t.debit_kobo ? fmtNaira(t.debit_kobo) : ''}</td><td>${t.credit_kobo ? fmtNaira(t.credit_kobo) : ''}</td><td>${fmtNaira(t.running_balance_kobo)}</td>
+        </tr>`).join('') || '<tr><td colspan="5" class="no-data">No postings.</td></tr>'}</tbody>
+    </table></div>` : '';
+
+  const moreBtn = (!month && !showAll && showSummary)
+    ? `<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="drillToMonth('ALL')">Show all ${tx.length} postings</button></div>` : '';
+
+  contentEl.innerHTML = drillCrumbsHtml() + `
+    <div style="font-size:14px;font-weight:700;margin-bottom:6px">${drillEsc(data.account.account_code)} — ${drillEsc(data.account.account_name)}</div>
+    <div class="drill-stats">
+      <span>Total debits <b>${fmtNaira(data.total_debit_kobo || 0)}</b></span>
+      <span>Total credits <b>${fmtNaira(data.total_credit_kobo || 0)}</b></span>
+      <span>Balance <b>${fmtNaira(data.closing_balance_kobo)}</b></span>
+      ${drillPeriodQS ? '<span>Movement within the selected period</span>' : ''}
+    </div>
+    <div class="drill-hint">${showSummary && !month ? 'Click a month to see its postings, or a posting to open its voucher.' : 'Click a posting to open its voucher.'}</div>
+    ${summaryHtml}${postingsHtml}${moreBtn}`;
+}
+
+async function drillToEntry(entryId) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = drillCrumbsHtml() + '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-entry?entry_id=${encodeURIComponent(entryId)}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">${drillEsc(data.error || 'Failed to load entry')}</div>`; return; }
+    drillTrail.push({ kind: 'entry', label: `Entry #${data.entry.entry_number}`, entry: data.entry });
+    renderDrillLevel();
+  } catch (e) {
+    contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">Network error: ${drillEsc(e.message)}</div>`;
+  }
+}
+
+function drillPostedBy(cb) {
+  if (!cb) return '—';
+  if (cb.startsWith('checkout:')) return 'Online payment (Flutterwave)';
+  if (cb.startsWith('portal:')) return 'Society admin';
+  if (cb.startsWith('admin:')) return 'Zillion admin';
+  return cb;
+}
+
+function renderEntryLevel(lvl) {
+  const e = lvl.entry;
+  const lines = e.coop_journal_entry_lines || [];
+  const dr = lines.filter(l => l.line_type === 'debit').reduce((s, l) => s + l.base_amount, 0);
+  const cr = lines.filter(l => l.line_type === 'credit').reduce((s, l) => s + l.base_amount, 0);
+  const type = String(e.entry_type || '').replace(/_/g, ' ');
+  document.getElementById('report-content').innerHTML = drillCrumbsHtml() + `
+    <div style="font-size:14px;font-weight:700;margin-bottom:6px">Entry #${e.entry_number} — ${fmtDate(e.entry_date)}</div>
+    <div style="font-size:13px;margin-bottom:8px">${drillEsc(e.description)}</div>
+    <div class="drill-stats">
+      <span>Type <b style="text-transform:capitalize">${drillEsc(type || '—')}</b></span>
+      <span>Posted by <b>${drillEsc(drillPostedBy(e.created_by))}</b></span>
+      <span>Recorded <b>${e.created_at ? new Date(e.created_at).toLocaleString() : '—'}</b></span>
+    </div>
+    <div class="drill-hint">Click an account to open its ledger.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Account</th><th>Memo</th><th>Debit</th><th>Credit</th></tr></thead>
+      <tbody>${lines.map(l => `
+        <tr class="drill-row" onclick="drillToAccount('${l.account_id}')">
+          <td>${drillEsc(l.coop_chart_of_accounts?.account_code)} — ${drillEsc(l.coop_chart_of_accounts?.account_name)}</td>
+          <td style="color:var(--muted);font-size:12px">${drillEsc(l.memo || '')}</td>
+          <td>${l.line_type === 'debit' ? fmtNaira(l.base_amount) : ''}</td>
+          <td>${l.line_type === 'credit' ? fmtNaira(l.base_amount) : ''}</td>
+        </tr>`).join('')}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Total</td><td>${fmtNaira(dr)}</td><td>${fmtNaira(cr)}</td></tr></tfoot>
+    </table></div>
+    <div style="margin-top:10px;font-weight:700;color:${dr === cr ? 'var(--green-lt)' : '#e74c3c'}">${dr === cr ? '✓ Debits equal credits' : '⚠ Debits and credits differ'}</div>`;
+}
+
+// Esc steps back one level, as in Busy - but never while a dialog is open.
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape' || !drillTrail.length) return;
+  if (document.querySelector('.modal-overlay.open')) return;
+  const el = document.getElementById('report-content');
+  if (!el || !el.offsetParent) return;
+  drillJump(drillTrail.length - 2);
+});
 
 // ── BOOT ──────────────────────────────────────────────────────────────
 (async function boot() {
