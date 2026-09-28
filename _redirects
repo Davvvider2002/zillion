@@ -198,6 +198,12 @@
 /api/v1/public-coop-trial-info                       /.netlify/functions/public-coop-trial-info                       200
 /coop-admin                                           /coop-admin/index.html                                           200
 /api/v1/coop-portal-society                           /.netlify/functions/coop-portal-society                           200
+/api/v1/coop-portal-backup-create                     /.netlify/functions/coop-portal-backup-create                     200
+/api/v1/coop-portal-backup-list                       /.netlify/functions/coop-portal-backup-list                       200
+/api/v1/coop-portal-backup-restore                    /.netlify/functions/coop-portal-backup-restore                    200
+/api/v1/admin-backup-create                           /.netlify/functions/admin-backup-create                           200
+/api/v1/admin-backup-list                             /.netlify/functions/admin-backup-list                             200
+/api/v1/admin-backup-restore-preview                  /.netlify/functions/admin-backup-restore-preview                  200
 /api/v1/coop-portal-activate-member                   /.netlify/functions/coop-portal-activate-member                   200
 /api/v1/coop-portal-record-savings-payment            /.netlify/functions/coop-portal-record-savings-payment            200
 /api/v1/coop-portal-record-loan-repayment  /.netlify/functions/coop-portal-record-loan-repayment  200
