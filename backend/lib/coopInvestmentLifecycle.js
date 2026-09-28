@@ -65,14 +65,15 @@ async function postAccrualEntry(db, coopId, description, amountKobo) {
  *
  * @returns {Promise<{applied: boolean, reason?: string, amountKobo?: number}>}
  */
-async function applyMonthlyAccrualIfEligible(db, investment, product, now) {
+async function applyMonthlyAccrualIfEligible(db, investment, product, now, hints = {}) {
   if (product.return_type !== 'fixed') return { applied: false, reason: 'not_fixed_return' };
   if (investment.status !== 'ACTIVE') return { applied: false, reason: 'not_active' };
 
-  const alreadyApplied = await hasAccrualBeenAppliedThisMonth(db, investment.id, now);
+  // hints: see coopSavingsInterest.applyMonthlyInterestIfEligible - supplied in bulk by the nightly job, asked for if omitted.
+  const alreadyApplied = hints.alreadyApplied !== undefined ? hints.alreadyApplied : await hasAccrualBeenAppliedThisMonth(db, investment.id, now);
   if (alreadyApplied) return { applied: false, reason: 'already_accrued_this_month' };
 
-  const alreadyAccruedKobo = await computeTotalScheduledAccrued(db, investment.id);
+  const alreadyAccruedKobo = hints.alreadyAccruedKobo !== undefined ? hints.alreadyAccruedKobo : await computeTotalScheduledAccrued(db, investment.id);
   const accrualKobo = computeFixedMonthlyAccrual(
     investment.principal_kobo, product.fixed_return_rate_percent, product.tenure_months, alreadyAccruedKobo
   );
