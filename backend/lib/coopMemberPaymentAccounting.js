@@ -32,8 +32,9 @@ const SOURCE_LABELS = {
   bank_transfer_manual: 'Bank transfer (recorded manually)',
   flutterwave_checkout: 'Online payment (Flutterwave)',
   webhook_flutterwave: 'Bank transfer (auto-detected)',
+  offline_zil: 'Zil transfer (offline)',
 };
-const isOnline = s => s === 'flutterwave_checkout' || s === 'webhook_flutterwave';
+const isOnline = s => s === 'flutterwave_checkout' || s === 'webhook_flutterwave' || s === 'offline_zil';
 const memberLabel = m => (m && m.name ? `${m.name} (Member #${String(m.id).slice(0, 8)})` : (m && m.id ? `Member #${String(m.id).slice(0, 8)}` : null));
 const fmtNaira = k => '₦' + (k / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
