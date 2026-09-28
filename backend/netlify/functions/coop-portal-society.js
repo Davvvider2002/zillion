@@ -19,13 +19,11 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT }              = require('../../lib/validators');
 const { resolvePortalSociety }   = require('../../lib/coopPortalAuth');
-const { computeDuesOwing }       = require('../../lib/coopDues');
-const { computeMemberShareCapital } = require('../../lib/coopShareCapital');
 const { getMemberCapStatus }     = require('../../lib/coopMemberCap');
-const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
 const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = require('../../lib/coopTermsAcceptance');
 const { listAddons } = require('../../lib/coopEntitlements');
 const { fetchAllRows, chunk } = require('../../lib/coopPaginate');
+const { enrichMembers, enrichPlans, enrichLoans } = require('../../lib/coopSocietyBulk');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -49,11 +47,7 @@ exports.handler = async (event) => {
     .select('id').eq('accepted_by_type', 'society_admin').eq('accepted_by_id', societySummary.merchant_id).maybeSingle();
 
   const membersRaw = await fetchAllRows(() => db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false }).order('id'));
-  const members = await Promise.all((membersRaw || []).map(async (m) => {
-    const dues = await computeDuesOwing(db, m, society);
-    const shareCapitalKobo = await computeMemberShareCapital(db, m.id);
-    return { ...m, dues, share_capital_kobo: shareCapitalKobo };
-  }));
+  const members = await enrichMembers(db, coopId, membersRaw, society, { withShareCapital: true });
 
   const plansRaw = await fetchAllRows(() => db.from('coop_savings_plans')
     .select('*, coop_members(name, phone_normalized)').eq('coop_id', coopId).order('created_at', { ascending: false }).order('id'));
@@ -66,22 +60,7 @@ exports.handler = async (event) => {
   // differently. Applied only to each member's earliest plan by
   // created_at, so a member with more than one plan doesn't have the
   // same opening balance double-counted across all of them.
-  const memberById = new Map((membersRaw || []).map(m => [m.id, m]));
-  const earliestPlanIdByMember = {};
-  for (const p of (plansRaw || [])) {
-    const existing = earliestPlanIdByMember[p.member_id];
-    if (!existing || new Date(p.created_at) < new Date(existing.created_at)) {
-      earliestPlanIdByMember[p.member_id] = { id: p.id, created_at: p.created_at };
-    }
-  }
-
-  const plans = await Promise.all((plansRaw || []).map(async (p) => {
-    const txns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo').eq('savings_plan_id', p.id).order('id'));
-    const isEarliestForMember = earliestPlanIdByMember[p.member_id]?.id === p.id;
-    const openingBalanceForThisPlan = isEarliestForMember ? (memberById.get(p.member_id)?.opening_balance_kobo || 0) : 0;
-    const savedKobo = (txns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + openingBalanceForThisPlan;
-    return { ...p, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / p.target_amount_kobo) * 100)) };
-  }));
+  const plans = await enrichPlans(db, coopId, plansRaw, membersRaw);
 
   const loansRaw = await fetchAllRows(() => db.from('coop_loans')
     .select('*, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized)')
@@ -95,12 +74,7 @@ exports.handler = async (event) => {
     allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
   }
 
-  const loans = await Promise.all((loansRaw || []).map(async (l) => {
-    const guarantors = (allLoanGuarantors || []).filter(g => g.loan_id === l.id);
-    if (!['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) return { ...l, guarantors };
-    const repayment = await computeLoanRepaymentStatus(db, l.id, society, l.total_repayable_kobo);
-    return { ...l, guarantors, repayment };
-  }));
+  const loans = await enrichLoans(db, loansRaw, allLoanGuarantors, society);
 
   const { data: notifications } = await db.from('coop_notifications')
     .select('*, target_member:coop_members!coop_notifications_target_member_id_fkey(name)')
