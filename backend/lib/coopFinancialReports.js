@@ -111,7 +111,7 @@ async function computeAccountLedger(db, coopId, accountId, asOfDate = null, star
   if (!account) return null;
 
   let lineQuery = db.from('coop_journal_entry_lines')
-    .select('base_amount, line_type, coop_journal_entries!inner(entry_date, entry_number, description)')
+    .select('base_amount, line_type, journal_entry_id, coop_journal_entries!inner(entry_date, entry_number, description, entry_type)')
     .eq('coop_id', coopId).eq('account_id', accountId);
   if (asOfDate) lineQuery = lineQuery.lte('coop_journal_entries.entry_date', asOfDate);
   if (startDate) lineQuery = lineQuery.gte('coop_journal_entries.entry_date', startDate);
@@ -129,6 +129,10 @@ async function computeAccountLedger(db, coopId, accountId, asOfDate = null, star
     const credit = l.line_type === 'credit' ? l.base_amount : 0;
     runningBalance += isDebitNormal ? (debit - credit) : (credit - debit);
     return {
+      // journal_entry_id lets the portal drill from a posting straight to
+      // its voucher (Busy-style zoom-down to the source document).
+      journal_entry_id: l.journal_entry_id,
+      entry_type: l.coop_journal_entries.entry_type,
       entry_date: l.coop_journal_entries.entry_date,
       entry_number: l.coop_journal_entries.entry_number,
       description: l.coop_journal_entries.description,
@@ -138,7 +142,11 @@ async function computeAccountLedger(db, coopId, accountId, asOfDate = null, star
     };
   });
 
-  return { account, transactions, closing_balance_kobo: runningBalance };
+  // Totals let the drill-down prove itself: they must equal the debit and
+  // credit figures on the trial balance row that was clicked to get here.
+  const totalDebit = transactions.reduce((s, t) => s + t.debit_kobo, 0);
+  const totalCredit = transactions.reduce((s, t) => s + t.credit_kobo, 0);
+  return { account, transactions, closing_balance_kobo: runningBalance, total_debit_kobo: totalDebit, total_credit_kobo: totalCredit };
 }
 
 module.exports = { computeAccountBalances, computeAccountLedger, computeTrialBalance, computeIncomeExpenditure, computeBalanceSheet };
