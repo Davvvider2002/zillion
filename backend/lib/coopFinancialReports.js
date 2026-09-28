@@ -12,6 +12,8 @@
  */
 'use strict';
 
+const { fetchAllRows } = require('./coopPaginate');
+
 const NORMAL_DEBIT_TYPES = new Set(['ASSET', 'EXPENSE']);
 
 /**
@@ -34,12 +36,17 @@ async function computeAccountBalances(db, coopId, asOfDate = null, startDate = n
     .eq('coop_id', coopId).eq('active', true).order('account_code');
   if (!accounts || !accounts.length) return [];
 
-  let lineQuery = db.from('coop_journal_entry_lines')
-    .select('account_id, line_type, base_amount, coop_journal_entries!inner(entry_date)')
-    .eq('coop_id', coopId);
-  if (asOfDate) lineQuery = lineQuery.lte('coop_journal_entries.entry_date', asOfDate);
-  if (startDate) lineQuery = lineQuery.gte('coop_journal_entries.entry_date', startDate);
-  const { data: lines } = await lineQuery;
+  // Paged: a single query is silently cut off at 1,000 rows, which would make
+  // every balance (and the trial balance itself) wrong once a society has more
+  // journal lines than that.
+  const lines = await fetchAllRows(() => {
+    let q = db.from('coop_journal_entry_lines')
+      .select('account_id, line_type, base_amount, coop_journal_entries!inner(entry_date)')
+      .eq('coop_id', coopId).order('id');
+    if (asOfDate) q = q.lte('coop_journal_entries.entry_date', asOfDate);
+    if (startDate) q = q.gte('coop_journal_entries.entry_date', startDate);
+    return q;
+  });
 
   const totals = new Map(); // account_id -> { debit, credit }
   for (const l of (lines || [])) {
@@ -110,12 +117,14 @@ async function computeAccountLedger(db, coopId, accountId, asOfDate = null, star
     .eq('coop_id', coopId).eq('id', accountId).maybeSingle();
   if (!account) return null;
 
-  let lineQuery = db.from('coop_journal_entry_lines')
-    .select('base_amount, line_type, journal_entry_id, coop_journal_entries!inner(entry_date, entry_number, description, entry_type)')
-    .eq('coop_id', coopId).eq('account_id', accountId);
-  if (asOfDate) lineQuery = lineQuery.lte('coop_journal_entries.entry_date', asOfDate);
-  if (startDate) lineQuery = lineQuery.gte('coop_journal_entries.entry_date', startDate);
-  const { data: lines } = await lineQuery;
+  const lines = await fetchAllRows(() => {
+    let q = db.from('coop_journal_entry_lines')
+      .select('base_amount, line_type, journal_entry_id, coop_journal_entries!inner(entry_date, entry_number, description, entry_type)')
+      .eq('coop_id', coopId).eq('account_id', accountId).order('id');
+    if (asOfDate) q = q.lte('coop_journal_entries.entry_date', asOfDate);
+    if (startDate) q = q.gte('coop_journal_entries.entry_date', startDate);
+    return q;
+  });
 
   const isDebitNormal = NORMAL_DEBIT_TYPES.has(account.account_type);
   const sorted = (lines || []).sort((a, b) => {
