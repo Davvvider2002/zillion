@@ -21,6 +21,12 @@
 [functions."scheduled-reconcile"]
   schedule = "0 */4 * * *"
 
+# Daily backups for every active society plus one platform backup. See scheduled-backups.js header for the
+# resumable-cursor design (same 30s ceiling as scheduled-reconcile). Needs BACKUP_ENCRYPTION_KEY set, or it
+# skips itself and raises one alert rather than writing unencrypted backups.
+[functions."scheduled-backups"]
+  schedule = "0 1 * * *"
+
 # ── Security Headers (Priority 2) ───────────────────────────────
 
 [[headers]]
@@ -864,6 +870,36 @@
 [[redirects]]
   from = "/api/v1/admin-coop-societies"
   to   = "/.netlify/functions/admin-coop-societies"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-backup-create"
+  to   = "/.netlify/functions/coop-portal-backup-create"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-backup-list"
+  to   = "/.netlify/functions/coop-portal-backup-list"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-backup-restore"
+  to   = "/.netlify/functions/coop-portal-backup-restore"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-backup-create"
+  to   = "/.netlify/functions/admin-backup-create"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-backup-list"
+  to   = "/.netlify/functions/admin-backup-list"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-backup-restore-preview"
+  to   = "/.netlify/functions/admin-backup-restore-preview"
   status = 200
 
 [[redirects]]
