@@ -18,6 +18,7 @@
  * the date window) before being wired into anything.
  */
 'use strict';
+const { fetchAllRows } = require('./coopPaginate');
 
 const DATE_TOLERANCE_DAYS = 3;
 
@@ -33,9 +34,9 @@ function daysBetween(a, b) {
 async function fetchReconcilableRecords(db, coopId) {
   const records = [];
 
-  const { data: loans } = await db.from('coop_loans')
+  const loans = await fetchAllRows(() => db.from('coop_loans')
     .select('id, principal_kobo, disbursed_at, member_id, coop_members!coop_loans_member_id_fkey(name)')
-    .eq('coop_id', coopId).not('disbursed_at', 'is', null);
+    .eq('coop_id', coopId).not('disbursed_at', 'is', null).order('id'));
   for (const l of (loans || [])) {
     records.push({
       type: 'loan_disbursement', id: l.id, amountKobo: l.principal_kobo,
@@ -44,9 +45,9 @@ async function fetchReconcilableRecords(db, coopId) {
     });
   }
 
-  const { data: repayments } = await db.from('coop_loan_repayments')
+  const repayments = await fetchAllRows(() => db.from('coop_loan_repayments')
     .select('id, amount_kobo, recorded_at, source, loan_id, coop_loans!inner(coop_id, member_id, coop_members!coop_loans_member_id_fkey(name))')
-    .eq('coop_loans.coop_id', coopId).in('source', ['cash_in_person', 'bank_transfer_manual']);
+    .eq('coop_loans.coop_id', coopId).in('source', ['cash_in_person', 'bank_transfer_manual']).order('id'));
   for (const r of (repayments || [])) {
     records.push({
       type: 'loan_repayment', id: r.id, amountKobo: r.amount_kobo,
