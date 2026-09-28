@@ -4253,7 +4253,9 @@ function _coopUpdateNotifBell(data) {
   if (!btn || !badge) return;
   if (!data || !data.is_coop_member) { btn.style.display = 'none'; return; }
   btn.style.display = '';
-  const count = data.unread_notification_count || 0;
+  // A pending guarantor request is an open action, so it counts toward the badge
+  // until answered - not just unread announcements.
+  const count = (data.unread_notification_count || 0) + ((data.guarantor_requests_pending || []).length);
   badge.style.display = count > 0 ? '' : 'none';
   badge.textContent = count > 99 ? '99+' : String(count);
 }
@@ -4549,16 +4551,7 @@ async function refreshCoopScreen() {
   const pending = data.guarantor_requests_pending || [];
   if (pending.length) {
     guarantorSection.style.display = '';
-    guarantorList.innerHTML = pending.map(r => `
-      <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:14px;margin-bottom:10px">
-        <div style="font-size:13px;color:#E8F5EE">${r.borrower?.name || r.borrower?.phone_normalized} wants to borrow ${fmtNaira(r.principal_kobo)}</div>
-        <div style="font-size:11px;color:#9CC4B0;margin:4px 0 10px">${fmtNaira(r.monthly_repayment_kobo)}/month for ${r.repayment_months} months — you'd be their guarantor</div>
-        <div style="display:flex;gap:8px">
-          <button onclick="coopOpenDeclineReasonModal('${r.id}')" style="flex:1;padding:9px;background:#1A4030;color:#E8F5EE;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Decline</button>
-          <button onclick="coopGuarantorRespond('${r.id}','APPROVED')" style="flex:1;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Approve</button>
-        </div>
-      </div>
-    `).join('');
+    guarantorList.innerHTML = coopGuarantorCardsHtml(pending);
   } else {
     guarantorSection.style.display = 'none';
   }
@@ -4833,6 +4826,21 @@ async function coopSubmitLoanApplication() {
   }
 }
 
+// One renderer for a pending guarantor request, used by BOTH the Thrift & Loan
+// screen and the notification inbox, so the two can never drift apart.
+function coopGuarantorCardsHtml(pending) {
+  return pending.map(r => `
+      <div style="background:#1A1408;border:1px solid #F5B87A;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:13px;color:#E8F5EE">${r.borrower?.name || r.borrower?.phone_normalized} wants to borrow ${fmtNaira(r.principal_kobo)}</div>
+        <div style="font-size:11px;color:#9CC4B0;margin:4px 0 10px">${fmtNaira(r.monthly_repayment_kobo)}/month for ${r.repayment_months} months — you'd be their guarantor</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="coopOpenDeclineReasonModal('${r.id}')" style="flex:1;padding:9px;background:#1A4030;color:#E8F5EE;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Decline</button>
+          <button onclick="coopGuarantorRespond('${r.id}','APPROVED')" style="flex:1;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Approve</button>
+        </div>
+      </div>
+    `).join('');
+}
+
 async function coopGuarantorRespond(loanId, decision, reason) {
   const token = STATE.user?.token || STATE.user?.agentToken || '';
   try {
@@ -4844,7 +4852,9 @@ async function coopGuarantorRespond(loanId, decision, reason) {
     const data = await res.json();
     if (!res.ok) { toast(data.error || 'Failed to respond', true); return; }
     toast(data.message || 'Response recorded');
-    refreshCoopScreen();
+    await refreshCoopScreen();
+    _coopUpdateNotifBell(_coopStatusCache);
+    if (STATE.screen === 'screen-messages') refreshMessagesScreen();
   } catch (e) {
     toast('Network error: ' + e.message, true);
   }
@@ -5035,18 +5045,36 @@ async function refreshMessagesScreen() {
   if (!token) { listEl.innerHTML = '<div class="empty-state"><div class="empty-title">Not logged in</div></div>'; return; }
 
   try {
-    const res = await fetch(`${API}/coop-notifications`, { headers: { Authorization: 'Bearer ' + token } });
+    // Pending guarantor requests come from the member status, fetched fresh
+    // (force=true) rather than from the 60s cache - a request already answered
+    // elsewhere must not keep showing up here.
+    const [res, status] = await Promise.all([
+      fetch(`${API}/coop-notifications`, { headers: { Authorization: 'Bearer ' + token } }),
+      zilCoopFetchStatus(true),
+    ]);
     const data = await res.json();
     if (!res.ok || !data.is_coop_member) {
       listEl.innerHTML = '<div class="empty-state"><div class="empty-title">No messages</div></div>';
       return;
     }
+    const pending = (status && status.guarantor_requests_pending) || [];
     const notifs = data.notifications || [];
-    if (!notifs.length) {
-      listEl.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-icon">💬</span><div class="empty-title">No messages yet</div><div class="empty-sub">Announcements from your cooperative society will show up here.</div></div>';
+
+    if (!notifs.length && !pending.length) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-icon">💬</span><div class="empty-title">No messages yet</div><div class="empty-sub">Announcements from your cooperative will appear here.</div></div>';
+      _coopUpdateNotifBell(status);
       return;
     }
-    listEl.innerHTML = notifs.map(n => `
+
+    const actionHtml = pending.length
+      ? `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#F5B87A;margin:2px 0 8px">⚠ Action needed (${pending.length})</div>`
+        + coopGuarantorCardsHtml(pending)
+        + '<div style="font-size:11px;color:#7A9A85;margin:-2px 0 16px">These stay here until you accept or decline.</div>'
+      : '';
+
+    const msgsHtml = notifs.length
+      ? (pending.length ? '<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#9CC4B0;margin:0 0 8px">Messages</div>' : '')
+        + notifs.map(n => `
       <div onclick="coopMarkMessageRead('${n.id}', this)" data-notif-id="${n.id}"
         style="background:${n.is_read ? '#0F2B1D' : '#0A2318'};border:1px solid ${n.is_read ? '#1A4030' : '#00C896'};border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:start">
@@ -5055,7 +5083,11 @@ async function refreshMessagesScreen() {
         <div style="font-size:13px;color:#9CC4B0;margin-top:6px;line-height:1.5">${n.body}</div>
         <div style="font-size:10px;color:#5A8069;margin-top:8px">${new Date(n.created_at).toLocaleString()}${n.target_type === 'broadcast' ? ' · To all members' : ''}</div>
       </div>
-    `).join('');
+    `).join('')
+      : '<div class="empty-sub" style="text-align:center;padding:10px;color:#7A9A85">No other messages.</div>';
+
+    listEl.innerHTML = actionHtml + msgsHtml;
+    _coopUpdateNotifBell(status);
   } catch (e) {
     listEl.innerHTML = `<div class="empty-state"><div class="empty-title">Could not load messages</div><div class="empty-sub">${e.message}</div></div>`;
   }
