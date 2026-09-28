@@ -32,6 +32,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
+const { settleLoanAfterRepayment } = require('../../lib/coopLoanCompletion');
 
 const VERIFICATION_WINDOW_MINUTES = 15;
 
@@ -61,7 +62,7 @@ exports.handler = async (event) => {
   const member = await resolveMemberForZillionId(db, zillionId, 'id, coop_id, phone_normalized, name');
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
-  const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, coop_id, status, principal_kobo, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
   if (!loan) return err(404, 'That loan does not belong to you');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
@@ -108,11 +109,9 @@ exports.handler = async (event) => {
 
   if (repayErr) return err(500, `Transfer verified but recording the repayment failed: ${repayErr.message}`);
 
-  if (loan.status === 'DISBURSED') {
-    await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
-  }
+  const { completed } = await settleLoanAfterRepayment(db, loan, member.coop_id);
 
   await recordLoanRepaymentJournalEntry(db, member.coop_id, amountKobo, 'offline_zil', 'member:offline_zil', principalPortionKobo, interestPortionKobo, { id: member.id, name: member.name });
 
-  return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} confirmed and applied to your loan.` });
+  return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} confirmed and applied to your loan.${completed ? ' Your loan is now fully repaid.' : ''}`, loan_completed: completed });
 };
