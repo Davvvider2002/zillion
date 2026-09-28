@@ -18,9 +18,10 @@
  * deliberate limit worth stating plainly: it confirms the MONEY moved
  * for certain; it does not independently confirm the member's claimed
  * PURPOSE beyond "sent to this society, recently, for at least this
- * amount." Since the funds genuinely did arrive at the society either
- * way, the risk this leaves open is a bookkeeping misattribution, not
- * a financial loss — a real, considered tradeoff, not an oversight.
+ * amount." It also means each claim must consume SPECIFIC transfers exactly once (see lib/coopOfflineTransfer.js): this
+ * header used to say the residual risk was only a bookkeeping misattribution, but that holds for a single claim. When one
+ * real transfer could back several claims, the society recorded more collections than it received and a loan closed early
+ * - a real loss, not a labelling error. Claims now bind to ledger entries, each usable once, enforced by the database.
  *
  * Auth: wallet JWT.
  * Body: { loan_id, amount_kobo }
@@ -29,6 +30,8 @@
 
 const crypto = require('crypto');
 const { uniqueReference } = require('../../lib/coopReference');
+const { logAlert } = require('../../lib/alerts');
+const { findExactTransferSubset, getUnclaimedTransfers, reserveTransferClaims, releaseTransferClaims, linkTransferClaims, describeShortfall } = require('../../lib/coopOfflineTransfer');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
@@ -71,32 +74,39 @@ exports.handler = async (event) => {
   const merchantHolderHash = `MERCHANT-${society.merchant_id}`;
   const memberHolderHash = crypto.createHash('sha256').update(member.phone_normalized).digest('hex');
 
-  // Confirm a genuine, recent transfer exists — the actual proof of
-  // funds movement, not the member's claim alone.
+  // Proof of funds: bind this claim to SPECIFIC ledger transfers, each usable once.
   const windowStart = new Date(Date.now() - VERIFICATION_WINDOW_MINUTES * 60 * 1000).toISOString();
-  const { data: ledgerRows } = await db.from('coin_ledger')
-    .select('amount, changed_at')
-    .eq('prev_holder_hash', memberHolderHash)
-    .eq('new_holder_hash', merchantHolderHash)
-    .gte('changed_at', windowStart);
+  let found;
+  try { found = await getUnclaimedTransfers(db, { memberHash: memberHolderHash, merchantHash: merchantHolderHash, windowStart }); }
+  catch (e) { return err(500, 'Could not check your transfers just now. Nothing has been recorded - please try again in a moment.'); }
 
-  const transferredKobo = (ledgerRows || []).reduce((s, r) => s + (r.amount || 0), 0);
-  if (transferredKobo < amountKobo) {
-    return err(400, `Could not find a matching transfer to your society in the last ${VERIFICATION_WINDOW_MINUTES} minutes. Found ₦${(transferredKobo/100).toLocaleString()}, expected at least ₦${(amountKobo/100).toLocaleString()}. Make sure the send completed before reporting it here.`);
+  const selection = findExactTransferSubset(found.unclaimed, amountKobo);
+  if (!selection) {
+    // A retry of a claim that already went through (a lost response, a double tap) is not an error.
+    const { data: recentClaim } = await db.from('coop_loan_repayments')
+      .select('id').eq('loan_id', loanId).eq('source', 'offline_zil').eq('amount_kobo', amountKobo)
+      .gte('recorded_at', windowStart).limit(1).maybeSingle();
+    if (recentClaim) return ok({ success: true, already_processed: true, message: 'This repayment was already recorded.' });
+    return err(400, describeShortfall(found, amountKobo, VERIFICATION_WINDOW_MINUTES));
   }
 
-  // Prevent claiming the same real-world transfer twice — a rough but
-  // real guard: if a repayment for this exact loan/amount/source was
-  // already recorded in the same verification window, treat this as a
-  // duplicate report rather than crediting again.
-  const { data: recentClaim } = await db.from('coop_loan_repayments')
-    .select('id').eq('loan_id', loanId).eq('source', 'offline_zil').eq('amount_kobo', amountKobo)
-    .gte('recorded_at', windowStart).maybeSingle();
-  if (recentClaim) {
-    return ok({ success: true, already_processed: true, message: 'This repayment was already recorded.' });
+  // Reserve first, then record. If anything below fails the reservation is released, so a transfer is never lost; if the
+  // process dies in between, the money is merely held (a claim with no repayment), never double-credited.
+  const reserved = await reserveTransferClaims(db, selection, { coopId: member.coop_id, memberId: member.id, loanId });
+  if (!reserved.ok) {
+    if (reserved.reason === 'already_claimed') return err(409, 'That transfer has just been applied to a repayment. If that was not you, contact your society admin.');
+    return err(500, 'Could not reserve your transfer just now. Nothing has been recorded - please try again.');
   }
+  const release = async (why) => {
+    const r = await releaseTransferClaims(db, reserved.ids);
+    if (!r.ok) await logAlert(db, { severity: 'CRITICAL', source: 'coop-repay-loan-offline',
+      message: `An offline transfer was reserved for a loan repayment that then failed (${why}), and releasing the reservation ALSO failed. The transfer cannot be claimed again until its claim rows are cleared manually.`,
+      context: { loan_id: loanId, member_id: member.id, claim_ids: reserved.ids } });
+  };
 
-  const { principalPortionKobo, interestPortionKobo } = await computeLoanRepaymentSplitUnified(db, loan, amountKobo);
+  let principalPortionKobo, interestPortionKobo;
+  try { ({ principalPortionKobo, interestPortionKobo } = await computeLoanRepaymentSplitUnified(db, loan, amountKobo)); }
+  catch (e) { await release('split calculation'); return err(500, 'Could not work out the repayment split just now. Your transfer has not been used up - please try again.'); }
 
   const { data: repayment, error: repayErr } = await db.from('coop_loan_repayments').insert({
     loan_id: loanId,
@@ -108,11 +118,12 @@ exports.handler = async (event) => {
     interest_portion_kobo:  interestPortionKobo,
   }).select().single();
 
-  if (repayErr) return err(500, `Transfer verified but recording the repayment failed: ${repayErr.message}`);
+  if (repayErr) { await release(repayErr.message); return err(500, `Transfer verified but recording the repayment failed: ${repayErr.message}. Your transfer has not been used up - please try again.`); }
+  await linkTransferClaims(db, reserved.ids, repayment.id);
 
   const { completed } = await settleLoanAfterRepayment(db, loan, member.coop_id);
 
   await recordLoanRepaymentJournalEntry(db, member.coop_id, amountKobo, 'offline_zil', 'member:offline_zil', principalPortionKobo, interestPortionKobo, { id: member.id, name: member.name });
 
-  return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} confirmed and applied to your loan.${completed ? ' Your loan is now fully repaid.' : ''}`, loan_completed: completed });
+  return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} confirmed and applied to your loan.${completed ? ' Your loan is now fully repaid.' : ''}`, loan_completed: completed, transfers_applied: selection.length });
 };
