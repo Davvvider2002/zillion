@@ -163,8 +163,63 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- BACKUP: create (passphrase) -->
+<div class="modal-overlay" id="modal-backup-create">
+  <div class="modal-box">
+    <div class="modal-title">Take a backup</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">This downloads a copy of your society's data — members, savings, loans, dues, and every ledger entry. Set a passphrase to protect it: without it, nobody can open the file, including Zillion staff. Keep it somewhere safe — it cannot be recovered if lost.</div>
+    <div class="field">
+      <label>Passphrase (minimum 12 characters)</label>
+      <input type="password" id="bk-create-pass" placeholder="A long, memorable passphrase">
+    </div>
+    <div id="bk-create-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" style="flex:1" onclick="closeModal('modal-backup-create')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="submitBackupCreate()" id="bk-create-btn">Download backup</button>
+    </div>
+  </div>
+</div>
+
+<!-- BACKUP: restore (upload or pick stored, preview, then confirm) -->
+<div class="modal-overlay" id="modal-backup-restore">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Restore from backup</div>
+    <div id="bk-restore-step-source">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">Choose a stored backup, or upload a backup file. We'll show you exactly what would change before anything is touched.</div>
+      <div class="field" id="bk-restore-stored-field" style="display:none">
+        <label>Stored backup</label>
+        <select id="bk-restore-select"></select>
+      </div>
+      <div class="field" id="bk-restore-upload-field" style="display:none">
+        <label>Backup file (.zbk)</label>
+        <input type="file" id="bk-restore-file" accept=".zbk">
+      </div>
+      <div class="field">
+        <label>Passphrase this backup was sealed with</label>
+        <input type="password" id="bk-restore-pass" placeholder="The passphrase used when it was created">
+      </div>
+      <div id="bk-restore-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" style="flex:1" onclick="closeModal('modal-backup-restore')">Cancel</button>
+        <button class="btn btn-primary" style="flex:1" onclick="submitBackupPreview()" id="bk-restore-preview-btn">Preview changes</button>
+      </div>
+    </div>
+    <div id="bk-restore-step-preview" style="display:none">
+      <div id="bk-restore-preview-body"></div>
+      <div style="font-size:13px;color:var(--muted);margin:14px 0 6px">To confirm, type exactly: <b id="bk-restore-confirm-phrase"></b></div>
+      <input type="text" id="bk-restore-confirm-input" placeholder="Type the confirmation phrase" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--cream);font-size:13px;box-sizing:border-box">
+      <div id="bk-restore-apply-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" style="flex:1" onclick="closeModal('modal-backup-restore')">Cancel</button>
+        <button class="btn" style="flex:1;border-color:#FF8A8A;color:#FF8A8A" onclick="submitBackupApply()" id="bk-restore-apply-btn">Restore now</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- FORGOT PASSWORD -->
 <div class="modal-overlay" id="modal-forgot-password">
+
   <div class="modal-box">
     <div class="modal-title">Reset your password</div>
 
@@ -411,6 +466,7 @@ tr:last-child td{border-bottom:none}
         <div class="sidebar-item" data-view="addons" onclick="switchView('addons')">Add-ons</div>
         <div class="sidebar-item" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
         <div class="sidebar-item" data-view="billing" onclick="switchView('billing')">Billing</div>
+        <div class="sidebar-item" data-view="backups" onclick="switchView('backups')">Backups</div>
         <div class="sidebar-item" id="nav-users-item" data-view="users" onclick="switchView('users')" style="display:none">Users</div>
       </div>
     </div>
@@ -438,6 +494,7 @@ tr:last-child td{border-bottom:none}
         <div class="view" id="view-reconciliation"></div>
         <div class="view" id="view-surplus"></div>
         <div class="view" id="view-billing"></div>
+        <div class="view" id="view-backups"></div>
         <div class="view" id="view-users"></div>
       </div>
     </div>
@@ -1226,6 +1283,7 @@ function switchView(name) {
   if (name === 'reconciliation') renderReconciliation();
   if (name === 'surplus') renderSurplus();
   if (name === 'billing') renderBilling();
+  if (name === 'backups') renderBackups();
   if (name === 'users') renderUsers();
 }
 
@@ -3733,6 +3791,218 @@ function renderBilling() {
       </table></div>
     </div>
   `;
+}
+
+// ── BACKUPS ──────────────────────────────────────────────────────────────
+let backupList = [];
+
+function backupStatusPill(b) {
+  if (b.status === 'ok') return '<span class="pill pill-green">Ready</span>';
+  if (b.status === 'running') return '<span class="pill pill-amber">In progress</span>';
+  if (b.status === 'failed') return '<span class="pill pill-red">Failed</span>';
+  return `<span class="pill">${b.status}</span>`;
+}
+function backupKindLabel(k) {
+  return { manual: 'Manual', scheduled: 'Scheduled', pre_restore: 'Safety copy (before a restore)' }[k] || k;
+}
+function fmtBytes(n) {
+  if (!n) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function renderBackups() {
+  const el = document.getElementById('view-backups');
+  el.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="card-title">Backups</div>
+          <div class="card-sub">Copies of your society's data, ready to download or restore. ${isPortalOwner ? '' : 'Ask the society owner to take a backup or restore one.'}</div>
+        </div>
+        ${isPortalOwner ? `
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="openBackupRestore()">Restore…</button>
+            <button class="btn btn-primary" onclick="openModal('modal-backup-create')">Take a backup</button>
+          </div>` : ''}
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Status</th><th>Size</th><th>Rows</th></tr></thead>
+        <tbody id="backup-list-body"><tr><td colspan="5" class="no-data">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+  `;
+  try {
+    const res = await fetch(`${API}/coop-portal-backup-list`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load backups');
+    backupList = data.backups || [];
+    const body = document.getElementById('backup-list-body');
+    body.innerHTML = backupList.filter(b => b.status !== 'deleted').map(b => `
+      <tr>
+        <td>${fmtDate(b.created_at)}</td>
+        <td>${backupKindLabel(b.kind)}</td>
+        <td>${backupStatusPill(b)}</td>
+        <td>${fmtBytes(b.bytes)}</td>
+        <td>${b.rows ?? '—'}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" class="no-data">No backups yet.</td></tr>';
+  } catch (e) {
+    document.getElementById('backup-list-body').innerHTML = `<tr><td colspan="5" class="no-data">${e.message}</td></tr>`;
+  }
+}
+
+async function submitBackupCreate() {
+  const pass = document.getElementById('bk-create-pass').value;
+  const errEl = document.getElementById('bk-create-error');
+  errEl.style.display = 'none';
+  if (!pass || pass.length < 12) { errEl.textContent = 'Passphrase must be at least 12 characters.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('bk-create-btn'); btn.disabled = true; btn.textContent = 'Working…';
+  try {
+    const res = await fetch(`${API}/coop-portal-backup-create`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ passphrase: pass }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create the backup');
+    const blob = new Blob([Uint8Array.from(atob(data.file_base64), c => c.charCodeAt(0))], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = data.filename; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    closeModal('modal-backup-create');
+    document.getElementById('bk-create-pass').value = '';
+    notify('Backup downloaded. Keep the passphrase safe — it cannot be recovered.');
+    renderBackups();
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Download backup';
+  }
+}
+
+function openBackupRestore() {
+  document.getElementById('bk-restore-step-source').style.display = '';
+  document.getElementById('bk-restore-step-preview').style.display = 'none';
+  document.getElementById('bk-restore-error').style.display = 'none';
+  document.getElementById('bk-restore-pass').value = '';
+  const ready = backupList.filter(b => b.status === 'ok');
+  const storedField = document.getElementById('bk-restore-stored-field');
+  const uploadField = document.getElementById('bk-restore-upload-field');
+  if (ready.length) {
+    storedField.style.display = ''; uploadField.style.display = 'none';
+    document.getElementById('bk-restore-select').innerHTML = ready.map(b =>
+      `<option value="${b.id}">${fmtDate(b.created_at)} — ${backupKindLabel(b.kind)} (${fmtBytes(b.bytes)})</option>`
+    ).join('') + '<option value="">Upload a file instead…</option>';
+  } else {
+    storedField.style.display = 'none'; uploadField.style.display = '';
+  }
+  document.getElementById('bk-restore-select').onchange = function () {
+    const upload = this.value === '';
+    uploadField.style.display = upload ? '' : 'none';
+  };
+  openModal('modal-backup-restore');
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = () => reject(new Error('Could not read the file'));
+    r.readAsDataURL(file);
+  });
+}
+
+let lastRestoreRequest = null;
+
+async function submitBackupPreview() {
+  const errEl = document.getElementById('bk-restore-error'); errEl.style.display = 'none';
+  const pass = document.getElementById('bk-restore-pass').value;
+  if (!pass) { errEl.textContent = 'Enter the passphrase this backup was sealed with.'; errEl.style.display = 'block'; return; }
+
+  const selectEl = document.getElementById('bk-restore-select');
+  const usingStored = document.getElementById('bk-restore-stored-field').style.display !== 'none' && selectEl.value !== '';
+  const req = { passphrase: pass };
+  if (usingStored) {
+    req.backup_id = selectEl.value;
+  } else {
+    const fileInput = document.getElementById('bk-restore-file');
+    if (!fileInput.files.length) { errEl.textContent = 'Choose a backup file to upload.'; errEl.style.display = 'block'; return; }
+    try { req.file_base64 = await fileToBase64(fileInput.files[0]); }
+    catch (e) { errEl.textContent = e.message; errEl.style.display = 'block'; return; }
+  }
+  lastRestoreRequest = req;
+
+  const btn = document.getElementById('bk-restore-preview-btn'); btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const res = await fetch(`${API}/coop-portal-backup-restore`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify(req),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not preview the restore');
+    const t = data.plan.totals;
+    const drift = data.plan.schema_drift || [];
+    document.getElementById('bk-restore-preview-body').innerHTML = `
+      <div class="card-sub" style="margin-bottom:10px">This is what would change if you restore this backup:</div>
+      <div style="display:flex;gap:16px;margin-bottom:10px">
+        <div><div style="font-size:20px;font-weight:700;color:#7ED6A5">+${t.add}</div><div style="font-size:12px;color:var(--muted)">added back</div></div>
+        <div><div style="font-size:20px;font-weight:700;color:var(--amber)">${t.change}</div><div style="font-size:12px;color:var(--muted)">changed</div></div>
+        <div><div style="font-size:20px;font-weight:700;color:#FF8A8A">-${t.remove}</div><div style="font-size:12px;color:var(--muted)">removed</div></div>
+      </div>
+      ${t.add === 0 && t.change === 0 && t.remove === 0 ? '<div class="card-sub">Nothing would change — your data already matches this backup.</div>' : ''}
+      ${drift.length ? `<div style="color:var(--amber);font-size:13px;margin-top:8px">Some columns in this backup no longer exist in the database and would not be restored: ${drift.map(d => d.table).join(', ')}.</div>` : ''}
+      <div class="card-sub" style="margin-top:10px">A safety copy of your current data will be taken automatically before anything changes, so this can be undone.</div>
+    `;
+    document.getElementById('bk-restore-confirm-phrase').textContent = `RESTORE ${portalData.society.name}`;
+    document.getElementById('bk-restore-confirm-input').value = '';
+    document.getElementById('bk-restore-apply-error').style.display = 'none';
+    document.getElementById('bk-restore-step-source').style.display = 'none';
+    document.getElementById('bk-restore-step-preview').style.display = '';
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Preview changes';
+  }
+}
+
+async function submitBackupApply() {
+  const errEl = document.getElementById('bk-restore-apply-error'); errEl.style.display = 'none';
+  const confirm = document.getElementById('bk-restore-confirm-input').value;
+  const expected = `RESTORE ${portalData.society.name}`;
+  if (confirm !== expected) { errEl.textContent = `Type exactly: ${expected}`; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('bk-restore-apply-btn'); btn.disabled = true; btn.textContent = 'Restoring…';
+  try {
+    const res = await fetch(`${API}/coop-portal-backup-restore`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ ...lastRestoreRequest, apply: true, confirm }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.code === 'SCHEMA_DRIFT') {
+        const retry = await fetch(`${API}/coop-portal-backup-restore`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+          body: JSON.stringify({ ...lastRestoreRequest, apply: true, confirm, accept_schema_drift: true }),
+        });
+        const retryData = await retry.json();
+        if (!retry.ok) throw new Error(retryData.error || 'Restore failed');
+        closeModal('modal-backup-restore');
+        notify('Restore complete. A safety copy of your previous data was saved automatically.');
+        await loadPortalData(); refreshAndRender();
+        return;
+      }
+      throw new Error(data.error || 'Restore failed');
+    }
+    closeModal('modal-backup-restore');
+    notify('Restore complete. A safety copy of your previous data was saved automatically.');
+    await loadPortalData(); refreshAndRender();
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Restore now';
+  }
 }
 
 
