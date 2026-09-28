@@ -497,6 +497,27 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-loan-repayment">
+  <div class="modal-box">
+    <div class="modal-title">Record a loan repayment</div>
+    <div id="lr-loan-label" style="font-size:13px;color:var(--muted);margin-bottom:6px"></div>
+    <div id="lr-balance-label" style="font-size:12.5px;margin-bottom:14px"></div>
+    <div class="field"><label>Amount (₦)</label><input type="number" id="lr-amount" placeholder="0" min="0" step="0.01"></div>
+    <div class="field">
+      <label>How was this paid?</label>
+      <select id="lr-source" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px" onchange="document.getElementById('lr-ref-field').style.display = this.value==='cash_in_person' ? '' : 'none'">
+        <option value="bank_transfer_manual">Bank transfer</option>
+        <option value="cash_in_person">Cash</option>
+      </select>
+    </div>
+    <div class="field" id="lr-ref-field" style="display:none"><label>Reference (receipt no., etc.)</label><input type="text" id="lr-reference"></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Only record this after the money has actually been received. Early or extra payments are fine — up to the total still owed.</div>
+    <div id="lr-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitLoanRepayment()" id="lr-btn">Record repayment</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-loan-repayment')">Cancel</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-share-payment">
   <div class="modal-box">
     <div class="modal-title">Record a share capital contribution</div>
@@ -648,10 +669,10 @@ tr:last-child td{border-bottom:none}
 
 <div class="modal-overlay" id="modal-configure-joining-fee">
   <div class="modal-box">
-    <div class="modal-title">Joining fee</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">What a prospect pays to join via your link or QR code. Set to 0 for free, instant joining with no payment step. Applies only to new applications from the point you change it.</div>
+    <div class="modal-title">Registration fee</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">What a prospect pays to register via your link or QR code. Set to 0 for free, instant registration with no payment step. Applies only to new applications from the point you change it.</div>
     <div class="field">
-      <label>Joining fee (₦)</label>
+      <label>Registration fee (₦)</label>
       <input type="number" id="jfee-amount" min="0" step="1" placeholder="0">
     </div>
     <div id="jfee-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
@@ -1325,7 +1346,7 @@ function renderMembers() {
           ${hasPortalAction('members', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('modal-activate')">＋ Activate member</button>` : ''}
           ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openModal('modal-import')">📄 Import CSV</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openJoinLinkModal()">🔗 Get join link</button>
-          ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureJoiningFeeModal()">Joining fee: ${fmtNaira(d.society.joining_fee_kobo || 0)}</button>` : ''}
+          ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openConfigureJoiningFeeModal()">Registration fee: ${fmtNaira(d.society.joining_fee_kobo || 0)}</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="printSection('members-report-card', 'Members Report')">🖨️ Print / Download</button>
         </div>
       </div>
@@ -1772,6 +1793,9 @@ function loanActionButtons(l) {
   if (l.status === 'APPROVED') {
     return `<button class="btn btn-primary btn-sm" onclick="doLoanAction('${l.id}','disburse')">Mark disbursed</button>`;
   }
+  if (['DISBURSED', 'REPAYING'].includes(l.status)) {
+    return `<button class="btn btn-primary btn-sm" onclick="openLoanRepaymentModal('${l.id}')">Record repayment</button>`;
+  }
   return '';
 }
 
@@ -1800,6 +1824,61 @@ async function submitRejectLoan() {
   if (!reason) { document.getElementById('rl-error').textContent = 'Enter a reason — the borrower will see it.'; document.getElementById('rl-error').style.display = 'block'; return; }
   closeModal('modal-reject-loan');
   await doLoanAction(pendingLoanId, 'reject', reason);
+}
+
+// Total still owed = whole schedule + penalties + live late fee - paid.
+// Not repayment.outstanding_kobo, which is only what has fallen due so far.
+function loanTotalRemainingKobo(l) {
+  const r = l.repayment;
+  if (!r) return l.total_repayable_kobo || l.principal_kobo || 0;
+  return Math.max(0, r.total_scheduled_kobo + r.penalty_kobo + (r.late_fee_kobo || 0) - r.paid_kobo);
+}
+
+let pendingRepaymentLoanId = null;
+
+function openLoanRepaymentModal(loanId) {
+  const l = (portalData.loans || []).find(x => x.id === loanId);
+  if (!l) return;
+  pendingRepaymentLoanId = loanId;
+  const remaining = loanTotalRemainingKobo(l);
+  const dueNow = l.repayment ? l.repayment.outstanding_kobo : 0;
+  document.getElementById('lr-loan-label').textContent = `For: ${l.borrower?.name || l.borrower?.phone_normalized || 'Borrower'} — ${fmtNaira(l.principal_kobo)} loan`;
+  document.getElementById('lr-balance-label').innerHTML =
+    `Total still owed: <b>${fmtNaira(remaining)}</b>` + (dueNow > 0 ? ` <span style="color:var(--amber)">· ${fmtNaira(dueNow)} due now</span>` : '');
+  document.getElementById('lr-amount').value = dueNow > 0 ? (dueNow / 100) : '';
+  document.getElementById('lr-source').value = 'bank_transfer_manual';
+  document.getElementById('lr-ref-field').style.display = 'none';
+  document.getElementById('lr-reference').value = '';
+  document.getElementById('lr-error').style.display = 'none';
+  openModal('modal-loan-repayment');
+}
+
+async function submitLoanRepayment() {
+  const errEl = document.getElementById('lr-error');
+  errEl.style.display = 'none';
+  const amountNaira = parseFloat(document.getElementById('lr-amount').value);
+  const source = document.getElementById('lr-source').value;
+  const reference = document.getElementById('lr-reference').value.trim();
+  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('lr-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-record-loan-repayment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ loan_id: pendingRepaymentLoanId, amount_kobo: Math.round(amountNaira * 100), source, reference }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Record repayment';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record repayment.'; errEl.style.display = 'block'; return; }
+    notify(data.loan_completed ? 'Repayment recorded — loan fully repaid and closed' : 'Repayment recorded');
+    closeModal('modal-loan-repayment');
+    await refreshAndRender();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Record repayment';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
 }
 
 // ── DUES ──────────────────────────────────────────────────────────────
@@ -2306,8 +2385,8 @@ function openJoinLinkModal() {
   const url = `${location.origin}/join/?coop_id=${encodeURIComponent(s.coop_id)}`;
   document.getElementById('jl-url').value = url;
   document.getElementById('jl-fee-note').textContent = (s.joining_fee_kobo || 0) > 0
-    ? ` and pay a ${fmtNaira(s.joining_fee_kobo)} joining fee`
-    : ' — joining is free, so they\'re added instantly';
+    ? ` and pay a ${fmtNaira(s.joining_fee_kobo)} registration fee`
+    : ' — registration is free, so they\'re added instantly';
 
   const qrBox = document.getElementById('jl-qr-box');
   qrBox.innerHTML = '';
@@ -2393,7 +2472,7 @@ async function submitConfigureJoiningFee() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Save'; return; }
-    notify(naira > 0 ? `Joining fee set to ${fmtNaira(Math.round(naira * 100))}` : 'Joining is now free');
+    notify(naira > 0 ? `Registration fee set to ${fmtNaira(Math.round(naira * 100))}` : 'Registration is now free');
     closeModal('modal-configure-joining-fee');
     btn.disabled = false; btn.textContent = 'Save';
     await refreshAndRender();
