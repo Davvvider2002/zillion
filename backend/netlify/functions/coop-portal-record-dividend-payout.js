@@ -33,6 +33,8 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
+const { logAlert } = require('../../lib/alerts');
+const { findCreditPlan } = require('../../lib/coopOfflineTransfer');
 
 const VALID_METHODS = ['cash', 'savings', 'shares'];
 const BANK_ACCOUNT_CODE = '1010';
@@ -105,6 +107,13 @@ exports.handler = async (event) => {
     return err(400, `This would pay out ${((alreadyPaidKobo + newTotal) / 100).toLocaleString()} total, exceeding the ${(entitlement.entitlement_kobo / 100).toLocaleString()} entitlement (${(alreadyPaidKobo / 100).toLocaleString()} already recorded).`);
   }
 
+  // A payout to savings needs a savings plan to land on. Find it BEFORE recording anything, so it is refused cleanly.
+  let savingsPlan = null;
+  if (cleanPayouts.some(p => p.method === 'savings')) {
+    savingsPlan = await findCreditPlan(db, entitlement.member_id);
+    if (!savingsPlan) return err(400, 'This member has no active savings plan to credit, so the savings part of this payout cannot be recorded. Pay it as cash or shares instead, or create a savings plan for them first.');
+  }
+
   const createdRows = [];
   const accountingReady = await accountingIsReady(db, coopId);
   const payableAccounts = accountingReady ? await getAccounts(db, coopId, [DIVIDEND_PAYABLE_ACCOUNT_CODE, BANK_ACCOUNT_CODE, MEMBER_SAVINGS_PAYABLE_ACCOUNT_CODE, SHARE_CAPITAL_ACCOUNT_CODE]) : {};
@@ -118,16 +127,28 @@ exports.handler = async (event) => {
     if (insertErr) return err(500, `Failed to record payout: ${insertErr.message}`);
     createdRows.push(created);
 
-    if (p.method === 'savings') {
-      await db.from('coop_savings_transactions').insert({
-        coop_id: coopId, member_id: entitlement.member_id, amount_kobo: p.amount_kobo,
-        source: 'dividend_credit', reference: `Dividend payout ${created.id}`, recorded_by: `portal:${auth.payload.merchant_id}`,
-      });
-    } else if (p.method === 'shares') {
-      await db.from('coop_share_transactions').insert({
-        coop_id: coopId, member_id: entitlement.member_id, amount_kobo: p.amount_kobo,
-        source: 'dividend_credit', reference: `Dividend payout ${created.id}`, recorded_by: `portal:${auth.payload.merchant_id}`,
-      });
+    // Both credits used to ignore their result. The savings one always FAILED - savings_plan_id is NOT NULL on the savings
+    // ledger and this insert never supplied one - yet the payout stayed recorded as completed and the ledger entry below was
+    // still posted: the books said the member was owed the money, and their savings showed nothing.
+    if (p.method === 'savings' || p.method === 'shares') {
+      const { error: creditErr } = p.method === 'savings'
+        ? await db.from('coop_savings_transactions').insert({
+            coop_id: coopId, member_id: entitlement.member_id, savings_plan_id: savingsPlan.id, amount_kobo: p.amount_kobo,
+            source: 'dividend_credit', reference: `Dividend payout ${created.id}`, recorded_by: `portal:${auth.payload.merchant_id}`,
+          })
+        : await db.from('coop_share_transactions').insert({
+            coop_id: coopId, member_id: entitlement.member_id, amount_kobo: p.amount_kobo,
+            source: 'dividend_credit', reference: `Dividend payout ${created.id}`, recorded_by: `portal:${auth.payload.merchant_id}`,
+          });
+      if (creditErr) {
+        // Do not leave a payout marked completed that never reached the member.
+        const { error: undoErr } = await db.from('coop_dividend_payouts').delete().eq('id', created.id);
+        createdRows.pop();
+        if (undoErr) await logAlert(db, { severity: 'CRITICAL', source: 'coop-portal-record-dividend-payout',
+          message: `A dividend payout to ${p.method} was recorded as completed but crediting the member FAILED (${creditErr.message}), and removing the payout record also failed. Payout ${created.id} must be corrected by hand.`,
+          context: { payout_id: created.id, member_id: entitlement.member_id, coop_id: coopId, amount_kobo: p.amount_kobo } });
+        return err(500, `The ${p.method} credit could not be recorded, so this payout was not recorded (${creditErr.message}).${createdRows.length ? ` ${createdRows.length} earlier payout(s) in this request WERE recorded.` : ''}`);
+      }
     }
 
     try {
