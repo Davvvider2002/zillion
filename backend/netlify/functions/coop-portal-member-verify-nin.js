@@ -7,6 +7,10 @@
  * attempt is billed to the society (matched or not — Dojah charges per call either way), so this refuses up
  * front if the society has an unpaid usage invoice from a previous month, before ever calling Dojah.
  *
+ * EXEMPTION: a trial or never_expires society gets a "Test Mode" no-op instead — see
+ * coopKycBilling.isKycActiveForSociety(). Nothing is checked with Dojah, billed, or written to the member's
+ * kyc_status until the society is on an active, paying subscription.
+ *
  * Body: { member_id, nin }
  */
 'use strict';
@@ -46,6 +50,16 @@ exports.handler = async (event) => {
 
   const { data: member } = await db.from('coop_members').select('id, name, coop_id, kyc_status').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
   if (!member) return err(404, 'Member not found in this society');
+
+  // Trial / never-expiring societies never trigger a real Dojah call or a real charge — nothing here is
+  // confirmed until the society is on an active, paying subscription.
+  const { data: societyFlags } = await db.from('coop_societies').select('never_expires').eq('coop_id', coopId).maybeSingle();
+  if (!billing.isKycActiveForSociety({ subscription_status: resolved.society.subscription_status, never_expires: societyFlags?.never_expires })) {
+    return ok({
+      success: true, test_mode: true, matched: null, kyc_status: member.kyc_status, charged_kobo: 0,
+      message: 'Test Mode: NIN/KYC verification is not active for a trial or never-expiring society — nothing has been checked, confirmed, or billed. This activates once the society is on a paid subscription.',
+    });
+  }
 
   try {
     await billing.assertNotBlocked(db, coopId);
