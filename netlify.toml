@@ -13,9 +13,11 @@
   node_bundler          = "esbuild"
   external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms", "pdfkit"]
 
-# Runs automatically every 4 hours — writes findings to system_alerts,
-# surfaced in the admin dashboard's System Health panel. Read-only
-# against financial data, only ever writes alert records.
+# Runs automatically every 4 hours. Checks coin-ledger drift and other signals (writes alerts), and runs the
+# operational and accounting passes: subscription grace/trial handling, dues accrual, monthly statements, late-loan
+# penalties, savings interest, investment accrual and maturity. A scheduled function is capped at 30 seconds, so the
+# heavy passes run as resumable batches inside a time budget (RECONCILE_BUDGET_MS, default 24000) and carry on where
+# they stopped next run - see the header of scheduled-reconcile.js. Needs the scheduled_job_state table.
 [functions."scheduled-reconcile"]
   schedule = "0 */4 * * *"
 
