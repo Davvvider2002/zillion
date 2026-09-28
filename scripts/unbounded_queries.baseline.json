@@ -119,7 +119,6 @@
  "netlify/functions/recover-coins.js|claim_bundles": 1,
  "netlify/functions/recover-coins.js|coins": 1,
  "netlify/functions/recover-coins.js|devices": 1,
- "netlify/functions/scheduled-reconcile.js|coin_ledger_holder_balance": 1,
  "netlify/functions/sync.js|coins": 1,
  "netlify/functions/wallet-recover.js|coins": 2
 }
