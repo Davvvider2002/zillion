@@ -1105,6 +1105,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-subledger"
+  to   = "/.netlify/functions/coop-portal-subledger"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-reconcile-bank-statement"
   to   = "/.netlify/functions/coop-portal-reconcile-bank-statement"
   status = 200
