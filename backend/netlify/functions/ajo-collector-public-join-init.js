@@ -5,9 +5,9 @@
  * Body: { admin_zillion_id, name, phone, email?, return_url }
  *
  * Public, unauthenticated - mirrors coop-public-join-init.js exactly,
- * but there is no free path here: the joining fee is compulsory, per
+ * but there is no free path here: the registration fee is compulsory, per
  * how this was specified, not optional the way a society's own
- * joining fee can be zero. Every submission creates an
+ * registration fee can be zero. Every submission creates an
  * ajo_collector_join_applications row and opens a real Flutterwave
  * v3 checkout - the same fee calculation and payment mechanics
  * already proven for dues/savings/shares, reused rather than
@@ -66,7 +66,7 @@ exports.handler = async (event) => {
 
   const { data: settings } = await db.from('ajo_collector_recruitment_settings')
     .select('joining_fee_kobo').eq('admin_zillion_id', adminZillionId).maybeSingle();
-  if (!settings) return err(404, 'This join link is no longer active — the admin has not set a joining fee');
+  if (!settings) return err(404, 'This join link is no longer active — the admin has not set a registration fee');
 
   const secretKey = (process.env.FLW_V3_SECRET_KEY || '').trim();
   if (!secretKey) return err(500, 'Payments are not yet configured — contact support');
