@@ -30,7 +30,9 @@ exports.handler = async (event) => {
   try {
     const invoices = await billing.listInvoicesForSociety(db, resolved.society.coop_id);
     const priceKobo = await billing.getKycPriceKobo(db);
-    return ok({ success: true, invoices, price_kobo: priceKobo, can_pay: auth.payload.role === 'merchant' });
+    const { data: societyFlags } = await db.from('coop_societies').select('never_expires').eq('coop_id', resolved.society.coop_id).maybeSingle();
+    const kycActive = billing.isKycActiveForSociety({ subscription_status: resolved.society.subscription_status, never_expires: societyFlags?.never_expires });
+    return ok({ success: true, invoices, price_kobo: priceKobo, can_pay: auth.payload.role === 'merchant', kyc_active: kycActive });
   } catch (e) {
     console.error('[coop-portal-kyc-invoices]', e);
     return err(500, 'Could not load invoices.');
