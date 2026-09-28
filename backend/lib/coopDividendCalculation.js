@@ -30,6 +30,7 @@
  * patronage is.
  */
 'use strict';
+const { fetchAllRows } = require('./coopPaginate');
 
 /**
  * @param {object} db  Supabase client
@@ -40,7 +41,7 @@
  * @param {number} shareWeightPercent  0-100; what fraction of the pool is distributed by share capital rather than patronage. Defaults to 0 (pure patronage, the original behavior).
  */
 async function calculateDividendRun(db, coopId, startDate, endDate, totalDistributableKobo, shareWeightPercent = 0) {
-  const { data: members } = await db.from('coop_members').select('id').eq('coop_id', coopId).eq('status', 'ACTIVE');
+  const members = await fetchAllRows(() => db.from('coop_members').select('id').eq('coop_id', coopId).eq('status', 'ACTIVE').order('id'));
   const memberIds = new Set((members || []).map(m => m.id));
   if (!memberIds.size) return { entitlements: [], total_patronage_kobo: 0, total_share_capital_kobo: 0 };
 
@@ -50,28 +51,28 @@ async function calculateDividendRun(db, coopId, startDate, endDate, totalDistrib
     return byMember.get(id);
   };
 
-  const { data: savingsTxns } = await db.from('coop_savings_transactions')
-    .select('member_id, amount_kobo').eq('coop_id', coopId).gte('recorded_at', startDate).lte('recorded_at', endDate);
+  const savingsTxns = await fetchAllRows(() => db.from('coop_savings_transactions')
+    .select('member_id, amount_kobo').eq('coop_id', coopId).gte('recorded_at', startDate).lte('recorded_at', endDate).order('id'));
   for (const t of (savingsTxns || [])) {
     if (!memberIds.has(t.member_id)) continue;
     ensure(t.member_id).savingsKobo += t.amount_kobo;
   }
 
-  const { data: duesTxns } = await db.from('coop_dues_transactions')
-    .select('member_id, amount_kobo').eq('coop_id', coopId).gte('recorded_at', startDate).lte('recorded_at', endDate);
+  const duesTxns = await fetchAllRows(() => db.from('coop_dues_transactions')
+    .select('member_id, amount_kobo').eq('coop_id', coopId).gte('recorded_at', startDate).lte('recorded_at', endDate).order('id'));
   for (const t of (duesTxns || [])) {
     if (!memberIds.has(t.member_id)) continue;
     ensure(t.member_id).duesKobo += t.amount_kobo;
   }
 
   // Loan interest, prorated per repayment by each loan's own fixed ratio.
-  const { data: loans } = await db.from('coop_loans')
-    .select('id, member_id, interest_kobo, total_repayable_kobo').eq('coop_id', coopId);
+  const loans = await fetchAllRows(() => db.from('coop_loans')
+    .select('id, member_id, interest_kobo, total_repayable_kobo').eq('coop_id', coopId).order('id'));
   const loanMap = new Map((loans || []).map(l => [l.id, l]));
 
-  const { data: repayments } = await db.from('coop_loan_repayments')
+  const repayments = await fetchAllRows(() => db.from('coop_loan_repayments')
     .select('loan_id, amount_kobo, coop_loans!inner(coop_id)')
-    .eq('coop_loans.coop_id', coopId).gte('recorded_at', startDate).lte('recorded_at', endDate);
+    .eq('coop_loans.coop_id', coopId).gte('recorded_at', startDate).lte('recorded_at', endDate).order('id'));
   for (const r of (repayments || [])) {
     const loan = loanMap.get(r.loan_id);
     if (!loan || !memberIds.has(loan.member_id)) continue;
@@ -81,8 +82,8 @@ async function calculateDividendRun(db, coopId, startDate, endDate, totalDistrib
   }
 
   // Share capital: cumulative balance as of endDate, not period-filtered.
-  const { data: shareTxns } = await db.from('coop_share_transactions')
-    .select('member_id, amount_kobo').eq('coop_id', coopId).lte('recorded_at', endDate);
+  const shareTxns = await fetchAllRows(() => db.from('coop_share_transactions')
+    .select('member_id, amount_kobo').eq('coop_id', coopId).lte('recorded_at', endDate).order('id'));
   for (const t of (shareTxns || [])) {
     if (!memberIds.has(t.member_id)) continue;
     ensure(t.member_id).shareCapitalKobo += t.amount_kobo;
