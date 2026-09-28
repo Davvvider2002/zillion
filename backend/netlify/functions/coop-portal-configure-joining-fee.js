@@ -3,7 +3,7 @@
  *
  * POST /api/v1/coop-portal-configure-joining-fee
  *
- * Society-admin self-service setting for the joining fee charged to a
+ * Society-admin self-service setting for the registration fee charged to a
  * prospect joining via the public link/QR flow (coop-public-join-init.js).
  * 0 means free to join - no payment step at all, immediate enrolment.
  *
@@ -51,7 +51,7 @@ exports.handler = async (event) => {
     .eq('coop_id', coopId)
     .select().single();
 
-  if (updateErr) return err(500, `Failed to update joining fee: ${updateErr.message}`);
+  if (updateErr) return err(500, `Failed to update registration fee: ${updateErr.message}`);
 
   await auditLog(db, {
     action:       'COOP_PORTAL_JOINING_FEE_CONFIGURED',
