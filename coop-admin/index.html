@@ -529,6 +529,20 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-attribute">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-title" id="attr-title">Attribute to members</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Your ledger already holds this money. This records <b>who holds it</b>. It does not post anything new to the ledger.</div>
+    <div id="attr-date-field" class="field" style="display:none"><label>Date of the opening balance</label><input type="date" id="attr-date"></div>
+    <div id="attr-note" style="font-size:12px;color:var(--amber);margin-bottom:8px;display:none"></div>
+    <div id="attr-members" style="max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-bottom:10px"></div>
+    <div id="attr-remaining" style="font-size:13px;font-weight:700;margin-bottom:8px"></div>
+    <div id="attr-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:10px"></div>
+    <button class="btn btn-primary" style="width:100%" id="attr-btn" onclick="submitAttribution()">Attribute</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-attribute')">Cancel</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-share-payment">
   <div class="modal-box">
     <div class="modal-title">Record a share capital contribution</div>
@@ -5242,7 +5256,7 @@ function renderSubledger(data) {
       <thead><tr><th>Member</th>${cols.map(k => `<th>${drillEsc(k.label)}</th>`).join('')}</tr></thead>
       <tbody>${data.rows.map(r => `
         <tr class="drill-row" onclick="drillToMember('${data.type}','${r.member_id}')">
-          <td>${drillEsc(r.member_name)}${r.phone_normalized ? ` <span style="color:var(--muted);font-size:11px">${drillEsc(r.phone_normalized)}</span>` : ''}</td>
+          <td>${drillEsc(r.member_name)}${r.phone_normalized ? ` <span style="color:var(--muted);font-size:11px">${drillEsc(r.phone_normalized)}</span>` : ''}${(r.notes || []).map(n => n.code === 'opening_not_visible' ? `<div style="color:var(--amber);font-size:11px">⚠ ${fmtNaira(n.amount_kobo)} opening balance is not shown to this member in the app: they have no savings plan yet.</div>` : '').join('')}</td>
           ${cols.map(k => `<td>${r.values[k.key] ? drillSigned(r.values[k.key]) : ''}</td>`).join('')}
         </tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="no-data">No member-level records yet.</td></tr>`}</tbody>
       <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td>Total by member</td>${cols.map(k => `<td>${drillSigned(data.totals[k.key] || 0)}</td>`).join('')}</tr></tfoot>
@@ -5252,6 +5266,8 @@ function renderSubledger(data) {
       <thead><tr><th>Control account</th><th>Ledger balance</th><th>By members</th><th>Difference</th></tr></thead>
       <tbody>${recon}</tbody>
     </table></div>
+    ${['shares', 'savings'].includes(data.type) && data.reconciliation[0].unallocated_kobo > 0 && hasPortalAction('accounting', 'create')
+      ? `<div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="openAttributionModal('${data.type}')">Attribute the unallocated ${fmtNaira(data.reconciliation[0].unallocated_kobo)} to members</button></div>` : ''}
     ${data.unresolved_member_records ? '<div style="margin-top:8px;font-size:12px;color:#e74c3c">⚠ Some records belong to a member that could not be found and are included in the totals above.</div>' : ''}
     <div style="margin-top:10px;font-weight:700;color:${data.reconciled ? 'var(--green-lt)' : 'var(--amber)'}">${data.reconciled ? '✓ Sub-ledger agrees with the ledger' : 'The difference is shown, not hidden — it is what the ledger holds that no member-level record accounts for (or the reverse).'}</div>`;
 }
@@ -5282,6 +5298,77 @@ function renderMemberLevel(lvl) {
         ${d.keys.map(k => `<td>${r.deltas[k.key] ? drillSigned(r.deltas[k.key]) : ''}</td><td>${drillSigned(r.balances[k.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${2 + d.keys.length * 2}" class="no-data">No movements.</td></tr>`}</tbody>
       <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Balance</td>${d.keys.map(k => `<td></td><td>${drillSigned(d.totals[k.key])}</td>`).join('')}</tr></tfoot>
     </table></div>`;
+}
+
+// ── ATTRIBUTE OPENING BALANCES ────────────────────────────────────────
+let attrState = { type: null, unallocated: 0, batchId: null, busy: false };
+
+async function openAttributionModal(type) {
+  const errEl = document.getElementById('attr-error'); errEl.style.display = 'none';
+  try {
+    const res = await fetch(`${API}/coop-portal-subledger-attribute?type=${type}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const ctx = await res.json();
+    if (!res.ok) { notify(ctx.error || 'Could not open this'); return; }
+    // One id per opening of the dialog: a retried submit reuses it, so the server can refuse a double-apply.
+    attrState = { type, unallocated: ctx.unallocated_kobo, batchId: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10), busy: false };
+    document.getElementById('attr-title').textContent = `Attribute ${ctx.label.toLowerCase()} to members`;
+    const isShares = type === 'shares';
+    document.getElementById('attr-date-field').style.display = isShares ? '' : 'none';
+    if (isShares) document.getElementById('attr-date').value = ctx.default_date;
+    const note = document.getElementById('attr-note');
+    note.style.display = '';
+    note.textContent = isShares
+      ? 'Recorded as opening-balance share transactions, dated as below so reports for earlier dates include them.'
+      : "Added to each member's opening savings balance. Members marked ⚠ have no savings plan, so the app will not show them this until they have one.";
+    document.getElementById('attr-members').innerHTML = `<table style="width:100%"><tbody>${ctx.members.map(m => `
+      <tr><td style="padding:6px 0">${drillEsc(m.name)}${m.no_plan && type === 'savings' ? ' <span title="No savings plan: not shown to this member in the app" style="color:var(--amber)">⚠</span>' : ''}
+        <div style="color:var(--muted);font-size:11px">Now ${fmtNaira(m.current_kobo)}</div></td>
+      <td style="width:150px"><input type="number" min="0" step="0.01" placeholder="0" data-member="${m.id}" oninput="attrRecalc()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream)"></td></tr>`).join('')}</tbody></table>`;
+    attrRecalc();
+    openModal('modal-attribute');
+  } catch (e) { notify('Network error: ' + e.message); }
+}
+
+function attrLines() {
+  return [...document.querySelectorAll('#attr-members input[data-member]')]
+    .map(i => ({ member_id: i.dataset.member, amount_kobo: Math.round(parseFloat(i.value) * 100) }))
+    .filter(l => Number.isFinite(l.amount_kobo) && l.amount_kobo > 0);
+}
+
+function attrRecalc() {
+  const total = attrLines().reduce((s, l) => s + l.amount_kobo, 0);
+  const remaining = attrState.unallocated - total;
+  const el = document.getElementById('attr-remaining');
+  el.style.color = remaining < 0 ? '#FF8A8A' : 'var(--cream)';
+  el.textContent = remaining < 0
+    ? `Over by ${fmtNaira(-remaining)}: only ${fmtNaira(attrState.unallocated)} is unallocated`
+    : `Remaining to attribute: ${fmtNaira(remaining)}`;
+  document.getElementById('attr-btn').disabled = total <= 0 || remaining < 0 || attrState.busy;
+}
+
+async function submitAttribution() {
+  const lines = attrLines();
+  const total = lines.reduce((s, l) => s + l.amount_kobo, 0);
+  const errEl = document.getElementById('attr-error'); errEl.style.display = 'none';
+  if (!lines.length || total > attrState.unallocated) return;
+  if (!confirm(`Attribute ${fmtNaira(total)} across ${lines.length} member${lines.length === 1 ? '' : 's'}?\n\nThis records who holds these balances. It does not post anything to the ledger.`)) return;
+  attrState.busy = true; document.getElementById('attr-btn').disabled = true; document.getElementById('attr-btn').textContent = 'Attributing...';
+  try {
+    const res = await fetch(`${API}/coop-portal-subledger-attribute`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ type: attrState.type, batch_id: attrState.batchId, attributions: lines,
+        date: attrState.type === 'shares' ? document.getElementById('attr-date').value : undefined }),
+    });
+    const data = await res.json();
+    attrState.busy = false; document.getElementById('attr-btn').textContent = 'Attribute';
+    if (!res.ok) { errEl.textContent = data.error || 'Could not record this.'; errEl.style.display = 'block'; attrRecalc(); return; }
+    closeModal('modal-attribute');
+    notify(`Attributed ${fmtNaira(data.total_kobo)} to ${data.applied} member${data.applied === 1 ? '' : 's'}`);
+    loadFinancialReport();
+  } catch (e) {
+    attrState.busy = false; document.getElementById('attr-btn').textContent = 'Attribute';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; attrRecalc();
+  }
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────
