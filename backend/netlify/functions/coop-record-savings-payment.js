@@ -27,6 +27,7 @@
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
+const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -75,6 +76,11 @@ exports.handler = async (event) => {
 
   if (insertErr) return err(500, `Failed to record payment: ${insertErr.message}`);
 
+  // Savings deposits used to reach the ledger by no route at all.
+  const { data: payerRow } = await db.from('coop_members').select('id, name').eq('id', plan.member_id).maybeSingle();
+  const posted = await recordSavingsPaymentJournalEntry(db, plan.coop_id, amountKobo, source, auth.payload.username || auth.payload.sub, payerRow, reference);
+  await alertIfNotBooked(db, posted, { source: 'coop-record-savings-payment', what: 'A recorded savings payment', amountKobo });
+
   await auditLog(db, {
     action:       'COOP_SAVINGS_PAYMENT_RECORDED',
     username:     auth.payload.username || auth.payload.sub,
@@ -86,5 +92,5 @@ exports.handler = async (event) => {
     result:       'SUCCESS',
   });
 
-  return ok({ success: true, transaction: created });
+  return ok({ success: true, transaction: created, ledger_posted: !!posted.booked });
 };
