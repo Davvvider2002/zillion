@@ -49,6 +49,7 @@
 const { hasAddon }             = require('./coopEntitlements');
 const { ensureChartOfAccounts } = require('./coopAccounting');
 const { computeDuesOwing }      = require('./coopDues');
+const { fetchAllRows } = require('./coopPaginate');
 
 const CASH_ACCOUNT_CODE = '1000';
 const BANK_ACCOUNT_CODE = '1010';
@@ -111,7 +112,7 @@ async function recordDuesAccrual(db, coopId) {
       .select('coop_id, dues_amount_kobo, dues_frequency, dues_income_accrued_kobo, base_currency').eq('coop_id', coopId).single();
     if (!society || !society.dues_amount_kobo) return { booked: false, reason: 'no_dues_configured' };
 
-    const { data: members } = await db.from('coop_members').select('id, activated_at').eq('coop_id', coopId).eq('status', 'ACTIVE');
+    const members = await fetchAllRows(() => db.from('coop_members').select('id, activated_at').eq('coop_id', coopId).eq('status', 'ACTIVE').order('id'));
     let currentTotalAccrued = 0;
     for (const m of (members || [])) {
       const dues = await computeDuesOwing(db, m, society);
