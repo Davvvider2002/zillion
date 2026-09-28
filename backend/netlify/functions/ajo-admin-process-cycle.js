@@ -45,6 +45,7 @@ const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
 const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
 const { resolveBankCode, verifyRecipientAccount, initiateTransfer } = require('../../lib/ajoTransfer');
+const { fetchAllRows } = require('../../lib/coopPaginate');
 
 function selectPayee(members, alreadyPaidMemberIds, payoutOrder, adminChoiceId) {
   const eligible = members.filter(m => !alreadyPaidMemberIds.includes(m.id));
@@ -99,15 +100,15 @@ exports.handler = async (event) => {
     .order('cycle_number', { ascending: false }).limit(1).maybeSingle();
   if (!cycle) return err(400, 'This scheme has no open cycle right now');
 
-  const { data: members } = await db.from('ajo_scheme_members')
-    .select('id, cycle_position, dedicated_account_number, dedicated_account_bank').eq('scheme_id', schemeId).eq('status', 'ACTIVE');
+  const members = await fetchAllRows(() => db.from('ajo_scheme_members')
+    .select('id, cycle_position, dedicated_account_number, dedicated_account_bank').eq('scheme_id', schemeId).eq('status', 'ACTIVE').order('id'));
   if (!members || members.length === 0) return err(400, 'This scheme has no active members to pay');
 
-  const { data: allCycles } = await db.from('ajo_cycles').select('id').eq('scheme_id', schemeId);
-  const { data: paidPayouts } = await db.from('ajo_payouts')
+  const allCycles = await fetchAllRows(() => db.from('ajo_cycles').select('id').eq('scheme_id', schemeId).order('id'));
+  const paidPayouts = await fetchAllRows(() => db.from('ajo_payouts')
     .select('scheme_member_id')
     .in('cycle_id', (allCycles || []).map(c => c.id))
-    .eq('status', 'DISBURSED');
+    .eq('status', 'DISBURSED').order('id'));
   const alreadyPaidIds = (paidPayouts || []).map(p => p.scheme_member_id);
 
   const selection = selectPayee(members, alreadyPaidIds, scheme.payout_order, body.payee_scheme_member_id || null);
@@ -119,7 +120,7 @@ exports.handler = async (event) => {
   // this cycle - the real pool, not just the configured per-member
   // amount times member count, which would be wrong if anyone paid
   // partially or short.
-  const { data: cycleContributions } = await db.from('ajo_contributions').select('amount_kobo').eq('cycle_id', cycle.id).eq('status', 'PAID');
+  const cycleContributions = await fetchAllRows(() => db.from('ajo_contributions').select('amount_kobo').eq('cycle_id', cycle.id).eq('status', 'PAID').order('id'));
   const poolKobo = (cycleContributions || []).reduce((s, c) => s + c.amount_kobo, 0);
   if (poolKobo <= 0) return err(400, 'No contributions have been recorded for this cycle yet — nothing to pay out.');
 
