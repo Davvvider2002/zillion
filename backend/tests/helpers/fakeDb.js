@@ -8,6 +8,7 @@
  *   - unique constraints reject duplicates with code 23505 (UNIQUE (coop_id, entry_number) on
  *     journal entries; unique reference on the savings/dues/share/repayment ledgers)
  *   - db.raceOnce simulates a concurrent writer taking the next journal entry number
+ *   - makeDb(tables, { defaults: { table: () => ({ col: value }) } }) fills column defaults on insert, as the real database's now() does
  *   - makeDb(tables, { project: true }) returns only the selected columns for plain column lists, as the real API does
  */
 'use strict';
@@ -23,7 +24,7 @@ function makeDb(tables, opts = {}) {
   const get = (r, c) => c.split('.').reduce((o, k) => (o == null ? o : o[k]), r);
   const db = { tables, raceOnce: false, failNextInsertOn: null, queryCount: 0, from(t) {
     db.queryCount++;
-    const f = []; let lo = null, hi = null, single = false, ins = null, patch = null, del = false, selAfter = false, ord = [], lim = null, selCols = null;
+    const f = []; let lo = null, hi = null, single = false, ins = null, patch = null, del = false, selAfter = false, ord = [], lim = null, selCols = null, ups = null;
     const q = {
       select(cols) { if (patch) selAfter = true; if (typeof cols === 'string') selCols = cols; return q; },
       order(c, o) { ord.push([c, !(o && o.ascending === false)]); return q; }, limit(n) { lim = n; return q; },
@@ -31,12 +32,22 @@ function makeDb(tables, opts = {}) {
       gte(c, v) { f.push(r => get(r, c) != null && String(get(r, c)) >= String(v)); return q; },
       lte(c, v) { f.push(r => get(r, c) != null && String(get(r, c)) <= String(v)); return q; },
       in(c, a) { f.push(r => a.includes(get(r, c))); return q; },
-      not() { return q; }, range(a, b) { lo = a; hi = b; return q; },
+      gt(c, v) { f.push(r => get(r, c) != null && (typeof v === 'number' ? get(r, c) > v : String(get(r, c)) > String(v))); return q; },
+      lt(c, v) { f.push(r => get(r, c) != null && (typeof v === 'number' ? get(r, c) < v : String(get(r, c)) < String(v))); return q; },
+      is(c, v) { f.push(r => v === null ? (get(r, c) === null || get(r, c) === undefined) : get(r, c) === v); return q; },
+      not(c, op, v) { if (op === 'is' && v === null) f.push(r => get(r, c) !== null && get(r, c) !== undefined); else if (op === 'eq') f.push(r => get(r, c) !== v); return q; },
+      range(a, b) { lo = a; hi = b; return q; },
+      upsert(rows, o) { ups = { rows: Array.isArray(rows) ? rows : [rows], key: (o && o.onConflict) || 'id' }; return q; },
       maybeSingle() { single = true; return q; }, single() { single = true; return q; },
       insert(rows) { ins = Array.isArray(rows) ? rows : [rows]; return q; }, update(p) { patch = p; return q; }, delete() { del = true; return q; },
       then(res) {
         tables[t] = tables[t] || [];
+        if (ups) {   // insert-or-merge on the conflict column, merging only the columns supplied (as PostgREST does)
+          for (const r of ups.rows) { const hit = tables[t].find(x => x[ups.key] === r[ups.key]); if (hit) Object.assign(hit, r); else tables[t].push({ id: `${t}-${tables[t].length + 1}`, ...r }); }
+          return res({ data: null, error: null });
+        }
         if (ins) {
+          if (db.failInsertIf && ins.some(r => db.failInsertIf(t, r))) return res({ data: null, error: { code: 'XX000', message: 'simulated failure' } });
           if (db.failNextInsertOn === t) { db.failNextInsertOn = null; return res({ data: null, error: { code: 'XX000', message: 'simulated failure' } }); }
           if (t === 'coop_journal_entries' && db.raceOnce) {
             db.raceOnce = false;   // a concurrent payment grabs the number this insert was about to use
@@ -45,7 +56,7 @@ function makeDb(tables, opts = {}) {
           const cols = unique[t];
           for (const r of ins) if (cols && cols.every(c => r[c] != null) && tables[t].some(x => cols.every(c => x[c] === r[c])))
             return res({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } });
-          const stored = ins.map((r, i) => ({ id: `${t}-${tables[t].length + i + 1}`, ...r }));
+          const stored = ins.map((r, i) => ({ id: `${t}-${tables[t].length + i + 1}`, ...((opts.defaults && opts.defaults[t]) ? opts.defaults[t]() : {}), ...r }));   // column defaults, like the real DB's now()
           tables[t].push(...stored);
           return res({ data: single ? stored[0] : stored, error: null });
         }
