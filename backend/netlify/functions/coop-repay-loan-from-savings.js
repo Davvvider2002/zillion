@@ -25,6 +25,8 @@ const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { totalRemainingForLoan, settleLoanAfterRepayment } = require('../../lib/coopLoanCompletion');
+const { uniqueReference } = require('../../lib/coopReference');
+const { logAlert } = require('../../lib/alerts');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -80,7 +82,7 @@ exports.handler = async (event) => {
     savings_plan_id: savingsPlanId,
     amount_kobo: -amountKobo, // negative — enforced by the database constraint to only ever be valid for this exact source
     source: 'loan_repayment_deduction',
-    reference: `Applied to loan ${loanId}`,
+    reference: uniqueReference(`Applied to loan ${loanId}`),
     recorded_by: 'member:savings_deduction',
   });
   if (deductErr) return err(500, `Failed to deduct from savings: ${deductErr.message}`);
@@ -91,7 +93,7 @@ exports.handler = async (event) => {
     loan_id: loanId,
     amount_kobo: amountKobo,
     source: 'savings_deduction',
-    reference: `From savings plan ${savingsPlanId}`,
+    reference: uniqueReference(`From savings plan ${savingsPlanId}`),
     recorded_by: 'member:savings_deduction',
     principal_portion_kobo: principalPortionKobo,
     interest_portion_kobo:  interestPortionKobo,
@@ -100,11 +102,19 @@ exports.handler = async (event) => {
   if (repayErr) {
     // The deduction already happened — reverse it rather than leave the
     // member's savings reduced with nothing to show for it.
-    await db.from('coop_savings_transactions').insert({
+    const { error: reverseErr } = await db.from('coop_savings_transactions').insert({
       coop_id: plan.coop_id, member_id: member.id, savings_plan_id: savingsPlanId,
       amount_kobo: amountKobo, source: 'bank_transfer_manual',
-      reference: 'Reversal — loan repayment credit failed', recorded_by: 'system:reversal',
+      reference: uniqueReference('Reversal — loan repayment credit failed'), recorded_by: 'system:reversal',
     });
+    if (reverseErr) {
+      // The reversal used a fixed reference and its result was never looked at, so once one had ever been written every
+      // later one failed silently and left the member's savings reduced. If it fails now, say so and raise the alarm.
+      await logAlert(db, { severity: 'CRITICAL', source: 'coop-repay-loan-from-savings',
+        message: `A member's savings were deducted for a loan repayment that then failed to record, and the automatic reversal ALSO failed (${reverseErr.message}). The savings must be restored manually.`,
+        context: { loan_id: loanId, savings_plan_id: savingsPlanId, amount_kobo: amountKobo } });
+      return err(500, `Repayment failed after deducting savings, and the automatic reversal did not go through. Your savings have NOT been restored yet - contact your society admin. Error: ${repayErr.message}`);
+    }
     return err(500, `Repayment failed after deducting savings — the deduction has been reversed. Error: ${repayErr.message}`);
   }
 
