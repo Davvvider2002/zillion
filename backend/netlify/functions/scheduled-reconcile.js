@@ -26,6 +26,7 @@ const { recordDuesAccrual } = require('../../lib/coopDuesAccounting');
 const { computeMemberFullStatement } = require('../../lib/coopMemberFullStatement');
 const { generateMemberStatementPdf } = require('../../lib/coopMemberStatementPdf');
 const { sendEmail } = require('../../lib/resendEmail');
+const { fetchAllRows } = require('../../lib/coopPaginate');
 
 exports.handler = async () => {
   const db = getServiceClient();
@@ -39,8 +40,8 @@ exports.handler = async () => {
       .select('holder_hash, implied_held_kobo');
 
     if (!ledgerErr) {
-      const { data: liveHeld } = await db.from('coins')
-        .select('holder_hash, amount').eq('status', 'HELD');
+      const liveHeld = await fetchAllRows(() => db.from('coins')
+        .select('holder_hash, amount').eq('status', 'HELD').order('coin_id'));
 
       const liveByHolder = {};
       (liveHeld || []).forEach(c => {
@@ -120,10 +121,10 @@ exports.handler = async () => {
   // to their access.
   try {
     const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
-    const { data: activeSocieties } = await db.from('coop_societies')
+    const activeSocieties = await fetchAllRows(() => db.from('coop_societies')
       .select('coop_id, name, subscription_status, subscription_paid_until, subscription_email')
       .not('subscription_paid_until', 'is', null)
-      .eq('subscription_status', 'active').eq('never_expires', false);
+      .eq('subscription_status', 'active').eq('never_expires', false).order('coop_id'));
 
     const now = new Date();
     for (const society of (activeSocieties || [])) {
@@ -158,11 +159,11 @@ exports.handler = async () => {
   // any society without a subscription_email or before BREVO_API_KEY
   // is set — sendEmail() itself handles that gracefully.
   try {
-    const { data: reminderDue } = await db.from('coop_societies')
+    const reminderDue = await fetchAllRows(() => db.from('coop_societies')
       .select('coop_id, name, trial_ends_at, subscription_email')
       .eq('subscription_status', 'trial').eq('never_expires', false)
       .is('trial_reminder_sent_at', null)
-      .not('trial_ends_at', 'is', null);
+      .not('trial_ends_at', 'is', null).order('coop_id'));
 
     const now3 = new Date();
     for (const society of (reminderDue || [])) {
@@ -203,10 +204,10 @@ exports.handler = async () => {
   // 3 days out) — this alert stays as the internal admin-facing signal
   // for the moment it actually expires, on top of that.
   try {
-    const { data: trialSocieties } = await db.from('coop_societies')
+    const trialSocieties = await fetchAllRows(() => db.from('coop_societies')
       .select('coop_id, name, trial_ends_at, subscription_paid_until, subscription_email')
       .eq('subscription_status', 'trial').eq('never_expires', false)
-      .not('trial_ends_at', 'is', null);
+      .not('trial_ends_at', 'is', null).order('coop_id'));
 
     const now = new Date();
     for (const society of (trialSocieties || [])) {
@@ -249,11 +250,11 @@ exports.handler = async () => {
   // verify.js) or if this section suspends the society, so this only
   // ever fires once per unpaid repricing event.
   try {
-    const { data: repricingPending } = await db.from('coop_societies')
+    const repricingPending = await fetchAllRows(() => db.from('coop_societies')
       .select('coop_id, name, status, repricing_pending_since, subscription_email')
       .not('repricing_pending_since', 'is', null)
       .eq('never_expires', false)
-      .neq('status', 'SUSPENDED');
+      .neq('status', 'SUSPENDED').order('coop_id'));
 
     const now = new Date();
     for (const society of (repricingPending || [])) {
@@ -287,7 +288,7 @@ exports.handler = async () => {
   // that check internally); never fails this whole cron run if one
   // society's accrual has an issue.
   try {
-    const { data: allSocieties } = await db.from('coop_societies').select('coop_id');
+    const allSocieties = await fetchAllRows(() => db.from('coop_societies').select('coop_id').order('coop_id'));
     for (const society of (allSocieties || [])) {
       await recordDuesAccrual(db, society.coop_id);
     }
@@ -308,10 +309,10 @@ exports.handler = async () => {
     const now8 = new Date();
     const currentMonthKey = `${now8.getFullYear()}-${now8.getMonth()}`;
 
-    const { data: candidateMembers } = await db.from('coop_members')
+    const candidateMembers = await fetchAllRows(() => db.from('coop_members')
       .select('id, email, last_loan_statement_sent_at')
       .eq('status', 'ACTIVE')
-      .not('email', 'is', null);
+      .not('email', 'is', null).order('id'));
 
     for (const member of (candidateMembers || [])) {
       const lastSentMonthKey = member.last_loan_statement_sent_at
@@ -359,8 +360,8 @@ exports.handler = async () => {
     const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
     const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 
-    const { data: activeLoans } = await db.from('coop_loans')
-      .select('id, coop_id, principal_kobo').in('status', ['DISBURSED', 'REPAYING']);
+    const activeLoans = await fetchAllRows(() => db.from('coop_loans')
+      .select('id, coop_id, principal_kobo').in('status', ['DISBURSED', 'REPAYING']).order('id'));
 
     const societyCache = new Map();
     for (const loan of (activeLoans || [])) {
@@ -416,8 +417,8 @@ exports.handler = async () => {
     const { applyMonthlyInterestIfEligible } = require('../../lib/coopSavingsInterest');
     const now = new Date();
 
-    const { data: plans } = await db.from('coop_savings_plans')
-      .select('id, coop_id, member_id, savings_package_id, status').eq('status', 'ACTIVE').not('savings_package_id', 'is', null);
+    const plans = await fetchAllRows(() => db.from('coop_savings_plans')
+      .select('id, coop_id, member_id, savings_package_id, status').eq('status', 'ACTIVE').not('savings_package_id', 'is', null).order('id'));
 
     const packageCache = new Map();
     for (const plan of (plans || [])) {
@@ -450,8 +451,8 @@ exports.handler = async () => {
     const { applyMonthlyAccrualIfEligible } = require('../../lib/coopInvestmentLifecycle');
     const now = new Date();
 
-    const { data: investments } = await db.from('coop_member_investments')
-      .select('id, coop_id, member_id, product_id, principal_kobo, status').eq('status', 'ACTIVE');
+    const investments = await fetchAllRows(() => db.from('coop_member_investments')
+      .select('id, coop_id, member_id, product_id, principal_kobo, status').eq('status', 'ACTIVE').order('id'));
 
     const productCache = new Map();
     for (const inv of (investments || [])) {
@@ -485,9 +486,9 @@ exports.handler = async () => {
     const { processMaturity } = require('../../lib/coopInvestmentLifecycle');
     const today = new Date().toISOString().slice(0, 10);
 
-    const { data: dueInvestments } = await db.from('coop_member_investments')
+    const dueInvestments = await fetchAllRows(() => db.from('coop_member_investments')
       .select('id, coop_id, member_id, product_id, principal_kobo, units_purchased, auto_reinvest, status, maturity_date')
-      .eq('status', 'ACTIVE').lte('maturity_date', today);
+      .eq('status', 'ACTIVE').lte('maturity_date', today).order('id'));
 
     const productCache2 = new Map();
     for (const inv of (dueInvestments || [])) {
