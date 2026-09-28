@@ -26,6 +26,11 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .success-icon { font-size: 48px; margin-bottom: 10px; }
   .footer-note { text-align: center; font-size: 11px; color: var(--muted2); margin-top: 20px; }
+  .next-steps { text-align: left; background: #081A11; border: 1px solid var(--border2); border-radius: 12px; padding: 16px 16px 6px; margin-top: 18px; }
+  .next-steps-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--green2); margin-bottom: 12px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; font-size: 13.5px; line-height: 1.45; }
+  .step-num { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--green2); color: #052e16; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .btn-app { display: block; text-align: center; text-decoration: none; margin: 4px 0 12px; padding: 13px; border-radius: 10px; background: var(--amber); color: #1A2E1A; font-weight: 700; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -42,6 +47,12 @@ const API = '/.netlify/functions';
 const params = new URLSearchParams(location.search);
 const coopId = params.get('coop_id') || '';
 let societyInfo = null;
+
+// Direct link to the Zillion Coop listing on Google Play. Left empty on
+// purpose until the real listing URL is known - when set, a "Get the
+// app" button appears automatically; when empty, the steps below still
+// read correctly on their own, without a fabricated or dead link.
+const PLAY_STORE_URL = '';
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function fmtNaira(kobo) { return '₦' + (Number(kobo || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -75,7 +86,7 @@ function renderForm() {
   document.getElementById('card').innerHTML = `
     <div class="society-name">${esc(societyInfo.name)}</div>
     <div class="society-sub">Fill in your details to join.</div>
-    ${feeKobo > 0 ? `<div class="fee-row"><span style="color:var(--muted)">Joining fee</span><span class="amt">${fmtNaira(feeKobo)}</span></div>` : `<div class="fee-row"><span style="color:var(--muted)">Joining fee</span><span class="amt">Free</span></div>`}
+    ${feeKobo > 0 ? `<div class="fee-row"><span style="color:var(--muted)">Registration fee</span><span class="amt">${fmtNaira(feeKobo)}</span></div>` : `<div class="fee-row"><span style="color:var(--muted)">Registration fee</span><span class="amt">Free</span></div>`}
     <label>Full name</label>
     <input id="jf-name" type="text" placeholder="Your full name">
     <label>Phone number</label>
@@ -119,7 +130,20 @@ async function submitJoin() {
 }
 
 function renderSuccess(message) {
-  document.getElementById('card').innerHTML = `<div class="center"><div class="success-icon">🎉</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">You're in!</div><div style="font-size:13px;color:var(--muted)">${esc(message || 'Welcome to the cooperative.')}</div></div>`;
+  document.getElementById('card').innerHTML = `
+    <div class="center" style="padding-bottom:0">
+      <div class="success-icon">🎉</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">You're registered!</div>
+      <div style="font-size:13px;color:var(--muted)">${esc(message || 'Welcome to the cooperative.')}</div>
+    </div>
+    <div class="next-steps">
+      <div class="next-steps-title">Next: activate your membership</div>
+      <div class="step"><span class="step-num">1</span><span>Open the <b>Google Play Store</b> on your phone</span></div>
+      <div class="step"><span class="step-num">2</span><span>Search for <b>Zillion Coop</b> and download it</span></div>
+      <div class="step"><span class="step-num">3</span><span><b>Install</b> the app on your phone</span></div>
+      <div class="step"><span class="step-num">4</span><span>Open it and sign in with the <b>phone number you just registered with</b> to activate your membership</span></div>
+      ${PLAY_STORE_URL ? `<a class="btn-app" href="${esc(PLAY_STORE_URL)}" target="_blank" rel="noopener">Get Zillion Coop on Google Play</a>` : ''}
+    </div>`;
 }
 
 async function handleCheckoutReturn() {
