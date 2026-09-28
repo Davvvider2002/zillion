@@ -133,5 +133,14 @@ const throws = async (fn, needle) => { try { await fn(); return null; } catch (e
     ok('listInvoicesForSociety: newest month first', list[0].period_start === '2026-08-01' && list[1].period_start === '2026-07-01');
   }
 
+  { // isKycActiveForSociety: the trial/never_expires exemption
+    ok('isKycActiveForSociety: active, paying subscription is active', billing.isKycActiveForSociety({ subscription_status: 'active', never_expires: false }) === true);
+    ok('isKycActiveForSociety: trial is NOT active — test mode', billing.isKycActiveForSociety({ subscription_status: 'trial', never_expires: false }) === false);
+    ok('isKycActiveForSociety: never_expires overrides an otherwise-active subscription', billing.isKycActiveForSociety({ subscription_status: 'active', never_expires: true }) === false);
+    ok('isKycActiveForSociety: trial_expired is NOT active', billing.isKycActiveForSociety({ subscription_status: 'trial_expired', never_expires: false }) === false);
+    ok('isKycActiveForSociety: suspended is NOT active', billing.isKycActiveForSociety({ subscription_status: 'suspended', never_expires: false }) === false);
+    ok('isKycActiveForSociety: missing society is NOT active', billing.isKycActiveForSociety(null) === false);
+  }
+
   console.log(bad ? `\n${bad} FAILURE(S)` : '\nAll KYC billing tests passed.');
 })();
