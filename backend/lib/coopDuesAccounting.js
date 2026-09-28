@@ -50,6 +50,7 @@ const { hasAddon }             = require('./coopEntitlements');
 const { ensureChartOfAccounts } = require('./coopAccounting');
 const { computeDuesOwing }      = require('./coopDues');
 const { fetchAllRows } = require('./coopPaginate');
+const { postEntry } = require('./coopAccountingHelpers');
 
 const CASH_ACCOUNT_CODE = '1000';
 const BANK_ACCOUNT_CODE = '1010';
@@ -78,7 +79,7 @@ function sourceToLabel(source) {
 async function accountingIsReady(db, coopId) {
   if (!(await hasAddon(db, coopId, 'accounting'))) return { ready: false };
   const { data: openingDone } = await db.from('coop_journal_entries')
-    .select('id').eq('coop_id', coopId).eq('entry_type', 'opening_balance').maybeSingle();
+    .select('id').eq('coop_id', coopId).eq('entry_type', 'opening_balance').limit(1).maybeSingle();
   if (!openingDone) return { ready: false };
   return { ready: true };
 }
@@ -128,7 +129,6 @@ async function recordDuesAccrual(db, coopId) {
     const income = accounts[DUES_INCOME_ACCOUNT_CODE];
     if (!receivable || !income) return { booked: false, reason: 'accounts_missing' };
 
-    const nextNumber = await nextEntryNumber(db, coopId);
     // This is a genuine aggregate across every active member's new
     // accrual since the last run - there is no single member to name
     // here, and attaching one would misrepresent what the entry
@@ -136,23 +136,12 @@ async function recordDuesAccrual(db, coopId) {
     // naming the scope (how many members, as of when), not inventing a
     // false single-member association.
     const description = `Dues income accrued — ${(members || []).length} active member${(members || []).length === 1 ? '' : 's'}, as of ${new Date().toISOString().slice(0, 10)}`;
-    const { data: entry, error: entryErr } = await db.from('coop_journal_entries').insert({
-      coop_id: coopId, entry_number: nextNumber, entry_date: new Date().toISOString().slice(0, 10),
-      description, entry_type: 'manual', created_by: 'system:dues_accrual',
-    }).select().single();
-    if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
-
-    const { error: linesErr } = await db.from('coop_journal_entry_lines').insert([
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: receivable.id, line_type: 'debit', amount: delta, currency: receivable.currency, exchange_rate: 1, base_amount: delta, memo: description },
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: income.id, line_type: 'credit', amount: delta, currency: income.currency, exchange_rate: 1, base_amount: delta, memo: description },
-    ]);
-    if (linesErr) {
-      await db.from('coop_journal_entries').delete().eq('id', entry.id);
-      return { booked: false, reason: 'lines_insert_failed' };
-    }
+    // Shared poster: retries when a concurrent payment took the same entry number.
+    const accrualPosted = await postEntry(db, coopId, description, 'system:dues_accrual', receivable, income, delta);
+    if (!accrualPosted.booked) return accrualPosted;
 
     await db.from('coop_societies').update({ dues_income_accrued_kobo: currentTotalAccrued }).eq('coop_id', coopId);
-    return { booked: true, entry_id: entry.id, delta_kobo: delta };
+    return { booked: true, entry_id: accrualPosted.entry_id, delta_kobo: delta };
   } catch (e) {
     console.error('[coopDuesAccounting] recordDuesAccrual non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };
@@ -189,23 +178,7 @@ async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, cre
       ? `Dues payment received — ${memberLabel} via ${sourceLabel}`
       : `Dues payment received via ${sourceLabel}`;
 
-    const nextNumber = await nextEntryNumber(db, coopId);
-    const { data: entry, error: entryErr } = await db.from('coop_journal_entries').insert({
-      coop_id: coopId, entry_number: nextNumber, entry_date: new Date().toISOString().slice(0, 10),
-      description, entry_type: 'manual', created_by: createdBy,
-    }).select().single();
-    if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
-
-    const { error: linesErr } = await db.from('coop_journal_entry_lines').insert([
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: debitAccount.id, line_type: 'debit', amount: amountKobo, currency: debitAccount.currency, exchange_rate: 1, base_amount: amountKobo, memo: description },
-      { journal_entry_id: entry.id, coop_id: coopId, account_id: receivable.id, line_type: 'credit', amount: amountKobo, currency: receivable.currency, exchange_rate: 1, base_amount: amountKobo, memo: description },
-    ]);
-    if (linesErr) {
-      await db.from('coop_journal_entries').delete().eq('id', entry.id);
-      return { booked: false, reason: 'lines_insert_failed' };
-    }
-
-    return { booked: true, entry_id: entry.id };
+    return await postEntry(db, coopId, description, createdBy, debitAccount, receivable, amountKobo);
   } catch (e) {
     console.error('[coopDuesAccounting] recordDuesPaymentJournalEntry non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };
