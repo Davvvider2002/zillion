@@ -1232,6 +1232,13 @@ function triggerPWAInstall() {
       <div id="coop-dividends-list"></div>
     </div>
 
+    <div id="coop-investment-section" style="display:none">
+      <div class="section-header"><div class="section-title">Investment Opportunities</div></div>
+      <div id="coop-investment-products-list"></div>
+      <div class="section-header" style="margin-top:14px"><div class="section-title">My Investments</div></div>
+      <div id="coop-my-investments-list"></div>
+    </div>
+
     <div id="coop-dues-section" style="display:none">
       <div class="section-header"><div class="section-title">Membership Dues</div></div>
       <div id="coop-dues-card"></div>
@@ -1305,6 +1312,24 @@ function triggerPWAInstall() {
     <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="coop-paynow-subtitle"></div>
     <div id="coop-paynow-body"></div>
     <button onclick="coopClosePayNowModal()" style="width:100%;margin-top:16px;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Close</button>
+  </div>
+</div>
+
+<div id="modal-coop-invest" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:20px;max-width:400px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:2px;color:#E8F5EE" id="coop-invest-product-name">Invest</div>
+    <div style="font-size:12px;color:#9CC4B0;margin-bottom:16px" id="coop-invest-unit-price"></div>
+    <input type="hidden" id="coop-invest-product-id">
+    <div style="font-size:11px;color:#9CC4B0;margin-bottom:6px">Number of units</div>
+    <input id="coop-invest-units" type="number" min="1" step="1" value="1" oninput="coopUpdateInvestmentTotal()" style="width:100%;padding:12px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:18px;text-align:center;margin-bottom:12px;box-sizing:border-box">
+    <div style="background:#081A11;border:1px solid #234A38;border-radius:10px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:#9CC4B0">You'll invest</span>
+      <span style="font-size:18px;font-weight:800;color:#00E0AC" id="coop-invest-total">₦0.00</span>
+    </div>
+    <div style="font-size:11px;color:#7A9A85;margin-bottom:12px">Payment fees are added at checkout, same as any other payment on Zillion.</div>
+    <div id="coop-invest-error" style="display:none;color:#FF8A8A;font-size:12px;margin-bottom:10px"></div>
+    <button id="coop-invest-submit-btn" onclick="coopSubmitInvestmentPurchase()" style="width:100%;padding:13px;background:#00C896;color:#05140D;border:none;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;margin-bottom:8px">Invest Now</button>
+    <button onclick="document.getElementById('modal-coop-invest').style.display='none'" style="width:100%;padding:12px;background:#1A4030;color:#E8F5EE;border:none;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>
   </div>
 </div>
 
@@ -4539,6 +4564,7 @@ async function refreshCoopScreen() {
   }
 
   loadCoopDividends();
+  loadCoopInvestments();
 }
 
 async function loadCoopDividends() {
@@ -4576,6 +4602,102 @@ async function loadCoopDividends() {
     `).join('') + '<div style="font-size:10px;color:#6B8F7D;margin-top:2px">*Loan interest is an estimate based on the loan interest rate, not an exact figure.</div>';
   } catch (e) {
     sectionEl.style.display = 'none'; // non-fatal — dividends just don't show if this fails, rest of the screen still works
+  }
+}
+
+let _coopInvestmentProducts = [];
+
+async function loadCoopInvestments() {
+  const sectionEl = document.getElementById('coop-investment-section');
+  const productsEl = document.getElementById('coop-investment-products-list');
+  const mineEl = document.getElementById('coop-my-investments-list');
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    const res = await fetch(`${API}/coop-member-investments`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok || !data.is_coop_member || !data.investment_enabled) { sectionEl.style.display = 'none'; return; }
+
+    sectionEl.style.display = '';
+    _coopInvestmentProducts = data.products || [];
+
+    productsEl.innerHTML = _coopInvestmentProducts.length ? _coopInvestmentProducts.map(p => `
+      <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:14px;color:#E8F5EE">${p.name}</span>
+          <span style="font-size:11px;color:#9CC4B0;text-transform:capitalize">${p.product_type} · ${p.return_type}</span>
+        </div>
+        <div style="font-size:12px;color:#9CC4B0;margin-top:6px">
+          ${fmtNaira(p.unit_price_kobo)} / unit · ${p.tenure_months} month${p.tenure_months === 1 ? '' : 's'}
+          ${p.return_type === 'fixed' ? ` · ${p.fixed_return_rate_percent}% fixed return` : ' · Return based on real performance'}
+        </div>
+        ${p.product_type === 'general' ? `<div style="font-size:11px;color:${p.units_remaining > 0 ? '#7A9A85' : '#FF8A8A'};margin-top:4px">${p.units_remaining} of ${p.total_units} unit(s) remaining</div>` : ''}
+        <button onclick="coopOpenBuyInvestmentModal('${p.id}')" ${p.product_type === 'general' && p.units_remaining <= 0 ? 'disabled style="width:100%;margin-top:10px;padding:9px;background:#234A38;color:#7A9A85;border:none;border-radius:8px;font-weight:700;font-size:13px"' : 'style="width:100%;margin-top:10px;padding:9px;background:#00C896;color:#05140D;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer"'}>${p.product_type === 'general' && p.units_remaining <= 0 ? 'Sold Out' : 'Invest'}</button>
+      </div>
+    `).join('') : '<div class="empty-state" style="padding:16px"><div class="empty-sub">No investment opportunities open right now.</div></div>';
+
+    const mine = data.my_investments || [];
+    mineEl.innerHTML = mine.length ? mine.map(inv => `
+      <div style="background:#0F2B1D;border:1px solid #1A4030;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:14px;color:#E8F5EE">${inv.product_name}</span>
+          <span style="font-size:11px;font-weight:700;color:${inv.status === 'ACTIVE' ? '#00E0AC' : '#9CC4B0'}">${inv.status}</span>
+        </div>
+        <div style="font-size:12px;color:#9CC4B0;margin-top:6px">${inv.units_purchased} unit(s) · Principal ${fmtNaira(inv.principal_kobo)} · Matures ${new Date(inv.maturity_date).toLocaleDateString('en-NG', {day:'numeric',month:'short',year:'numeric'})}</div>
+        <div style="font-size:13px;color:#00E0AC;font-weight:700;margin-top:6px">Accrued so far: ${fmtNaira(inv.total_accrued_kobo)}</div>
+      </div>
+    `).join('') : '<div class="empty-state" style="padding:16px"><div class="empty-sub">No investments yet — pick an opportunity above to get started.</div></div>';
+  } catch (e) {
+    sectionEl.style.display = 'none'; // non-fatal — same pattern as dividends
+  }
+}
+
+function coopOpenBuyInvestmentModal(productId) {
+  const product = _coopInvestmentProducts.find(p => p.id === productId);
+  if (!product) return;
+  document.getElementById('coop-invest-product-name').textContent = product.name;
+  document.getElementById('coop-invest-unit-price').textContent = fmtNaira(product.unit_price_kobo) + ' / unit';
+  document.getElementById('coop-invest-units').value = '1';
+  document.getElementById('coop-invest-error').style.display = 'none';
+  document.getElementById('coop-invest-product-id').value = productId;
+  coopUpdateInvestmentTotal();
+  document.getElementById('modal-coop-invest').style.display = 'flex';
+}
+
+function coopUpdateInvestmentTotal() {
+  const productId = document.getElementById('coop-invest-product-id').value;
+  const product = _coopInvestmentProducts.find(p => p.id === productId);
+  const units = parseInt(document.getElementById('coop-invest-units').value) || 0;
+  document.getElementById('coop-invest-total').textContent = product ? fmtNaira(units * product.unit_price_kobo) : '';
+}
+
+async function coopSubmitInvestmentPurchase() {
+  const errEl = document.getElementById('coop-invest-error');
+  errEl.style.display = 'none';
+  const productId = document.getElementById('coop-invest-product-id').value;
+  const units = parseInt(document.getElementById('coop-invest-units').value);
+  if (!units || units <= 0) { errEl.textContent = 'Enter a valid number of units.'; errEl.style.display = 'block'; return; }
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  const btn = document.getElementById('coop-invest-submit-btn');
+  btn.disabled = true; btn.textContent = 'Please wait...';
+  try {
+    const res = await fetch(`${API}/coop-flutterwave-checkout-init`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({
+        type: 'investment', product_id: productId, units,
+        return_url: (() => {
+          const base = window.location.href.split('?')[0];
+          return (typeof IS_COOP !== 'undefined' && IS_COOP) ? `${base}?app=coop` : base;
+        })(),
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Invest Now';
+    if (!res.ok || !data.checkout_url) { errEl.textContent = data.error || 'Could not start checkout.'; errEl.style.display = 'block'; return; }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Invest Now';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
 
