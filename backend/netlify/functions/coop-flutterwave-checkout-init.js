@@ -22,7 +22,17 @@
  *   settlement configured on day one.
  *
  * Auth: wallet JWT.
- * Body: { type: 'savings' | 'dues' | 'loan_repayment' | 'share_capital', savings_plan_id?, loan_id?, amount_kobo, return_url }
+ * Body: { type: 'savings' | 'dues' | 'loan_repayment' | 'share_capital' | 'investment',
+ *         savings_plan_id?, loan_id?, product_id?, units?, amount_kobo, return_url }
+ *
+ * investment: amount_kobo is deliberately IGNORED and recomputed
+ * server-side as units * unit_price_kobo - a client-supplied amount
+ * for this type would let someone request more units than they're
+ * actually paying for. Capacity for a pooled (general) product is
+ * checked here as an early, honest rejection, and re-checked again at
+ * verify time - a real race exists between two people buying the last
+ * unit(s) at the same time, and only the second check, right before
+ * crediting, can be authoritative.
  */
 'use strict';
 
@@ -50,17 +60,23 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const VALID_TYPES = ['savings', 'dues', 'loan_repayment', 'share_capital'];
+  const VALID_TYPES = ['savings', 'dues', 'loan_repayment', 'share_capital', 'investment'];
   const type            = VALID_TYPES.includes(body.type) ? body.type : 'savings';
   const savingsPlanId     = (body.savings_plan_id || '').trim() || null;
   const loanId              = (body.loan_id || '').trim() || null;
-  const amountKobo            = Number.isInteger(body.amount_kobo) ? body.amount_kobo : 0;
+  const productId              = (body.product_id || '').trim() || null;
+  const units                     = Number.isInteger(body.units) ? body.units : null;
+  let   amountKobo            = Number.isInteger(body.amount_kobo) ? body.amount_kobo : 0;
   const returnUrl                = (body.return_url || '').trim();
 
-  if (amountKobo <= 0) return err(400, 'amount_kobo must be a positive integer');
   if (!returnUrl)       return err(400, 'return_url is required');
   if (type === 'savings' && !savingsPlanId)     return err(400, 'savings_plan_id is required for type "savings"');
   if (type === 'loan_repayment' && !loanId)      return err(400, 'loan_id is required for type "loan_repayment"');
+  if (type === 'investment') {
+    if (!productId) return err(400, 'product_id is required for type "investment"');
+    if (!units || units <= 0) return err(400, 'units must be a positive integer for type "investment"');
+  }
+  if (type !== 'investment' && amountKobo <= 0) return err(400, 'amount_kobo must be a positive integer');
 
   const db = getServiceClient();
 
@@ -77,6 +93,19 @@ exports.handler = async (event) => {
       .select('id, status').eq('id', loanId).eq('member_id', member.id).maybeSingle();
     if (!loan) return err(400, 'That loan does not belong to you');
     if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
+  }
+  if (type === 'investment') {
+    const { data: product } = await db.from('coop_investment_products')
+      .select('*').eq('id', productId).eq('coop_id', member.coop_id).eq('active', true).maybeSingle();
+    if (!product) return err(404, 'Investment product not found or not active');
+    if (product.product_type === 'general') {
+      const unitsRemaining = product.total_units - product.units_sold;
+      if (units > unitsRemaining) return err(400, `Only ${unitsRemaining} unit(s) remain available in this pooled product`);
+    }
+    // Never trust a client-supplied amount for this type - recomputed
+    // from the product's own real unit price, so requesting more
+    // units than paid for is not possible.
+    amountKobo = units * product.unit_price_kobo;
   }
 
   const { data: society } = await db.from('coop_societies')
@@ -99,7 +128,7 @@ exports.handler = async (event) => {
       phonenumber: member.phone_normalized,
     },
     customizations: {
-      title: { savings: 'Zillion Coop — Savings', dues: 'Zillion Coop — Membership Dues', loan_repayment: 'Zillion Coop — Loan Repayment', share_capital: 'Zillion Coop — Share Capital' }[type],
+      title: { savings: 'Zillion Coop — Savings', dues: 'Zillion Coop — Membership Dues', loan_repayment: 'Zillion Coop — Loan Repayment', share_capital: 'Zillion Coop — Share Capital', investment: 'Zillion Coop — Investment' }[type],
     },
   };
 
@@ -145,6 +174,8 @@ exports.handler = async (event) => {
     type,
     savings_plan_id:     savingsPlanId,
     loan_id:               loanId,
+    product_id:              productId,
+    units:                      units,
     amount_kobo:              baseKobo, // the credited amount — fees are re-derived from this at verify time via the same shared helper, never stored separately
   });
   if (insertErr) return err(500, `Failed to record checkout session: ${insertErr.message}`);
