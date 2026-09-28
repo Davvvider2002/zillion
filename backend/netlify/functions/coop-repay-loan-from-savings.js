@@ -24,6 +24,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
+const { totalRemainingForLoan, settleLoanAfterRepayment } = require('../../lib/coopLoanCompletion');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -54,12 +55,18 @@ exports.handler = async (event) => {
   const member = await resolveMemberForZillionId(db, zillionId, 'id, name');
   if (!member) return err(404, 'No cooperative membership found for this wallet');
 
-  const { data: loan } = await db.from('coop_loans').select('id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, coop_id, status, principal_kobo, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).eq('member_id', member.id).maybeSingle();
   if (!loan) return err(404, 'That loan does not belong to you');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
   const { data: plan } = await db.from('coop_savings_plans').select('id, coop_id').eq('id', savingsPlanId).eq('member_id', member.id).maybeSingle();
   if (!plan) return err(404, 'That savings plan does not belong to you');
+
+  // Refuse an over-repayment BEFORE touching the member's savings: moving more of their own
+  // money than the loan needs is the worst place to discover a cap.
+  const remainingKobo = await totalRemainingForLoan(db, loan, loan.coop_id);
+  if (remainingKobo <= 0) return err(409, 'This loan has nothing left to repay.');
+  if (amountKobo > remainingKobo) return err(400, `That is more than the ₦${(remainingKobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 })} still owed on this loan. Enter that amount or less.`);
 
   // Live-computed available balance — same pattern as everywhere else
   // in this module, never a stored figure that could drift.
@@ -101,11 +108,9 @@ exports.handler = async (event) => {
     return err(500, `Repayment failed after deducting savings — the deduction has been reversed. Error: ${repayErr.message}`);
   }
 
-  if (loan.status === 'DISBURSED') {
-    await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
-  }
+  const { completed } = await settleLoanAfterRepayment(db, loan, plan.coop_id);
 
   await recordLoanRepaymentJournalEntry(db, plan.coop_id, amountKobo, 'savings_deduction', 'member:savings_deduction', principalPortionKobo, interestPortionKobo, { id: member.id, name: member.name });
 
-  return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} moved from your savings to repay this loan.` });
+  return ok({ success: true, repayment, message: `₦${(amountKobo/100).toLocaleString()} moved from your savings to repay this loan.${completed ? ' Your loan is now fully repaid.' : ''}`, loan_completed: completed });
 };
