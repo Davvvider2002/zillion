@@ -96,7 +96,7 @@ exports.handler = async (event) => {
 
   await logAlert(db, {
     severity: 'INFO', source: 'ajo-collector-public-join-verify',
-    message: `${application.name} paid the joining fee to become an Ajo collector (₦${(application.amount_kobo / 100).toLocaleString()}) - escrow setup still required before activation`,
+    message: `${application.name} paid the registration fee to become an Ajo collector (₦${(application.amount_kobo / 100).toLocaleString()}) - escrow setup still required before activation`,
     context: { collector_profile_id: profile.id, phone: application.phone, tx_ref: txRef, recruiting_admin_zillion_id: application.recruiting_admin_zillion_id },
   });
 
