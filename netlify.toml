@@ -857,6 +857,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-offline-repay-options"
+  to   = "/.netlify/functions/coop-offline-repay-options"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-coop-societies"
   to   = "/.netlify/functions/admin-coop-societies"
   status = 200
