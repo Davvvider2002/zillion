@@ -61,13 +61,11 @@ function allocatePaymentsByYear(schedule, monthlyRateKobo, totalPaidKobo) {
  * @param {object} society { dues_amount_kobo, dues_frequency }
  * @returns {Promise<{amount_kobo, frequency, total_accrued_kobo, total_paid_kobo, owing_kobo, by_year} | null>}
  */
-async function computeDuesOwing(db, member, society) {
+/** Pure half of computeDuesOwing, given the member's total paid - so a whole society can be computed from one bulk read. */
+function buildDuesOwing(member, society, totalPaid, now = new Date()) {
   if (!society.dues_amount_kobo || society.dues_amount_kobo <= 0) return null;
 
-  const schedule = calculateDuesScheduleByYear(member.activated_at);
-  const { data: duesTxns } = await db.from('coop_dues_transactions').select('amount_kobo').eq('member_id', member.id);
-  const totalPaid = (duesTxns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0);
-
+  const schedule = calculateDuesScheduleByYear(member.activated_at, now);
   const byYear = allocatePaymentsByYear(schedule, society.dues_amount_kobo, totalPaid);
   const totalAccrued = byYear.reduce((s, y) => s + y.accrued_kobo, 0);
 
@@ -81,4 +79,30 @@ async function computeDuesOwing(db, member, society) {
   };
 }
 
-module.exports = { calculateDuesScheduleByYear, allocatePaymentsByYear, computeDuesOwing };
+async function computeDuesOwing(db, member, society) {
+  if (!society.dues_amount_kobo || society.dues_amount_kobo <= 0) return null;
+  const { data: duesTxns } = await db.from('coop_dues_transactions').select('amount_kobo').eq('member_id', member.id);
+  const totalPaid = (duesTxns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0);
+  return buildDuesOwing(member, society, totalPaid);
+}
+
+/**
+ * Total dues accrued across a set of members. Accrual depends only on WHEN each member joined and the
+ * monthly rate - never on what they have paid - so it needs no database access at all. recordDuesAccrual
+ * used to call computeDuesOwing per member, which also fetched that member's payments (one query each, then
+ * discarded), so opening the accounting screen cost one query per active member.
+ *
+ * A member with no activation date is skipped: new Date(null) is 1970, which the old per-member path
+ * turned into more than fifty years of dues for someone who had not started.
+ */
+function computeTotalDuesAccrued(members, monthlyRateKobo, now = new Date()) {
+  if (!(monthlyRateKobo > 0)) return 0;
+  let total = 0;
+  for (const m of (members || [])) {
+    if (!m.activated_at) continue;
+    for (const y of calculateDuesScheduleByYear(m.activated_at, now)) total += y.months_owed * monthlyRateKobo;
+  }
+  return total;
+}
+
+module.exports = { calculateDuesScheduleByYear, allocatePaymentsByYear, computeDuesOwing, buildDuesOwing, computeTotalDuesAccrued };
