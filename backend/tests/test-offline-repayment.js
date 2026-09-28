@@ -11,13 +11,13 @@
 const path = require('path'), crypto = require('crypto');
 const LIB = path.join(__dirname, '..', 'lib'), FN = path.join(__dirname, '..', 'netlify', 'functions');
 const { makeDb } = require('./helpers/fakeDb');
-const STATE = { db: null, splitFails: false };
+const STATE = { db: null, splitFails: false, jwtValid: true, addon: false, journal: [] };
 const mock = (lib, exp) => { const p = require.resolve(path.join(LIB, lib)); require.cache[p] = { id: p, filename: p, loaded: true, exports: exp }; };
-mock('coopEntitlements', { hasAddon: async () => false });
+mock('coopEntitlements', { hasAddon: async () => STATE.addon });
 mock('supabase', { getServiceClient: () => STATE.db });
-mock('validators', { verifyJWT: () => ({ valid: true, payload: { zillion_id: 'Z1' } }) });
+mock('validators', { verifyJWT: () => STATE.jwtValid ? { valid: true, payload: { zillion_id: 'Z1' } } : { valid: false } });
 mock('coopMemberResolve', { resolveMemberForZillionId: async () => ({ id: 'MEM1', coop_id: 'C1', name: 'Ada', phone_normalized: '+2348011' }) });
-mock('coopLoanAccounting', { recordLoanRepaymentJournalEntry: async () => ({ booked: false }),
+mock('coopLoanAccounting', { recordLoanRepaymentJournalEntry: async (...a) => { STATE.journal.push(a); return { booked: false }; },
   computeLoanRepaymentSplitUnified: async (db, l, a) => { if (STATE.splitFails) { STATE.splitFails = false; throw new Error('split boom'); } return { principalPortionKobo: Math.round(a * 0.9), interestPortionKobo: a - Math.round(a * 0.9) }; } });
 const { findExactTransferSubset } = require(path.join(LIB, 'coopOfflineTransfer'));
 const load = f => { const p = require.resolve(path.join(FN, f)); delete require.cache[p]; return require(p); };
@@ -28,11 +28,15 @@ const HASH = crypto.createHash('sha256').update('+2348011').digest('hex'), MER =
 const ago = min => new Date(Date.now() - min * 60000).toISOString();
 const xfer = (entry, amount, o = {}) => ({ entry_id: entry, coin_id: o.coin || 'c' + entry, event_type: o.type || 'TRANSFER', prev_holder_hash: o.from || HASH, new_holder_hash: o.to || MER, amount, changed_at: o.at || ago(2) });
 const loanRow = (id, total = 10000000) => ({ id, coop_id: 'C1', member_id: 'MEM1', status: 'DISBURSED', principal_kobo: Math.round(total * 0.8), interest_kobo: Math.round(total * 0.2), total_repayable_kobo: total, interest_method: 'flat' });
-const world = ledger => (STATE.db = makeDb({ system_alerts: [], coop_societies: [{ coop_id: 'C1', merchant_id: 'M1' }], coop_loans: [loanRow('L1'), loanRow('L2'), loanRow('LS', 100000)], coin_ledger: ledger,
-  coop_loan_repayment_schedule: [], coop_loan_penalties: [], coop_loan_repayments: [], coop_offline_transfer_claims: [] },
-  { unique: { coop_offline_transfer_claims: ['ledger_entry_id'] }, defaults: { coop_loan_repayments: () => ({ recorded_at: new Date().toISOString() }) } }));
+const ACCT = ['1000', '1010', '2000'].map(code => ({ id: 'a' + code, coop_id: 'C1', account_code: code, currency: 'NGN' }));
+const world = (ledger, extra = {}) => { STATE.journal = []; return (STATE.db = makeDb({ system_alerts: [], coop_societies: [{ coop_id: 'C1', merchant_id: 'M1' }],
+  coop_loans: [loanRow('L1'), loanRow('L2'), loanRow('LS', 100000), loanRow('LT', 60000), { ...loanRow('LZ', 100000), status: 'REPAYING' }, { ...loanRow('LC', 100000), status: 'COMPLETED' }], coin_ledger: ledger,
+  coop_loan_repayment_schedule: [], coop_loan_penalties: [], coop_loan_repayments: [], coop_offline_transfer_claims: [], coop_savings_plans: [], coop_savings_transactions: [],
+  coop_chart_of_accounts: STATE.addon ? ACCT : [], coop_journal_entries: STATE.addon ? [{ id: 'o1', coop_id: 'C1', entry_number: 1, entry_type: 'opening_balance' }] : [], coop_journal_entry_lines: [], ...extra },
+  { unique: { coop_offline_transfer_claims: ['ledger_entry_id'] }, defaults: { coop_loan_repayments: () => ({ recorded_at: new Date().toISOString() }), coop_offline_transfer_claims: () => ({ created_at: new Date().toISOString() }) } })); };
 const T = () => STATE.db.tables;
 const claim = (h, loan, amt) => call(h, { loan_id: loan, amount_kobo: amt });
+const PLAN = { id: 'SP1', member_id: 'MEM1', status: 'ACTIVE', created_at: '2026-01-01T00:00:00Z' };
 
 (async () => {
   // ---- the selection rule
@@ -107,6 +111,93 @@ const claim = (h, loan, amt) => call(h, { loan_id: loan, amount_kobo: amt });
   world([]);
   const none = await claim(h, 'L1', 100000);
   ok('no transfer at all gives a clear message and records nothing', none.status === 400 && /Could not find an unclaimed transfer/.test(none.error) && T().coop_loan_repayments.length === 0 && T().coop_offline_transfer_claims.length === 0);
+
+
+  // =====================================================================================================================
+  // NO BREAK FOR CLIENTS: nobody has to know or type an exact amount
+  // =====================================================================================================================
+  const optsH = load('coop-offline-repay-options.js');
+  const getOpts = (loan, method = 'GET') => optsH.handler({ httpMethod: method, headers: { authorization: 'Bearer x' }, queryStringParameters: { loan_id: loan }, body: JSON.stringify({ loan_id: loan }) }).then(r => ({ status: r.statusCode, ...JSON.parse(r.body) }));
+
+  world([xfer(1, 100000), xfer(2, 50000, { at: ago(1) })]);
+  const o = await getOpts('L1');
+  ok('options: lists the transfers the member has sent and not yet applied, what is owed, and the exact claim to make', o.status === 200 && o.transfers.map(x => x.amount_kobo).join() === '100000,50000' && o.total_kobo === 150000 && o.remaining_kobo === 10000000
+    && o.suggested.amount_kobo === 150000 && o.suggested.apply_kobo === 150000 && o.suggested.excess_kobo === 0 && o.suggested.claim_body.transfer_entry_ids.join() === '1,2' && o.window_minutes === 15);
+  ok('options: is read-only - looking reserves nothing and records nothing', T().coop_offline_transfer_claims.length === 0 && T().coop_loan_repayments.length === 0);
+  const oPost = await getOpts('L1', 'POST');
+  ok('options: works as GET or POST', oPost.status === 200 && oPost.total_kobo === 150000);
+  const done1 = await call(h, o.suggested.claim_body);
+  ok('claiming with exactly what the options endpoint returned always works - no typing, no mismatch', done1.success && done1.transfers_applied === 2 && T().coop_loan_repayments[0].amount_kobo === 150000);
+  const o2 = await getOpts('L1');
+  ok('options: after claiming, those transfers are gone and the count of applied ones is shown; nothing left to suggest', o2.transfers.length === 0 && o2.already_applied_count === 2 && o2.suggested === null);
+  STATE.jwtValid = false; const un = await getOpts('L1'); STATE.jwtValid = true;
+  ok('options: requires the wallet login', un.status === 401);
+  const nl = await getOpts('L-NOT-MINE'), cm = await getOpts('LC');
+  ok("options: another member's loan is 404, a completed loan is 409, a missing loan_id is 400", nl.status === 404 && cm.status === 409 && (await getOpts('')).status === 400);
+
+  world([xfer(1, 100000), xfer(2, 50000), xfer(3, 20000)]);
+  const noAmt = await call(h, { loan_id: 'L1' });
+  ok('claim with NO amount applies everything the member has sent (the original interface demanded an exact amount)', noAmt.success && noAmt.transfers_applied === 3 && T().coop_loan_repayments[0].amount_kobo === 170000);
+  world([xfer(1, 100000), xfer(2, 50000), xfer(3, 20000)]);
+  const byId = await call(h, { loan_id: 'L1', transfer_entry_ids: [2] });
+  ok('claim by transfer id applies exactly that transfer and leaves the others available', byId.success && byId.transfers_applied === 1 && T().coop_loan_repayments[0].amount_kobo === 50000 && T().coop_offline_transfer_claims.map(c => c.ledger_entry_id).join() === '2');
+  const bad1 = await call(h, { loan_id: 'L1', transfer_entry_ids: [0] }), bad2 = await call(h, { loan_id: 'L1', transfer_entry_ids: ['x'] }), bad3 = await call(h, { loan_id: 'L1', transfer_entry_ids: [] }), gone = await call(h, { loan_id: 'L1', transfer_entry_ids: [2] }), missing = await call(h, { loan_id: 'L1', transfer_entry_ids: [99] });
+  ok('claim by id: malformed ids are 400; an already-applied or unknown transfer is 409 and returns what IS available', bad1.status === 400 && bad2.status === 400 && bad3.status === 400 && gone.status === 409 && missing.status === 409 && gone.available_transfers.map(x => x.entry_id).join() === '1,3');
+  const idAmt = await call(h, { loan_id: 'L1', transfer_entry_ids: [1], amount_kobo: 999 });
+  ok('claim by id with an amount that disagrees is refused, not guessed at', idAmt.status === 400);
+
+  world([xfer(1, 100000)]);
+  const mis = await call(h, { loan_id: 'L1', amount_kobo: 30000 });
+  ok('a legacy claim with the wrong amount still fails safely - but now returns the transfers and a suggested amount so any client can recover in one step', mis.status === 400 && mis.suggested_amount_kobo === 100000 && mis.available_transfers.length === 1 && mis.available_transfers[0].entry_id === 1 && mis.available_transfers[0].amount_kobo === 100000);
+  const fix = await call(h, { loan_id: 'L1', amount_kobo: mis.suggested_amount_kobo });
+  ok('...and retrying with the suggested amount succeeds', fix.success);
+
+  // =====================================================================================================================
+  // OVER-PAYMENT: the loan is never credited more than it owes, and the excess is never lost
+  // =====================================================================================================================
+  world([xfer(1, 150000)], { coop_savings_plans: [PLAN] });
+  const pre = await getOpts('LS');
+  ok('options previews an over-payment: applies NGN 1,000, excess NGN 500 going to savings', pre.suggested.apply_kobo === 100000 && pre.suggested.excess_kobo === 50000 && pre.suggested.excess_destination === 'savings');
+  const ov = await call(h, { loan_id: 'LS' });
+  const claimRow = T().coop_offline_transfer_claims[0], sv = T().coop_savings_transactions[0];
+  ok('over-payment: the loan is credited exactly what it owed (NGN 1,000) - NOT the whole NGN 1,500 the old code recorded - and closes', ov.success && T().coop_loan_repayments[0].amount_kobo === 100000 && ov.applied_kobo === 100000 && ov.loan_completed === true && T().coop_loans.find(l => l.id === 'LS').status === 'COMPLETED');
+  ok('over-payment: the NGN 500 excess is credited to the member\'s savings plan (positive, own reference, clearly labelled)', ov.excess_kobo === 50000 && ov.excess_disposition === 'savings' && sv && sv.amount_kobo === 50000 && sv.savings_plan_id === 'SP1' && sv.source === 'offline_zil_excess' && /^Excess from offline loan repayment/.test(sv.reference) && /added to your savings/.test(ov.message));
+  ok('over-payment: the claim records exactly how the transfer was split (applied + excess = transferred)', claimRow.claimed_kobo === 150000 && claimRow.applied_kobo === 100000 && claimRow.excess_kobo === 50000 && claimRow.excess_disposition === 'savings');
+  const retry2 = await call(h, { loan_id: 'LS' }), retry3 = await call(h, { loan_id: 'LS', amount_kobo: 150000 });
+  ok('a retry after a claim that CLEARED the loan is "already recorded" (it used to say the loan is COMPLETED), with or without an amount - and nothing is credited twice', retry2.already_processed === true && retry3.already_processed === true && T().coop_loan_repayments.length === 1 && T().coop_savings_transactions.length === 1);
+
+  world([xfer(1, 150000)]);
+  const held = await call(h, { loan_id: 'LS' });
+  ok('over-payment by a member with NO active savings plan (savings_plan_id is NOT NULL, so there is nowhere to credit it): held, not lost or over-credited', held.success && held.excess_disposition === 'held' && T().coop_savings_transactions.length === 0 && T().coop_offline_transfer_claims[0].excess_disposition === 'held' && T().coop_loan_repayments[0].amount_kobo === 100000 && /being held/.test(held.message));
+  ok('...and the admin is warned, with the amount', T().system_alerts.some(a => a.severity === 'WARNING' && /HELD/.test(a.message) && /₦500\.00/.test(a.message)));
+
+  world([xfer(1, 50000), xfer(2, 30000, { at: ago(1) })], { coop_savings_plans: [PLAN] });
+  const split = await call(h, { loan_id: 'LT' });
+  const cr = T().coop_offline_transfer_claims;
+  ok('several transfers, one owes less than they total (NGN 600 owed, NGN 800 sent): oldest first is applied, the excess falls on the newest, each recorded per transfer', split.success && split.applied_kobo === 60000 && split.excess_kobo === 20000 && cr[0].applied_kobo === 50000 && cr[0].excess_kobo === 0 && cr[1].applied_kobo === 10000 && cr[1].excess_kobo === 20000);
+
+  world([xfer(1, 50000)], { coop_savings_plans: [PLAN] });
+  const under = await call(h, { loan_id: 'L1' });
+  ok('a transfer smaller than what is owed has no excess and touches nothing else', under.success && under.excess_kobo === 0 && under.excess_disposition === null && T().coop_savings_transactions.length === 0 && T().coop_offline_transfer_claims[0].excess_disposition === null);
+
+  world([xfer(1, 150000)], { coop_savings_plans: [PLAN] }); STATE.db.failInsertIf = (t) => t === 'coop_savings_transactions';
+  const xf = await call(h, { loan_id: 'LS' });
+  ok('if crediting the excess to savings FAILS: the repayment stands, the excess is marked held, and a CRITICAL alert says it must be credited by hand', xf.success && xf.excess_disposition === 'held' && T().coop_loan_repayments[0].amount_kobo === 100000 && T().coop_offline_transfer_claims[0].excess_disposition === 'held' && T().system_alerts.some(a => a.severity === 'CRITICAL' && /credited manually/.test(a.message)));
+
+  world([xfer(1, 100000)], { coop_loan_repayments: [{ id: 'rz', loan_id: 'LZ', amount_kobo: 100000 }] });
+  const zero = await call(h, { loan_id: 'LZ' }), stillThere = await getOpts('LZ');
+  ok('a loan with nothing left to repay refuses the claim and leaves the transfer UNCLAIMED (so it is not consumed for nothing)', zero.status === 409 && /nothing left to repay/.test(zero.error) && T().coop_offline_transfer_claims.length === 0 && stillThere.transfers.length === 1);
+
+  // ---- the ledger sees the true picture
+  STATE.addon = true; world([xfer(1, 150000)], { coop_savings_plans: [PLAN] });
+  await call(h, { loan_id: 'LS' });
+  const entries = T().coop_journal_entries.filter(e => e.entry_type === 'manual'); const lineOf = e => T().coop_journal_entry_lines.filter(l => l.journal_entry_id === e.id).map(l => `${l.line_type === 'debit' ? 'Dr' : 'Cr'} ${T().coop_chart_of_accounts.find(a => a.id === l.account_id).account_code} ${l.amount}`).sort().join(' | ');
+  ok('ledger: the loan repayment is posted for NGN 1,000 (what the loan took), not NGN 1,500', STATE.journal.length === 1 && STATE.journal[0][2] === 100000);
+  ok('ledger: the NGN 500 excess is posted as money the society owes the member: Dr Bank / Cr Member Savings Payable, labelled as an offline transfer', entries.length === 1 && lineOf(entries[0]) === 'Cr 2000 50000 | Dr 1010 50000' && /via Zil transfer \(offline\)/.test(entries[0].description) && /ref Excess from offline loan repayment/.test(entries[0].description));
+  world([xfer(1, 150000)]);
+  await call(h, { loan_id: 'LS' }); const e2 = T().coop_journal_entries.filter(e => e.entry_type === 'manual');
+  ok('ledger: a HELD excess is posted too, so the books match the bank and the member is still owed the money', e2.length === 1 && lineOf(e2[0]) === 'Cr 2000 50000 | Dr 1010 50000');
+  STATE.addon = false;
 
   console.log(bad ? `\n${bad} FAILED` : '\nALL PASSED');
 })().catch(e => { console.log('ERROR', e.stack); process.exitCode = 1; });
