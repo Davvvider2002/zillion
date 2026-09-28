@@ -52,4 +52,28 @@ async function finalizeLoanIfFullyRepaid(db, loan, society) {
   return { completed: true, remainingKobo: 0 };
 }
 
-module.exports = { computeTotalRemainingKobo, finalizeLoanIfFullyRepaid };
+const LATE_FEE_COLUMNS = 'late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value';
+
+/** Total still owed on a loan, loading the society's late-fee settings itself. Used to refuse an over-payment BEFORE money moves. */
+async function totalRemainingForLoan(db, loan, coopId) {
+  const { data: society } = await db.from('coop_societies').select(LATE_FEE_COLUMNS).eq('coop_id', coopId).maybeSingle();
+  return computeTotalRemainingKobo(db, loan, society || {});
+}
+
+/**
+ * Call once a repayment row has been recorded, by ANY path (online, from savings,
+ * offline, admin). Closes the loan if nothing remains; otherwise a first repayment
+ * moves DISBURSED -> REPAYING (DISBURSED alone can't distinguish "nothing paid yet"
+ * from "actively being paid down"). Guarded so it can never touch a loan in any
+ * other state.
+ */
+async function settleLoanAfterRepayment(db, loan, coopId) {
+  const { data: society } = await db.from('coop_societies').select(LATE_FEE_COLUMNS).eq('coop_id', coopId).maybeSingle();
+  const { completed, remainingKobo } = await finalizeLoanIfFullyRepaid(db, loan, society || {});
+  if (!completed && loan.status === 'DISBURSED') {
+    await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loan.id).eq('status', 'DISBURSED');
+  }
+  return { completed, remainingKobo };
+}
+
+module.exports = { computeTotalRemainingKobo, finalizeLoanIfFullyRepaid, totalRemainingForLoan, settleLoanAfterRepayment };
