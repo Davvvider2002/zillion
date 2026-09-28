@@ -4569,6 +4569,13 @@ function renderAccountingContent() {
             <option value="income_expenditure">Income &amp; Expenditure</option>
             <option value="balance_sheet">Balance Sheet</option>
             <option value="ledger">Ledger (by account)</option>
+            <optgroup label="Sub-ledgers (by member)">
+              <option value="sub:savings">Ledger — Savings by member</option>
+              <option value="sub:loans">Ledger — Loans</option>
+              <option value="sub:dues">Ledger — Member dues</option>
+              <option value="sub:investments">Ledger — Investments</option>
+              <option value="sub:shares">Ledger — Shareholding &amp; dividends</option>
+            </optgroup>
           </select>
           <select id="ledger-account-select" onchange="loadFinancialReport()" style="display:none;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">
             ${accountingAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${a.account_name}</option>`).join('')}
@@ -4915,6 +4922,7 @@ async function loadFinancialReport() {
   const reportType = document.getElementById('report-type-select').value;
   const accountSelect = document.getElementById('ledger-account-select');
   accountSelect.style.display = reportType === 'ledger' ? '' : 'none';
+  if (reportType.startsWith('sub:')) { await loadSubledger(reportType.slice(4)); return; }
   if (reportType === 'ledger' && !accountSelect.value) { contentEl.innerHTML = '<div class="no-data">No accounts yet.</div>'; return; }
 
   const periodActive = document.getElementById('report-period-toggle').checked;
@@ -5041,7 +5049,7 @@ function drillJump(i) {
 function renderDrillLevel() {
   const top = drillTrail[drillTrail.length - 1];
   if (!top) return;
-  if (top.kind === 'entry') renderEntryLevel(top); else renderLedgerLevel(top);
+  if (top.kind === 'entry') renderEntryLevel(top); else if (top.kind === 'member') renderMemberLevel(top); else renderLedgerLevel(top);
 }
 
 async function drillToAccount(accountId) {
@@ -5180,6 +5188,101 @@ document.addEventListener('keydown', ev => {
   if (!el || !el.offsetParent) return;
   drillJump(drillTrail.length - 2);
 });
+
+// ── SUB-LEDGERS ───────────────────────────────────────────────────────
+// The member-by-member make-up of a trial-balance control account, ending in a
+// reconciliation against the ledger. The difference is always shown, never
+// hidden: opening balances entered as a lump sum (or entries with no member
+// attached) sit in the ledger with no member behind them.
+function drillSigned(kobo) { return kobo < 0 ? '−' + fmtNaira(-kobo) : fmtNaira(kobo); }
+
+async function loadSubledger(type) {
+  const contentEl = document.getElementById('report-content');
+  // A sub-ledger is a balance, so only the END of a chosen period matters.
+  let asOf = '';
+  if (document.getElementById('report-period-toggle').checked) {
+    const end = document.getElementById('report-end-date').value;
+    if (!end) { contentEl.innerHTML = '<div class="no-data">Select an end date.</div>'; return; }
+    asOf = end;
+  }
+  drillTrail = [];
+  drillPeriodQS = asOf ? `&as_of=${asOf}` : '';
+  drillBaseLabel = document.getElementById('report-type-select').selectedOptions[0].textContent;
+  contentEl.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-subledger?type=${type}${drillPeriodQS}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { contentEl.innerHTML = `<div class="no-data">${drillEsc(data.error || 'Failed to load report')}</div>`; return; }
+    renderSubledger(data);
+  } catch (e) {
+    contentEl.innerHTML = `<div class="no-data">Network error: ${drillEsc(e.message)}</div>`;
+  }
+}
+
+function renderSubledger(data) {
+  const cols = data.columns;
+  const recon = data.reconciliation.map(r => {
+    const un = r.unallocated_kobo;
+    const acct = r.accounts[0];
+    const unLabel = un === 0 ? 'Fully reconciled'
+      : un > 0 ? 'Unallocated — opening balance / entries not attributed to a member'
+      : 'Member records exceed the ledger by';
+    return `<tr>
+      <td>${drillEsc(r.label)} <span style="color:var(--muted);font-size:11px">${drillEsc(r.account_codes.join(', '))}</span></td>
+      <td>${acct ? `<button class="crumb" onclick="drillToAccount('${acct.id}')">${drillSigned(r.gl_kobo)}</button>` : drillSigned(r.gl_kobo)}</td>
+      <td>${drillSigned(r.members_kobo)}</td>
+      <td style="font-weight:700;color:${un === 0 ? 'var(--green-lt)' : 'var(--amber)'}">${un === 0 ? '✓ ' : ''}${un === 0 ? '' : drillSigned(Math.abs(un)) + ' — '}<span style="font-weight:400;font-size:12px">${unLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('report-content').innerHTML = `
+    ${data.as_of ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">As at ${fmtDate(data.as_of)}</div>` : ''}
+    <div class="drill-hint">Click a member to see every movement behind their figure, or a ledger balance to open that account.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Member</th>${cols.map(k => `<th>${drillEsc(k.label)}</th>`).join('')}</tr></thead>
+      <tbody>${data.rows.map(r => `
+        <tr class="drill-row" onclick="drillToMember('${data.type}','${r.member_id}')">
+          <td>${drillEsc(r.member_name)}${r.phone_normalized ? ` <span style="color:var(--muted);font-size:11px">${drillEsc(r.phone_normalized)}</span>` : ''}</td>
+          ${cols.map(k => `<td>${r.values[k.key] ? drillSigned(r.values[k.key]) : ''}</td>`).join('')}
+        </tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="no-data">No member-level records yet.</td></tr>`}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td>Total by member</td>${cols.map(k => `<td>${drillSigned(data.totals[k.key] || 0)}</td>`).join('')}</tr></tfoot>
+    </table></div>
+    <div style="font-weight:700;font-size:13px;margin:18px 0 6px">Reconciliation to the ledger</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Control account</th><th>Ledger balance</th><th>By members</th><th>Difference</th></tr></thead>
+      <tbody>${recon}</tbody>
+    </table></div>
+    ${data.unresolved_member_records ? '<div style="margin-top:8px;font-size:12px;color:#e74c3c">⚠ Some records belong to a member that could not be found and are included in the totals above.</div>' : ''}
+    <div style="margin-top:10px;font-weight:700;color:${data.reconciled ? 'var(--green-lt)' : 'var(--amber)'}">${data.reconciled ? '✓ Sub-ledger agrees with the ledger' : 'The difference is shown, not hidden — it is what the ledger holds that no member-level record accounts for (or the reverse).'}</div>`;
+}
+
+async function drillToMember(type, memberId) {
+  const contentEl = document.getElementById('report-content');
+  contentEl.innerHTML = drillCrumbsHtml() + '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/coop-portal-subledger?type=${type}&member_id=${encodeURIComponent(memberId)}${drillPeriodQS}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">${drillEsc(data.error || 'Failed to load')}</div>`; return; }
+    drillTrail.push({ kind: 'member', label: data.member.name || data.member.phone_normalized || 'Member', detail: data });
+    renderDrillLevel();
+  } catch (e) {
+    contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">Network error: ${drillEsc(e.message)}</div>`;
+  }
+}
+
+function renderMemberLevel(lvl) {
+  const d = lvl.detail;
+  document.getElementById('report-content').innerHTML = drillCrumbsHtml() + `
+    <div style="font-size:14px;font-weight:700;margin-bottom:6px">${drillEsc(d.member.name || d.member.phone_normalized)} — ${drillEsc(d.title)}</div>
+    <div class="drill-hint">Every movement behind this member's figure, oldest first, with the running balance.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Description</th>${d.keys.map(k => `<th>${drillEsc(k.label)} change</th><th>${drillEsc(k.label)} balance</th>`).join('')}</tr></thead>
+      <tbody>${d.rows.map(r => `
+        <tr><td>${fmtDate(r.date)}</td><td>${drillEsc(r.description)}</td>
+        ${d.keys.map(k => `<td>${r.deltas[k.key] ? drillSigned(r.deltas[k.key]) : ''}</td><td>${drillSigned(r.balances[k.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${2 + d.keys.length * 2}" class="no-data">No movements.</td></tr>`}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Balance</td>${d.keys.map(k => `<td></td><td>${drillSigned(d.totals[k.key])}</td>`).join('')}</tr></tfoot>
+    </table></div>`;
+}
 
 // ── BOOT ──────────────────────────────────────────────────────────────
 (async function boot() {
