@@ -97,6 +97,17 @@ async function markInvoicePaid(db, invoiceId, { txRef, flwTransactionId, now = n
 }
 
 /**
+ * KYC/NIN verification is only ever a live, billable action for a society on an active, paying subscription.
+ * A trial society, or one flagged never_expires (demo/NGO/internal accounts that never go through checkout),
+ * gets a no-op "test mode" instead: nothing is checked with Dojah, nothing is charged, and no member's
+ * kyc_status is ever changed. This must be checked BEFORE any Dojah call or billing — a society only earns
+ * real verification once it's actually paying for the platform.
+ */
+function isKycActiveForSociety(society) {
+  return !!society && society.subscription_status === 'active' && !society.never_expires;
+}
+
+/**
  * Nightly bulk pass: any 'accruing' invoice whose month has already ended becomes 'pending_payment', due in
  * GRACE_DAYS_TO_PAY days. Zero-usage months are never finalized in the first place — an invoice row is only
  * created lazily on the first verification of a month — so there is nothing to finalize for a quiet society.
@@ -116,4 +127,5 @@ async function finalizeEndedMonths(db, now = new Date()) {
 module.exports = {
   KycBillingError, getKycPriceKobo, setKycPriceKobo, assertNotBlocked, getOrCreateAccruingInvoice,
   recordVerificationAttempt, listInvoicesForSociety, markInvoicePaid, finalizeEndedMonths, monthBounds, GRACE_DAYS_TO_PAY,
+  isKycActiveForSociety,
 };
