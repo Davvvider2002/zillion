@@ -15,6 +15,7 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
+const { finalizeLoanIfFullyRepaid } = require('../../lib/coopLoanCompletion');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -46,7 +47,7 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: loan } = await db.from('coop_loans').select('id, coop_id, member_id, status, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).maybeSingle();
+  const { data: loan } = await db.from('coop_loans').select('id, coop_id, member_id, status, principal_kobo, interest_kobo, total_repayable_kobo, interest_method').eq('id', loanId).maybeSingle();
   if (!loan) return err(404, 'Loan not found');
   if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
 
@@ -67,9 +68,14 @@ exports.handler = async (event) => {
   const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', loan.member_id).maybeSingle();
   await recordLoanRepaymentJournalEntry(db, loan.coop_id, amountKobo, source, `admin:${auth.payload.username || auth.payload.sub}`, principalPortionKobo, interestPortionKobo, borrower ? { id: borrower.id, name: borrower.name } : null);
 
-  // Move to REPAYING on the first repayment — DISBURSED alone doesn't
-  // distinguish "nothing paid yet" from "actively being paid down".
-  if (loan.status === 'DISBURSED') {
+  // Close the loan out if this cleared it (nothing else in the codebase
+  // ever set COMPLETED); otherwise move to REPAYING on the first
+  // repayment — DISBURSED alone doesn't distinguish "nothing paid yet"
+  // from "actively being paid down".
+  const { data: society } = await db.from('coop_societies')
+    .select('late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value').eq('coop_id', loan.coop_id).maybeSingle();
+  const { completed } = await finalizeLoanIfFullyRepaid(db, loan, society || {});
+  if (!completed && loan.status === 'DISBURSED') {
     await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', loanId);
   }
 
@@ -84,5 +90,5 @@ exports.handler = async (event) => {
     result:       'SUCCESS',
   });
 
-  return ok({ success: true, repayment: created });
+  return ok({ success: true, repayment: created, loan_completed: completed });
 };
