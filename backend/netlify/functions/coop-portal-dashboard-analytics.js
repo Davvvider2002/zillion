@@ -20,6 +20,7 @@
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
+const { fetchAllRows } = require('../../lib/coopPaginate');
 
 const MONTHS_BACK = 6;
 
@@ -61,7 +62,7 @@ exports.handler = async (event) => {
 
   // Member growth - new activations per month, plus a running
   // cumulative total so the chart can show either.
-  const { data: members } = await db.from('coop_members').select('activated_at').eq('coop_id', coopId);
+  const members = await fetchAllRows(() => db.from('coop_members').select('activated_at').eq('coop_id', coopId).order('id'));
   const newMembersByMonth = new Array(months.length).fill(0);
   let membersBeforeWindow = 0;
   for (const m of (members || [])) {
@@ -75,7 +76,7 @@ exports.handler = async (event) => {
   const cumulativeMembersByMonth = newMembersByMonth.map(n => (cumulative += n));
 
   // Savings growth - total deposited per month.
-  const { data: savingsTxns } = await db.from('coop_savings_transactions').select('amount_kobo, created_at').eq('coop_id', coopId);
+  const savingsTxns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo, created_at').eq('coop_id', coopId).order('id'));
   const savingsByMonth = new Array(months.length).fill(0);
   for (const t of (savingsTxns || [])) {
     const idx = monthIndexByKey.get(monthKey(new Date(t.created_at)));
@@ -84,7 +85,7 @@ exports.handler = async (event) => {
 
   // Loan portfolio breakdown by status - a snapshot, not a
   // time-series, so it's just current counts and principal totals.
-  const { data: loans } = await db.from('coop_loans').select('status, principal_kobo').eq('coop_id', coopId);
+  const loans = await fetchAllRows(() => db.from('coop_loans').select('status, principal_kobo').eq('coop_id', coopId).order('id'));
   const loanBreakdown = {};
   for (const l of (loans || [])) {
     if (!loanBreakdown[l.status]) loanBreakdown[l.status] = { count: 0, principal_kobo: 0 };
@@ -95,7 +96,7 @@ exports.handler = async (event) => {
   // Dues collected - total across every member, all time (a running
   // total, not scoped to the current year, since it's shown as a
   // single summary figure, not broken down by year on this chart).
-  const { data: duesTxns } = await db.from('coop_dues_transactions').select('amount_kobo').eq('coop_id', coopId);
+  const duesTxns = await fetchAllRows(() => db.from('coop_dues_transactions').select('amount_kobo').eq('coop_id', coopId).order('id'));
   const totalDuesPaidKobo = (duesTxns || []).reduce((s, d) => s + (d.amount_kobo || 0), 0);
 
   return ok({
