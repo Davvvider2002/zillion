@@ -3,6 +3,7 @@
  "lib/coopActivateMember.js": 1,
  "lib/coopAttribution.js": 1,
  "lib/coopBackup.js": 1,
+ "lib/coopKycBilling.js": 1,
  "lib/coopLoanHistoryReport.js": 1,
  "lib/coopLoanPackages.js": 1,
  "lib/coopLoanStatement.js": 1,
