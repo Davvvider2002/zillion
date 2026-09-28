@@ -28,6 +28,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { uniqueReference } = require('../../lib/coopReference');
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
@@ -101,7 +102,7 @@ exports.handler = async (event) => {
     loan_id: loanId,
     amount_kobo: amountKobo,
     source: 'offline_zil',
-    reference: `Offline Zil transfer, verified via coin_ledger`,
+    reference: uniqueReference('Offline Zil transfer, verified via coin_ledger'),   // was one fixed sentence: only ONE offline repayment could ever be recorded platform-wide
     recorded_by: 'member:offline_zil',
     principal_portion_kobo: principalPortionKobo,
     interest_portion_kobo:  interestPortionKobo,
