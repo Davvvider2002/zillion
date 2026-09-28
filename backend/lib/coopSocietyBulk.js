@@ -67,11 +67,14 @@ async function enrichPlans(db, coopId, plans, members) {
 
 const OPEN_STATUSES = ['DISBURSED', 'REPAYING', 'COMPLETED'];
 
-/** loans + guarantors + live repayment status (for loans that have been disbursed). */
-async function enrichLoans(db, loans, guarantors, society) {
-  const withStatus = (loans || []).filter(l => OPEN_STATUSES.includes(l.status));
-  const schedule = new Map(), paid = new Map(), penalty = new Map();
-  for (const ids of chunk(withStatus.map(l => l.id))) {
+/**
+ * The three things a loan's live status is built from, for many loans at once (chunked, paged - three reads per
+ * hundred loans instead of three per loan). penaltyCount is separate from the penalty SUM so a caller can honour
+ * "at most one penalty per loan" exactly, rather than infer it from an amount.
+ */
+async function loadLoanRepaymentInputs(db, loanIds) {
+  const schedule = new Map(), paid = new Map(), penalty = new Map(), penaltyCount = new Map();
+  for (const ids of chunk(loanIds)) {
     const [sch, rep, pen] = await Promise.all([
       fetchAllRows(() => db.from('coop_loan_repayment_schedule').select('loan_id, period_number, due_date, amount_due_kobo').in('loan_id', ids).order('period_number').order('id')),
       fetchAllRows(() => db.from('coop_loan_repayments').select('loan_id, amount_kobo').in('loan_id', ids).order('id')),
@@ -80,7 +83,15 @@ async function enrichLoans(db, loans, guarantors, society) {
     for (const [k, rows] of groupBy(sch, r => r.loan_id)) schedule.set(k, rows.map(({ period_number, due_date, amount_due_kobo }) => ({ period_number, due_date, amount_due_kobo })));
     for (const [k, v] of sumBy(rep, r => r.loan_id, r => r.amount_kobo)) paid.set(k, v);
     for (const [k, v] of sumBy(pen, r => r.loan_id, r => r.amount_kobo)) penalty.set(k, v);
+    for (const [k, rows] of groupBy(pen, r => r.loan_id)) penaltyCount.set(k, rows.length);
   }
+  return { schedule, paid, penalty, penaltyCount };
+}
+
+/** loans + guarantors + live repayment status (for loans that have been disbursed). */
+async function enrichLoans(db, loans, guarantors, society) {
+  const withStatus = (loans || []).filter(l => OPEN_STATUSES.includes(l.status));
+  const { schedule, paid, penalty } = await loadLoanRepaymentInputs(db, withStatus.map(l => l.id));
   const guarantorsByLoan = groupBy(guarantors || [], g => g.loan_id);
   return (loans || []).map(l => {
     const g = guarantorsByLoan.get(l.id) || [];
@@ -90,4 +101,4 @@ async function enrichLoans(db, loans, guarantors, society) {
   });
 }
 
-module.exports = { enrichMembers, enrichPlans, enrichLoans };
+module.exports = { enrichMembers, enrichPlans, enrichLoans, loadLoanRepaymentInputs, sumBy, groupBy };
