@@ -48,7 +48,7 @@
 
 const { hasAddon }             = require('./coopEntitlements');
 const { ensureChartOfAccounts } = require('./coopAccounting');
-const { computeDuesOwing }      = require('./coopDues');
+const { computeTotalDuesAccrued } = require('./coopDues');
 const { fetchAllRows } = require('./coopPaginate');
 const { postEntry } = require('./coopAccountingHelpers');
 
@@ -114,11 +114,8 @@ async function recordDuesAccrual(db, coopId) {
     if (!society || !society.dues_amount_kobo) return { booked: false, reason: 'no_dues_configured' };
 
     const members = await fetchAllRows(() => db.from('coop_members').select('id, activated_at').eq('coop_id', coopId).eq('status', 'ACTIVE').order('id'));
-    let currentTotalAccrued = 0;
-    for (const m of (members || [])) {
-      const dues = await computeDuesOwing(db, m, society);
-      if (dues) currentTotalAccrued += dues.total_accrued_kobo;
-    }
+    // Pure arithmetic - no per-member queries (see computeTotalDuesAccrued).
+    const currentTotalAccrued = computeTotalDuesAccrued(members, society.dues_amount_kobo);
 
     const delta = currentTotalAccrued - (society.dues_income_accrued_kobo || 0);
     if (delta <= 0) return { booked: false, reason: 'no_new_accrual' };
