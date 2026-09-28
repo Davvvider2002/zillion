@@ -80,7 +80,7 @@ const interestRows = db => db.tables.coop_savings_transactions.filter(t => t.sou
   // ---- offline repayment
   const hash = crypto.createHash('sha256').update('+2348011').digest('hex');
   STATE.db = makeDb({ coop_societies: [{ coop_id: 'C1', merchant_id: 'M1' }], coop_loans: [{ id: 'L1', coop_id: 'C1', member_id: 'MEM1', status: 'DISBURSED', principal_kobo: 8000000, interest_kobo: 2000000, total_repayable_kobo: 10000000, interest_method: 'flat' }],
-    coin_ledger: [{ prev_holder_hash: hash, new_holder_hash: 'MERCHANT-M1', amount: 9000000, changed_at: new Date().toISOString() }], coop_loan_repayment_schedule: [], coop_loan_penalties: [], coop_loan_repayments: [] });
+    coin_ledger: [1000000, 2000000].map((a, i) => ({ entry_id: i + 1, coin_id: 'c' + i, event_type: 'TRANSFER', prev_holder_hash: hash, new_holder_hash: 'MERCHANT-M1', amount: a, changed_at: new Date().toISOString() })), coop_loan_repayment_schedule: [], coop_loan_penalties: [], coop_loan_repayments: [], coop_offline_transfer_claims: [] }, { unique: { coop_offline_transfer_claims: ['ledger_entry_id'] } });
   const off = load('coop-repay-loan-offline.js');
   const o1 = await call(off, { loan_id: 'L1', amount_kobo: 1000000 }), o2 = await call(off, { loan_id: 'L1', amount_kobo: 2000000 });
   ok('offline: two verified transfers are both recorded (the fixed platform-wide reference meant only ONE offline repayment could ever be recorded, after the coins had already moved)', o1.success && o2.success && STATE.db.tables.coop_loan_repayments.length === 2 && new Set(STATE.db.tables.coop_loan_repayments.map(x => x.reference)).size === 2);
