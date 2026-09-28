@@ -33,22 +33,17 @@
  * @param {number} [principalKobo]  fallback baseline if no schedule exists yet
  * @returns {Promise<{total_scheduled_kobo, due_so_far_kobo, paid_kobo, penalty_kobo, outstanding_kobo, is_overdue, late_fee_kobo, schedule}>}
  */
-async function computeLoanRepaymentStatus(db, loanId, society, principalKobo) {
-  const { data: schedule } = await db.from('coop_loan_repayment_schedule')
-    .select('period_number, due_date, amount_due_kobo').eq('loan_id', loanId).order('period_number');
-
-  const { data: repayments } = await db.from('coop_loan_repayments')
-    .select('amount_kobo').eq('loan_id', loanId);
-
-  const { data: penalties } = await db.from('coop_loan_penalties')
-    .select('amount_kobo').eq('loan_id', loanId);
-  const penaltyKobo = (penalties || []).reduce((s, p) => s + p.amount_kobo, 0);
-
-  const today = new Date().toISOString().slice(0, 10);
+/**
+ * The pure calculation, given rows already fetched. Split out so a whole society's loans can be computed from
+ * three bulk reads instead of three queries PER LOAN (see coopSocietyBulk.js); computeLoanRepaymentStatus
+ * below is the same math behind the original single-loan interface, so every other caller is unchanged.
+ * @param {{schedule: Array, paidKobo: number, penaltyKobo: number}} rows
+ * @param {string} [today] YYYY-MM-DD, injectable for tests
+ */
+function buildLoanRepaymentStatus({ schedule, paidKobo, penaltyKobo }, society, principalKobo, today = new Date().toISOString().slice(0, 10)) {
   const hasSchedule = schedule && schedule.length > 0;
   const totalScheduledKobo = hasSchedule ? schedule.reduce((s, p) => s + p.amount_due_kobo, 0) : (principalKobo || 0);
   const dueSoFarKobo = hasSchedule ? schedule.filter(p => p.due_date <= today).reduce((s, p) => s + p.amount_due_kobo, 0) : (principalKobo || 0);
-  const paidKobo = (repayments || []).reduce((s, r) => s + r.amount_kobo, 0);
   const outstandingKobo = Math.max(0, dueSoFarKobo + penaltyKobo - paidKobo);
   const isOverdue = (dueSoFarKobo - paidKobo) > 0; // overdue is about the repayment schedule itself, not inflated by a penalty already charged for being overdue
 
@@ -79,4 +74,21 @@ async function computeLoanRepaymentStatus(db, loanId, society, principalKobo) {
   };
 }
 
-module.exports = { computeLoanRepaymentStatus };
+async function computeLoanRepaymentStatus(db, loanId, society, principalKobo) {
+  const { data: schedule } = await db.from('coop_loan_repayment_schedule')
+    .select('period_number, due_date, amount_due_kobo').eq('loan_id', loanId).order('period_number');
+
+  const { data: repayments } = await db.from('coop_loan_repayments')
+    .select('amount_kobo').eq('loan_id', loanId);
+
+  const { data: penalties } = await db.from('coop_loan_penalties')
+    .select('amount_kobo').eq('loan_id', loanId);
+
+  return buildLoanRepaymentStatus({
+    schedule,
+    paidKobo: (repayments || []).reduce((s, r) => s + r.amount_kobo, 0),
+    penaltyKobo: (penalties || []).reduce((s, p) => s + p.amount_kobo, 0),
+  }, society, principalKobo);
+}
+
+module.exports = { computeLoanRepaymentStatus, buildLoanRepaymentStatus };
