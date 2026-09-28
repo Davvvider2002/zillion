@@ -163,6 +163,25 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- VERIFY NIN -->
+<div class="modal-overlay" id="modal-verify-nin">
+  <div class="modal-box">
+    <div class="modal-title">Verify member's NIN</div>
+    <div id="vn-name" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+    <div id="vn-test-mode-banner" style="display:none;background:rgba(232,147,12,.12);border:1px solid var(--amber);border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;line-height:1.5"></div>
+    <div class="field">
+      <label>NIN (11 digits)</label>
+      <input type="text" inputmode="numeric" maxlength="11" id="vn-nin" placeholder="e.g. 12345678901">
+    </div>
+    <div id="vn-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+    <div id="vn-result" style="display:none;font-size:13px;margin:8px 0"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" style="flex:1" onclick="closeModal('modal-verify-nin')">Close</button>
+      <button class="btn btn-primary" style="flex:1" onclick="submitVerifyNin()" id="vn-submit-btn">Verify</button>
+    </div>
+  </div>
+</div>
+
 <!-- BACKUP: create (passphrase) -->
 <div class="modal-overlay" id="modal-backup-create">
   <div class="modal-box">
@@ -1435,7 +1454,7 @@ function renderMembers() {
       </div>
       <div class="card-sub">Members are existing (or future) Zillion wallet users you activate into your society.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Shares</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Joined</th><th>Dues owing</th><th>Shares</th><th>Status</th><th>KYC</th><th></th></tr></thead>
         <tbody>${d.members.map(m => `
           <tr>
             <td style="font-family:monospace;color:var(--amber)">${m.member_number || '—'}</td>
@@ -1445,15 +1464,17 @@ function renderMembers() {
             <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
             <td>${fmtNaira(m.share_capital_kobo || 0)}</td>
             <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
+            <td>${m.kyc_status === 'VERIFIED' ? '<span class="pill pill-green">NIN verified</span>' : '<span class="pill pill-muted">Not verified</span>'}</td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 ${hasPortalAction('members', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>` : ''}
                 ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}','${(m.name || m.phone_normalized || '').replace(/'/g, "\\'")}')">Record share</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button>
+                ${hasPortalAction('members', 'edit') && m.kyc_status !== 'VERIFIED' ? `<button class="btn btn-ghost btn-sm" onclick="openVerifyNinModal('${m.id}','${(m.name || '').replace(/'/g, "\\'")}')">Verify NIN</button>` : ''}
               </div>
             </td>
           </tr>
-        `).join('') || '<tr><td colspan="8" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
+        `).join('') || '<tr><td colspan="9" class="no-data">No members yet — activate your first one above.</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
@@ -1478,6 +1499,58 @@ async function sendMemberLoanStatement(memberId, btn) {
   } catch (e) {
     notify('Network error: ' + e.message, true);
     btn.disabled = false; btn.textContent = originalText;
+  }
+}
+
+// ── KYC / NIN ────────────────────────────────────────────────────────────
+let verifyNinMemberId = null;
+
+function openVerifyNinModal(memberId, memberName) {
+  verifyNinMemberId = memberId;
+  document.getElementById('vn-name').textContent = memberName ? `For ${memberName}` : '';
+  document.getElementById('vn-nin').value = '';
+  document.getElementById('vn-error').style.display = 'none';
+  document.getElementById('vn-result').style.display = 'none';
+  document.getElementById('vn-test-mode-banner').style.display = 'none';
+  document.getElementById('vn-submit-btn').disabled = false;
+  document.getElementById('vn-submit-btn').textContent = 'Verify';
+  openModal('modal-verify-nin');
+}
+
+async function submitVerifyNin() {
+  const errEl = document.getElementById('vn-error'); errEl.style.display = 'none';
+  const resultEl = document.getElementById('vn-result'); resultEl.style.display = 'none';
+  const banner = document.getElementById('vn-test-mode-banner'); banner.style.display = 'none';
+  const nin = document.getElementById('vn-nin').value.trim();
+  if (!/^\d{11}$/.test(nin)) { errEl.textContent = 'NIN must be exactly 11 digits.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('vn-submit-btn'); btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const res = await fetch(`${API}/coop-portal-member-verify-nin`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: verifyNinMemberId, nin }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Verification failed.'; errEl.style.display = 'block';
+      return;
+    }
+    if (data.test_mode) {
+      banner.textContent = data.message;
+      banner.style.display = 'block';
+    } else if (data.matched) {
+      resultEl.innerHTML = `<span class="pill pill-green">Verified</span> ${data.message} (charged ${fmtNaira(data.charged_kobo)})`;
+      resultEl.style.display = 'block';
+      notify('NIN verified.');
+      refreshAndRender();
+    } else {
+      resultEl.innerHTML = `<span class="pill pill-red">No match</span> ${data.message} (charged ${fmtNaira(data.charged_kobo)})`;
+      resultEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Verify';
   }
 }
 
@@ -3790,7 +3863,55 @@ function renderBilling() {
         `).join('') || '<tr><td colspan="4" class="no-data">No payments recorded yet.</td></tr>'}</tbody>
       </table></div>
     </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">NIN Verification Usage</div>
+      <div class="card-sub">Billed per member NIN check, whether or not it matches. Accrues monthly; unpaid invoices pause new checks until settled.</div>
+      <div id="kyc-invoices-body" style="margin-top:10px"><div class="no-data">Loading…</div></div>
+    </div>
   `;
+  loadKycInvoices();
+}
+
+async function loadKycInvoices() {
+  const el = document.getElementById('kyc-invoices-body');
+  if (!el) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-kyc-invoices`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = `<div class="no-data">${data.error || 'Could not load.'}</div>`; return; }
+    const banner = !data.kyc_active ? `<div style="background:rgba(232,147,12,.12);border:1px solid var(--amber);border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:10px;line-height:1.5">Test Mode — NIN verification is not active on a trial. It activates once you're on a paid subscription; nothing is charged until then.</div>` : '';
+    const rows = (data.invoices || []).map(i => `
+      <tr>
+        <td>${i.period_start.slice(0, 7)}</td>
+        <td>${i.verification_count}</td>
+        <td>${fmtNaira(i.total_kobo)}</td>
+        <td>${i.status === 'paid' ? '<span class="pill pill-green">Paid</span>' : i.status === 'pending_payment' ? '<span class="pill pill-red">Unpaid</span>' : '<span class="pill pill-muted">Accruing</span>'}</td>
+        <td>${i.status === 'pending_payment' && data.can_pay ? `<button class="btn btn-primary btn-sm" onclick="payKycInvoice('${i.id}')">Pay now</button>` : ''}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" class="no-data">No usage yet.</td></tr>';
+    el.innerHTML = `${banner}<div class="table-wrap"><table>
+      <thead><tr><th>Month</th><th>Checks</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="no-data">${e.message}</div>`;
+  }
+}
+
+async function payKycInvoice(invoiceId) {
+  try {
+    const returnUrl = window.location.origin + window.location.pathname + '?kyc_invoice_id=' + encodeURIComponent(invoiceId);
+    const res = await fetch(`${API}/coop-portal-kyc-invoice-pay-init`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ invoice_id: invoiceId, return_url: returnUrl }),
+    });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Could not start payment', true); return; }
+    window.location.href = data.authorization_url;
+  } catch (e) {
+    notify('Network error: ' + e.message, true);
+  }
 }
 
 // ── BACKUPS ──────────────────────────────────────────────────────────────
@@ -5649,11 +5770,35 @@ async function submitAttribution() {
     if (loaded) {
       document.getElementById('app-shell').style.display = 'flex';
       switchView('dashboard');
+      await checkKycInvoiceReturn();
     } else {
       document.getElementById('login-screen').style.display = 'flex';
     }
   }
 })();
+
+// If we're returning from a Flutterwave checkout for a KYC invoice (kyc_invoice_id was in the redirect_url),
+// verify it server-side, then clean the URL so a refresh doesn't try to re-verify the same payment.
+async function checkKycInvoiceReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const invoiceId = params.get('kyc_invoice_id');
+  const transactionId = params.get('transaction_id');
+  const txRef = params.get('tx_ref');
+  if (!invoiceId || !transactionId || !txRef) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-kyc-invoice-pay-verify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ invoice_id: invoiceId, transaction_id: transactionId, tx_ref: txRef }),
+    });
+    const data = await res.json();
+    notify(res.ok ? 'KYC invoice payment confirmed.' : (data.error || 'Could not confirm payment'), !res.ok);
+  } catch (e) {
+    notify('Network error confirming payment: ' + e.message, true);
+  } finally {
+    window.history.replaceState({}, '', window.location.pathname);
+    switchView('billing');
+  }
+}
 </script>
 </body>
 </html>
