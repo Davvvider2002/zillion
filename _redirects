@@ -204,6 +204,12 @@
 /api/v1/admin-backup-create                           /.netlify/functions/admin-backup-create                           200
 /api/v1/admin-backup-list                             /.netlify/functions/admin-backup-list                             200
 /api/v1/admin-backup-restore-preview                  /.netlify/functions/admin-backup-restore-preview                  200
+/api/v1/coop-portal-member-verify-nin                 /.netlify/functions/coop-portal-member-verify-nin                 200
+/api/v1/coop-portal-kyc-invoices                       /.netlify/functions/coop-portal-kyc-invoices                       200
+/api/v1/coop-portal-kyc-invoice-pay-init               /.netlify/functions/coop-portal-kyc-invoice-pay-init               200
+/api/v1/coop-portal-kyc-invoice-pay-verify             /.netlify/functions/coop-portal-kyc-invoice-pay-verify             200
+/api/v1/admin-kyc-pricing                              /.netlify/functions/admin-kyc-pricing                              200
+/api/v1/admin-kyc-usage                                /.netlify/functions/admin-kyc-usage                                200
 /api/v1/coop-portal-activate-member                   /.netlify/functions/coop-portal-activate-member                   200
 /api/v1/coop-portal-record-savings-payment            /.netlify/functions/coop-portal-record-savings-payment            200
 /api/v1/coop-portal-record-loan-repayment  /.netlify/functions/coop-portal-record-loan-repayment  200
