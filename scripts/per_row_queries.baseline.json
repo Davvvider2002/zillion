@@ -29,7 +29,7 @@
  "netlify/functions/coop-portal-staff-loan-report.js": 1,
  "netlify/functions/coop-portal-staff-loans.js": 1,
  "netlify/functions/coop-portal-users.js": 1,
- "netlify/functions/scheduled-reconcile.js": 10,
+ "netlify/functions/scheduled-reconcile.js": 4,
  "netlify/functions/sync.js": 1,
  "netlify/functions/wallet-recover.js": 2
 }
