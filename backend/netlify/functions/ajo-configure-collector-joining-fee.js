@@ -4,7 +4,7 @@
  * POST /api/v1/ajo-configure-collector-joining-fee
  * Body: { joining_fee_kobo }
  *
- * Any Ajo admin's self-service setting for the joining fee charged to
+ * Any Ajo admin's self-service setting for the registration fee charged to
  * a prospect becoming a collector via their own recruitment link
  * (ajo-collector-public-join-init.js). Unlike Coop's equivalent
  * setting, there is no free option here - the fee is compulsory, per
@@ -49,13 +49,13 @@ exports.handler = async (event) => {
 
   const feeKobo = Number(body.joining_fee_kobo);
   if (!Number.isInteger(feeKobo) || feeKobo <= 0)
-    return err(400, 'joining_fee_kobo must be a positive whole number — the joining fee is compulsory and cannot be set to free');
+    return err(400, 'joining_fee_kobo must be a positive whole number — the registration fee is compulsory and cannot be set to free');
 
   const { data: upserted, error: upsertErr } = await db.from('ajo_collector_recruitment_settings')
     .upsert({ admin_zillion_id: zillionId, joining_fee_kobo: feeKobo, updated_at: new Date().toISOString() }, { onConflict: 'admin_zillion_id' })
     .select().single();
 
-  if (upsertErr) return err(500, `Failed to set joining fee: ${upsertErr.message}`);
+  if (upsertErr) return err(500, `Failed to set registration fee: ${upsertErr.message}`);
 
   return ok({ success: true, settings: upserted });
 };
