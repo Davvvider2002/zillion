@@ -101,7 +101,6 @@
  "netlify/functions/coop-portal-staff-loans.js|coop_staff_loan_repayments": 1,
  "netlify/functions/coop-portal-staff-loans.js|coop_staff_loans": 1,
  "netlify/functions/coop-portal-users.js|coop_portal_users": 1,
- "netlify/functions/coop-repay-loan-offline.js|coin_ledger": 1,
  "netlify/functions/coop-savings-plan.js|coop_savings_plans": 1,
  "netlify/functions/customer-limits.js|transactions": 1,
  "netlify/functions/issue-secure.js|coins": 2,
