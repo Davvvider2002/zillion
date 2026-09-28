@@ -903,6 +903,36 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-member-verify-nin"
+  to   = "/.netlify/functions/coop-portal-member-verify-nin"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-kyc-invoices"
+  to   = "/.netlify/functions/coop-portal-kyc-invoices"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-kyc-invoice-pay-init"
+  to   = "/.netlify/functions/coop-portal-kyc-invoice-pay-init"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-kyc-invoice-pay-verify"
+  to   = "/.netlify/functions/coop-portal-kyc-invoice-pay-verify"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-kyc-pricing"
+  to   = "/.netlify/functions/admin-kyc-pricing"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-kyc-usage"
+  to   = "/.netlify/functions/admin-kyc-usage"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-coop-bulk-import"
   to   = "/.netlify/functions/admin-coop-bulk-import"
   status = 200
