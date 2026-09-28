@@ -75,7 +75,7 @@ function renderForm() {
   document.getElementById('card').innerHTML = `
     <div class="headline">Become an Ajo Collector</div>
     <div class="headline-sub">Fill in your details to start your application.</div>
-    <div class="fee-row"><span style="color:var(--muted)">Joining fee</span><span class="amt">${fmtNaira(feeInfo.joining_fee_kobo)}</span></div>
+    <div class="fee-row"><span style="color:var(--muted)">Registration fee</span><span class="amt">${fmtNaira(feeInfo.joining_fee_kobo)}</span></div>
     <label>Full name</label>
     <input id="jf-name" type="text" placeholder="Your full name">
     <label>Phone number</label>
@@ -84,7 +84,7 @@ function renderForm() {
     <input id="jf-email" type="email" placeholder="your@email.com">
     <div class="error" id="jf-error"></div>
     <button class="btn btn-primary" id="jf-btn" onclick="submitJoin()">Continue to payment</button>
-    <div class="next-step">Paying the joining fee starts your application — you'll still need to complete a separate escrow verification step afterward before you can start collecting.</div>
+    <div class="next-step">Paying the registration fee starts your application — you'll still need to complete a separate escrow verification step afterward before you can start collecting.</div>
   `;
 }
 
