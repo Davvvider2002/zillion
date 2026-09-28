@@ -260,7 +260,28 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] batched passes failed:', e.message);
   }
 
+  // ── 13. KYC (NIN verification) usage invoices — finalize any month that has ended ───────────────────────────
+  // A society's usage accrues all month into one 'accruing' invoice row (created lazily on first use — a quiet
+  // society never gets a zero-amount invoice). Once the month is over, it becomes 'pending_payment' with a due
+  // date; coop-portal-member-verify-nin.js refuses NEW verifications for any society with one of these unpaid.
+  let kycFinalized = 0;
+  try {
+    const { finalizeEndedMonths } = require('../../lib/coopKycBilling');
+    const finalized = await finalizeEndedMonths(db);
+    kycFinalized = finalized.length;
+    if (kycFinalized > 0) {
+      alertsRaised++;
+      await logAlert(db, {
+        severity: 'INFO', source: SOURCE,
+        message: `${kycFinalized} KYC usage invoice(s) finalized and now due for payment`,
+        context: { invoice_ids: finalized.map(f => f.id) },
+      });
+    }
+  } catch (e) {
+    console.error('[scheduled-reconcile] KYC invoice finalization failed:', e.message);
+  }
+
   const summary = passes.map(p => `${p.key}=${p.processed}${p.completedCycle ? ' (cycle done)' : (p.expired ? ' (resumes next run)' : '')}`).join(', ');
-  console.log(`[scheduled-reconcile] complete in ${Date.now() - startedAt}ms — ${alertsRaised} alert(s) raised; ${summary}`);
-  return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised, passes }) };
+  console.log(`[scheduled-reconcile] complete in ${Date.now() - startedAt}ms — ${alertsRaised} alert(s) raised; ${summary}; kyc_invoices_finalized=${kycFinalized}`);
+  return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised, passes, kyc_invoices_finalized: kycFinalized }) };
 };
