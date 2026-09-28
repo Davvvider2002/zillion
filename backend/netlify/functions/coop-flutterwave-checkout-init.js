@@ -40,6 +40,9 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { calculateFees }    = require('../../lib/coopFees');
+const { totalRemainingForLoan } = require('../../lib/coopLoanCompletion');
+
+const fmtNaira = kobo => '₦' + (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -90,9 +93,15 @@ exports.handler = async (event) => {
   }
   if (type === 'loan_repayment') {
     const { data: loan } = await db.from('coop_loans')
-      .select('id, status').eq('id', loanId).eq('member_id', member.id).maybeSingle();
+      .select('id, status, principal_kobo, total_repayable_kobo').eq('id', loanId).eq('member_id', member.id).maybeSingle();
     if (!loan) return err(400, 'That loan does not belong to you');
     if (!['DISBURSED', 'REPAYING'].includes(loan.status)) return err(409, `This loan is ${loan.status}, not eligible for repayment`);
+    // Refuse BEFORE any money is taken: paying more than is owed would either overpay the
+    // loan or leave money that cannot be applied. (Total remaining, not what is due so far,
+    // so an early or extra payment is still fine.)
+    const remainingKobo = await totalRemainingForLoan(db, loan, member.coop_id);
+    if (remainingKobo <= 0) return err(409, 'This loan has nothing left to repay.');
+    if (amountKobo > remainingKobo) return err(400, `That is more than the ${fmtNaira(remainingKobo)} still owed on this loan. Enter ${fmtNaira(remainingKobo)} or less.`);
   }
   if (type === 'investment') {
     const { data: product } = await db.from('coop_investment_products')
