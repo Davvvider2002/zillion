@@ -1,77 +1,45 @@
 /**
  * zillion/backend/netlify/functions/scheduled-reconcile.js
  *
- * Runs automatically on a schedule (see netlify.toml) rather than only
- * when an admin happens to click the manual reconciliation button.
- * Compares the immutable coin_ledger's implied balance against the live
- * coins table for every holder, and writes any drift to system_alerts
- * so it surfaces in the admin dashboard's System Health panel.
+ * Runs automatically every 4 hours (see netlify.toml). Two kinds of work:
  *
- * Read-only against financial/coin data — never modifies coins or
- * balances, only ever writes to system_alerts. Also checks a couple of
- * other cheap, useful signals: open fraud events, and old pending
- * agent MFB change requests nobody's actioned. One exception: the
- * subscription grace-period check below DOES modify
- * coop_societies.subscription_status — a real, deliberate departure
- * from "read-only," since suspending access for an overdue
- * subscription is an operational action, not a financial-balance one,
- * and this is where the grace period (no immediate suspension on one
- * failed renewal charge) actually gets enforced.
+ *  - Checks that only ever WRITE ALERTS: coin-ledger drift (live coins vs the immutable ledger, for every
+ *    holder), open fraud events, and stale agent MFB change requests.
+ *  - Operational and accounting passes that DO change data: subscription grace-period suspension, trial reminders
+ *    and expiry, repricing grace, dues income accrual, monthly member statements, late-loan penalties, monthly
+ *    savings interest, monthly investment accrual, and investment maturity.
+ *
+ * TIME LIMIT: a Netlify scheduled function is killed after 30 seconds, and that cannot be raised. The heavy passes
+ * therefore run as resumable batches inside a time budget (RECONCILE_BUDGET_MS, default 24000, leaving headroom
+ * to finish cleanly): each works through its table in id order from a saved cursor (scheduled_job_state), so a
+ * run that runs out of time simply carries on where it stopped next time, and every row is eventually reached.
+ * The budget is shared fairly, so no pass can starve the others, and if a pass goes 26 hours without completing
+ * a full cycle it raises a WARNING - falling behind is visible, not silent. See lib/coopBatchJob.js and
+ * lib/coopNightlyPasses.js. If the work ever outgrows 30 seconds of budget per run, the lever is a Netlify
+ * background function (15 minutes) invoked from here, with RECONCILE_BUDGET_MS raised to match - no other change.
+ *
+ * The subscription passes (4-6) are self-draining queues - each society they act on changes state and stops
+ * matching - so an interrupted run is safe and they need no cursor.
  */
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
 const { logAlert } = require('../../lib/alerts');
-const { recordDuesAccrual } = require('../../lib/coopDuesAccounting');
-const { computeMemberFullStatement } = require('../../lib/coopMemberFullStatement');
-const { generateMemberStatementPdf } = require('../../lib/coopMemberStatementPdf');
 const { sendEmail } = require('../../lib/resendEmail');
 const { fetchAllRows } = require('../../lib/coopPaginate');
+const { checkCoinDrift } = require('../../lib/coopCoinDrift');
+const { runBatchedPasses } = require('../../lib/coopNightlyPasses');
 
 exports.handler = async () => {
+  const startedAt = Date.now();
   const db = getServiceClient();
   const SOURCE = 'scheduled-reconcile';
   let alertsRaised = 0;
+  const raise = async (a) => { alertsRaised++; await logAlert(db, { source: SOURCE, ...a }); };
 
   // ── 1. coin_ledger drift check ──────────────────────────────────────────
   try {
-    const { data: ledgerBalances, error: ledgerErr } = await db
-      .from('coin_ledger_holder_balance')
-      .select('holder_hash, implied_held_kobo');
-
-    if (!ledgerErr) {
-      const liveHeld = await fetchAllRows(() => db.from('coins')
-        .select('holder_hash, amount').eq('status', 'HELD').order('coin_id'));
-
-      const liveByHolder = {};
-      (liveHeld || []).forEach(c => {
-        if (c.holder_hash == null) return; // fix: '!x' also skips '' (valid, if degenerate, holder key) — only skip genuinely missing values
-        liveByHolder[c.holder_hash] = (liveByHolder[c.holder_hash] || 0) + (c.amount || 0);
-      });
-
-      const TOLERANCE_KOBO = 100; // ignore < ₦1 rounding
-      for (const row of (ledgerBalances || [])) {
-        const live = liveByHolder[row.holder_hash] || 0;
-        const diff = live - (row.implied_held_kobo || 0);
-        if (Math.abs(diff) > TOLERANCE_KOBO) {
-          alertsRaised++;
-          await logAlert(db, {
-            severity: Math.abs(diff) > 500000 ? 'CRITICAL' : 'WARNING', // >₦5,000 drift = critical
-            source:   SOURCE,
-            message:  `Coin ledger drift detected for holder ${row.holder_hash.slice(0, 16)}…`,
-            context:  {
-              holder_hash: row.holder_hash,
-              live_held_kobo: live,
-              ledger_implied_kobo: row.implied_held_kobo,
-              difference_kobo: diff,
-            },
-          });
-        }
-      }
-    }
-    // If coin_ledger_holder_balance doesn't exist yet (migration not run),
-    // silently skip — that's a one-time setup step tracked separately,
-    // not something to alert on every few hours.
+    await checkCoinDrift(db, { onDrift: raise });
   } catch (e) {
     console.error('[scheduled-reconcile] ledger check failed:', e.message);
   }
@@ -281,239 +249,18 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] repricing grace-period check failed:', e.message);
   }
 
-  // ── 7. Dues income accrual (accrual-basis accounting) ────────────────────
-  // For every society, recognizes dues income as it accrues — not only
-  // once collected. Silent no-op for any society without the Accounting
-  // add-on or without opening balances set (recordDuesAccrual handles
-  // that check internally); never fails this whole cron run if one
-  // society's accrual has an issue.
+  // ── 7-12. Dues accrual, member statements, loan penalties, savings interest, investment accrual & maturity ──
+  // Resumable, time-budgeted batches - see the header and lib/coopNightlyPasses.js.
+  const TOTAL_MS = Number(process.env.RECONCILE_BUDGET_MS) || 24000;
+  const budgetMs = Math.max(3000, TOTAL_MS - (Date.now() - startedAt));
+  let passes = [];
   try {
-    const allSocieties = await fetchAllRows(() => db.from('coop_societies').select('coop_id').order('coop_id'));
-    for (const society of (allSocieties || [])) {
-      await recordDuesAccrual(db, society.coop_id);
-    }
+    passes = await runBatchedPasses(db, { budgetMs, onAlert: raise });
   } catch (e) {
-    console.error('[scheduled-reconcile] dues accrual pass failed:', e.message);
+    console.error('[scheduled-reconcile] batched passes failed:', e.message);
   }
 
-  // ── 8. Monthly member statements ────────────────────────────────────────
-  // Runs every 4h like everything else here, but only actually sends
-  // once per member per calendar month — checked by comparing the
-  // month of last_loan_statement_sent_at against the current month,
-  // rather than "today is the 1st", so a missed cron run just catches
-  // up on the next one instead of costing a whole month's delay.
-  // Silent no-op for any member with no email on file, or no activity
-  // at all across savings/loans/investment/dues - both are expected,
-  // not errors.
-  try {
-    const now8 = new Date();
-    const currentMonthKey = `${now8.getFullYear()}-${now8.getMonth()}`;
-
-    const candidateMembers = await fetchAllRows(() => db.from('coop_members')
-      .select('id, email, last_loan_statement_sent_at')
-      .eq('status', 'ACTIVE')
-      .not('email', 'is', null).order('id'));
-
-    for (const member of (candidateMembers || [])) {
-      const lastSentMonthKey = member.last_loan_statement_sent_at
-        ? (() => { const d = new Date(member.last_loan_statement_sent_at); return `${d.getFullYear()}-${d.getMonth()}`; })()
-        : null;
-      if (lastSentMonthKey === currentMonthKey) continue;
-
-      const statementData = await computeMemberFullStatement(db, member.id);
-      const hasActivity = statementData && (
-        statementData.loans?.some(l => l.transactions?.length) ||
-        statementData.savings?.some(s => s.transactions?.length) ||
-        statementData.investment?.some(i => i.transactions?.length) ||
-        statementData.dues?.transactions?.length
-      );
-      if (!hasActivity) continue;
-
-      try {
-        const pdfBuffer = await generateMemberStatementPdf(statementData);
-        const result = await sendEmail({
-          to: statementData.member.email,
-          toName: statementData.member.name,
-          subject: `Your Zillion Coop statement — ${statementData.member.society_name}`,
-          htmlContent: `<p>Hi ${statementData.member.name},</p><p>Your monthly statement (savings, loans, investment, and dues) is attached.</p>`,
-          attachments: [{ filename: 'member-statement.pdf', content: pdfBuffer.toString('base64') }],
-        });
-        if (result.sent) {
-          await db.from('coop_members').update({ last_loan_statement_sent_at: now8.toISOString() }).eq('id', member.id);
-        }
-      } catch (e) {
-        console.error(`[scheduled-reconcile] statement send failed for member ${member.id}:`, e.message);
-      }
-    }
-  } catch (e) {
-    console.error('[scheduled-reconcile] monthly loan statements pass failed:', e.message);
-  }
-
-  // ── 9. Loan late-penalty application ──────────────────────────────────────
-  // A penalty is applied AT MOST ONCE per loan - checked via an existing
-  // coop_loan_penalties row, not recomputed/recharged every run. Uses
-  // each society's own resolved rate (dedicated loan rate if set,
-  // otherwise the same rate configured for dues), computed by the same
-  // computeLoanRepaymentStatus() used everywhere else this figure
-  // matters, so there's exactly one place this calculation can drift.
-  try {
-    const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
-    const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
-
-    const activeLoans = await fetchAllRows(() => db.from('coop_loans')
-      .select('id, coop_id, principal_kobo').in('status', ['DISBURSED', 'REPAYING']).order('id'));
-
-    const societyCache = new Map();
-    for (const loan of (activeLoans || [])) {
-      if (!societyCache.has(loan.coop_id)) {
-        const { data: s } = await db.from('coop_societies')
-          .select('late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value').eq('coop_id', loan.coop_id).maybeSingle();
-        societyCache.set(loan.coop_id, s);
-      }
-      const society = societyCache.get(loan.coop_id);
-      if (!society) continue;
-
-      const status = await computeLoanRepaymentStatus(db, loan.id, society, loan.principal_kobo);
-      if (!status.is_overdue || status.late_fee_kobo <= 0) continue;
-
-      const { data: existingPenalty } = await db.from('coop_loan_penalties').select('id').eq('loan_id', loan.id).maybeSingle();
-      if (existingPenalty) continue; // already applied once for this loan — never re-charged
-
-      const { data: created, error: insertErr } = await db.from('coop_loan_penalties').insert({
-        loan_id: loan.id, coop_id: loan.coop_id, amount_kobo: status.late_fee_kobo, reason: 'Automatic late-repayment penalty',
-      }).select().single();
-      if (insertErr) continue;
-
-      try {
-        if (await accountingIsReady(db, loan.coop_id)) {
-          const accounts = await getAccounts(db, loan.coop_id, ['1100', '4160']);
-          const receivable = accounts['1100'];
-          const penaltyIncome = accounts['4160'];
-          if (receivable && penaltyIncome) {
-            await postEntry(db, loan.coop_id, 'Late loan repayment penalty', 'system:scheduled-reconcile', receivable, penaltyIncome, status.late_fee_kobo);
-          }
-        }
-      } catch (e) {
-        console.error(`[scheduled-reconcile] penalty accounting post failed for loan ${loan.id} (non-fatal):`, e.message);
-      }
-
-      alertsRaised++;
-      await logAlert(db, {
-        severity: 'INFO',
-        source:   SOURCE,
-        message:  `Late repayment penalty applied to a loan (${loan.coop_id})`,
-        context:  { coop_id: loan.coop_id, loan_id: loan.id, penalty_kobo: status.late_fee_kobo },
-      });
-    }
-  } catch (e) {
-    console.error('[scheduled-reconcile] loan penalty pass failed:', e.message);
-  }
-
-  // ── 10. Savings interest accrual ────────────────────────────────────────
-  // Applied at most once per plan per calendar month - checked against
-  // the transaction log itself (an existing interest_credit row this
-  // month), not a separately-tracked "last accrued" date.
-  try {
-    const { applyMonthlyInterestIfEligible } = require('../../lib/coopSavingsInterest');
-    const now = new Date();
-
-    const plans = await fetchAllRows(() => db.from('coop_savings_plans')
-      .select('id, coop_id, member_id, savings_package_id, status').eq('status', 'ACTIVE').not('savings_package_id', 'is', null).order('id'));
-
-    const packageCache = new Map();
-    for (const plan of (plans || [])) {
-      if (!packageCache.has(plan.savings_package_id)) {
-        const { data: pkg } = await db.from('coop_savings_packages').select('*').eq('id', plan.savings_package_id).maybeSingle();
-        packageCache.set(plan.savings_package_id, pkg);
-      }
-      const pkg = packageCache.get(plan.savings_package_id);
-
-      const result = await applyMonthlyInterestIfEligible(db, plan, pkg, now);
-      if (result.applied) {
-        alertsRaised++;
-        await logAlert(db, {
-          severity: 'INFO',
-          source:   SOURCE,
-          message:  `Monthly savings interest credited (${plan.coop_id})`,
-          context:  { coop_id: plan.coop_id, savings_plan_id: plan.id, interest_kobo: result.amountKobo },
-        });
-      }
-    }
-  } catch (e) {
-    console.error('[scheduled-reconcile] savings interest pass failed:', e.message);
-  }
-
-  // ── 11. Investment accrual (fixed-return products only) ─────────────────
-  // Variable-return products are never accrued here - their returns come
-  // from an admin recording the venture's real performance, a distinct,
-  // manually-triggered event.
-  try {
-    const { applyMonthlyAccrualIfEligible } = require('../../lib/coopInvestmentLifecycle');
-    const now = new Date();
-
-    const investments = await fetchAllRows(() => db.from('coop_member_investments')
-      .select('id, coop_id, member_id, product_id, principal_kobo, status').eq('status', 'ACTIVE').order('id'));
-
-    const productCache = new Map();
-    for (const inv of (investments || [])) {
-      if (!productCache.has(inv.product_id)) {
-        const { data: prod } = await db.from('coop_investment_products').select('*').eq('id', inv.product_id).maybeSingle();
-        productCache.set(inv.product_id, prod);
-      }
-      const product = productCache.get(inv.product_id);
-      if (!product) continue;
-
-      const result = await applyMonthlyAccrualIfEligible(db, inv, product, now);
-      if (result.applied) {
-        alertsRaised++;
-        await logAlert(db, {
-          severity: 'INFO',
-          source:   SOURCE,
-          message:  `Monthly investment accrual credited (${inv.coop_id})`,
-          context:  { coop_id: inv.coop_id, member_investment_id: inv.id, accrual_kobo: result.amountKobo },
-        });
-      }
-    }
-  } catch (e) {
-    console.error('[scheduled-reconcile] investment accrual pass failed:', e.message);
-  }
-
-  // ── 12. Investment maturity processing ───────────────────────────────────
-  // Auto-reinvests (if the member opted in) or marks MATURED for an admin
-  // to process payout - either way, the original amount owed is preserved
-  // exactly, never erased.
-  try {
-    const { processMaturity } = require('../../lib/coopInvestmentLifecycle');
-    const today = new Date().toISOString().slice(0, 10);
-
-    const dueInvestments = await fetchAllRows(() => db.from('coop_member_investments')
-      .select('id, coop_id, member_id, product_id, principal_kobo, units_purchased, auto_reinvest, status, maturity_date')
-      .eq('status', 'ACTIVE').lte('maturity_date', today).order('id'));
-
-    const productCache2 = new Map();
-    for (const inv of (dueInvestments || [])) {
-      if (!productCache2.has(inv.product_id)) {
-        const { data: prod } = await db.from('coop_investment_products').select('*').eq('id', inv.product_id).maybeSingle();
-        productCache2.set(inv.product_id, prod);
-      }
-      const product = productCache2.get(inv.product_id);
-      if (!product) continue;
-
-      const result = await processMaturity(db, inv, product);
-      if (result.processed) {
-        alertsRaised++;
-        await logAlert(db, {
-          severity: 'INFO',
-          source:   SOURCE,
-          message:  `Investment matured — ${result.action} (${inv.coop_id})`,
-          context:  { coop_id: inv.coop_id, member_investment_id: inv.id, action: result.action },
-        });
-      }
-    }
-  } catch (e) {
-    console.error('[scheduled-reconcile] investment maturity pass failed:', e.message);
-  }
-
-  console.log(`[scheduled-reconcile] complete — ${alertsRaised} alert(s) raised`);
-  return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised }) };
+  const summary = passes.map(p => `${p.key}=${p.processed}${p.completedCycle ? ' (cycle done)' : (p.expired ? ' (resumes next run)' : '')}`).join(', ');
+  console.log(`[scheduled-reconcile] complete in ${Date.now() - startedAt}ms — ${alertsRaised} alert(s) raised; ${summary}`);
+  return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised, passes }) };
 };
