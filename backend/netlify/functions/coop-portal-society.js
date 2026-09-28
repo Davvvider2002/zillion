@@ -25,6 +25,7 @@ const { getMemberCapStatus }     = require('../../lib/coopMemberCap');
 const { computeLoanRepaymentStatus } = require('../../lib/coopLoanRepaymentStatus');
 const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = require('../../lib/coopTermsAcceptance');
 const { listAddons } = require('../../lib/coopEntitlements');
+const { fetchAllRows, chunk } = require('../../lib/coopPaginate');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -47,15 +48,15 @@ exports.handler = async (event) => {
   const { data: termsAcceptance } = await db.from('coop_terms_acceptances')
     .select('id').eq('accepted_by_type', 'society_admin').eq('accepted_by_id', societySummary.merchant_id).maybeSingle();
 
-  const { data: membersRaw } = await db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false });
+  const membersRaw = await fetchAllRows(() => db.from('coop_members').select('*').eq('coop_id', coopId).order('activated_at', { ascending: false }).order('id'));
   const members = await Promise.all((membersRaw || []).map(async (m) => {
     const dues = await computeDuesOwing(db, m, society);
     const shareCapitalKobo = await computeMemberShareCapital(db, m.id);
     return { ...m, dues, share_capital_kobo: shareCapitalKobo };
   }));
 
-  const { data: plansRaw } = await db.from('coop_savings_plans')
-    .select('*, coop_members(name, phone_normalized)').eq('coop_id', coopId).order('created_at', { ascending: false });
+  const plansRaw = await fetchAllRows(() => db.from('coop_savings_plans')
+    .select('*, coop_members(name, phone_normalized)').eq('coop_id', coopId).order('created_at', { ascending: false }).order('id'));
 
   // Opening balance lives on the member (membersRaw above, select('*')
   // already has it), not on any specific plan. Real gap found: this
@@ -75,21 +76,24 @@ exports.handler = async (event) => {
   }
 
   const plans = await Promise.all((plansRaw || []).map(async (p) => {
-    const { data: txns } = await db.from('coop_savings_transactions').select('amount_kobo').eq('savings_plan_id', p.id);
+    const txns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo').eq('savings_plan_id', p.id).order('id'));
     const isEarliestForMember = earliestPlanIdByMember[p.member_id]?.id === p.id;
     const openingBalanceForThisPlan = isEarliestForMember ? (memberById.get(p.member_id)?.opening_balance_kobo || 0) : 0;
     const savedKobo = (txns || []).reduce((s, r) => s + (r.amount_kobo || 0), 0) + openingBalanceForThisPlan;
     return { ...p, saved_kobo: savedKobo, progress_pct: Math.min(100, Math.round((savedKobo / p.target_amount_kobo) * 100)) };
   }));
 
-  const { data: loansRaw } = await db.from('coop_loans')
+  const loansRaw = await fetchAllRows(() => db.from('coop_loans')
     .select('*, borrower:coop_members!coop_loans_member_id_fkey(name, phone_normalized)')
-    .eq('coop_id', coopId).order('requested_at', { ascending: false });
+    .eq('coop_id', coopId).order('requested_at', { ascending: false }).order('id'));
 
   const loanIdsForGuarantors = (loansRaw || []).map(l => l.id);
-  const { data: allLoanGuarantors } = loanIdsForGuarantors.length
-    ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', loanIdsForGuarantors)
-    : { data: [] };
+  // Chunked AND paged: one .in() over every loan id in a society builds a URL long enough to be
+  // rejected, and the error was ignored - guarantors would have silently vanished.
+  const allLoanGuarantors = [];
+  for (const ids of chunk(loanIdsForGuarantors)) {
+    allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
+  }
 
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
     const guarantors = (allLoanGuarantors || []).filter(g => g.loan_id === l.id);
@@ -119,7 +123,7 @@ exports.handler = async (event) => {
   let permissions = [];
   let permissionActions = [];
   if (!isOwner && auth.payload.user_id) {
-    const { data: perms } = await db.from('coop_portal_user_permissions').select('permission_key, action').eq('user_id', auth.payload.user_id);
+    const perms = await fetchAllRows(() => db.from('coop_portal_user_permissions').select('permission_key, action').eq('user_id', auth.payload.user_id).order('id'));
     permissions = (perms || []).filter(p => p.action === 'view').map(p => p.permission_key);
     const grouped = new Map();
     for (const p of (perms || [])) {
