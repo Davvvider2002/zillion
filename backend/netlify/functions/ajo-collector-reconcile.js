@@ -25,6 +25,7 @@
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { applyComplianceEvent } = require('../../lib/ajoCollectorCompliance');
+const { fetchAllRows } = require('../../lib/coopPaginate');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -60,11 +61,11 @@ exports.handler = async (event) => {
   // against the real rows, never taken on trust from the request body.
   const dayStart = `${reconciliationDate}T00:00:00.000Z`;
   const dayEnd = `${reconciliationDate}T23:59:59.999Z`;
-  const { data: cashContributions } = await db.from('ajo_contributions')
+  const cashContributions = await fetchAllRows(() => db.from('ajo_contributions')
     .select('amount_kobo, cycle_id, ajo_cycles!inner(scheme_id)')
     .eq('recorded_by', collectorZillionId).eq('source', 'cash')
     .eq('ajo_cycles.scheme_id', schemeId)
-    .gte('recorded_at', dayStart).lte('recorded_at', dayEnd);
+    .gte('recorded_at', dayStart).lte('recorded_at', dayEnd).order('id'));
 
   const expectedKobo = (cashContributions || []).reduce((s, c) => s + c.amount_kobo, 0);
 
