@@ -32,19 +32,36 @@ const bucket = (map, id, init) => { if (!map.has(id)) map.set(id, { ...init }); 
 // ---------------------------------------------------------------- collectors
 // Each returns Map<member_id, { ...column values }> using bulk, paged queries.
 
-async function collectSavings(db, coopId, cutoff) {
+async function collectSavings(db, coopId, cutoff, members) {
   const txns = await fetchAllRows(() => {
     let q = db.from('coop_savings_transactions').select('id, member_id, amount_kobo, source, recorded_at').eq('coop_id', coopId).order('id');
     if (cutoff) q = q.lte('recorded_at', cutoff);
     return q;
   });
   const m = new Map();
+  const blank = { opening: 0, contributions: 0, interest: 0, balance: 0 };
+  // A member's opening savings balance lives on the member record itself and is
+  // added to their savings everywhere the platform shows a balance. It is NOT
+  // posted to the ledger when a member is activated, so a savings sub-ledger
+  // that left it out would understate what members are owed - and disagree
+  // with what members see in the app.
+  for (const mem of members) {
+    const opening = num(mem.opening_balance_kobo);
+    if (opening) { const v = bucket(m, mem.id, blank); v.opening += opening; v.balance += opening; }
+  }
   for (const t of txns) {
-    const v = bucket(m, t.member_id, { contributions: 0, interest: 0, balance: 0 });
+    const v = bucket(m, t.member_id, blank);
     if (t.source === 'interest_credit') v.interest += num(t.amount_kobo); else v.contributions += num(t.amount_kobo);
     v.balance += num(t.amount_kobo);
   }
   return m;
+}
+
+/** Members whose opening balance the app cannot show them (it is displayed via a savings plan). */
+async function membersWithoutSavingsPlan(db, coopId) {
+  const plans = await fetchAllRows(() => db.from('coop_savings_plans').select('id, member_id').eq('coop_id', coopId).order('id'));
+  const has = new Set(plans.map(p => p.member_id));
+  return id => !has.has(id);
 }
 
 async function loadLoansAndRepayments(db, coopId, cutoff) {
@@ -165,9 +182,9 @@ async function collectShares(db, coopId, cutoff) {
 const SUBLEDGERS = {
   savings: {
     title: 'Savings by member',
-    columns: [{ key: 'contributions', label: 'Deposits & credits' }, { key: 'interest', label: 'Interest credited' }, { key: 'balance', label: 'Balance' }],
+    columns: [{ key: 'opening', label: 'Opening balance' }, { key: 'contributions', label: 'Deposits & credits' }, { key: 'interest', label: 'Interest credited' }, { key: 'balance', label: 'Balance' }],
     controls: [{ label: 'Member Savings Payable', codes: ['2000'], key: 'balance' }],
-    collect: (db, coopId, cutoff) => collectSavings(db, coopId, cutoff),
+    collect: (db, coopId, cutoff, members) => collectSavings(db, coopId, cutoff, members),
   },
   loans: {
     title: 'Loans by member',
@@ -207,16 +224,19 @@ async function computeSubledger(db, coopId, type, asOf = null, deps = {}) {
   const cutoff = asOf ? `${asOf}T23:59:59.999Z` : null;
   const asOfDate = asOf ? new Date(`${asOf}T12:00:00Z`) : new Date();
 
-  const members = await fetchAllRows(() => db.from('coop_members').select('id, name, phone_normalized, activated_at').eq('coop_id', coopId).order('id'));
+  const members = await fetchAllRows(() => db.from('coop_members').select('id, name, phone_normalized, activated_at, opening_balance_kobo').eq('coop_id', coopId).order('id'));
   const perMember = await cfg.collect(db, coopId, cutoff, members, asOfDate);
 
   const keys = cfg.columns.map(c => c.key);
   const totals = Object.fromEntries(keys.map(k => [k, 0]));
   const rows = [];
+  const noPlan = type === 'savings' ? await membersWithoutSavingsPlan(db, coopId) : null;
   for (const mem of members) {
     const v = perMember.get(mem.id);
     if (!v || keys.every(k => !v[k])) continue;
-    rows.push({ member_id: mem.id, member_name: mem.name || mem.phone_normalized || 'Unnamed member', phone_normalized: mem.phone_normalized, values: Object.fromEntries(keys.map(k => [k, v[k] || 0])) });
+    const notes = [];
+    if (noPlan && v.opening > 0 && noPlan(mem.id)) notes.push({ code: 'opening_not_visible', amount_kobo: v.opening });
+    rows.push({ member_id: mem.id, member_name: mem.name || mem.phone_normalized || 'Unnamed member', phone_normalized: mem.phone_normalized, values: Object.fromEntries(keys.map(k => [k, v[k] || 0])), notes });
     for (const k of keys) totals[k] += v[k] || 0;
   }
   // Records whose member no longer resolves (should not happen, but must not vanish silently).
@@ -260,7 +280,7 @@ const DETAIL_KEYS = {
 /** Every movement behind one member's figure, in date order with running balances. */
 async function computeSubledgerDetail(db, coopId, type, memberId, asOf = null) {
   if (!SUBLEDGERS[type]) return null;
-  const { data: member } = await db.from('coop_members').select('id, name, phone_normalized, activated_at').eq('coop_id', coopId).eq('id', memberId).maybeSingle();
+  const { data: member } = await db.from('coop_members').select('id, name, phone_normalized, activated_at, opening_balance_kobo').eq('coop_id', coopId).eq('id', memberId).maybeSingle();
   if (!member) return null;
   const cutoff = asOf ? `${asOf}T23:59:59.999Z` : null;
   const asOfDate = asOf ? new Date(`${asOf}T12:00:00Z`) : new Date();
@@ -268,6 +288,7 @@ async function computeSubledgerDetail(db, coopId, type, memberId, asOf = null) {
   const events = [];   // { date, description, deltas: { key: kobo } }
 
   if (type === 'savings') {
+    if (num(member.opening_balance_kobo)) events.push({ date: member.activated_at || '1970-01-01T00:00:00Z', description: 'Opening balance (recorded when the member was activated)', deltas: { balance: num(member.opening_balance_kobo) } });
     const txns = await fetchAllRows(() => upTo(db.from('coop_savings_transactions').select('id, amount_kobo, source, reference, recorded_at').eq('coop_id', coopId).eq('member_id', memberId).order('id'), 'recorded_at'));
     for (const t of txns) events.push({ date: t.recorded_at, description: srcLabel(t.source) + (t.reference && t.source !== 'interest_credit' ? ` — ${t.reference}` : ''), deltas: { balance: num(t.amount_kobo) } });
   }
@@ -325,4 +346,4 @@ async function computeSubledgerDetail(db, coopId, type, memberId, asOf = null) {
   return { type, title: SUBLEDGERS[type].title, member: { id: member.id, name: member.name, phone_normalized: member.phone_normalized }, as_of: asOf, keys, rows, totals: { ...running } };
 }
 
-module.exports = { computeSubledger, computeSubledgerDetail, SUBLEDGERS, SUBLEDGER_TYPES: Object.keys(SUBLEDGERS) };
+module.exports = { computeSubledger, computeSubledgerDetail, membersWithoutSavingsPlan, SUBLEDGERS, SUBLEDGER_TYPES: Object.keys(SUBLEDGERS) };
