@@ -546,6 +546,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('coopthrift',this);loadCoopThriftSocieties()">
         <span class="si">🏦</span> Thrift &amp; Loan
       </button>
+      <button class="snav-item" id="nav-backups"
+              onclick="showSec('backups',this);loadAdminBackups()">
+        <span class="si">💾</span> Backups
+      </button>
       <button class="snav-item" id="nav-coopArchive"
               onclick="showSec('coopArchive',this);loadArchivedSocieties()">
         <span class="si">🗄️</span> Archive
@@ -998,6 +1002,90 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
 </div>
+
+<div id="sec-backups" class="sec">
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Backup Health
+      <button class="rbtn" onclick="loadAdminBackups()">&#x21BB;</button>
+    </div>
+    <div id="admin-backup-health"><div class="no-data">Loading...</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Platform Backup</div>
+    <div class="card-sub">A full dump of every table, for disaster recovery. Can only be restored via scripts/backup_tool.js into an empty database — never as a live action here.</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openAdminBackupCreate(null)">Take platform backup</button>
+    </div>
+    <div class="table-wrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Date</th><th>Kind</th><th>Status</th><th>Size</th><th>Rows</th></tr></thead>
+        <tbody id="admin-platform-backup-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">
+      Society Backups
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="admin-backup-coop-search" placeholder="coop_id (e.g. COOPSOC-XXXXXXXX)" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line,#333);background:transparent;color:inherit;font-size:12.5px">
+        <button class="rbtn" onclick="loadAdminSocietyBackups()">Look up</button>
+      </div>
+    </div>
+    <div class="card-sub">Look up a society by its coop_id to see, take, or restore its backups on its behalf.</div>
+    <div id="admin-society-backup-actions" style="display:none;margin-top:10px">
+      <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openAdminBackupCreate(currentAdminBackupCoopId)">Take backup for this society</button>
+    </div>
+    <div class="table-wrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Date</th><th>Kind</th><th>Status</th><th>Size</th><th>Rows</th><th></th></tr></thead>
+        <tbody id="admin-society-backup-body"><tr><td colspan="6" class="no-data">Enter a coop_id above.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN BACKUP: create (passphrase) -->
+<div id="modal-admin-backup-create" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px" id="admin-backup-create-title">Take a backup</div>
+    <div style="font-size:13px;color:var(--tx2,#999);margin-bottom:16px;line-height:1.5">Set a passphrase to protect the download. Without it, the file cannot be opened by anyone.</div>
+    <label class="field-label">Passphrase (minimum 12 characters)</label>
+    <input class="field-input" type="password" id="admin-bk-create-pass" placeholder="A long, memorable passphrase" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="admin-bk-create-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="rbtn" style="flex:1" onclick="closeAdminBackupCreate()">Cancel</button>
+      <button class="rbtn" style="flex:1;background:var(--gl);color:var(--g);font-weight:700" onclick="submitAdminBackupCreate()" id="admin-bk-create-btn">Download backup</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN BACKUP: society restore preview + confirm -->
+<div id="modal-admin-backup-restore" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px">Restore society backup</div>
+    <div id="admin-bk-restore-step-pass">
+      <div style="font-size:13px;color:var(--tx2,#999);margin-bottom:14px;line-height:1.5">We'll show exactly what would change before anything is touched.</div>
+      <label class="field-label">Passphrase this backup was sealed with</label>
+      <input class="field-input" type="password" id="admin-bk-restore-pass" placeholder="The passphrase used when it was created" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <div id="admin-bk-restore-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="rbtn" style="flex:1" onclick="closeAdminBackupRestore()">Cancel</button>
+        <button class="rbtn" style="flex:1;background:var(--gl);color:var(--g);font-weight:700" onclick="submitAdminBackupPreview()" id="admin-bk-restore-preview-btn">Preview changes</button>
+      </div>
+    </div>
+    <div id="admin-bk-restore-step-preview" style="display:none">
+      <div id="admin-bk-restore-preview-body"></div>
+      <div style="font-size:13px;color:var(--tx2,#999);margin:14px 0 6px">To confirm, type exactly: <b id="admin-bk-restore-confirm-phrase"></b></div>
+      <input class="field-input" type="text" id="admin-bk-restore-confirm-input" placeholder="Type the confirmation phrase" style="width:100%;box-sizing:border-box">
+      <div id="admin-bk-restore-apply-error" style="display:none;color:#FF8A8A;font-size:13px;margin:8px 0"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="rbtn" style="flex:1" onclick="closeAdminBackupRestore()">Cancel</button>
+        <button class="rbtn" style="flex:1;background:#3a1a1a;color:#FF8A8A;font-weight:700" onclick="submitAdminBackupApply()" id="admin-bk-restore-apply-btn">Restore now</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <div id="sec-coopArchive" class="sec">
   <div class="card">
@@ -3935,6 +4023,195 @@ async function loadCoopThriftSocieties() {
     if (!res.ok) { notify('Societies: ' + (data.error || 'error'), true); return; }
     renderCoopThriftTable(data.societies || []);
   } catch (e) { notify('Societies: ' + e.message, true); }
+}
+
+// ── BACKUPS (Zillion Admin) ──────────────────────────────────────────────
+let currentAdminBackupCoopId = null;
+let adminPlatformBackups = [];
+let adminSocietyBackups = [];
+let adminBackupCreateTarget = null; // null = platform, else coop_id
+
+function adminBackupStatusPill(b) {
+  if (b.status === 'ok') return '<span class="pill pill-green">Ready</span>';
+  if (b.status === 'running') return '<span class="pill pill-amber">In progress</span>';
+  if (b.status === 'failed') return '<span class="pill pill-red">Failed</span>';
+  return `<span class="pill">${b.status}</span>`;
+}
+function adminBackupKindLabel(k) {
+  return { manual: 'Manual', scheduled: 'Scheduled', pre_restore: 'Safety copy (before a restore)' }[k] || k;
+}
+function fmtBytesAdmin(n) {
+  if (!n) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function loadAdminBackups() {
+  const healthEl = document.getElementById('admin-backup-health');
+  const platBody = document.getElementById('admin-platform-backup-body');
+  healthEl.innerHTML = '<div class="no-data">Loading...</div>';
+  platBody.innerHTML = '<tr><td colspan="5" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin-backup-list`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { notify('Backups: ' + (data.error || 'error'), true); healthEl.innerHTML = '<div class="no-data">Could not load.</div>'; return; }
+    const h = data.health || {};
+    const gapCount = (h.coverage_gaps || []).length + (h.order_violations || []).length;
+    healthEl.innerHTML = `
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><div style="font-size:12px;color:var(--tx2,#999)">Registry coverage</div><div style="font-weight:700">${gapCount === 0 ? '<span class="pill pill-green">OK</span>' : `<span class="pill pill-red">${gapCount} gap(s)</span>`}</div></div>
+        <div><div style="font-size:12px;color:var(--tx2,#999)">Last platform backup</div><div style="font-weight:700">${h.last_platform_backup ? new Date(h.last_platform_backup).toLocaleString() : 'never'}${h.hours_since_platform_backup != null ? ` (${h.hours_since_platform_backup}h ago)` : ''}</div></div>
+        <div><div style="font-size:12px;color:var(--tx2,#999)">Server encryption key</div><div style="font-weight:700">${h.server_key_configured ? '<span class="pill pill-green">Configured</span>' : '<span class="pill pill-red">Not set</span>'}</div></div>
+      </div>`;
+    adminPlatformBackups = data.backups || [];
+    platBody.innerHTML = adminPlatformBackups.filter(b => b.status !== 'deleted').map(b => `
+      <tr><td>${new Date(b.created_at).toLocaleString()}</td><td>${adminBackupKindLabel(b.kind)}</td><td>${adminBackupStatusPill(b)}</td><td>${fmtBytesAdmin(b.bytes)}</td><td>${b.rows ?? '—'}</td></tr>
+    `).join('') || '<tr><td colspan="5" class="no-data">No platform backups yet.</td></tr>';
+  } catch (e) {
+    notify('Backups: ' + e.message, true);
+    healthEl.innerHTML = '<div class="no-data">Could not load.</div>';
+  }
+}
+
+async function loadAdminSocietyBackups() {
+  const coopId = document.getElementById('admin-backup-coop-search').value.trim();
+  const body = document.getElementById('admin-society-backup-body');
+  const actions = document.getElementById('admin-society-backup-actions');
+  if (!coopId) { notify('Enter a coop_id first', true); return; }
+  currentAdminBackupCoopId = coopId;
+  actions.style.display = '';
+  body.innerHTML = '<tr><td colspan="6" class="no-data">Loading...</td></tr>';
+  try {
+    const res = await fetch(`${API}/admin-backup-list?coop_id=${encodeURIComponent(coopId)}`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { notify('Backups: ' + (data.error || 'error'), true); body.innerHTML = `<tr><td colspan="6" class="no-data">${data.error || 'Error'}</td></tr>`; return; }
+    adminSocietyBackups = data.backups || [];
+    body.innerHTML = adminSocietyBackups.filter(b => b.status !== 'deleted').map(b => `
+      <tr>
+        <td>${new Date(b.created_at).toLocaleString()}</td><td>${adminBackupKindLabel(b.kind)}</td><td>${adminBackupStatusPill(b)}</td><td>${fmtBytesAdmin(b.bytes)}</td><td>${b.rows ?? '—'}</td>
+        <td>${b.status === 'ok' ? `<button class="rbtn" onclick="openAdminBackupRestore('${b.id}')">Restore…</button>` : ''}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="no-data">No backups for this society yet.</td></tr>';
+  } catch (e) {
+    notify('Backups: ' + e.message, true);
+    body.innerHTML = `<tr><td colspan="6" class="no-data">${e.message}</td></tr>`;
+  }
+}
+
+function openAdminBackupCreate(coopId) {
+  adminBackupCreateTarget = coopId;
+  document.getElementById('admin-backup-create-title').textContent = coopId ? `Take a backup — ${coopId}` : 'Take a platform backup';
+  document.getElementById('admin-bk-create-pass').value = '';
+  document.getElementById('admin-bk-create-error').style.display = 'none';
+  document.getElementById('modal-admin-backup-create').style.display = 'flex';
+}
+function closeAdminBackupCreate() { document.getElementById('modal-admin-backup-create').style.display = 'none'; }
+
+async function submitAdminBackupCreate() {
+  const pass = document.getElementById('admin-bk-create-pass').value;
+  const errEl = document.getElementById('admin-bk-create-error');
+  errEl.style.display = 'none';
+  if (!pass || pass.length < 12) { errEl.textContent = 'Passphrase must be at least 12 characters.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('admin-bk-create-btn'); btn.disabled = true; btn.textContent = 'Working…';
+  try {
+    const body = { passphrase: pass };
+    if (adminBackupCreateTarget) body.coop_id = adminBackupCreateTarget;
+    const res = await fetch(`${API}/admin-backup-create`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create the backup');
+    const blob = new Blob([Uint8Array.from(atob(data.file_base64), c => c.charCodeAt(0))], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = data.filename; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    closeAdminBackupCreate();
+    notify('Backup downloaded. Keep the passphrase safe — it cannot be recovered.');
+    if (adminBackupCreateTarget) loadAdminSocietyBackups(); else loadAdminBackups();
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Download backup';
+  }
+}
+
+let adminRestoreBackupId = null;
+
+function openAdminBackupRestore(backupId) {
+  adminRestoreBackupId = backupId;
+  document.getElementById('admin-bk-restore-step-pass').style.display = '';
+  document.getElementById('admin-bk-restore-step-preview').style.display = 'none';
+  document.getElementById('admin-bk-restore-pass').value = '';
+  document.getElementById('admin-bk-restore-error').style.display = 'none';
+  document.getElementById('modal-admin-backup-restore').style.display = 'flex';
+}
+function closeAdminBackupRestore() { document.getElementById('modal-admin-backup-restore').style.display = 'none'; }
+
+async function submitAdminBackupPreview() {
+  const errEl = document.getElementById('admin-bk-restore-error'); errEl.style.display = 'none';
+  const pass = document.getElementById('admin-bk-restore-pass').value;
+  if (!pass) { errEl.textContent = 'Enter the passphrase this backup was sealed with.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('admin-bk-restore-preview-btn'); btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const res = await fetch(`${API}/admin-backup-restore-preview`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ backup_id: adminRestoreBackupId, passphrase: pass }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not preview the restore');
+    const t = data.plan.totals;
+    const drift = data.plan.schema_drift || [];
+    document.getElementById('admin-bk-restore-preview-body').innerHTML = `
+      <div style="font-size:13px;color:var(--tx2,#999);margin-bottom:10px">This is what would change if you restore this backup:</div>
+      <div style="display:flex;gap:16px;margin-bottom:10px">
+        <div><div style="font-size:20px;font-weight:700;color:#7ED6A5">+${t.add}</div><div style="font-size:12px;color:var(--tx2,#999)">added back</div></div>
+        <div><div style="font-size:20px;font-weight:700;color:var(--am)">${t.change}</div><div style="font-size:12px;color:var(--tx2,#999)">changed</div></div>
+        <div><div style="font-size:20px;font-weight:700;color:#FF8A8A">-${t.remove}</div><div style="font-size:12px;color:var(--tx2,#999)">removed</div></div>
+      </div>
+      ${t.add === 0 && t.change === 0 && t.remove === 0 ? '<div style="font-size:13px;color:var(--tx2,#999)">Nothing would change — this society already matches this backup.</div>' : ''}
+      ${drift.length ? `<div style="color:var(--am);font-size:13px;margin-top:8px">Some columns in this backup no longer exist in the database and would not be restored: ${drift.map(d => d.table).join(', ')}.</div>` : ''}
+      <div style="font-size:13px;color:var(--tx2,#999);margin-top:10px">A safety copy of the society's current data will be taken automatically before anything changes.</div>
+    `;
+    const coopId = (adminSocietyBackups.find(b => b.id === adminRestoreBackupId) || {}).coop_id || currentAdminBackupCoopId;
+    document.getElementById('admin-bk-restore-confirm-phrase').textContent = `RESTORE ${coopId}`;
+    document.getElementById('admin-bk-restore-confirm-input').value = '';
+    document.getElementById('admin-bk-restore-apply-error').style.display = 'none';
+    document.getElementById('admin-bk-restore-step-pass').style.display = 'none';
+    document.getElementById('admin-bk-restore-step-preview').style.display = '';
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Preview changes';
+  }
+}
+
+async function submitAdminBackupApply() {
+  const errEl = document.getElementById('admin-bk-restore-apply-error'); errEl.style.display = 'none';
+  const confirm = document.getElementById('admin-bk-restore-confirm-input').value;
+  const coopId = (adminSocietyBackups.find(b => b.id === adminRestoreBackupId) || {}).coop_id || currentAdminBackupCoopId;
+  const expected = `RESTORE ${coopId}`;
+  if (confirm !== expected) { errEl.textContent = `Type exactly: ${expected}`; errEl.style.display = 'block'; return; }
+  const pass = document.getElementById('admin-bk-restore-pass').value;
+  const btn = document.getElementById('admin-bk-restore-apply-btn'); btn.disabled = true; btn.textContent = 'Restoring…';
+  try {
+    const attempt = (acceptDrift) => fetch(`${API}/admin-backup-restore-preview`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ backup_id: adminRestoreBackupId, passphrase: pass, apply: true, confirm, accept_schema_drift: !!acceptDrift }),
+    });
+    let res = await attempt(false);
+    let data = await res.json();
+    if (!res.ok && data.code === 'SCHEMA_DRIFT') { res = await attempt(true); data = await res.json(); }
+    if (!res.ok) throw new Error(data.error || 'Restore failed');
+    closeAdminBackupRestore();
+    notify('Restore complete. A safety copy of the previous data was saved automatically.');
+    loadAdminSocietyBackups();
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Restore now';
+  }
 }
 
 async function loadArchivedSocieties() {
