@@ -8,6 +8,7 @@
  *   - unique constraints reject duplicates with code 23505 (UNIQUE (coop_id, entry_number) on
  *     journal entries; unique reference on the savings/dues/share/repayment ledgers)
  *   - db.raceOnce simulates a concurrent writer taking the next journal entry number
+ *   - makeDb(tables, { project: true }) returns only the selected columns for plain column lists, as the real API does
  */
 'use strict';
 
@@ -20,11 +21,12 @@ const DEFAULT_UNIQUE = {
 function makeDb(tables, opts = {}) {
   const unique = { ...DEFAULT_UNIQUE, ...(opts.unique || {}) };
   const get = (r, c) => c.split('.').reduce((o, k) => (o == null ? o : o[k]), r);
-  const db = { tables, raceOnce: false, failNextInsertOn: null, from(t) {
-    const f = []; let lo = null, hi = null, single = false, ins = null, patch = null, del = false, selAfter = false, ord = null, lim = null;
+  const db = { tables, raceOnce: false, failNextInsertOn: null, queryCount: 0, from(t) {
+    db.queryCount++;
+    const f = []; let lo = null, hi = null, single = false, ins = null, patch = null, del = false, selAfter = false, ord = [], lim = null, selCols = null;
     const q = {
-      select() { if (patch) selAfter = true; return q; },
-      order(c, o) { ord = [c, !(o && o.ascending === false)]; return q; }, limit(n) { lim = n; return q; },
+      select(cols) { if (patch) selAfter = true; if (typeof cols === 'string') selCols = cols; return q; },
+      order(c, o) { ord.push([c, !(o && o.ascending === false)]); return q; }, limit(n) { lim = n; return q; },
       eq(c, v) { f.push(r => get(r, c) === v); return q; }, neq(c, v) { f.push(r => get(r, c) !== v); return q; },
       gte(c, v) { f.push(r => get(r, c) != null && String(get(r, c)) >= String(v)); return q; },
       lte(c, v) { f.push(r => get(r, c) != null && String(get(r, c)) <= String(v)); return q; },
@@ -50,9 +52,14 @@ function makeDb(tables, opts = {}) {
         if (patch) { const hit = tables[t].filter(r => f.every(fn => fn(r))); hit.forEach(r => Object.assign(r, patch)); return res({ data: selAfter ? hit : null, error: null }); }
         if (del) { const keep = tables[t].filter(r => !f.every(fn => fn(r))); tables[t].length = 0; tables[t].push(...keep); return res({ data: null, error: null }); }
         let rows = tables[t].filter(r => f.every(fn => fn(r)));
-        if (ord) rows = [...rows].sort((a, b) => (typeof a[ord[0]] === 'number' ? a[ord[0]] - b[ord[0]] : String(a[ord[0]]).localeCompare(String(b[ord[0]]))) * (ord[1] ? 1 : -1));
+        if (ord.length) rows = [...rows].sort((a, b) => { for (const [c, asc] of ord) { const x = a[c], y = b[c]; const d = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x).localeCompare(String(y)); if (d) return d * (asc ? 1 : -1); } return 0; });
         if (lim !== null) rows = rows.slice(0, lim); else if (lo !== null) rows = rows.slice(lo, hi + 1);
         else if (!single) rows = rows.slice(0, 1000);
+        // opt-in: return only the selected columns, as PostgREST does for a plain column list
+        if (opts.project && selCols && /^[\w\s,]+$/.test(selCols) && selCols.trim() !== '*') {
+          const keys = selCols.split(',').map(k => k.trim()).filter(Boolean);
+          rows = rows.map(r => Object.fromEntries(keys.filter(k => k in r).map(k => [k, r[k]])));
+        }
         if (single && rows.length > 1) return res({ data: null, error: { code: 'PGRST116', message: 'multiple rows returned' } });
         return res({ data: single ? (rows[0] || null) : rows, error: null });
       } };
