@@ -61,6 +61,7 @@ function makeDb(tables, opts = {}) {
           return res({ data: single ? stored[0] : stored, error: null });
         }
         if (patch) { const hit = tables[t].filter(r => f.every(fn => fn(r))); hit.forEach(r => Object.assign(r, patch)); return res({ data: selAfter ? hit : null, error: null }); }
+        if (del && db.failDeleteOn === t) return res({ data: null, error: { code: 'XX000', message: 'simulated delete failure' } });
         if (del) { const keep = tables[t].filter(r => !f.every(fn => fn(r))); tables[t].length = 0; tables[t].push(...keep); return res({ data: null, error: null }); }
         let rows = tables[t].filter(r => f.every(fn => fn(r)));
         if (ord.length) rows = [...rows].sort((a, b) => { for (const [c, asc] of ord) { const x = a[c], y = b[c]; const d = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x).localeCompare(String(y)); if (d) return d * (asc ? 1 : -1); } return 0; });
