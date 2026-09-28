@@ -25,6 +25,7 @@ const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { calculateFees }    = require('../../lib/coopFees');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
+const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -90,6 +91,64 @@ exports.handler = async (event) => {
   if (!verifiedOk) {
     await db.from('coop_checkout_sessions').update({ status: 'failed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
     return ok({ success: false, message: 'Payment could not be verified as successful.', _debug: v });
+  }
+
+  if (session.type === 'investment') {
+    const { data: product } = await db.from('coop_investment_products').select('*').eq('id', session.product_id).maybeSingle();
+    if (!product) {
+      await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+      return ok({ success: false, message: `Payment confirmed but this product no longer exists. Contact support with reference ${txRef} for a refund.` });
+    }
+
+    // The authoritative capacity check - a real race exists between
+    // two people buying the last unit(s) of a pooled product at the
+    // same time, and only this check, right before crediting, can
+    // decide who genuinely got in. The earlier check at init time was
+    // only ever an early, honest rejection, never a guarantee.
+    if (product.product_type === 'general' && session.units > (product.total_units - product.units_sold)) {
+      await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+      return ok({ success: false, message: `Payment confirmed, but this product sold out before your payment cleared. Contact support with reference ${txRef} for a refund - your investment was not created.` });
+    }
+
+    const purchasedAt = new Date();
+    const maturityDate = new Date(purchasedAt);
+    maturityDate.setMonth(maturityDate.getMonth() + product.tenure_months);
+
+    const { error: investErr } = await db.from('coop_member_investments').insert({
+      coop_id: session.coop_id, member_id: session.member_id, product_id: session.product_id,
+      units_purchased: session.units, principal_kobo: session.amount_kobo,
+      maturity_date: maturityDate.toISOString().slice(0, 10), checkout_reference: txRef,
+    });
+    if (investErr) {
+      if (investErr.code === '23505') {
+        await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+        return ok({ success: true, already_processed: true });
+      }
+      return err(500, `Payment verified but your investment could not be recorded: ${investErr.message}. Contact support with reference ${txRef}.`);
+    }
+
+    await db.from('coop_investment_products').update({ units_sold: product.units_sold + session.units }).eq('id', session.product_id);
+    await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+
+    try {
+      if (await accountingIsReady(db, session.coop_id)) {
+        const accounts = await getAccounts(db, session.coop_id, ['1010', '2210']);
+        const bank = accounts['1010'];
+        const investmentPayable = accounts['2210'];
+        if (bank && investmentPayable) {
+          const { data: memberRow } = await db.from('coop_members').select('name').eq('id', session.member_id).maybeSingle();
+          const memberLabel = memberRow?.name ? `${memberRow.name} (Member #${String(session.member_id).slice(0, 8)})` : `Member #${String(session.member_id).slice(0, 8)}`;
+          await postEntry(db, session.coop_id, `Investment purchase — ${product.name} — ${memberLabel}`, `checkout:flutterwave_v3`, bank, investmentPayable, session.amount_kobo);
+        }
+      }
+    } catch (e) {
+      console.error('[coop-flutterwave-checkout-verify] accounting post failed (non-fatal):', e.message);
+    }
+
+    return ok({
+      success: true, type: 'investment', amount_kobo: session.amount_kobo, units: session.units,
+      message: `Payment confirmed — ${session.units} unit(s) of ${product.name} purchased for ₦${(session.amount_kobo / 100).toLocaleString()}.`,
+    });
   }
 
   // Credit the correct ledger — session.type/amount/member_id/coop_id
