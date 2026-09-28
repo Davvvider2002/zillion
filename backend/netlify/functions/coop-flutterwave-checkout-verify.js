@@ -26,6 +26,8 @@ const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
 const { calculateFees }    = require('../../lib/coopFees');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
+const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
+const { settleLoanAfterRepayment } = require('../../lib/coopLoanCompletion');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -151,13 +153,36 @@ exports.handler = async (event) => {
     });
   }
 
+  // Loan repayments need what the other repayment paths already record: the
+  // principal/interest split, a journal entry, and the loan's status. This path
+  // used to insert a bare row - so an online repayment never reduced principal or
+  // interest outstanding, never reached the ledger, and never moved a loan out of
+  // DISBURSED. Checked against the loan itself, never the client's word.
+  let loanCtx = null;
+  let splitPortions = {};
+  if (session.type === 'loan_repayment') {
+    const { data: loan } = await db.from('coop_loans')
+      .select('id, coop_id, member_id, status, principal_kobo, interest_kobo, total_repayable_kobo, interest_method')
+      .eq('id', session.loan_id).maybeSingle();
+    if (!loan || loan.member_id !== session.member_id || !['DISBURSED', 'REPAYING'].includes(loan.status)) {
+      // The payment is real and already taken, but there is nothing open to apply it to
+      // (for instance the loan was fully repaid in the meantime). Record nothing rather
+      // than distort the books; say so honestly, with the reference needed to resolve it.
+      await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+      return ok({ success: false, message: `Payment confirmed, but this loan is no longer open for repayment (it may already be fully repaid). Contact support with reference ${txRef} so the payment can be applied or refunded.` });
+    }
+    loanCtx = loan;
+    const split = await computeLoanRepaymentSplitUnified(db, loan, session.amount_kobo);
+    splitPortions = { principal_portion_kobo: split.principalPortionKobo, interest_portion_kobo: split.interestPortionKobo };
+  }
+
   // Credit the correct ledger — session.type/amount/member_id/coop_id
   // came from OUR OWN record of what this tx_ref was created for, never
   // from anything the client just sent.
   const LEDGER_TABLES = { savings: 'coop_savings_transactions', dues: 'coop_dues_transactions', loan_repayment: 'coop_loan_repayments', share_capital: 'coop_share_transactions' };
   const ledgerTable = LEDGER_TABLES[session.type];
   const insertRow = session.type === 'loan_repayment'
-    ? { loan_id: session.loan_id, amount_kobo: session.amount_kobo, source: 'flutterwave_checkout', reference: txRef, recorded_by: 'checkout:flutterwave_v3' }
+    ? { loan_id: session.loan_id, amount_kobo: session.amount_kobo, source: 'flutterwave_checkout', reference: txRef, recorded_by: 'checkout:flutterwave_v3', ...splitPortions }
     : { coop_id: session.coop_id, member_id: session.member_id, amount_kobo: session.amount_kobo, source: 'flutterwave_checkout', reference: txRef, recorded_by: 'checkout:flutterwave_v3' };
   if (session.type === 'savings') insertRow.savings_plan_id = session.savings_plan_id;
 
@@ -176,6 +201,14 @@ exports.handler = async (event) => {
 
   await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
 
+  let loanCompleted = false;
+  if (session.type === 'loan_repayment') {
+    const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
+    await recordLoanRepaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3',
+      splitPortions.principal_portion_kobo, splitPortions.interest_portion_kobo, borrower ? { id: borrower.id, name: borrower.name } : null);
+    ({ completed: loanCompleted } = await settleLoanAfterRepayment(db, loanCtx, session.coop_id));
+  }
+
   if (session.type === 'dues') {
     const { data: duesMember } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
     await recordDuesPaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3', duesMember ? { id: duesMember.id, name: duesMember.name } : null);
@@ -185,6 +218,7 @@ exports.handler = async (event) => {
     success: true,
     type: session.type,
     amount_kobo: session.amount_kobo,
-    message: `Payment confirmed — ₦${(session.amount_kobo / 100).toLocaleString()} credited to your ${{ savings: 'savings', dues: 'dues', loan_repayment: 'loan repayment', share_capital: 'share capital' }[session.type]}.`,
+    loan_completed: loanCompleted,
+    message: `Payment confirmed — ₦${(session.amount_kobo / 100).toLocaleString()} credited to your ${{ savings: 'savings', dues: 'dues', loan_repayment: 'loan repayment', share_capital: 'share capital' }[session.type]}.` + (loanCompleted ? ' Your loan is now fully repaid.' : ''),
   });
 };
