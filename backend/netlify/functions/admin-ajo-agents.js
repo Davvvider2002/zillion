@@ -23,6 +23,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog } = require('../../lib/auditLog');
+const { checkParentEligible } = require('../../lib/ajoAgentHierarchy');
 
 const ALLOWED_ROLES = ['SUPER_ADMIN', 'OPERATIONS'];
 const COMMISSION_WINDOW_MONTHS = 24;
@@ -42,12 +43,17 @@ exports.handler = async (event) => {
     const { data: agents } = await db.from('ajo_agents').select('*').order('created_at', { ascending: false });
 
     const withEarnings = await Promise.all((agents || []).map(async (a) => {
-      const { data: earnings } = await db.from('ajo_agent_earnings').select('commission_kobo, paid_out_at').eq('agent_id', a.id);
+      const { data: earnings } = await db.from('ajo_agent_earnings').select('commission_kobo, paid_out_at, tier').eq('agent_id', a.id);
       const { data: attributions } = await db.from('ajo_referral_attributions')
         .select('id, attributed_at, ajo_schemes(id, name, status)').eq('agent_id', a.id);
 
       const totalAccruedKobo = (earnings || []).reduce((s, e) => s + e.commission_kobo, 0);
       const totalPaidKobo = (earnings || []).filter(e => e.paid_out_at).reduce((s, e) => s + e.commission_kobo, 0);
+      // Tier 2 = overrides earned from sub-agents this agent recruited — broken out separately so an agent
+      // who is themselves a parent can see how much of their total came from their own referrals vs their
+      // downline's activity.
+      const tier1AccruedKobo = (earnings || []).filter(e => e.tier === 1).reduce((s, e) => s + e.commission_kobo, 0);
+      const tier2AccruedKobo = (earnings || []).filter(e => e.tier === 2).reduce((s, e) => s + e.commission_kobo, 0);
       const now = Date.now();
       const referredGroups = (attributions || []).map(at => {
         const cutoff = new Date(at.attributed_at).getTime() + COMMISSION_WINDOW_MONTHS * 30 * 24 * 3600 * 1000;
@@ -70,10 +76,18 @@ exports.handler = async (event) => {
         total_accrued_kobo: totalAccruedKobo,
         total_paid_kobo: totalPaidKobo,
         outstanding_kobo: totalAccruedKobo - totalPaidKobo,
+        tier1_accrued_kobo: tier1AccruedKobo,
+        tier2_override_accrued_kobo: tier2AccruedKobo,
       };
     }));
 
-    return ok({ agents: withEarnings });
+    // Sub-agent count per parent — shown alongside each parent so the admin can see their downline size
+    // without a second round trip.
+    const subAgentCounts = new Map();
+    for (const a of agents || []) if (a.parent_agent_id) subAgentCounts.set(a.parent_agent_id, (subAgentCounts.get(a.parent_agent_id) || 0) + 1);
+    const withHierarchy = withEarnings.map(a => ({ ...a, sub_agent_count: subAgentCounts.get(a.id) || 0 }));
+
+    return ok({ agents: withHierarchy });
   }
 
   if (event.httpMethod !== 'POST') return err(405, 'Method Not Allowed');
@@ -100,6 +114,17 @@ exports.handler = async (event) => {
       if (!Number.isInteger(rateBps) || rateBps <= 0 || rateBps > 10000) return err(400, 'commission_rate_bps must be a whole number between 1 and 10000 (basis points)');
       insertRow.commission_rate_bps = rateBps;
     } // omitted entirely -> the column's own default (3000, 30%) applies
+
+    if (body.parent_agent_id) {
+      const parentCheck = await checkParentEligible(db, body.parent_agent_id);
+      if (parentCheck.error) return err(400, parentCheck.error);
+      insertRow.parent_agent_id = body.parent_agent_id;
+      if (body.tier2_override_bps != null) {
+        const overrideBps = Number(body.tier2_override_bps);
+        if (!Number.isInteger(overrideBps) || overrideBps <= 0 || overrideBps > 10000) return err(400, 'tier2_override_bps must be a whole number between 1 and 10000 (basis points)');
+        insertRow.tier2_override_bps = overrideBps;
+      } // omitted -> ajoCommission.js's own default (1000, 10%) applies at commission time
+    }
 
     const { data: created, error } = await db.from('ajo_agents').insert(insertRow).select().single();
 
@@ -186,5 +211,44 @@ exports.handler = async (event) => {
     return ok({ success: true, agent: updated });
   }
 
-  return err(400, "action must be 'create', 'approve', 'suspend', 'record_payout', or 'update_rate'");
+  if (body.action === 'set_hierarchy') {
+    const agentId = body.agentId || body.agent_id;
+    if (!agentId) return err(400, 'agent_id is required');
+
+    const { data: existing } = await db.from('ajo_agents').select('id').eq('id', agentId).maybeSingle();
+    if (!existing) return err(404, 'Agent not found');
+
+    const update = {};
+    if (body.parent_agent_id === null) {
+      // Explicit null clears the parent — this agent becomes (or stays) a top-level agent, no override
+      // credited to anyone above them from this point forward. Existing tier-2 earnings rows already
+      // credited are untouched — history, not something a hierarchy change should silently rewrite.
+      update.parent_agent_id = null;
+      update.tier2_override_bps = null;
+    } else if (body.parent_agent_id) {
+      const parentCheck = await checkParentEligible(db, body.parent_agent_id, agentId);
+      if (parentCheck.error) return err(400, parentCheck.error);
+      update.parent_agent_id = body.parent_agent_id;
+      if (body.tier2_override_bps != null) {
+        const overrideBps = Number(body.tier2_override_bps);
+        if (!Number.isInteger(overrideBps) || overrideBps <= 0 || overrideBps > 10000) return err(400, 'tier2_override_bps must be a whole number between 1 and 10000 (basis points)');
+        update.tier2_override_bps = overrideBps;
+      }
+    } else {
+      return err(400, 'set_hierarchy requires parent_agent_id (a valid agent id, or null to clear)');
+    }
+
+    const { data: updated, error } = await db.from('ajo_agents').update(update).eq('id', agentId).select().single();
+    if (error) return err(500, `Failed to update hierarchy: ${error.message}`);
+
+    await auditLog(db, {
+      action: 'ADMIN_AJO_AGENT_HIERARCHY_UPDATED', username: adminId, role: auth.payload.role,
+      ip: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+      resourceType: 'ajo_agents', resourceId: agentId, requestBody: body, result: 'SUCCESS',
+    });
+
+    return ok({ success: true, agent: updated });
+  }
+
+  return err(400, "action must be 'create', 'approve', 'suspend', 'record_payout', 'update_rate', or 'set_hierarchy'");
 };
