@@ -3,12 +3,10 @@
  *
  * GET /api/v1/admin-ajo-overview
  *
- * The Zillion Ajo Admin platform oversight dashboard from the
- * standalone proposal (Part 1.3): every group, every member,
- * contribution volume, fee revenue collected, and outstanding agent
- * commission liability - platform-wide, not scoped to any one group,
- * which is exactly what a group admin's own dashboard (ajo-admin/)
- * can never show.
+ * The Zillion Ajo Admin platform oversight dashboard: every group, every member, contribution volume, and fee
+ * revenue collected - platform-wide, not scoped to any one group, which is exactly what a group admin's own
+ * dashboard (ajo-admin/) can never show. Agent/referral-commission figures live on the Coop side now, not
+ * here - see admin-coop-agents.js - since agents recruit cooperative societies, not Ajo schemes.
  */
 'use strict';
 
@@ -36,23 +34,18 @@ exports.handler = async (event) => {
     { count: totalMembers },
     { data: contributions },
     { data: payouts },
-    { count: totalAgents },
-    { data: unpaidEarnings },
   ] = await Promise.all([
     db.from('ajo_schemes').select('id', { count: 'exact', head: true }),
     db.from('ajo_schemes').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
     db.from('ajo_scheme_members').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
     db.from('ajo_contributions').select('amount_kobo, fee_kobo'),
     db.from('ajo_payouts').select('amount_kobo, fee_kobo').eq('status', 'DISBURSED'),
-    db.from('ajo_agents').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
-    db.from('ajo_agent_earnings').select('commission_kobo').is('paid_out_at', null),
   ]);
 
   const contributionVolumeKobo = (contributions || []).reduce((s, c) => s + c.amount_kobo, 0);
   const contributionFeeRevenueKobo = (contributions || []).reduce((s, c) => s + (c.fee_kobo || 0), 0);
   const payoutVolumeKobo = (payouts || []).reduce((s, p) => s + p.amount_kobo, 0);
   const payoutFeeRevenueKobo = (payouts || []).reduce((s, p) => s + (p.fee_kobo || 0), 0);
-  const outstandingAgentCommissionKobo = (unpaidEarnings || []).reduce((s, e) => s + e.commission_kobo, 0);
 
   const { data: schemesByType } = await db.from('ajo_schemes').select('scheme_type');
   const typeBreakdown = (schemesByType || []).reduce((acc, s) => {
@@ -67,8 +60,6 @@ exports.handler = async (event) => {
     contribution_volume_kobo: contributionVolumeKobo,
     payout_volume_kobo: payoutVolumeKobo,
     total_fee_revenue_kobo: contributionFeeRevenueKobo + payoutFeeRevenueKobo,
-    active_agents: totalAgents || 0,
-    outstanding_agent_commission_kobo: outstandingAgentCommissionKobo,
     schemes_by_type: typeBreakdown,
   });
 };
