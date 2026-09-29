@@ -7,11 +7,18 @@
  * attempt is billed to the society (matched or not — Dojah charges per call either way), so this refuses up
  * front if the society has an unpaid usage invoice from a previous month, before ever calling Dojah.
  *
+ * PREFILLED FROM THE WALLET: nin in the body is now OPTIONAL. If the member has already submitted their NIN
+ * from their own wallet profile (coop-member-submit-nin.js), this decrypts that stored value in memory for
+ * this one call — the admin never sees or types the number. Manual entry still works (nin in the body), for a
+ * member who hasn't submitted one yet. On a confirmed MATCH, the stored encrypted NIN is cleared — only the
+ * hash remains from then on. On a mismatch it is deliberately left in place so a retry doesn't need the member
+ * to resubmit.
+ *
  * EXEMPTION: a trial or never_expires society gets a "Test Mode" no-op instead — see
  * coopKycBilling.isKycActiveForSociety(). Nothing is checked with Dojah, billed, or written to the member's
  * kyc_status until the society is on an active, paying subscription.
  *
- * Body: { member_id, nin }
+ * Body: { member_id, nin? }
  */
 'use strict';
 
@@ -19,7 +26,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }         = require('../../lib/auditLog');
-const { hashNIN, lookupNIN, mustEnv } = require('../../lib/coopDojahNin');
+const { hashNIN, decryptNIN, lookupNIN, mustEnv } = require('../../lib/coopDojahNin');
 const billing = require('../../lib/coopKycBilling');
 
 exports.handler = async (event) => {
@@ -44,11 +51,11 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
   const memberId = body.member_id;
-  const nin = String(body.nin || '').trim();
+  const typedNin = body.nin !== undefined ? String(body.nin).trim() : null;
   if (!memberId) return err(400, 'member_id is required');
-  if (!/^\d{11}$/.test(nin)) return err(400, 'NIN must be exactly 11 digits');
+  if (typedNin !== null && !/^\d{11}$/.test(typedNin)) return err(400, 'NIN must be exactly 11 digits');
 
-  const { data: member } = await db.from('coop_members').select('id, name, coop_id, kyc_status').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
+  const { data: member } = await db.from('coop_members').select('id, name, coop_id, kyc_status, nin_encrypted').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
   if (!member) return err(404, 'Member not found in this society');
 
   // Trial / never-expiring societies never trigger a real Dojah call or a real charge — nothing here is
@@ -60,6 +67,13 @@ exports.handler = async (event) => {
       message: 'Test Mode: NIN/KYC verification is not active for a trial or never-expiring society — nothing has been checked, confirmed, or billed. This activates once the society is on a paid subscription.',
     });
   }
+
+  let nin = typedNin;
+  if (!nin && member.nin_encrypted) {
+    try { nin = decryptNIN(member.nin_encrypted); }
+    catch (e) { console.error('[coop-portal-member-verify-nin] could not decrypt stored NIN:', e.message); return err(500, 'Could not read the NIN this member submitted — ask them to resubmit, or enter it manually.'); }
+  }
+  if (!nin) return err(400, 'No NIN on file for this member yet — ask them to submit it from their wallet, or enter it manually.');
 
   try {
     await billing.assertNotBlocked(db, coopId);
@@ -93,13 +107,14 @@ exports.handler = async (event) => {
   });
 
   if (result.matched) {
-    await db.from('coop_members').update({ kyc_status: 'VERIFIED', nin_hash: ninHash, nin_verified_at: new Date().toISOString() }).eq('id', memberId);
+    // Verified: only the hash needs to persist from here — the encrypted raw number is cleared.
+    await db.from('coop_members').update({ kyc_status: 'VERIFIED', nin_hash: ninHash, nin_verified_at: new Date().toISOString(), nin_encrypted: null }).eq('id', memberId);
   }
 
   await auditLog(db, {
     action: 'COOP_MEMBER_NIN_VERIFY_ATTEMPT', role: auth.payload.role, username: resolved.society.merchant_id,
     resourceType: 'coop_member', resourceId: memberId,
-    requestBody: { matched: result.matched, charged_kobo: chargedKobo },
+    requestBody: { matched: result.matched, charged_kobo: chargedKobo, source: typedNin ? 'manual_entry' : 'wallet_submission' },
   });
 
   return ok({
