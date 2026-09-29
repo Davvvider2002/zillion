@@ -11,8 +11,15 @@
  * is real, documented, and billed per call regardless of outcome - which is exactly the policy agreed for
  * charging societies: bill on every attempt sent to Dojah, matched or not.
  *
- * PRIVACY: the raw NIN is only ever held in memory for the one call to Dojah. What gets stored is a salted
- * HMAC-SHA256 hash (COOP_NIN_HASH_SALT) - never the number itself, mirroring the wallet-tier convention.
+ * PRIVACY, two different things stored, never confused:
+ *   - the HASH (nin_hash): a salted HMAC-SHA256, kept forever once a member is VERIFIED - proves the NIN was
+ *     checked without ever letting the number be recovered from it.
+ *   - the CIPHERTEXT (nin_encrypted): what a member submits from their own wallet profile before an admin has
+ *     verified it, so the admin doesn't have to ask them for it again. AES-256-GCM under COOP_NIN_ENCRYPTION_KEY
+ *     (a server-held key, never derived from anything a member or admin supplies), decrypted only in memory for
+ *     the one verification call, and cleared to NULL the moment that call confirms a match - see
+ *     coop-portal-member-verify-nin.js. On a mismatch it is deliberately left in place so a retry doesn't need
+ *     the member to resubmit.
  *
  * MATCHING: Dojah's basic NIN lookup returns whoever the government has on file for that number - it does not
  * accept an expected name to check against, so the match is our own comparison against the member's name on
@@ -22,7 +29,7 @@
  */
 'use strict';
 
-const { createHmac } = require('crypto');
+const { createHmac, createCipheriv, createDecipheriv, randomBytes } = require('crypto');
 
 function mustEnv(name, env = process.env) {
   const v = env[name];
@@ -32,6 +39,25 @@ function mustEnv(name, env = process.env) {
 
 function hashNIN(nin, salt) {
   return createHmac('sha256', salt).update(String(nin).trim()).digest('hex');
+}
+
+/** AES-256-GCM, key from COOP_NIN_ENCRYPTION_KEY (32 bytes, base64) — a single field, packed as iv|tag|ciphertext, base64. */
+function encryptNIN(nin, env = process.env) {
+  const key = Buffer.from(mustEnv('COOP_NIN_ENCRYPTION_KEY', env), 'base64');
+  if (key.length !== 32) throw new Error('COOP_NIN_ENCRYPTION_KEY must be exactly 32 bytes, base64-encoded (openssl rand -base64 32)');
+  const iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', key, iv);
+  const ct = Buffer.concat([c.update(String(nin).trim(), 'utf8'), c.final()]);
+  return Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64');
+}
+
+function decryptNIN(packed, env = process.env) {
+  const key = Buffer.from(mustEnv('COOP_NIN_ENCRYPTION_KEY', env), 'base64');
+  const buf = Buffer.from(packed, 'base64');
+  const iv = buf.subarray(0, 12), tag = buf.subarray(12, 28), ct = buf.subarray(28);
+  const d = createDecipheriv('aes-256-gcm', key, iv);
+  d.setAuthTag(tag);
+  return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
 }
 
 function normalizeName(name) {
@@ -78,4 +104,4 @@ async function lookupNIN(nin, { memberName, appId, apiKey, costKobo, env = proce
   return { matched: namesLikelyMatch(dojahName, memberName), dojahName, reference: data.reference_id || null, costKobo: assumedCostKobo };
 }
 
-module.exports = { hashNIN, namesLikelyMatch, lookupNIN, mustEnv };
+module.exports = { hashNIN, encryptNIN, decryptNIN, namesLikelyMatch, lookupNIN, mustEnv };
