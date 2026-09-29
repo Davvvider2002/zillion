@@ -281,7 +281,19 @@ exports.handler = async () => {
     console.error('[scheduled-reconcile] KYC invoice finalization failed:', e.message);
   }
 
+  // ── 14. Ajo — contribution reminders, missed-contribution alerts, upcoming-payout notices, reliability scores ──
+  // Bulk, in-memory — one shared read of every active Ajo member (loadBulkInputs), not scanned per society since
+  // Ajo has no coop_id. See lib/ajoNightlyPasses.js. Payout-completed notifications fire live from
+  // ajo-admin-process-cycle.js at the moment of disbursement, not from here.
+  let ajoResult = null;
+  try {
+    const { runAjoNightlyPasses } = require('../../lib/ajoNightlyPasses');
+    ajoResult = await runAjoNightlyPasses(db);
+  } catch (e) {
+    console.error('[scheduled-reconcile] Ajo nightly passes failed:', e.message);
+  }
+
   const summary = passes.map(p => `${p.key}=${p.processed}${p.completedCycle ? ' (cycle done)' : (p.expired ? ' (resumes next run)' : '')}`).join(', ');
-  console.log(`[scheduled-reconcile] complete in ${Date.now() - startedAt}ms — ${alertsRaised} alert(s) raised; ${summary}; kyc_invoices_finalized=${kycFinalized}`);
-  return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised, passes, kyc_invoices_finalized: kycFinalized }) };
+  console.log(`[scheduled-reconcile] complete in ${Date.now() - startedAt}ms — ${alertsRaised} alert(s) raised; ${summary}; kyc_invoices_finalized=${kycFinalized}; ajo=${ajoResult ? JSON.stringify(ajoResult) : 'failed'}`);
+  return { statusCode: 200, body: JSON.stringify({ success: true, alerts_raised: alertsRaised, passes, kyc_invoices_finalized: kycFinalized, ajo: ajoResult }) };
 };
