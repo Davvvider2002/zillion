@@ -1396,6 +1396,10 @@ function triggerPWAInstall() {
 
     <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Your recruitment link</label>
     <div id="arc-link-box" style="background:#081A11;border:1px solid #234A38;border-radius:8px;padding:11px;font-size:12px;color:#9CC4B0;word-break:break-all;margin-bottom:10px">Set a fee above first — the link needs it to work.</div>
+    <div id="arc-qr-wrap" style="display:none;text-align:center;margin-bottom:10px">
+      <div id="arc-qr-canvas" style="display:inline-block;background:#fff;padding:10px;border-radius:10px"></div>
+      <div style="font-size:11px;color:#7A9A85;margin-top:6px">Show this to a prospect to scan, or share the link above</div>
+    </div>
     <button class="btn" id="arc-copy-btn" style="width:100%;padding:11px;background:transparent;color:#00E0AC;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px;margin-bottom:8px;display:none" onclick="ajoCopyCollectorLink()">Copy link</button>
 
     <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-recruit-collector').style.display='none'">Close</button>
@@ -1494,6 +1498,9 @@ function triggerPWAInstall() {
   </div>
   <div class="scroll-body" style="padding:16px">
     <div id="ajo-offline-queue-badge" style="display:none;background:#3A2A0F;border:1px solid #5A4420;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#F5B87A;font-weight:600"></div>
+    <div style="text-align:right;margin-bottom:10px">
+      <button type="button" onclick="ajoOpenRecruitCollectorModal()" style="background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px">🧑‍🤝‍🧑 Recruit another collector →</button>
+    </div>
     <div id="ajo-collector-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
   </div>
 </div>
@@ -3127,6 +3134,7 @@ async function ajoOpenRecruitCollectorModal() {
   document.getElementById('arc-fee').value = '';
   document.getElementById('arc-link-box').textContent = 'Loading…';
   document.getElementById('arc-copy-btn').style.display = 'none';
+  document.getElementById('arc-qr-wrap').style.display = 'none';
 
   const token = (STATE.user && STATE.user.token) || '';
   if (!token) { document.getElementById('arc-link-box').textContent = 'Sign in first.'; return; }
@@ -3153,6 +3161,13 @@ function ajoRenderCollectorLink() {
   const link = `${location.origin}/ajo-collector-join/?admin_id=${encodeURIComponent(_ajoCollectorAdminId)}`;
   document.getElementById('arc-link-box').textContent = link;
   document.getElementById('arc-copy-btn').style.display = 'block';
+
+  const qrWrap = document.getElementById('arc-qr-wrap');
+  const qrCanvas = document.getElementById('arc-qr-canvas');
+  qrCanvas.innerHTML = '';
+  if (typeof QRCode === 'undefined') { qrWrap.style.display = 'none'; return; }
+  new QRCode(qrCanvas, { text: link, width: 180, height: 180, colorDark: '#000000', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.L });
+  qrWrap.style.display = 'block';
 }
 
 async function ajoSaveCollectorFee() {
