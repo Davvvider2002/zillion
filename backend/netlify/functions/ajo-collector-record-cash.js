@@ -65,5 +65,5 @@ exports.handler = async (event) => {
   });
   if (!result.ok) return err(400, result.error);
 
-  return ok({ success: true, contribution: result.contribution, fee_kobo: result.feeKobo, agent_commission_kobo: result.agentCommissionKobo });
+  return ok({ success: true, contribution: result.contribution, fee_kobo: result.feeKobo });
 };
