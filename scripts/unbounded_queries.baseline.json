@@ -1,4 +1,5 @@
 {
+ "lib/ajoAgentHierarchy.js|ajo_agents": 1,
  "lib/coopAttribution.js|coop_journal_entries": 1,
  "lib/coopEntitlements.js|coop_society_addons": 1,
  "lib/coopLoanCreation.js|coop_members": 1,
