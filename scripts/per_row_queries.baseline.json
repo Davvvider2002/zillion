@@ -1,4 +1,5 @@
 {
+ "lib/ajoReliability.js": 1,
  "lib/coopAccountingHelpers.js": 1,
  "lib/coopActivateMember.js": 1,
  "lib/coopAttribution.js": 1,
