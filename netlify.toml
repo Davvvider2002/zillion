@@ -317,6 +317,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/ajo-member-notifications"
+  to   = "/.netlify/functions/ajo-member-notifications"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/ajo-member-notification-read"
+  to   = "/.netlify/functions/ajo-member-notification-read"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-admin-create-scheme"
   to   = "/.netlify/functions/ajo-admin-create-scheme"
   status = 200
