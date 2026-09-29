@@ -51,9 +51,6 @@ exports.handler = async (event) => {
     ? await db.from('ajo_payouts').select('cycle_id, scheme_member_id, amount_kobo, fee_kobo, status, disbursed_at').in('cycle_id', cycleIds)
     : { data: [] };
 
-  const { data: attribution } = await db.from('ajo_referral_attributions')
-    .select('attributed_at, ajo_agents(referral_code)').eq('scheme_id', schemeId).maybeSingle();
-
   // Whichever collector is currently assigned - ACTIVE or still
   // PENDING_ESCROW, since a group admin needs to see a pending
   // assignment too, not just a fully-active one.
@@ -82,7 +79,6 @@ exports.handler = async (event) => {
     scheme,
     members: members || [],
     cycles: cyclesWithDetail,
-    referred_by: attribution ? { referral_code: attribution.ajo_agents?.referral_code, attributed_at: attribution.attributed_at } : null,
     collector,
   });
 };
