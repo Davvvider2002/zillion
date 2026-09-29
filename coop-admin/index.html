@@ -1464,13 +1464,13 @@ function renderMembers() {
             <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
             <td>${fmtNaira(m.share_capital_kobo || 0)}</td>
             <td><span class="pill ${m.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${m.status}</span></td>
-            <td>${m.kyc_status === 'VERIFIED' ? '<span class="pill pill-green">NIN verified</span>' : '<span class="pill pill-muted">Not verified</span>'}</td>
+            <td>${m.kyc_status === 'VERIFIED' ? '<span class="pill pill-green">NIN verified</span>' : m.nin_encrypted ? '<span class="pill pill-amber">Pending review</span>' : '<span class="pill pill-muted">Not verified</span>'}</td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 ${hasPortalAction('members', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>` : ''}
                 ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}','${(m.name || m.phone_normalized || '').replace(/'/g, "\\'")}')">Record share</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button>
-                ${hasPortalAction('members', 'edit') && m.kyc_status !== 'VERIFIED' ? `<button class="btn btn-ghost btn-sm" onclick="openVerifyNinModal('${m.id}','${(m.name || '').replace(/'/g, "\\'")}')">Verify NIN</button>` : ''}
+                ${hasPortalAction('members', 'edit') && m.kyc_status !== 'VERIFIED' ? `<button class="btn btn-ghost btn-sm" onclick="openVerifyNinModal('${m.id}','${(m.name || '').replace(/'/g, "\\'")}',${!!m.nin_encrypted})">${m.nin_encrypted ? 'Review NIN' : 'Verify NIN'}</button>` : ''}
               </div>
             </td>
           </tr>
@@ -1505,7 +1505,7 @@ async function sendMemberLoanStatement(memberId, btn) {
 // ── KYC / NIN ────────────────────────────────────────────────────────────
 let verifyNinMemberId = null;
 
-function openVerifyNinModal(memberId, memberName) {
+function openVerifyNinModal(memberId, memberName, hasSubmission) {
   verifyNinMemberId = memberId;
   document.getElementById('vn-name').textContent = memberName ? `For ${memberName}` : '';
   document.getElementById('vn-nin').value = '';
@@ -1514,6 +1514,16 @@ function openVerifyNinModal(memberId, memberName) {
   document.getElementById('vn-test-mode-banner').style.display = 'none';
   document.getElementById('vn-submit-btn').disabled = false;
   document.getElementById('vn-submit-btn').textContent = 'Verify';
+  const ninField = document.getElementById('vn-nin');
+  const ninLabel = ninField.previousElementSibling;
+  if (hasSubmission) {
+    ninField.style.display = 'none';
+    if (ninLabel) ninLabel.style.display = 'none';
+    document.getElementById('vn-name').textContent += ' — NIN already submitted from their wallet. Click Verify to check it.';
+  } else {
+    ninField.style.display = '';
+    if (ninLabel) ninLabel.style.display = '';
+  }
   openModal('modal-verify-nin');
 }
 
@@ -1521,14 +1531,16 @@ async function submitVerifyNin() {
   const errEl = document.getElementById('vn-error'); errEl.style.display = 'none';
   const resultEl = document.getElementById('vn-result'); resultEl.style.display = 'none';
   const banner = document.getElementById('vn-test-mode-banner'); banner.style.display = 'none';
-  const nin = document.getElementById('vn-nin').value.trim();
-  if (!/^\d{11}$/.test(nin)) { errEl.textContent = 'NIN must be exactly 11 digits.'; errEl.style.display = 'block'; return; }
+  const ninField = document.getElementById('vn-nin');
+  const usingStoredNin = ninField.style.display === 'none';
+  const nin = ninField.value.trim();
+  if (!usingStoredNin && !/^\d{11}$/.test(nin)) { errEl.textContent = 'NIN must be exactly 11 digits.'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('vn-submit-btn'); btn.disabled = true; btn.textContent = 'Checking…';
   try {
     const res = await fetch(`${API}/coop-portal-member-verify-nin`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ member_id: verifyNinMemberId, nin }),
+      body: JSON.stringify(usingStoredNin ? { member_id: verifyNinMemberId } : { member_id: verifyNinMemberId, nin }),
     });
     const data = await res.json();
     if (!res.ok) {
