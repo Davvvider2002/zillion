@@ -21,6 +21,7 @@ const { auditLog }               = require('../../lib/auditLog');
 const { generateRepaymentSchedule } = require('../../lib/coopRepaymentSchedule');
 const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('../../lib/coopReducingBalanceSchedule');
 const { recordLoanDisbursementJournalEntry } = require('../../lib/coopLoanAccounting');
+const { computeAjoLoanSignalsBulk } = require('../../lib/ajoLoanSignal');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -40,7 +41,7 @@ exports.handler = async (event) => {
     let query = db.from('coop_loans').select(`
       id, coop_id, member_id, principal_kobo, repayment_months, monthly_repayment_kobo,
       guarantor_member_id, guarantor_status, status, requested_at, approved_at, disbursed_at, rejection_reason,
-      coop_members!coop_loans_member_id_fkey(name, phone_normalized)
+      coop_members!coop_loans_member_id_fkey(name, phone_normalized, zillion_id)
     `).order('requested_at', { ascending: false });
 
     if (q.coop_id) query = query.eq('coop_id', q.coop_id);
@@ -54,9 +55,14 @@ exports.handler = async (event) => {
       ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', loanIds)
       : { data: [] };
 
+    // Ajo track record — informational only, never a gate. One bulk lookup for every applicant on this page,
+    // not one per loan (this list has no coop_id filter by default, so it can span every society at once).
+    const ajoSignals = await computeAjoLoanSignalsBulk(db, (data || []).map(l => l.coop_members?.zillion_id));
+
     const loansWithGuarantors = (data || []).map(loan => ({
       ...loan,
       guarantors: (allGuarantors || []).filter(g => g.loan_id === loan.id),
+      ajo_signal: ajoSignals.get(loan.coop_members?.zillion_id) || null,
     }));
 
     return ok({ loans: loansWithGuarantors });
