@@ -13,7 +13,7 @@ const path = require('path');
 const LIB = path.join(__dirname, '..', 'lib');
 const { makeDb } = require('./helpers/fakeDb');
 const { creditAgentCommissionIfApplicable, DEFAULT_TIER2_OVERRIDE_BPS } = require(path.join(LIB, 'coopAgentCommission'));
-const { checkParentEligible } = require(path.join(LIB, 'coopAgentHierarchy'));
+const { checkParentEligible, generateReferralCode } = require(path.join(LIB, 'coopAgentHierarchy'));
 
 let bad = 0; const ok = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + ' - ' + n); if (!c) { bad++; process.exitCode = 1; } };
 
@@ -141,6 +141,28 @@ const attributedNow = new Date().toISOString();
 
   const r6 = await checkParentEligible(db, 'TOP', null);
   ok('checkParentEligible: creation case (selfAgentId null) only checks the parent side, not skipped entirely', r6.ok === true);
+})();
+
+// ────────────────────────────── generateReferralCode ──────────────────────────────
+(async () => {
+  const db = makeDb({ coop_agents: [{ id: 'existing', referral_code: 'COOP-DAVID01' }] });
+
+  const c1 = await generateReferralCode(db, 'David');
+  ok('generateReferralCode: follows the PREFIX-NAME## template', c1 === 'COOP-DAVID02');
+  ok('generateReferralCode: skips a colliding number (DAVID01 already taken)', c1 !== 'COOP-DAVID01');
+
+  const c2 = await generateReferralCode(db, 'chioma okafor');
+  ok('generateReferralCode: strips spaces and non-letters, uppercases, no collision -> starts at 01', c2 === 'COOP-CHIOMAOKAFOR01');
+
+  const c3 = await generateReferralCode(db, '');
+  ok('generateReferralCode: empty name falls back to a generic AGENT base rather than an empty prefix', c3 === 'COOP-AGENT01');
+
+  // Second call with the same name, same db state -> must not collide with the first result
+  const db2 = makeDb({ coop_agents: [] });
+  const first = await generateReferralCode(db2, 'David');
+  db2.tables.coop_agents.push({ id: 'x', referral_code: first });
+  const second = await generateReferralCode(db2, 'David');
+  ok('generateReferralCode: two calls for the same name in sequence never collide with each other', first !== second && first === 'COOP-DAVID01' && second === 'COOP-DAVID02');
 })();
 
 process.on('exit', () => { if (!bad) console.log('\nAll Coop agent commission tests passed.'); });
