@@ -6,6 +6,9 @@
  * (extends downward), or giving a parent to an agent who already has sub-agents of their own (extends upward,
  * inserting a new top above an existing parent). Used by admin-coop-agents.js for both 'create' and
  * 'set_hierarchy'.
+ *
+ * Also owns referral code generation (generateReferralCode) — codes are never typed in by an admin, they're
+ * derived from the agent's name following the same template the platform's own agents already use.
  */
 'use strict';
 
@@ -31,4 +34,24 @@ async function checkParentEligible(db, parentAgentId, selfAgentId = null) {
   return { ok: true };
 }
 
-module.exports = { checkParentEligible };
+/**
+ * Auto-generates a referral code following the same template the one real active agent already uses
+ * (AJO-DAVID01, from before the Ajo->Coop correction) — PREFIX-NAME## where NAME is the agent's name,
+ * uppercased and stripped to letters, and ## is a two-digit sequence that increments past any collision, so
+ * the same name can recur (COOP-DAVID01, COOP-DAVID02, ...) without ever needing an admin to type or invent a
+ * code by hand. Prefix is COOP, not AJO, matching the corrected domain — the one legacy AJO- code is left as
+ * it is (renaming a live code would break any referral link already handed out under it).
+ */
+async function generateReferralCode(db, name) {
+  const letters = (name || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 12);
+  const base = 'COOP-' + (letters || 'AGENT');
+  for (let n = 1; n <= 99; n++) {
+    const candidate = base + String(n).padStart(2, '0');
+    const { data: existing } = await db.from('coop_agents').select('id').eq('referral_code', candidate).maybeSingle();
+    if (!existing) return candidate;
+  }
+  // Extremely unlikely — 99 agents sharing the exact same name — but never left with nothing to return.
+  return base + Date.now().toString().slice(-6);
+}
+
+module.exports = { checkParentEligible, generateReferralCode };
