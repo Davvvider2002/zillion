@@ -352,6 +352,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-ajo-collector-platform-fee"
+  to   = "/.netlify/functions/admin-ajo-collector-platform-fee"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/ajo-member-join-scheme"
   to   = "/.netlify/functions/ajo-member-join-scheme"
   status = 200
