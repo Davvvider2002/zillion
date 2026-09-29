@@ -43,7 +43,6 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
-const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
 const { resolveBankCode, verifyRecipientAccount, initiateTransfer } = require('../../lib/ajoTransfer');
 const { fetchAllRows } = require('../../lib/coopPaginate');
 const { notify } = require('../../lib/ajoNotifications');
@@ -169,10 +168,9 @@ exports.handler = async (event) => {
     });
   }
 
-  let agentCommissionKobo = 0;
-  if (feeKobo > 0) {
-    agentCommissionKobo = await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'payout', payout.id);
-  }
+  // Agent referral commission does NOT apply to Ajo payouts - an agent's commission comes from a cooperative
+  // society's own Coop subscription payments (coopAgentCommission.js), not Ajo transaction fees. See
+  // ajo-admin-create-scheme.js's header for the corrected domain split.
 
   // Attempt the real transfer - the payout record above already
   // reflects the rotation's decision (who's owed what); this is
@@ -228,7 +226,7 @@ exports.handler = async (event) => {
 
   return ok({
     success: true, payout: payoutWithTransfer || payout, payee_scheme_member_id: payee.id,
-    fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo, collector_compensation_kobo: collectorCompensationKobo,
+    fee_kobo: feeKobo, collector_compensation_kobo: collectorCompensationKobo,
     next_cycle: nextCycle, scheme_completed: schemeCompleted,
     transfer_status: transferOutcome.transfer_status,
   });
