@@ -3,13 +3,17 @@
  *
  * The actual "credit a contribution" logic - finds the scheme's
  * current open cycle, resolves the fee, inserts the contribution,
- * appends the ledger, credits agent commission. Extracted so
- * ajo-member-record-contribution.js (a member paying directly) and
- * ajo-flutterwave-webhook.js (money landing via bank transfer) share
- * exactly one implementation rather than two that could quietly
- * diverge - the same reasoning that led to extracting
- * creditAgentCommissionIfApplicable out of three separate copies
- * earlier in this build.
+ * appends the ledger. Extracted so ajo-member-record-contribution.js
+ * (a member paying directly) and ajo-flutterwave-webhook.js (money
+ * landing via bank transfer) share exactly one implementation rather
+ * than two that could quietly diverge.
+ *
+ * Agent referral commission does NOT apply here - an agent's commission
+ * comes from a cooperative society's own Coop subscription payments
+ * (see coopAgentCommission.js), not from Ajo scheme fees. Collectors
+ * (below) are the Ajo-side field role; agents are strictly a Coop
+ * concept, and the two are deliberately never credited from the same
+ * event.
  *
  * For personal_savings specifically: the scheme's FIRST contribution
  * of each calendar month is diverted to the collector as their
@@ -38,7 +42,6 @@
 'use strict';
 
 const { resolveFeeRate, computeFeeKobo } = require('./ajoFeeEngine');
-const { creditAgentCommissionIfApplicable } = require('./ajoCommission');
 
 /**
  * Determines whether this contribution is the first for this scheme
@@ -65,7 +68,7 @@ async function isFirstContributionThisMonth(db, schemeMemberId) {
  * @param {'digital'|'cash'} source
  * @param {string|null} recordedBy       collector zillion_id, or null
  * @param {string|null} flutterwaveReference  set only for webhook-originated credits
- * @returns {Promise<{ok:true, contribution:object, feeKobo:number, agentCommissionKobo:number, divertedToCollector:boolean} | {ok:false, error:string, code?:string}>}
+ * @returns {Promise<{ok:true, contribution:object, feeKobo:number, divertedToCollector:boolean} | {ok:false, error:string, code?:string}>}
  */
 async function creditContribution(db, { schemeId, schemeMemberId, amountKobo, source, recordedBy = null, flutterwaveReference = null }) {
   const { data: cycle } = await db.from('ajo_cycles')
@@ -112,12 +115,10 @@ async function creditContribution(db, { schemeId, schemeMemberId, amountKobo, so
       source_event_type: 'individual_first_of_month', source_event_id: contribution.id,
       compensation_kobo: amountKobo,
     });
-    return { ok: true, contribution, feeKobo, agentCommissionKobo: 0, divertedToCollector: true };
+    return { ok: true, contribution, feeKobo, divertedToCollector: true };
   }
 
-  const agentCommissionKobo = feeKobo > 0 ? await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'contribution', contribution.id) : 0;
-
-  return { ok: true, contribution, feeKobo, agentCommissionKobo, divertedToCollector: false };
+  return { ok: true, contribution, feeKobo, divertedToCollector: false };
 }
 
 module.exports = { creditContribution };
