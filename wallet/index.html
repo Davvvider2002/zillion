@@ -2185,6 +2185,33 @@ function triggerPWAInstall() {
         </div>
       </div>
 
+      <div class="settings-group" id="kyc-nin-group" style="display:none">
+        <div class="settings-group-label">NIN / KYC Verification</div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 0">
+          <div id="kyc-status-badge" style="font-size:13px;font-weight:700;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.04)">Loading…</div>
+          <div id="kyc-test-mode-banner" style="display:none;font-size:11.5px;color:#B8860B;background:rgba(232,147,12,.10);border-radius:8px;padding:8px 10px;line-height:1.5"></div>
+
+          <div id="kyc-form" style="display:none">
+            <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin:8px 0 6px">Full name</label>
+            <input id="kyc-name" type="text" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid var(--b,#ddd);font-family:inherit;font-size:14px">
+
+            <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin:12px 0 6px">Address</label>
+            <input id="kyc-address" type="text" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid var(--b,#ddd);font-family:inherit;font-size:14px">
+
+            <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin:12px 0 6px">Date of birth</label>
+            <input id="kyc-dob" type="date" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid var(--b,#ddd);font-family:inherit;font-size:14px">
+
+            <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin:12px 0 6px">NIN (11 digits)</label>
+            <input id="kyc-nin" type="text" inputmode="numeric" maxlength="11" placeholder="12345678901" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid var(--b,#ddd);font-family:inherit;font-size:14px">
+
+            <div id="kyc-error" style="display:none;color:#c0392b;font-size:12px;margin-top:8px"></div>
+
+            <button onclick="zilSubmitKyc()" id="kyc-submit-btn" style="width:100%;margin-top:14px;padding:12px;background:#00C896;color:#0A1F14;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">Submit for verification</button>
+            <div style="font-size:11px;color:var(--gr,#888);margin-top:8px">Your society admin verifies this. You won't be asked for your NIN again once it's submitted.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-group" id="product-view-group" style="display:none">
         <div class="settings-group-label">App View</div>
         <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;padding:14px 0">
@@ -4247,6 +4274,88 @@ async function zilCoopFetchStatus(force) {
   }
 }
 
+// -- NIN / KYC verification (coop-member-profile / coop-member-submit-nin) ----
+async function zilLoadKycProfile() {
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  const group = document.getElementById('kyc-nin-group');
+  if (!token || !STATE.isOnline) { group.style.display = 'none'; return; }
+  try {
+    const res = await fetch(`${API}/coop-member-profile`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok || !data.is_coop_member) { group.style.display = 'none'; return; }
+    group.style.display = '';
+
+    const p = data.profile || {}, kyc = data.kyc || {};
+    document.getElementById('kyc-name').value = p.name || '';
+    document.getElementById('kyc-address').value = p.address || '';
+    document.getElementById('kyc-dob').value = p.date_of_birth || '';
+
+    const testBanner = document.getElementById('kyc-test-mode-banner');
+    if (kyc.active === false) {
+      testBanner.textContent = "Your society is on a trial — submissions are saved, but nothing is checked or billed until it's on a paid plan.";
+      testBanner.style.display = 'block';
+    } else {
+      testBanner.style.display = 'none';
+    }
+
+    const badge = document.getElementById('kyc-status-badge');
+    const form = document.getElementById('kyc-form');
+    if (kyc.status === 'VERIFIED') {
+      badge.textContent = '✅ NIN Verified';
+      badge.style.color = '#0F7A3D';
+      badge.style.background = 'rgba(0,200,150,.12)';
+      form.style.display = 'none';
+    } else if (kyc.status === 'PENDING_REVIEW') {
+      badge.textContent = '⏳ Submitted — awaiting society admin review';
+      badge.style.color = '#B8860B';
+      badge.style.background = 'rgba(232,147,12,.12)';
+      form.style.display = '';
+      document.getElementById('kyc-submit-btn').textContent = 'Resubmit';
+    } else {
+      badge.textContent = '⚠️ Not verified — submit your NIN below';
+      badge.style.color = '#7A9A85';
+      badge.style.background = 'rgba(0,0,0,.04)';
+      form.style.display = '';
+    }
+  } catch (e) {
+    console.warn('[kyc] profile fetch failed:', e.message);
+    group.style.display = 'none';
+  }
+}
+
+async function zilSubmitKyc() {
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  const errEl = document.getElementById('kyc-error');
+  errEl.style.display = 'none';
+
+  const name = document.getElementById('kyc-name').value.trim();
+  const address = document.getElementById('kyc-address').value.trim();
+  const dob = document.getElementById('kyc-dob').value.trim();
+  const nin = document.getElementById('kyc-nin').value.trim();
+
+  if (!name) { errEl.textContent = 'Name cannot be empty.'; errEl.style.display = 'block'; return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) { errEl.textContent = 'Enter a valid date of birth.'; errEl.style.display = 'block'; return; }
+  if (!/^\d{11}$/.test(nin)) { errEl.textContent = 'NIN must be exactly 11 digits.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('kyc-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch(`${API}/coop-member-submit-nin`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ nin, date_of_birth: dob, name, address }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not submit');
+    document.getElementById('kyc-nin').value = '';
+    toast(data.message || 'Submitted for verification');
+    await zilLoadKycProfile();
+  } catch (e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit for verification';
+  }
+}
+
 function _coopUpdateNotifBell(data) {
   const btn = document.getElementById('home-notif-badge')?.parentElement;
   const badge = document.getElementById('home-notif-badge');
@@ -5710,6 +5819,7 @@ function refreshProfile() {
       const since = data.member?.activated_at ? new Date(data.member.activated_at) : null;
       document.getElementById('coop-profile-since').textContent = since ? since.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
     });
+    zilLoadKycProfile();
   }
 
   // Only worth showing if the member could plausibly switch to
