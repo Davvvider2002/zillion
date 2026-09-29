@@ -38,6 +38,12 @@
 /wallet/icon-512.png   /wallet/icon-512.png   200
 /wallet          /wallet/index.html          200
 /wallet/         /wallet/index.html          200
+/ajo-collector/manifest.json  /ajo-collector/manifest.json  200
+/ajo-collector/sw.js           /ajo-collector/sw.js           200
+/ajo-collector/icon-192.png    /ajo-collector/icon-192.png    200
+/ajo-collector/icon-512.png    /ajo-collector/icon-512.png    200
+/ajo-collector           /ajo-collector/index.html          200
+/ajo-collector/          /ajo-collector/index.html          200
 /agent           /agent/index.html           200
 /agent/          /agent/index.html           200
 /merchant        /merchant/index.html        200
