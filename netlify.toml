@@ -347,8 +347,8 @@
   status = 200
 
 [[redirects]]
-  from = "/api/v1/admin-ajo-agents"
-  to   = "/.netlify/functions/admin-ajo-agents"
+  from = "/api/v1/admin-coop-agents"
+  to   = "/.netlify/functions/admin-coop-agents"
   status = 200
 
 [[redirects]]
