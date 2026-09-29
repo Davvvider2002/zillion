@@ -172,6 +172,21 @@ exports.handler = async (event) => {
     if (addonErr) console.error('[public-coop-signup] Add-on linking failed (non-fatal, society still created):', addonErr.message);
   }
 
+  // Agent referral attribution — first-touch and permanent, this is the ONLY moment attribution can ever
+  // happen for a society. An unknown or inactive code is silently ignored, not an error; this society simply
+  // has no referring agent, the normal case for most signups. Commission itself isn't credited here (there's
+  // no payment yet, just a trial) — it's credited when the society's subscription actually gets paid, see
+  // coopAgentCommission.js.
+  const referralCode = (body.referral_code || '').trim();
+  if (referralCode) {
+    const { data: agent } = await db.from('coop_agents')
+      .select('id').eq('referral_code', referralCode).eq('status', 'ACTIVE').maybeSingle();
+    if (agent) {
+      await db.from('coop_referral_attributions').insert({ agent_id: agent.id, coop_id: society.coop_id })
+        .then(({ error }) => { if (error) console.error('[public-coop-signup] Referral attribution failed (non-fatal, society still created):', error.message); });
+    }
+  }
+
   return ok({
     success: true,
     coop_id: society.coop_id,
