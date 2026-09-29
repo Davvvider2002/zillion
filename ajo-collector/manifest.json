@@ -1,0 +1,19 @@
+{
+  "name": "Zillion Ajo Collector",
+  "short_name": "Ajo Collector",
+  "description": "Record Ajo cash collections in the field, online or off",
+  "start_url": "https://zillion.ng/ajo-collector/",
+  "scope": "https://zillion.ng/ajo-collector/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A1F14",
+  "theme_color": "#00C896",
+  "lang": "en-NG",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    { "src": "/ajo-collector/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/ajo-collector/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/ajo-collector/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": []
+}
