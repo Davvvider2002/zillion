@@ -522,6 +522,16 @@
   status = 200
 
 [[redirects]]
+  from = "/ajo-collector"
+  to   = "/ajo-collector/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ajo-collector/"
+  to   = "/ajo-collector/index.html"
+  status = 200
+
+[[redirects]]
   from = "/agent"
   to   = "/agent/index.html"
   status = 200
