@@ -39,12 +39,12 @@
  *
  * Body: { name, scheme_type, contribution_amount_kobo, frequency,
  *         cycle_length, payout_order?,
- *         collector_profile_id (required for personal_savings),
- *         collector_compensation_type? ('fixed'|'percentage'),
- *         collector_compensation_value? (kobo, or basis points if
- *         percentage - defaults to fixed at the contribution amount
- *         itself, matching "usually the monthly/daily amount") }
+ *         collector_profile_id (required for personal_savings) }
  * Auth: wallet JWT (zillion_id).
+ *
+ * Collector compensation is no longer set here - it's a property of the collector themselves
+ * (ajo_collector_profiles.commission_type/commission_value), set by Zillion Admin, not by whoever creates a
+ * scheme. A collector's rate is the same across every scheme they collect for.
  */
 'use strict';
 
@@ -77,8 +77,6 @@ exports.handler = async (event) => {
   const frequency = body.frequency;
   const cycleLength = Number.isInteger(body.cycle_length) ? body.cycle_length : null;
   const payoutOrder = body.payout_order || 'fixed';
-  const compensationType = ['fixed', 'percentage'].includes(body.collector_compensation_type) ? body.collector_compensation_type : 'fixed';
-  let compensationValue = Number.isInteger(body.collector_compensation_value) && body.collector_compensation_value >= 0 ? body.collector_compensation_value : null;
 
   if (!name) return err(400, 'name is required');
   if (!SCHEME_TYPES.includes(schemeType)) return err(400, `scheme_type must be one of: ${SCHEME_TYPES.join(', ')}`);
@@ -86,13 +84,6 @@ exports.handler = async (event) => {
   if (!FREQUENCIES.includes(frequency)) return err(400, `frequency must be one of: ${FREQUENCIES.join(', ')}`);
   if (!cycleLength || cycleLength <= 0) return err(400, 'cycle_length must be a positive integer');
   if (!PAYOUT_ORDERS.includes(payoutOrder)) return err(400, `payout_order must be one of: ${PAYOUT_ORDERS.join(', ')}`);
-  if (compensationType === 'percentage' && (compensationValue == null || compensationValue > 10000)) return err(400, 'collector_compensation_value must be basis points (0-10000) when compensation type is percentage');
-
-  // Fixed compensation defaults to the standard contribution amount
-  // itself - "usually the monthly/daily amount contribution by each
-  // respective member", per how this was actually specified, not an
-  // arbitrary default.
-  if (compensationValue == null) compensationValue = compensationType === 'fixed' ? amountKobo : 0;
 
   const db = getServiceClient();
 
@@ -117,7 +108,6 @@ exports.handler = async (event) => {
     name, scheme_type: schemeType, contribution_amount_kobo: amountKobo,
     frequency, cycle_length: cycleLength, payout_order: payoutOrder,
     created_by_zillion_id: zillionId,
-    collector_compensation_type: compensationType, collector_compensation_value: compensationValue,
   }).select().single();
 
   if (error) return err(500, `Failed to create scheme: ${error.message}`);
