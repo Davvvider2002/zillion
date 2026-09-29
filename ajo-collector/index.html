@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zillion Ajo Collector</title>
+<link rel="manifest" href="/ajo-collector/manifest.json">
+<link rel="icon" href="/ajo-collector/icon.svg">
+<meta name="theme-color" content="#00C896">
+<style>
+  :root {
+    --bg:#0A1F14; --card:#0F2B1D; --card2:#0A2318; --border:#1A4030; --border-hi:#00C896;
+    --tx:#E8F5EE; --tx2:#9CC4B0; --tx3:#5A8069; --g:#00C896; --g-lite:#00E0AC;
+    --am:#F5B87A; --red:#FF8A8A;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg:#0A1F14; --tx:#E8F5EE; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { margin:0; background:var(--bg); color:var(--tx); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; min-height:100%; }
+  .screen { display:none; min-height:100vh; padding:20px 18px 40px; max-width:480px; margin:0 auto; }
+  .screen.active { display:block; }
+  .hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; padding-top:env(safe-area-inset-top,0px); }
+  .hdr-title { font-size:20px; font-weight:800; }
+  .hdr-sub { font-size:12.5px; color:var(--tx2); }
+  input { width:100%; background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:14px; color:var(--tx); font-size:16px; margin-bottom:12px; }
+  input:focus { outline:none; border-color:var(--border-hi); }
+  button.btn { width:100%; background:var(--g); color:#05140D; border:none; border-radius:12px; padding:15px; font-size:15px; font-weight:800; cursor:pointer; }
+  button.btn:disabled { opacity:.5; cursor:default; }
+  button.btn-outline { background:transparent; border:1px solid var(--border-hi); color:var(--g); }
+  button.btn-sm { width:auto; padding:8px 14px; font-size:13px; border-radius:10px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px; cursor:pointer; }
+  .card:active { background:var(--card2); }
+  .card-title { font-weight:700; font-size:15px; }
+  .card-sub { font-size:12.5px; color:var(--tx2); margin-top:4px; }
+  .badge { display:inline-block; padding:3px 8px; border-radius:8px; font-size:10.5px; font-weight:700; }
+  .badge-ok { background:#0F3D2B; color:var(--g-lite); }
+  .badge-warn { background:#3A2A0F; color:var(--am); }
+  .back-link { color:var(--tx2); font-size:13px; margin-bottom:14px; display:inline-block; cursor:pointer; }
+  .offline-badge { display:none; background:#3A2A0F; border:1px solid #5A4420; border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:12.5px; color:var(--am); font-weight:600; }
+  .stale-badge { display:none; background:#0F2B3D; border:1px solid #204A6A; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:#7AC0F5; }
+  .empty { text-align:center; padding:40px 20px; color:var(--tx2); font-size:14px; }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#0F2B1D; border:1px solid var(--border-hi); color:var(--tx); padding:12px 18px; border-radius:12px; font-size:13.5px; z-index:999; max-width:90vw; text-align:center; }
+  .toast.err { border-color:var(--red); color:var(--red); }
+</style>
+</head>
+<body>
+
+<div id="toast-host"></div>
+
+<!-- LOGIN: phone entry -->
+<div id="screen-phone" class="screen active">
+  <div class="hdr"><div><div class="hdr-title">Zillion Ajo Collector</div><div class="hdr-sub">Sign in with your phone number</div></div></div>
+  <input id="phone-input" type="tel" placeholder="e.g. 08012345678" autocomplete="tel">
+  <button class="btn" onclick="doSendOtp()">Send code</button>
+</div>
+
+<!-- LOGIN: OTP entry -->
+<div id="screen-otp" class="screen">
+  <span class="back-link" onclick="goTo('screen-phone')">&larr; Back</span>
+  <div class="hdr"><div><div class="hdr-title">Enter the code</div><div class="hdr-sub" id="otp-sub">Sent to your phone</div></div></div>
+  <input id="otp-input" type="tel" inputmode="numeric" placeholder="6-digit code" maxlength="6" autocomplete="one-time-code">
+  <button class="btn" onclick="doVerifyOtp()">Verify</button>
+</div>
+
+<!-- HOME: scheme assignments -->
+<div id="screen-home" class="screen">
+  <div class="hdr">
+    <div><div class="hdr-title">Your groups</div><div class="hdr-sub" id="home-sub">&nbsp;</div></div>
+    <span class="back-link" onclick="doLogout()">Sign out</span>
+  </div>
+  <div id="offline-queue-badge" class="offline-badge"></div>
+  <div id="stale-badge-home" class="stale-badge">Showing your last-saved list &mdash; reconnect to refresh.</div>
+  <div id="home-list"><div class="empty">Loading&hellip;</div></div>
+</div>
+
+<!-- MEMBERS: member list for a selected scheme -->
+<div id="screen-members" class="screen">
+  <span class="back-link" onclick="goTo('screen-home')">&larr; Back to groups</span>
+  <div class="hdr"><div><div class="hdr-title" id="members-scheme-name">&nbsp;</div><div class="hdr-sub">Tap a member to record their collection</div></div></div>
+  <div id="stale-badge-members" class="stale-badge">Showing the last-saved member list &mdash; reconnect to refresh.</div>
+  <div id="members-list"><div class="empty">Loading&hellip;</div></div>
+  <button class="btn btn-outline" style="margin-top:16px" onclick="goTo('screen-reconcile')">End-of-day reconciliation</button>
+</div>
+
+<!-- COLLECT: record one member's contribution -->
+<div id="screen-collect" class="screen">
+  <span class="back-link" onclick="goTo('screen-members')">&larr; Back to members</span>
+  <div class="hdr"><div><div class="hdr-title">Record collection</div><div class="hdr-sub" id="collect-member-name">&nbsp;</div></div></div>
+  <input id="collect-amount" type="number" inputmode="decimal" placeholder="Amount in Naira (leave blank for the scheme's set amount)">
+  <button class="btn" onclick="doRecordCollection()">Record</button>
+</div>
+
+<!-- RECONCILE: end-of-day cash count -->
+<div id="screen-reconcile" class="screen">
+  <span class="back-link" onclick="goTo('screen-members')">&larr; Back</span>
+  <div class="hdr"><div><div class="hdr-title">End-of-day reconciliation</div><div class="hdr-sub">How much cash are you actually holding?</div></div></div>
+  <input id="reconcile-amount" type="number" inputmode="decimal" placeholder="Actual amount in Naira">
+  <button class="btn" onclick="doReconcile()">Submit</button>
+</div>
+
+<script>
+'use strict';
+
+// ── Core ─────────────────────────────────────────────────────────
+const API = '/.netlify/functions';
+const SESSION_KEY = 'zillion_collector_session';
+const OFFLINE_QUEUE_KEY = 'zillion_collector_offline_queue';
+
+let STATE = { token: null, zillionId: null, phone: null, currentSchemeId: null, currentSchemeName: null, currentMemberZillionId: null, currentMemberLabel: null };
+let CURRENT_SCREEN = 'screen-phone';
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    STATE.token = s.token; STATE.zillionId = s.zillion_id; STATE.phone = s.phone;
+  } catch (e) {}
+}
+function saveSession() {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ token: STATE.token, zillion_id: STATE.zillionId, phone: STATE.phone })); } catch (e) {}
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  STATE.token = null; STATE.zillionId = null; STATE.phone = null;
+}
+
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+  CURRENT_SCREEN = id;
+  window.scrollTo(0, 0);
+}
+
+function toast(msg, isError, ms) {
+  ms = ms || 3000;
+  const host = document.getElementById('toast-host');
+  const el = document.createElement('div');
+  el.className = 'toast' + (isError ? ' err' : '');
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+function nairaFromInput(inputEl) {
+  const raw = (inputEl.value || '').trim();
+  if (!raw) return null;
+  const n = parseFloat(raw);
+  if (isNaN(n) || n <= 0) return null;
+  return Math.round(n * 100); // kobo
+}
+
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const headers = Object.assign({}, opts.headers || {}, STATE.token ? { Authorization: 'Bearer ' + STATE.token } : {});
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(API + path, Object.assign({}, opts, { headers }));
+  const fromCache = res.headers.get('X-From-Cache') === 'true';
+  let data;
+  try { data = await res.json(); } catch (e) { data = {}; }
+  return { ok: res.ok, status: res.status, data, fromCache };
+}
+
+// ── Login ────────────────────────────────────────────────────────
+async function doSendOtp() {
+  const phone = (document.getElementById('phone-input').value || '').trim();
+  if (!phone) { toast('Enter your phone number', true); return; }
+  try {
+    const r = await apiFetch('/send-otp', { method: 'POST', body: JSON.stringify({ phone }) });
+    if (!r.ok) { toast(r.data.error || 'Could not send code', true); return; }
+    STATE.phone = phone;
+    document.getElementById('otp-sub').textContent = 'Sent to ' + phone;
+    goTo('screen-otp');
+  } catch (e) {
+    toast('Network error: ' + e.message, true);
+  }
+}
+
+async function doVerifyOtp() {
+  const otp = (document.getElementById('otp-input').value || '').trim();
+  if (!otp) { toast('Enter the code', true); return; }
+  try {
+    const r = await apiFetch('/verify-otp', { method: 'POST', body: JSON.stringify({ phone: STATE.phone, otp }) });
+    if (!r.ok || !r.data.verified) { toast(r.data.error || 'Incorrect code', true); return; }
+    STATE.token = r.data.token; STATE.zillionId = r.data.zillion_id;
+    saveSession();
+    document.getElementById('otp-input').value = '';
+    loadHome();
+  } catch (e) {
+    toast('Network error: ' + e.message, true);
+  }
+}
+
+function doLogout() {
+  clearSession();
+  document.getElementById('phone-input').value = '';
+  goTo('screen-phone');
+}
+
+// ── Home: scheme assignments ────────────────────────────────────
+async function loadHome() {
+  goTo('screen-home');
+  const listEl = document.getElementById('home-list');
+  const staleEl = document.getElementById('stale-badge-home');
+  listEl.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  staleEl.style.display = 'none';
+  try {
+    const r = await apiFetch('/ajo-collector-my-schemes');
+    if (!r.ok) { listEl.innerHTML = `<div class="empty">${r.data.error || 'Could not load your groups'}</div>`; return; }
+    staleEl.style.display = r.fromCache ? 'block' : 'none';
+
+    const assignments = r.data.assignments || [];
+    document.getElementById('home-sub').textContent = assignments.length
+      ? `${assignments.length} group${assignments.length === 1 ? '' : 's'} assigned to you`
+      : 'No groups assigned to you yet';
+
+    if (!assignments.length) {
+      listEl.innerHTML = '<div class="empty">You\'re not currently assigned as a collector for any group. Check with your admin if this looks wrong.</div>';
+      return;
+    }
+
+    listEl.innerHTML = assignments.map(a => `
+      <div class="card" onclick="openScheme('${a.scheme_id}', ${JSON.stringify(a.scheme_name).replace(/"/g, '&quot;')})">
+        <div class="card-title">${a.scheme_name}</div>
+        <div class="card-sub">
+          ${a.status === 'PENDING_ESCROW' ? '<span class="badge badge-warn">Escrow pending</span>' : (a.reconciled_today ? '<span class="badge badge-ok">Reconciled today</span>' : '<span class="badge badge-warn">Not reconciled today</span>')}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty">Network error: ${e.message}</div>`;
+  }
+  updateOfflineQueueBadge();
+}
+
+function openScheme(schemeId, schemeName) {
+  STATE.currentSchemeId = schemeId;
+  STATE.currentSchemeName = schemeName;
+  loadMembers();
+}
+
+// ── Members ──────────────────────────────────────────────────────
+async function loadMembers() {
+  goTo('screen-members');
+  document.getElementById('members-scheme-name').textContent = STATE.currentSchemeName || '';
+  const listEl = document.getElementById('members-list');
+  const staleEl = document.getElementById('stale-badge-members');
+  listEl.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  staleEl.style.display = 'none';
+  try {
+    const r = await apiFetch('/ajo-collector-scheme-members?scheme_id=' + encodeURIComponent(STATE.currentSchemeId));
+    if (!r.ok) { listEl.innerHTML = `<div class="empty">${r.data.error || 'Could not load members'}</div>`; return; }
+    staleEl.style.display = r.fromCache ? 'block' : 'none';
+
+    const members = r.data.members || [];
+    if (!members.length) { listEl.innerHTML = '<div class="empty">No active members in this group yet.</div>'; return; }
+
+    listEl.innerHTML = members.map(m => `
+      <div class="card" onclick="openCollect('${m.zillion_id}', ${JSON.stringify(m.phone_normalized || m.zillion_id).replace(/"/g, '&quot;')})">
+        <div class="card-title">${m.phone_normalized || m.zillion_id}</div>
+        <div class="card-sub">Position #${m.cycle_position ?? '—'}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty">Network error: ${e.message}</div>`;
+  }
+}
+
+function openCollect(memberZillionId, memberLabel) {
+  STATE.currentMemberZillionId = memberZillionId;
+  STATE.currentMemberLabel = memberLabel;
+  document.getElementById('collect-member-name').textContent = memberLabel;
+  document.getElementById('collect-amount').value = '';
+  goTo('screen-collect');
+}
+
+// ── Offline queue for cash collection — same pattern proven in the main wallet: localStorage, not
+// IndexedDB (this only ever holds a handful of pending records at once), synced on reconnect and every
+// 30 seconds as a backstop, and an item is only ever removed on a DEFINITIVE server response — a real
+// rejection, or success — never on a plain network failure, which leaves it queued for the next try. ──
+function queueLoad() { try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch (e) { return []; } }
+function queueSave(q) { try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch (e) {} }
+function queueAdd(item) {
+  const q = queueLoad();
+  q.push(Object.assign({}, item, { _localId: 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), _queuedAt: new Date().toISOString() }));
+  queueSave(q);
+  updateOfflineQueueBadge();
+}
+function updateOfflineQueueBadge() {
+  const badge = document.getElementById('offline-queue-badge');
+  if (!badge) return;
+  const count = queueLoad().length;
+  badge.style.display = count > 0 ? 'block' : 'none';
+  badge.textContent = count > 0 ? `${count} collection${count === 1 ? '' : 's'} waiting to sync` : '';
+}
+async function queueSync() {
+  if (!navigator.onLine || !STATE.token) return;
+  const q = queueLoad();
+  if (!q.length) return;
+  let synced = 0;
+  const remaining = [];
+  for (const item of q) {
+    try {
+      const r = await apiFetch('/ajo-collector-record-cash', {
+        method: 'POST',
+        body: JSON.stringify(Object.assign({ scheme_id: item.scheme_id, member_zillion_id: item.member_zillion_id }, item.amount_kobo ? { amount_kobo: item.amount_kobo } : {})),
+      });
+      if (r.ok) { synced++; continue; }
+      toast(`An offline collection for ${item.scheme_name || 'a group'} couldn't sync: ${r.data.error || 'rejected'}`, true, 5000);
+    } catch (e) {
+      remaining.push(item); // network error - keep it queued, try again next time
+    }
+  }
+  queueSave(remaining);
+  updateOfflineQueueBadge();
+  if (synced > 0) toast(`${synced} offline collection${synced === 1 ? '' : 's'} synced.`);
+}
+window.addEventListener('online', () => setTimeout(queueSync, 1000));
+setInterval(queueSync, 30000);
+
+async function doRecordCollection() {
+  const amountKobo = nairaFromInput(document.getElementById('collect-amount'));
+  const payload = { scheme_id: STATE.currentSchemeId, member_zillion_id: STATE.currentMemberZillionId, scheme_name: STATE.currentSchemeName };
+  if (amountKobo) payload.amount_kobo = amountKobo;
+
+  if (!navigator.onLine) {
+    queueAdd(payload);
+    toast('No signal — saved and will sync automatically once you\'re back online.');
+    goTo('screen-members');
+    return;
+  }
+
+  try {
+    const r = await apiFetch('/ajo-collector-record-cash', {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({ scheme_id: STATE.currentSchemeId, member_zillion_id: STATE.currentMemberZillionId }, amountKobo ? { amount_kobo: amountKobo } : {})),
+    });
+    if (!r.ok) { toast(r.data.error || 'Could not record this collection', true); return; }
+    toast('Collection recorded.');
+    goTo('screen-members');
+  } catch (e) {
+    // A genuine network failure even though navigator.onLine said we had a connection - queue it rather
+    // than lose it. This is the same "never drop on a network error" rule the sync loop above follows.
+    queueAdd(payload);
+    toast('Connection dropped — saved and will sync automatically.');
+    goTo('screen-members');
+  }
+}
+
+// ── Reconciliation ───────────────────────────────────────────────
+async function doReconcile() {
+  const actualKobo = nairaFromInput(document.getElementById('reconcile-amount'));
+  if (actualKobo == null) { toast('Enter the amount you actually have', true); return; }
+  try {
+    const r = await apiFetch('/ajo-collector-reconcile', {
+      method: 'POST',
+      body: JSON.stringify({ scheme_id: STATE.currentSchemeId, actual_kobo: actualKobo }),
+    });
+    if (!r.ok) { toast(r.data.error || 'Could not submit reconciliation', true); return; }
+    if (r.data.already_reconciled) { toast('Already reconciled for today.'); }
+    else if (r.data.balanced) { toast('Reconciled — balanced.'); }
+    else { toast(`Reconciled — variance recorded.`, false, 4000); }
+    document.getElementById('reconcile-amount').value = '';
+    goTo('screen-home');
+    loadHome();
+  } catch (e) {
+    toast('Network error: ' + e.message, true);
+  }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/ajo-collector/sw.js').catch(e => console.warn('[SW] registration failed', e.message));
+  });
+}
+
+loadSession();
+if (STATE.token && STATE.zillionId) {
+  loadHome();
+} else {
+  goTo('screen-phone');
+}
+</script>
+</body>
+</html>
