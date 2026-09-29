@@ -35,6 +35,20 @@ const throws = async (fn, needle) => { try { await fn(); return null; } catch (e
 
   let missingEnvThrew = false; try { dojah.mustEnv('COOP_NIN_HASH_SALT_TEST_MISSING', {}); } catch (e) { missingEnvThrew = /not set/.test(e.message); }
   ok('mustEnv: throws loudly rather than falling back to a guessable default', missingEnvThrew);
+
+  // encryptNIN / decryptNIN — what a member submits from their wallet before an admin verifies it
+  const cryptoMod = require('crypto');
+  const encKey = cryptoMod.randomBytes(32).toString('base64');
+  const encEnv = { COOP_NIN_ENCRYPTION_KEY: encKey };
+  const packed = dojah.encryptNIN('12345678901', encEnv);
+  ok('encryptNIN: ciphertext never contains the raw NIN as plaintext', !packed.includes('12345678901'));
+  ok('decryptNIN: round-trips back to the exact original NIN', dojah.decryptNIN(packed, encEnv) === '12345678901');
+  let wrongKeyThrew = false;
+  try { dojah.decryptNIN(packed, { COOP_NIN_ENCRYPTION_KEY: cryptoMod.randomBytes(32).toString('base64') }); } catch (e) { wrongKeyThrew = true; }
+  ok('decryptNIN: a different key fails to decrypt (GCM auth tag catches it)', wrongKeyThrew);
+  let missingKeyThrew = false;
+  try { dojah.encryptNIN('12345678901', {}); } catch (e) { missingKeyThrew = /not set/.test(e.message); }
+  ok('encryptNIN: refuses loudly when COOP_NIN_ENCRYPTION_KEY is not configured', missingKeyThrew);
 })();
 
 // ────────────────────────────── coopKycBilling ──────────────────────────────
