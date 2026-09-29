@@ -11,7 +11,7 @@
  "lib/coopMemberFullStatement.js": 2,
  "lib/supabase.js": 2,
  "netlify/functions/admin-agents.js": 1,
- "netlify/functions/admin-ajo-agents.js": 1,
+ "netlify/functions/admin-coop-agents.js": 1,
  "netlify/functions/admin-fraud.js": 1,
  "netlify/functions/admin-ledger.js": 1,
  "netlify/functions/admin-reconcile-all.js": 2,
