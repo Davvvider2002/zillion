@@ -1369,40 +1369,8 @@ function triggerPWAInstall() {
     </div>
 
     <div class="section-header"><div class="section-title">Your groups</div></div>
-    <div style="text-align:right;margin:-8px 0 10px">
-      <button type="button" onclick="ajoOpenRecruitCollectorModal()" style="background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px">🧑‍🤝‍🧑 Recruit a collector →</button>
-    </div>
     <div id="ajo-groups-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
 
-  </div>
-</div>
-
-<div class="modal-overlay" id="modal-ajo-recruit-collector" style="display:none;position:fixed;inset:0;background:rgba(13,31,26,.95);z-index:9999;align-items:center;justify-content:center;padding:20px">
-  <div style="max-width:380px;width:100%;background:#0F2B1D;border:1px solid #1A4030;border-radius:16px;padding:22px;max-height:85vh;overflow-y:auto">
-    <div style="text-align:center;margin-bottom:16px">
-      <div style="font-size:34px;margin-bottom:6px">🧑‍🤝‍🧑</div>
-      <div style="font-size:17px;font-weight:700;color:#fff">Recruit a collector</div>
-      <div style="font-size:12px;color:#9CC4B0;margin-top:4px">Share your link — anyone who signs up through it becomes a candidate collector under you.</div>
-    </div>
-
-    <div style="background:#081A11;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#9CC4B0;line-height:1.6">
-      <strong style="color:#E8F5EE">How it works:</strong> they open your link, pay the one-time registration fee below, then submit their own bank details for escrow. Zillion reviews and approves those details before they can start collecting — that final check isn't something you or they can skip.
-    </div>
-
-    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Registration fee (₦)</label>
-    <input type="number" id="arc-fee" placeholder="e.g. 2000" style="width:100%;padding:11px;background:#081A11;border:1px solid #234A38;border-radius:8px;color:#E8F5EE;font-size:14px;margin-bottom:6px;box-sizing:border-box">
-    <div style="font-size:11px;color:#7A9A85;margin-bottom:14px">This is compulsory — there's no free option for becoming a collector.</div>
-    <button class="btn" id="arc-save-btn" style="width:100%;padding:11px;background:#E8930C;color:#1A2E1A;border:none;border-radius:8px;font-weight:700;font-size:13px;margin-bottom:16px" onclick="ajoSaveCollectorFee()">Save fee</button>
-
-    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7A9A85;margin-bottom:6px">Your recruitment link</label>
-    <div id="arc-link-box" style="background:#081A11;border:1px solid #234A38;border-radius:8px;padding:11px;font-size:12px;color:#9CC4B0;word-break:break-all;margin-bottom:10px">Set a fee above first — the link needs it to work.</div>
-    <div id="arc-qr-wrap" style="display:none;text-align:center;margin-bottom:10px">
-      <div id="arc-qr-canvas" style="display:inline-block;background:#fff;padding:10px;border-radius:10px"></div>
-      <div style="font-size:11px;color:#7A9A85;margin-top:6px">Show this to a prospect to scan, or share the link above</div>
-    </div>
-    <button class="btn" id="arc-copy-btn" style="width:100%;padding:11px;background:transparent;color:#00E0AC;border:1px solid #1A4030;border-radius:8px;font-weight:700;font-size:13px;margin-bottom:8px;display:none" onclick="ajoCopyCollectorLink()">Copy link</button>
-
-    <button class="btn" style="width:100%;padding:12px;background:transparent;color:#E8F5EE;border:1px solid #1A4030;border-radius:10px;font-weight:600;font-size:14px" onclick="document.getElementById('modal-ajo-recruit-collector').style.display='none'">Close</button>
   </div>
 </div>
 
@@ -1498,9 +1466,6 @@ function triggerPWAInstall() {
   </div>
   <div class="scroll-body" style="padding:16px">
     <div id="ajo-offline-queue-badge" style="display:none;background:#3A2A0F;border:1px solid #5A4420;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#F5B87A;font-weight:600"></div>
-    <div style="text-align:right;margin-bottom:10px">
-      <button type="button" onclick="ajoOpenRecruitCollectorModal()" style="background:none;border:none;color:#00E0AC;font-size:12px;font-weight:700;cursor:pointer;padding:4px">🧑‍🤝‍🧑 Recruit another collector →</button>
-    </div>
     <div id="ajo-collector-list"><div style="padding:20px;text-align:center;color:#7A9A85;font-size:13px">Loading…</div></div>
   </div>
 </div>
@@ -3120,89 +3085,6 @@ function ajoOpenCreatePersonalModal() {
   document.getElementById('acp-collector').innerHTML = '<option value="">Loading collectors…</option>';
   document.getElementById('modal-ajo-create-personal').style.display = 'flex';
   ajoLoadCollectorDirectoryForPersonalSavings();
-}
-
-// -- Recruit a collector: any Ajo admin's own fee + join link ------
-// The fee (ajo_collector_recruitment_settings) is a per-person setting, not tied to any one scheme - the same
-// endpoint whoever set up a group scheme already relies on elsewhere. admin_zillion_id in the GET response is
-// server-verified from the caller's own token, never something the client decodes or supplies itself, which
-// is what makes it safe to build the recruitment link straight from that response.
-let _ajoCollectorAdminId = null;
-
-async function ajoOpenRecruitCollectorModal() {
-  document.getElementById('modal-ajo-recruit-collector').style.display = 'flex';
-  document.getElementById('arc-fee').value = '';
-  document.getElementById('arc-link-box').textContent = 'Loading…';
-  document.getElementById('arc-copy-btn').style.display = 'none';
-  document.getElementById('arc-qr-wrap').style.display = 'none';
-
-  const token = (STATE.user && STATE.user.token) || '';
-  if (!token) { document.getElementById('arc-link-box').textContent = 'Sign in first.'; return; }
-
-  try {
-    const res = await fetch(`${API}/ajo-configure-collector-joining-fee`, { headers: { Authorization: 'Bearer ' + token } });
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || 'Could not load your fee setting', true); return; }
-
-    _ajoCollectorAdminId = data.admin_zillion_id;
-    if (data.joining_fee_kobo) {
-      document.getElementById('arc-fee').value = data.joining_fee_kobo / 100;
-      ajoRenderCollectorLink();
-    } else {
-      document.getElementById('arc-link-box').textContent = 'Set a fee above first — the link needs it to work.';
-    }
-  } catch (e) {
-    toast('Network error: ' + e.message, true);
-  }
-}
-
-function ajoRenderCollectorLink() {
-  if (!_ajoCollectorAdminId) return;
-  const link = `${location.origin}/ajo-collector-join/?admin_id=${encodeURIComponent(_ajoCollectorAdminId)}`;
-  document.getElementById('arc-link-box').textContent = link;
-  document.getElementById('arc-copy-btn').style.display = 'block';
-
-  const qrWrap = document.getElementById('arc-qr-wrap');
-  const qrCanvas = document.getElementById('arc-qr-canvas');
-  qrCanvas.innerHTML = '';
-  if (typeof QRCode === 'undefined') { qrWrap.style.display = 'none'; return; }
-  new QRCode(qrCanvas, { text: link, width: 180, height: 180, colorDark: '#000000', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.L });
-  qrWrap.style.display = 'block';
-}
-
-async function ajoSaveCollectorFee() {
-  const naira = parseFloat(document.getElementById('arc-fee').value);
-  if (isNaN(naira) || naira <= 0) { toast('Enter a fee greater than zero — there\'s no free option', true); return; }
-
-  const token = (STATE.user && STATE.user.token) || '';
-  const btn = document.getElementById('arc-save-btn');
-  btn.disabled = true; btn.textContent = 'Saving…';
-  try {
-    const res = await fetch(`${API}/ajo-configure-collector-joining-fee`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ joining_fee_kobo: Math.round(naira * 100) }),
-    });
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || 'Could not save the fee', true); btn.disabled = false; btn.textContent = 'Save fee'; return; }
-
-    _ajoCollectorAdminId = data.settings.admin_zillion_id;
-    ajoRenderCollectorLink();
-    toast('Fee saved.');
-  } catch (e) {
-    toast('Network error: ' + e.message, true);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Save fee';
-  }
-}
-
-function ajoCopyCollectorLink() {
-  const link = document.getElementById('arc-link-box').textContent;
-  if (!link || !_ajoCollectorAdminId) return;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(link).then(() => toast('Link copied.')).catch(() => toast('Could not copy — select and copy manually.', true));
-  } else {
-    toast('Could not copy automatically — select and copy manually.', true);
-  }
 }
 
 async function ajoLoadCollectorDirectoryForPersonalSavings() {
