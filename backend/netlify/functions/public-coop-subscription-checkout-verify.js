@@ -19,6 +19,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { extendSubscription } = require('../../lib/coopSubscription');
 const { computeSubscriptionTotal } = require('../../lib/coopPricing');
 const { postZillionSubscriptionRevenue } = require('../../lib/zillionSubscriptionRevenue');
+const { creditAgentCommissionIfApplicable } = require('../../lib/coopAgentCommission');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -75,17 +76,23 @@ exports.handler = async (event) => {
     && v.currency === 'NGN'
     && Number(v.amount) === pricing.totalKobo / 100;
 
-  await db.from('coop_subscription_payments').insert({
+  const { data: payment } = await db.from('coop_subscription_payments').insert({
     coop_id: coopId,
     amount_kobo: pricing.totalKobo,
     type: 'initial',
     status: verifiedOk ? 'success' : 'failed',
     flw_transaction_id: transactionId,
     tx_ref: txRef,
-  });
+  }).select().single();
 
   if (!verifiedOk) {
     return ok({ success: false, message: 'Payment could not be verified as successful.' });
+  }
+
+  // Referring agent's commission - only on an actually-verified payment, never on a failed one.
+  if (payment) {
+    await creditAgentCommissionIfApplicable(db, coopId, pricing.totalKobo, payment.id)
+      .catch(e => console.warn('[public-coop-subscription-checkout-verify] agent commission crediting failed (non-fatal):', e.message));
   }
 
   await postZillionSubscriptionRevenue(db, {
