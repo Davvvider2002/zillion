@@ -9,6 +9,7 @@
 const { createHmac, randomInt } = require('crypto');
 const { createClient }          = require('@supabase/supabase-js');
 const { sendEmail }             = require('../../lib/resendEmail');
+const { checkRateLimit }        = require('../../lib/rateLimit');
 
 // ── Helpers ───────────────────────────────────────────────────
 function generateOtp() { return String(randomInt(100000, 999999)); }
@@ -145,6 +146,15 @@ exports.handler = async (event) => {
   // ── Rate limit via Supabase (survives cold-start) ──────────
   let db;
   try { db = getDb(); } catch(e) { return err(500, e.message); }
+
+  // Per-IP throttle FIRST — the per-phone check below bounds harassment of one number, but does nothing to stop
+  // one source spamming many different numbers to run up the real SMS bill. Generous window (a shared office/NAT
+  // IP can have several genuine users signing up at once) — this catches bulk abuse, not normal concurrent use.
+  const ip = event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown';
+  if (ip !== 'unknown') {
+    const ipLimit = await checkRateLimit(db, `send-otp:${ip}`, { windowMinutes: 15, maxAttempts: 20, lockoutMinutes: 15 });
+    if (!ipLimit.allowed) return err(429, 'Too many OTP requests from this network. Please try again shortly.', { retry_after_seconds: ipLimit.retryAfterSeconds });
+  }
 
   const tenMinsAgo = new Date(Date.now() - 600000).toISOString();
   const { count: recentCount } = await db
