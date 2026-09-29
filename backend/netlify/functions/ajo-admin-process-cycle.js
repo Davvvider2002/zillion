@@ -46,6 +46,7 @@ const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
 const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
 const { resolveBankCode, verifyRecipientAccount, initiateTransfer } = require('../../lib/ajoTransfer');
 const { fetchAllRows } = require('../../lib/coopPaginate');
+const { notify } = require('../../lib/ajoNotifications');
 
 function selectPayee(members, alreadyPaidMemberIds, payoutOrder, adminChoiceId) {
   const eligible = members.filter(m => !alreadyPaidMemberIds.includes(m.id));
@@ -101,7 +102,7 @@ exports.handler = async (event) => {
   if (!cycle) return err(400, 'This scheme has no open cycle right now');
 
   const members = await fetchAllRows(() => db.from('ajo_scheme_members')
-    .select('id, cycle_position, dedicated_account_number, dedicated_account_bank').eq('scheme_id', schemeId).eq('status', 'ACTIVE').order('id'));
+    .select('id, zillion_id, cycle_position, dedicated_account_number, dedicated_account_bank').eq('scheme_id', schemeId).eq('status', 'ACTIVE').order('id'));
   if (!members || members.length === 0) return err(400, 'This scheme has no active members to pay');
 
   const allCycles = await fetchAllRows(() => db.from('ajo_cycles').select('id').eq('scheme_id', schemeId).order('id'));
@@ -201,6 +202,16 @@ exports.handler = async (event) => {
   const { data: payoutWithTransfer } = await db.from('ajo_payouts').update(transferOutcome).eq('id', payout.id).select().single();
 
   await db.from('ajo_cycles').update({ status: 'PAID_OUT', closed_at: new Date().toISOString() }).eq('id', cycle.id);
+
+  // Fires the moment the payout is actually recorded, not on a nightly scan — the payee should hear about it now.
+  if (payee.zillion_id) {
+    await notify(db, {
+      schemeId, targetType: 'individual', targetZillionId: payee.zillion_id, type: 'payout_completed',
+      title: 'Your Ajo payout has been processed',
+      message: `Your payout of ₦${(netPayoutKobo / 100).toLocaleString()} from "${scheme.name}" has been processed.${transferOutcome.transfer_status === 'QUEUED' ? ' Transfer is on its way to your dedicated account.' : ' Check your dedicated account for the transfer.'}`,
+      metadata: { payout_id: payout.id, amount_kobo: netPayoutKobo, transfer_status: transferOutcome.transfer_status },
+    }).catch(e => console.warn('[ajo-admin-process-cycle] payout notification failed (non-fatal):', e.message));
+  }
 
   const remainingAfterThis = members.length - (alreadyPaidIds.length + 1);
   let nextCycle = null;
