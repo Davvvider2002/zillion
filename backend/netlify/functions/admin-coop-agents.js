@@ -3,7 +3,7 @@
  *
  * GET  /api/v1/admin-coop-agents
  * POST /api/v1/admin-coop-agents  { action: 'approve'|'suspend', agent_id }
- *      /api/v1/admin-coop-agents  { action: 'create', zillion_id, referral_code, payout_bank_name?, payout_account_number?, commission_rate_bps?, parent_agent_id?, tier2_override_bps? }
+ *      /api/v1/admin-coop-agents  { action: 'create', zillion_id, name, payout_bank_name?, payout_account_number?, commission_rate_bps?, parent_agent_id?, tier2_override_bps? }
  *      /api/v1/admin-coop-agents  { action: 'record_payout', agent_id }
  *      /api/v1/admin-coop-agents  { action: 'update_rate', agent_id, commission_rate_bps }
  *      /api/v1/admin-coop-agents  { action: 'set_hierarchy', agent_id, parent_agent_id | null, tier2_override_bps? }
@@ -15,7 +15,9 @@
  *
  * An agent record is created here by the admin (not self-service by the agent), then approved before their
  * referral_code becomes usable for attribution — onboarding is a deliberate admin action, not automatic
- * signup, since a referral code determines who earns commission on real subscription revenue.
+ * signup, since a referral code determines who earns commission on real subscription revenue. The code
+ * itself is never typed in — generateReferralCode() (coopAgentHierarchy.js) derives it from name, following
+ * the same PREFIX-NAME## template the platform's own agents already use.
  *
  * Each listed agent includes its live earnings summary: total accrued, total paid out, outstanding balance,
  * and how many of its referral attributions are still within their 24-month commission window versus already
@@ -26,7 +28,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog } = require('../../lib/auditLog');
-const { checkParentEligible } = require('../../lib/coopAgentHierarchy');
+const { checkParentEligible, generateReferralCode } = require('../../lib/coopAgentHierarchy');
 
 const ALLOWED_ROLES = ['SUPER_ADMIN', 'OPERATIONS'];
 const COMMISSION_WINDOW_MONTHS = 24;
@@ -98,12 +100,14 @@ exports.handler = async (event) => {
 
   if (body.action === 'create') {
     const zillionId = (body.zillion_id || '').trim();
-    const referralCode = (body.referral_code || '').trim();
+    const name = (body.name || '').trim();
     if (!zillionId) return err(400, 'zillion_id is required');
-    if (!referralCode) return err(400, 'referral_code is required');
+    if (!name) return err(400, 'name is required (used to generate the referral code)');
+
+    const referralCode = await generateReferralCode(db, name);
 
     const insertRow = {
-      zillion_id: zillionId, referral_code: referralCode,
+      zillion_id: zillionId, name, referral_code: referralCode,
       payout_bank_name: body.payout_bank_name || null, payout_account_number: body.payout_account_number || null,
       status: 'ACTIVE', approved_by: adminId, approved_at: new Date().toISOString(),
     };
@@ -126,7 +130,7 @@ exports.handler = async (event) => {
 
     const { data: created, error } = await db.from('coop_agents').insert(insertRow).select().single();
 
-    if (error) return err(error.code === '23505' ? 409 : 500, error.code === '23505' ? 'That zillion_id or referral_code is already an agent' : `Failed to create agent: ${error.message}`);
+    if (error) return err(error.code === '23505' ? 409 : 500, error.code === '23505' ? 'That zillion_id is already an agent' : `Failed to create agent: ${error.message}`);
 
     await auditLog(db, {
       action: 'ADMIN_COOP_AGENT_CREATED', username: adminId, role: auth.payload.role,
