@@ -2,15 +2,19 @@
  * zillion/backend/netlify/functions/ajo-collector-public-join-init.js
  *
  * POST /api/v1/ajo-collector-public-join-init
- * Body: { admin_zillion_id, name, phone, email?, return_url }
+ * Body: { name, phone, email?, return_url }
  *
  * Public, unauthenticated - mirrors coop-public-join-init.js exactly,
  * but there is no free path here: the registration fee is compulsory, per
  * how this was specified, not optional the way a society's own
- * registration fee can be zero. Every submission creates an
- * ajo_collector_join_applications row and opens a real Flutterwave
- * v3 checkout - the same fee calculation and payment mechanics
- * already proven for dues/savings/shares, reused rather than
+ * registration fee can be zero. The fee is the single platform-wide one
+ * Zillion Admin sets (admin-ajo-collector-platform-fee.js) — a collector
+ * works for the platform, not for whoever happened to share the link, so
+ * there is no admin_zillion_id here to resolve a per-recruiter fee from
+ * (an earlier version of this endpoint worked that way; corrected). Every
+ * submission creates an ajo_collector_join_applications row and opens a
+ * real Flutterwave v3 checkout - the same fee calculation and payment
+ * mechanics already proven for dues/savings/shares, reused rather than
  * reinvented.
  *
  * Paying the fee does NOT activate the collector - escrow
@@ -50,13 +54,11 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const adminZillionId = (body.admin_zillion_id || '').trim();
   const name  = (body.name || '').trim();
   const rawPhone = (body.phone || '').trim();
   const email = (body.email || '').trim() || null;
   const returnUrl = (body.return_url || '').trim();
 
-  if (!adminZillionId) return err(400, 'admin_zillion_id is required — use the link or QR code exactly as given');
   if (!name)  return err(400, 'name is required');
   if (!rawPhone) return err(400, 'phone is required');
   if (!returnUrl) return err(400, 'return_url is required');
@@ -64,9 +66,8 @@ exports.handler = async (event) => {
   const phone = normalisePhone(rawPhone);
   const db = getServiceClient();
 
-  const { data: settings } = await db.from('ajo_collector_recruitment_settings')
-    .select('joining_fee_kobo').eq('admin_zillion_id', adminZillionId).maybeSingle();
-  if (!settings) return err(404, 'This join link is no longer active — the admin has not set a registration fee');
+  const { data: settings } = await db.from('ajo_collector_platform_settings').select('joining_fee_kobo').eq('id', true).maybeSingle();
+  if (!settings) return err(503, 'Collector recruitment is not open yet — Zillion has not set a registration fee. Contact support.');
 
   const secretKey = (process.env.FLW_V3_SECRET_KEY || '').trim();
   if (!secretKey) return err(500, 'Payments are not yet configured — contact support');
@@ -74,7 +75,7 @@ exports.handler = async (event) => {
   const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, stampDutyKobo, totalKobo } = calculateFees(settings.joining_fee_kobo);
 
   const { data: application, error: appErr } = await db.from('ajo_collector_join_applications').insert({
-    recruiting_admin_zillion_id: adminZillionId, name, phone, email, amount_kobo: baseKobo, status: 'PENDING_PAYMENT',
+    name, phone, email, amount_kobo: baseKobo, status: 'PENDING_PAYMENT',
   }).select().single();
   if (appErr) return err(500, `Failed to start application: ${appErr.message}`);
 
