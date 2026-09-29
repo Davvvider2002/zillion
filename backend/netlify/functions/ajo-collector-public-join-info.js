@@ -1,13 +1,12 @@
 /**
  * zillion/backend/netlify/functions/ajo-collector-public-join-info.js
  *
- * GET /api/v1/ajo-collector-public-join-info?admin_id=...
+ * GET /api/v1/ajo-collector-public-join-info
  *
- * Public, unauthenticated - powers the collector join page's initial
- * display (the joining fee) before a prospect has any identity at
- * all. Deliberately exposes nothing about the recruiting admin
- * themselves - no name, no phone, no scheme details - only whether
- * this link is still active and what it costs to join.
+ * Public, unauthenticated - powers the collector join page's initial display (the joining fee) before a
+ * prospect has any identity at all. There is exactly one platform-wide fee, set by Zillion Admin
+ * (admin-ajo-collector-platform-fee.js) - collectors work for Zillion Ajo, not for whoever shared the link,
+ * so there's no admin to look up.
  */
 'use strict';
 
@@ -20,13 +19,9 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== 'GET') return err(405, 'Method Not Allowed');
 
-  const adminId = (event.queryStringParameters || {}).admin_id;
-  if (!adminId) return err(400, 'admin_id query parameter is required');
-
   const db = getServiceClient();
-  const { data: settings } = await db.from('ajo_collector_recruitment_settings')
-    .select('joining_fee_kobo').eq('admin_zillion_id', adminId).maybeSingle();
-  if (!settings) return err(404, 'This join link is no longer active');
+  const { data: settings } = await db.from('ajo_collector_platform_settings').select('joining_fee_kobo').eq('id', true).maybeSingle();
+  if (!settings) return err(404, 'Collector recruitment is not open yet — Zillion has not set a registration fee.');
 
-  return ok({ admin_id: adminId, joining_fee_kobo: settings.joining_fee_kobo });
+  return ok({ joining_fee_kobo: settings.joining_fee_kobo });
 };
