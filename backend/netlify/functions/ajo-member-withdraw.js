@@ -41,7 +41,6 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveFeeRate, computeFeeKobo } = require('../../lib/ajoFeeEngine');
-const { creditAgentCommissionIfApplicable } = require('../../lib/ajoCommission');
 const { resolveBankCode, verifyRecipientAccount, initiateTransfer } = require('../../lib/ajoTransfer');
 
 exports.handler = async (event) => {
@@ -101,7 +100,7 @@ exports.handler = async (event) => {
 
   await db.from('ajo_ledger').insert({ scheme_id: schemeId, entry_type: 'payout', amount_kobo: netWithdrawalKobo, reference_id: withdrawal.id });
 
-  const agentCommissionKobo = feeKobo > 0 ? await creditAgentCommissionIfApplicable(db, schemeId, feeKobo, 'payout', withdrawal.id) : 0;
+  // Agent referral commission does NOT apply here - see ajo-admin-process-cycle.js's note on the same point.
 
   // Attempt the real transfer. The withdrawal record above already
   // reflects the decision (money is owed, fee/commission applied) -
@@ -130,7 +129,7 @@ exports.handler = async (event) => {
   const { data: withdrawalWithTransfer } = await db.from('ajo_payouts').update(transferOutcome).eq('id', withdrawal.id).select().single();
 
   return ok({
-    success: true, withdrawal: withdrawalWithTransfer || withdrawal, fee_kobo: feeKobo, agent_commission_kobo: agentCommissionKobo,
+    success: true, withdrawal: withdrawalWithTransfer || withdrawal, fee_kobo: feeKobo,
     remaining_balance_kobo: availableKobo - requestedKobo,
     transfer_status: transferOutcome.transfer_status,
     message: transferOutcome.transfer_status === 'QUEUED'
