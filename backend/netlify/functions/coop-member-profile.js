@@ -14,6 +14,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
+const { isKycActiveForSociety } = require('../../lib/coopKycBilling');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -29,12 +30,15 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
   const member = await resolveMemberForZillionId(db, zillionId,
-    'id, name, phone_normalized, email, address, occupation, date_of_birth, kyc_status, nin_verified_at, nin_submitted_at, nin_encrypted',
+    'id, coop_id, name, phone_normalized, email, address, occupation, date_of_birth, kyc_status, nin_verified_at, nin_submitted_at, nin_encrypted',
     auth.payload.coop_id || null);
   if (!member) return ok({ is_coop_member: false });
 
   // One clear status word for the wallet UI, so it never has to reconstruct this logic itself.
   const kycState = member.kyc_status === 'VERIFIED' ? 'VERIFIED' : (member.nin_encrypted ? 'PENDING_REVIEW' : 'UNVERIFIED');
+
+  const { data: society } = await db.from('coop_societies').select('subscription_status, never_expires').eq('coop_id', member.coop_id).maybeSingle();
+  const kycActive = isKycActiveForSociety(society || {});
 
   return ok({
     is_coop_member: true,
@@ -45,6 +49,7 @@ exports.handler = async (event) => {
     kyc: {
       status: kycState, // VERIFIED | PENDING_REVIEW | UNVERIFIED
       nin_verified_at: member.nin_verified_at, nin_submitted_at: member.nin_submitted_at,
+      active: kycActive, // false on a trial or never_expires society — submitting still works, but nothing gets checked or billed until this is true
     },
   });
 };
