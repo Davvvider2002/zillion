@@ -41,7 +41,6 @@
 <script>
 const API = '/.netlify/functions';
 const params = new URLSearchParams(location.search);
-const adminId = params.get('admin_id') || '';
 let feeInfo = null;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
@@ -51,15 +50,10 @@ async function init() {
   // Returning from Flutterwave checkout takes priority over the form.
   if (params.get('checkout_return') === '1') { await handleCheckoutReturn(); return; }
 
-  if (!adminId) {
-    renderError('This link is missing information about who is recruiting. Ask for the correct link or QR code.');
-    return;
-  }
-
   try {
-    const res = await fetch(`${API}/ajo-collector-public-join-info?admin_id=${encodeURIComponent(adminId)}`);
+    const res = await fetch(`${API}/ajo-collector-public-join-info`);
     const data = await res.json();
-    if (!res.ok) { renderError(data.error || 'This join link is no longer active.'); return; }
+    if (!res.ok) { renderError(data.error || 'Collector recruitment is not open right now.'); return; }
     feeInfo = data;
     renderForm();
   } catch (e) {
@@ -102,7 +96,7 @@ async function submitJoin() {
   try {
     const res = await fetch(`${API}/ajo-collector-public-join-init`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_zillion_id: adminId, name, phone, email, return_url: location.origin + location.pathname + '?admin_id=' + encodeURIComponent(adminId) }),
+      body: JSON.stringify({ name, phone, email, return_url: location.origin + location.pathname }),
     });
     const data = await res.json();
     btn.disabled = false;
@@ -124,7 +118,7 @@ async function handleCheckoutReturn() {
   const status = params.get('status');
   const txRef = params.get('tx_ref');
   const transactionId = params.get('transaction_id');
-  try { window.history.replaceState({}, '', window.location.pathname + '?admin_id=' + encodeURIComponent(adminId)); } catch (e) {}
+  try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
 
   if (status === 'cancelled') { renderError('Payment was cancelled. Refresh this page to try again.'); return; }
   if (!txRef || !transactionId) { renderError('Something went wrong with the payment redirect. If you were charged, contact support with any reference you have.'); return; }
