@@ -4360,13 +4360,26 @@ function _coopUpdateNotifBell(data) {
   const btn = document.getElementById('home-notif-badge')?.parentElement;
   const badge = document.getElementById('home-notif-badge');
   if (!btn || !badge) return;
-  if (!data || !data.is_coop_member) { btn.style.display = 'none'; return; }
-  btn.style.display = '';
-  // A pending guarantor request is an open action, so it counts toward the badge
-  // until answered - not just unread announcements.
-  const count = (data.unread_notification_count || 0) + ((data.guarantor_requests_pending || []).length);
+  // A pending guarantor request is an open action, so it counts toward the badge until answered - not just
+  // unread announcements. Ajo has no coop_id, so an Ajo-only member (never joined a coop) still needs the
+  // bell to work - the badge merges both sources rather than hiding entirely for non-coop members.
+  const coopCount = (data && data.is_coop_member) ? (data.unread_notification_count || 0) + ((data.guarantor_requests_pending || []).length) : 0;
+  const ajoCount = window._zilAjoUnreadCount || 0;
+  const count = coopCount + ajoCount;
+  const isCoopMember = !!(data && data.is_coop_member);
+  btn.style.display = (isCoopMember || count > 0) ? '' : 'none';
   badge.style.display = count > 0 ? '' : 'none';
   badge.textContent = count > 99 ? '99+' : String(count);
+}
+
+async function zilFetchAjoUnreadCount() {
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  if (!token) return;
+  try {
+    const res = await fetch(`${API}/ajo-member-notifications`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    window._zilAjoUnreadCount = res.ok ? (data.unread_count || 0) : 0;
+  } catch (e) { /* non-fatal - badge just won't include Ajo this refresh */ }
 }
 
 async function zilRenderCoopSummary() {
@@ -4385,6 +4398,10 @@ async function zilRenderCoopSummary() {
   }
 
   _coopUpdateNotifBell(data);
+
+  // Fire-and-refresh - don't block the coop summary render on this; the bell just updates a moment later
+  // once it resolves. zilFetchAjoUnreadCount is cheap (one GET) and safe to call every home-screen load.
+  zilFetchAjoUnreadCount().then(() => _coopUpdateNotifBell(data));
 
   if (typeof IS_COOP !== 'undefined' && IS_COOP) {
     if (!data || !data.is_coop_member) return; // shouldn't happen for this flavor, but don't crash if it does
@@ -5156,21 +5173,30 @@ async function refreshMessagesScreen() {
   try {
     // Pending guarantor requests come from the member status, fetched fresh
     // (force=true) rather than from the 60s cache - a request already answered
-    // elsewhere must not keep showing up here.
-    const [res, status] = await Promise.all([
+    // elsewhere must not keep showing up here. Ajo has no coop_id, so its
+    // notifications are fetched from a separate endpoint and merged in below -
+    // an Ajo-only member (never joined a coop) still sees their reminders here.
+    const [coopRes, status, ajoRes] = await Promise.all([
       fetch(`${API}/coop-notifications`, { headers: { Authorization: 'Bearer ' + token } }),
       zilCoopFetchStatus(true),
+      fetch(`${API}/ajo-member-notifications`, { headers: { Authorization: 'Bearer ' + token } }),
     ]);
-    const data = await res.json();
-    if (!res.ok || !data.is_coop_member) {
-      listEl.innerHTML = '<div class="empty-state"><div class="empty-title">No messages</div></div>';
-      return;
-    }
-    const pending = (status && status.guarantor_requests_pending) || [];
-    const notifs = data.notifications || [];
+    const coopData = await coopRes.json().catch(() => ({}));
+    const ajoData = await ajoRes.json().catch(() => ({}));
+    const isCoopMember = coopRes.ok && coopData.is_coop_member;
 
-    if (!notifs.length && !pending.length) {
-      listEl.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-icon">💬</span><div class="empty-title">No messages yet</div><div class="empty-sub">Announcements from your cooperative will appear here.</div></div>';
+    const pending = (status && status.guarantor_requests_pending) || [];
+    const coopNotifs = isCoopMember ? (coopData.notifications || []) : [];
+    const ajoNotifs = ajoRes.ok ? (ajoData.notifications || []) : [];
+
+    // Normalize both sources into one shape so they can be sorted and rendered together.
+    const merged = [
+      ...coopNotifs.map(n => ({ source: 'coop', id: n.id, title: n.title, body: n.body, created_at: n.created_at, is_read: n.is_read, is_broadcast: n.target_type === 'broadcast' })),
+      ...ajoNotifs.map(n => ({ source: 'ajo', id: n.id, title: n.title, body: n.message, created_at: n.created_at, is_read: n.read, is_broadcast: n.target_type === 'scheme_broadcast' })),
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (!merged.length && !pending.length) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-icon">💬</span><div class="empty-title">No messages yet</div><div class="empty-sub">Announcements from your cooperative and Ajo groups will appear here.</div></div>';
       _coopUpdateNotifBell(status);
       return;
     }
@@ -5181,16 +5207,16 @@ async function refreshMessagesScreen() {
         + '<div style="font-size:11px;color:#7A9A85;margin:-2px 0 16px">These stay here until you accept or decline.</div>'
       : '';
 
-    const msgsHtml = notifs.length
+    const msgsHtml = merged.length
       ? (pending.length ? '<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#9CC4B0;margin:0 0 8px">Messages</div>' : '')
-        + notifs.map(n => `
-      <div onclick="coopMarkMessageRead('${n.id}', this)" data-notif-id="${n.id}"
+        + merged.map(n => `
+      <div onclick="${n.source === 'ajo' ? `ajoMarkMessageRead('${n.id}', this)` : `coopMarkMessageRead('${n.id}', this)`}" data-notif-id="${n.id}"
         style="background:${n.is_read ? '#0F2B1D' : '#0A2318'};border:1px solid ${n.is_read ? '#1A4030' : '#00C896'};border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:start">
-          <div style="font-weight:700;font-size:14px;color:#E8F5EE">${n.title}${!n.is_read ? ' <span style="color:#00E0AC;font-size:10px">● NEW</span>' : ''}</div>
+          <div style="font-weight:700;font-size:14px;color:#E8F5EE">${n.source === 'ajo' ? '🔄 ' : ''}${n.title}${!n.is_read ? ' <span style="color:#00E0AC;font-size:10px">● NEW</span>' : ''}</div>
         </div>
         <div style="font-size:13px;color:#9CC4B0;margin-top:6px;line-height:1.5">${n.body}</div>
-        <div style="font-size:10px;color:#5A8069;margin-top:8px">${new Date(n.created_at).toLocaleString()}${n.target_type === 'broadcast' ? ' · To all members' : ''}</div>
+        <div style="font-size:10px;color:#5A8069;margin-top:8px">${new Date(n.created_at).toLocaleString()}${n.is_broadcast ? ' · To all members' : ''}</div>
       </div>
     `).join('')
       : '<div class="empty-sub" style="text-align:center;padding:10px;color:#7A9A85">No other messages.</div>';
@@ -5218,6 +5244,25 @@ async function coopMarkMessageRead(notificationId, el) {
       body: JSON.stringify({ notification_id: notificationId }),
     });
     zilRenderCoopSummary(); // refresh the header badge count
+  } catch (e) { /* non-fatal — the tap already updated the UI locally */ }
+}
+
+async function ajoMarkMessageRead(notificationId, el) {
+  if (el.dataset.markedRead) return;
+  el.dataset.markedRead = '1';
+  el.style.background = '#0F2B1D';
+  el.style.borderColor = '#1A4030';
+  const newBadge = el.querySelector('span');
+  if (newBadge) newBadge.remove();
+
+  const token = STATE.user?.token || STATE.user?.agentToken || '';
+  try {
+    await fetch(`${API}/ajo-member-notification-read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ notification_id: notificationId }),
+    });
+    zilRenderCoopSummary(); // refresh the header badge count (this also re-fetches the Ajo unread count)
   } catch (e) { /* non-fatal — the tap already updated the UI locally */ }
 }
 
