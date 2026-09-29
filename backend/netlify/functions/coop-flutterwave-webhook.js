@@ -36,6 +36,7 @@ const { getFlutterwaveAccessToken, flutterwaveApiBase } = require('../../lib/flu
 const { logAlert }         = require('../../lib/alerts');
 const { extendSubscription, isPastGrace } = require('../../lib/coopSubscription');
 const { postZillionSubscriptionRevenue } = require('../../lib/zillionSubscriptionRevenue');
+const { creditAgentCommissionIfApplicable } = require('../../lib/coopAgentCommission');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
 
@@ -119,14 +120,14 @@ exports.handler = async (event) => {
       }
     }
 
-    await db.from('coop_subscription_payments').insert({
+    const { data: renewalPayment } = await db.from('coop_subscription_payments').insert({
       coop_id: society.coop_id,
       amount_kobo: Math.round(Number(renewalAmount) * 100),
       type: 'renewal',
       status: verifiedOk ? 'success' : 'failed',
       flw_transaction_id: flwTransactionId,
       tx_ref: renewalTxRef,
-    });
+    }).select().single();
 
     if (!verifiedOk) {
       // A failed/unverifiable renewal charge — don't extend coverage,
@@ -135,6 +136,13 @@ exports.handler = async (event) => {
       // giving the society time before anything happens to their
       // access, rather than suspending immediately on one failed charge.
       return ok({ ignored: true, reason: 'renewal not verified' });
+    }
+
+    // Referring agent's commission - every verified renewal, same as the initial payment. The 24-month cap
+    // in coopAgentCommission.js is what eventually stops this, not anything checked here.
+    if (renewalPayment) {
+      await creditAgentCommissionIfApplicable(db, society.coop_id, Math.round(Number(renewalAmount) * 100), renewalPayment.id)
+        .catch(e => console.warn('[coop-flutterwave-webhook] agent commission crediting failed (non-fatal):', e.message));
     }
 
     const { data: addonRows } = await db.from('coop_society_addons').select('addon_key').eq('coop_id', society.coop_id);
