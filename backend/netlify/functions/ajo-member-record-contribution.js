@@ -72,6 +72,6 @@ exports.handler = async (event) => {
 
   return ok({
     success: true, contribution: result.contribution, fee_kobo: result.feeKobo,
-    agent_commission_kobo: result.agentCommissionKobo,
+    // agent_commission_kobo intentionally removed - agents no longer earn from Ajo activity, see coopAgentCommission.js
   });
 };
