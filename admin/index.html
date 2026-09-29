@@ -568,7 +568,7 @@ tbody tr:last-child td{border-bottom:none;}
         <span class="si">💸</span> Ajo Fees
       </button>
       <button class="snav-item" id="nav-ajocollectors"
-              onclick="showSec('ajocollectors',this);loadAjoCollectorsAdmin()">
+              onclick="showSec('ajocollectors',this);loadAjoCollectorsAdmin();loadAjoCollectorPlatformFee()">
         <span class="si">🏦</span> Ajo Collectors
       </button>
       <div class="sb-section-label">Admin</div>
@@ -1241,14 +1241,39 @@ tbody tr:last-child td{border-bottom:none;}
 <div id="sec-ajocollectors" class="sec">
   <div class="card" style="margin-bottom:16px;background:var(--gl);border-color:var(--g)">
     <div class="card-title">How someone becomes a collector</div>
-    <div class="card-sub">There's no "add collector" button here by design — a collector is a real person submitting their own escrow bank account, so they have to do this themselves. This fee is collector-only, never charged to an ordinary Ajo saver — regular group members join free, straight from a link the Ajo admin sends them. Any Ajo admin can generate their own collector recruitment link and QR code, and set the (compulsory) registration fee, from the wallet app — under Zillion Ajo &rarr; "Recruit a collector," and again from Collector Tools if they're a collector themselves. A prospect who scans or opens that link pays the fee, submits their name/phone and escrow bank details, and lands in the table below. Your job here is only the final check: confirm the bank details are real before they can start collecting — never generate this list yourself.</div>
+    <div class="card-sub">Collectors work for Zillion Ajo platform-wide — an Ajo group admin can only pick from the pool of already-approved collectors below, never recruit or set terms for one themselves. This fee is collector-only, never charged to an ordinary Ajo saver — regular group members join free, straight from a link the Ajo admin sends them. Share the link or QR code below with anyone interested in becoming a collector. They pay the fee, submit their name/phone and escrow bank details, and land in the table below. Approve their bank details, then set their commission rate — a percentage of what they collect, or a fixed amount — before they can start.</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Collector Recruitment
+      <button class="rbtn" onclick="loadAjoCollectorPlatformFee()">&#x21BB;</button>
+    </div>
+    <div class="card-sub">One fee for the whole platform — every prospect pays the same amount to apply, regardless of which group they end up collecting for.</div>
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin:12px 0 6px">Registration fee (₦)</label>
+    <div style="display:flex;gap:8px;max-width:320px">
+      <input type="number" id="acf-fee" placeholder="e.g. 2000" style="flex:1">
+      <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="saveAjoCollectorPlatformFee()">Save</button>
+    </div>
+    <div id="acf-meta" style="font-size:11.5px;color:var(--tx3);margin-top:6px"></div>
+
+    <div id="acf-link-section" style="margin-top:18px;display:none">
+      <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:6px">Recruitment link</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div id="acf-link-box" style="flex:1;min-width:240px;background:var(--grl);border:1px solid var(--grb);border-radius:8px;padding:10px 12px;font-size:12.5px;word-break:break-all"></div>
+        <button class="rbtn" onclick="copyAjoCollectorLink()">Copy link</button>
+      </div>
+      <div id="acf-qr-wrap" style="margin-top:14px;text-align:center">
+        <div id="acf-qr-canvas" style="display:inline-block;background:#fff;padding:12px;border-radius:10px"></div>
+        <div style="font-size:11.5px;color:var(--tx3);margin-top:6px">Show this to a prospect to scan, or send the link above</div>
+      </div>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Pending Escrow Verifications
       <button class="rbtn" onclick="loadAjoCollectorsAdmin()">&#x21BB;</button>
     </div>
-    <div class="card-sub">A collector submitted KYC and is waiting on manual confirmation with the bank — Wema has no live API yet, so this is the real, usable path today. Approving activates every scheme this person has been assigned to.</div>
+    <div class="card-sub">A collector submitted KYC and is waiting on manual confirmation with the bank — Wema has no live API yet, so this is the real, usable path today. Approving activates every scheme assignment this person is pending on, and sets their commission rate for every scheme they'll ever collect for.</div>
     <div class="table-wrap"><table>
       <thead><tr><th>Name submitted</th><th>Submitted</th><th></th></tr></thead>
       <tbody id="ajo-pending-verifications-body"><tr><td colspan="3" class="no-data">Loading...</td></tr></tbody>
@@ -1257,10 +1282,10 @@ tbody tr:last-child td{border-bottom:none;}
 
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Collector Compliance</div>
-    <div class="card-sub">Every verified collector, their live compliance score, and standing. A score that drops to 50 or below auto-delists the person across every scheme they collect for.</div>
+    <div class="card-sub">Every verified collector, their commission rate, live compliance score, and standing. A score that drops to 50 or below auto-delists the person across every scheme they collect for.</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Collector</th><th>Status</th><th>Score</th><th>Standing</th><th></th></tr></thead>
-      <tbody id="ajo-collector-compliance-body"><tr><td colspan="5" class="no-data">Loading...</td></tr></tbody>
+      <thead><tr><th>Collector</th><th>Status</th><th>Commission</th><th>Score</th><th>Standing</th><th></th></tr></thead>
+      <tbody id="ajo-collector-compliance-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
     </table></div>
   </div>
 
@@ -1330,6 +1355,14 @@ tbody tr:last-child td{border-bottom:none;}
     <input class="field-input" type="text" id="ve-account-number" style="margin-bottom:12px;width:100%;box-sizing:border-box">
     <label class="field-label">Account name (confirmed with bank)</label>
     <input class="field-input" type="text" id="ve-account-name" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Commission rate (required to approve)</label>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <select class="field-input" id="ve-commission-type" style="flex:1">
+        <option value="fixed">Fixed amount (₦)</option>
+        <option value="percentage">Percentage (%)</option>
+      </select>
+      <input class="field-input" type="number" id="ve-commission-value" placeholder="e.g. 500 or 10" style="flex:1">
+    </div>
     <label class="field-label">— or, if rejecting — reason</label>
     <input class="field-input" type="text" id="ve-reject-reason" placeholder="e.g. Name does not match NIN records" style="margin-bottom:12px;width:100%;box-sizing:border-box">
     <div id="ve-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
@@ -3812,6 +3845,67 @@ async function setCoopAgentHierarchy(agentId, parentAgentId, tier2OverrideBps) {
   }
 }
 
+// --- Platform collector recruitment: one fee, one link, for the whole platform ---
+async function loadAjoCollectorPlatformFee() {
+  const metaEl = document.getElementById('acf-meta');
+  try {
+    const res = await fetch(`${API}/admin-ajo-collector-platform-fee`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { metaEl.textContent = data.error || 'Unable to load'; return; }
+
+    if (data.joining_fee_kobo) {
+      document.getElementById('acf-fee').value = data.joining_fee_kobo / 100;
+      metaEl.textContent = data.updated_by ? `Last set by ${data.updated_by} on ${new Date(data.updated_at).toLocaleDateString()}` : '';
+      renderAjoCollectorLink();
+    } else {
+      document.getElementById('acf-fee').value = '';
+      metaEl.textContent = 'No fee set yet — recruitment is closed until one is set.';
+      document.getElementById('acf-link-section').style.display = 'none';
+    }
+  } catch (e) {
+    metaEl.textContent = 'Network error: ' + e.message;
+  }
+}
+
+async function saveAjoCollectorPlatformFee() {
+  const naira = parseFloat(document.getElementById('acf-fee').value);
+  if (isNaN(naira) || naira <= 0) { alert('Enter a fee greater than zero — there\'s no free option.'); return; }
+  try {
+    const res = await fetch(`${API}/admin-ajo-collector-platform-fee`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ joining_fee_kobo: Math.round(naira * 100) }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to save the fee.'); return; }
+    notify('Fee saved.');
+    loadAjoCollectorPlatformFee();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+function renderAjoCollectorLink() {
+  const link = `${location.origin}/ajo-collector-join/`;
+  document.getElementById('acf-link-box').textContent = link;
+  document.getElementById('acf-link-section').style.display = 'block';
+
+  const qrCanvas = document.getElementById('acf-qr-canvas');
+  qrCanvas.innerHTML = '';
+  if (typeof QRCode === 'undefined') { document.getElementById('acf-qr-wrap').style.display = 'none'; return; }
+  new QRCode(qrCanvas, { text: link, width: 200, height: 200, colorDark: '#0D1F1A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  document.getElementById('acf-qr-wrap').style.display = 'block';
+}
+
+function copyAjoCollectorLink() {
+  const link = document.getElementById('acf-link-box').textContent;
+  if (!link) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(() => notify('Link copied.')).catch(() => alert('Could not copy — select and copy manually.'));
+  } else {
+    alert('Could not copy automatically — select and copy manually.');
+  }
+}
+
 async function loadAjoCollectorsAdmin() {
   const pvBody = document.getElementById('ajo-pending-verifications-body');
   const compBody = document.getElementById('ajo-collector-compliance-body');
@@ -3851,14 +3945,44 @@ function renderAjoCollectorCompliance(list) {
   const body = document.getElementById('ajo-collector-compliance-body');
   const statusPill = s => ({ ACTIVE: 'b-ok', PENDING_VERIFICATION: 'b-warn', NOT_STARTED: 'b-grey', REJECTED: 'b-err', SUSPENDED: 'b-err' }[s] || 'b-grey');
   const standing = score => score >= 90 ? 'Excellent' : score >= 75 ? 'Good' : score >= 60 ? 'Fair' : 'Poor';
+  const fmtCommission = c => c.commission_type === 'percentage' ? `${(c.commission_value / 100).toFixed(1)}%` : fmtNaira(c.commission_value);
   body.innerHTML = list.length ? list.map(c => `
     <tr>
       <td>${c.phone_normalized || c.zillion_id}</td>
       <td><span class="badge ${c.delisted_at ? 'b-err' : statusPill(c.escrow_status)}">${c.delisted_at ? 'DELISTED' : c.escrow_status}</span></td>
+      <td>${fmtCommission(c)} <button class="rbtn" style="padding:2px 8px;font-size:11px" onclick="editAjoCollectorCommission('${c.id}','${(c.phone_normalized || c.zillion_id).replace(/'/g,"&apos;")}','${c.commission_type}',${c.commission_value})">Edit</button></td>
       <td>${c.compliance_score}/100</td>
       <td>${standing(c.compliance_score)}</td>
       <td>${c.delisted_at ? `<span style="font-size:11.5px;color:var(--tx3)">${c.delisted_reason || ''}</span>` : ''}</td>
-    </tr>`).join('') : '<tr><td colspan="5" class="no-data">No collectors yet.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6" class="no-data">No collectors yet.</td></tr>';
+}
+
+async function editAjoCollectorCommission(profileId, label, currentType, currentValue) {
+  const typeInput = prompt(`Commission type for ${label} — type "fixed" or "percentage":`, currentType);
+  if (typeInput === null) return;
+  const type = typeInput.trim().toLowerCase();
+  if (!['fixed', 'percentage'].includes(type)) { alert('Must be exactly "fixed" or "percentage".'); return; }
+
+  const isPercentage = type === 'percentage';
+  const currentDisplay = currentValue / 100; // basis points -> percent, or kobo -> naira: both are the same /100 conversion
+  const valueInput = prompt(isPercentage ? 'Commission percentage (e.g. 10 for 10%):' : 'Fixed commission amount in Naira:', currentDisplay);
+  if (valueInput === null) return;
+  const parsed = parseFloat(valueInput);
+  if (isNaN(parsed) || parsed < 0) { alert('Enter a valid non-negative number.'); return; }
+  const value = isPercentage ? Math.round(parsed * 100) : Math.round(parsed * 100);
+  if (isPercentage && value > 10000) { alert('Percentage cannot exceed 100%.'); return; }
+
+  try {
+    const res = await fetch(`${API}/ajo-admin-verify-collector-escrow`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ collector_profile_id: profileId, action: 'update_commission', commission_type: type, commission_value: value }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to update commission.'); return; }
+    loadAjoCollectorsAdmin();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
 }
 
 function renderAjoDisbursements(list) {
@@ -3882,6 +4006,8 @@ function openVerifyEscrowModal(profileId, name) {
   document.getElementById('ve-name').textContent = name;
   document.getElementById('ve-account-number').value = '';
   document.getElementById('ve-account-name').value = '';
+  document.getElementById('ve-commission-type').value = 'fixed';
+  document.getElementById('ve-commission-value').value = '';
   document.getElementById('ve-reject-reason').value = '';
   document.getElementById('ve-error').style.display = 'none';
   document.getElementById('modal-verify-escrow').style.display = 'flex';
@@ -3897,6 +4023,12 @@ async function submitVerifyEscrow(action) {
     body.account_number = document.getElementById('ve-account-number').value.trim();
     body.account_name = document.getElementById('ve-account-name').value.trim();
     if (!body.account_number || !body.account_name) { errEl.textContent = 'Enter the account number and name you actually confirmed with the bank.'; errEl.style.display = 'block'; return; }
+
+    const commissionType = document.getElementById('ve-commission-type').value;
+    const commissionRaw = parseFloat(document.getElementById('ve-commission-value').value);
+    if (isNaN(commissionRaw) || commissionRaw < 0) { errEl.textContent = 'Enter this collector\'s commission rate.'; errEl.style.display = 'block'; return; }
+    body.commission_type = commissionType;
+    body.commission_value = Math.round(commissionRaw * 100); // naira->kobo, or percent->basis points — same *100
   } else {
     body.reason = document.getElementById('ve-reject-reason').value.trim();
     if (!body.reason) { errEl.textContent = 'Enter a reason for rejecting.'; errEl.style.display = 'block'; return; }
