@@ -3,8 +3,11 @@
  *
  * Simple attempt-counter rate limiting, backed by Supabase since Netlify
  * Functions are stateless (no in-memory counter survives between
- * invocations). Used for admin-login, verify-otp, and sync — the
- * money/identity-adjacent surface that previously had zero throttling.
+ * invocations). Used for admin-login, sync, and send-otp (per-IP, to catch
+ * one source spamming many different phone numbers). verify-otp and the
+ * per-phone side of send-otp use their own narrower, adequate mechanisms
+ * instead (a per-OTP-record attempt cap, and a per-phone request count) —
+ * not this shared library, so don't expect to find it there.
  */
 'use strict';
 
