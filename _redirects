@@ -107,7 +107,7 @@
 /api/v1/ajo-admin-my-schemes  /.netlify/functions/ajo-admin-my-schemes  200
 /api/v1/admin-ajo-fee-config  /.netlify/functions/admin-ajo-fee-config  200
 /api/v1/admin-ajo-overview  /.netlify/functions/admin-ajo-overview  200
-/api/v1/admin-ajo-agents  /.netlify/functions/admin-ajo-agents  200
+/api/v1/admin-coop-agents  /.netlify/functions/admin-coop-agents  200
 /api/v1/ajo-member-join-scheme  /.netlify/functions/ajo-member-join-scheme  200
 /api/v1/ajo-member-record-contribution  /.netlify/functions/ajo-member-record-contribution  200
 /api/v1/ajo-admin-process-cycle  /.netlify/functions/ajo-admin-process-cycle  200
