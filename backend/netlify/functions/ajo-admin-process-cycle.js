@@ -89,7 +89,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: scheme } = await db.from('ajo_schemes')
-    .select('id, name, scheme_type, payout_order, cycle_length, created_by_zillion_id, status, collector_compensation_type, collector_compensation_value').eq('id', schemeId).maybeSingle();
+    .select('id, name, scheme_type, payout_order, cycle_length, created_by_zillion_id, status').eq('id', schemeId).maybeSingle();
   if (!scheme) return err(404, 'Scheme not found');
   if (scheme.scheme_type === 'personal_savings') return err(400, 'Personal savings has no rotation to process — use the withdraw action instead.');
   if (scheme.created_by_zillion_id !== zillionId) return err(403, 'Only this scheme\'s own group admin can process a cycle');
@@ -127,24 +127,21 @@ exports.handler = async (event) => {
   const feeRate = await resolveFeeRate(db, schemeId, 'payout', cycle.started_at);
   const feeKobo = computeFeeKobo(feeRate, poolKobo);
 
-  // Group collector compensation - mirrors how the platform fee
-  // itself is computed: once per cycle payout, on the total pool,
-  // not per-member and not per-contribution. "Usually the monthly/
-  // daily amount contribution" as specified is read as ONE
-  // contribution-worth taken from the pool, not that amount
-  // multiplied by every member who contributed - multiplying would
-  // make a 'fixed' compensation scale directly with group size in a
-  // way nothing in how this was described actually asked for, and
-  // risks an unreasonably large cut from a large group's pool. A
-  // scheme with no active collector (shouldn't happen post-merge,
-  // but checked defensively) simply pays none.
+  // Group collector compensation - mirrors how the platform fee itself is computed: once per cycle payout,
+  // on the total pool, not per-member and not per-contribution. The rate itself is the collector's OWN
+  // property (ajo_collector_profiles.commission_type/commission_value), set by Zillion Admin when approving
+  // them - not something the scheme's own group admin configures. Collectors work for the platform, not for
+  // whoever created a given group; the same collector's rate is the same across every scheme they collect
+  // for. A scheme with no active collector (shouldn't happen post-merge, but checked defensively) simply
+  // pays none.
   const { data: activeCollector } = await db.from('ajo_collectors')
-    .select('collector_profile_id').eq('scheme_id', schemeId).eq('status', 'ACTIVE').maybeSingle();
+    .select('collector_profile_id, ajo_collector_profiles(commission_type, commission_value)').eq('scheme_id', schemeId).eq('status', 'ACTIVE').maybeSingle();
   let collectorCompensationKobo = 0;
-  if (activeCollector?.collector_profile_id) {
-    collectorCompensationKobo = scheme.collector_compensation_type === 'percentage'
-      ? Math.round(poolKobo * scheme.collector_compensation_value / 10000)
-      : Math.min(scheme.collector_compensation_value, poolKobo);
+  if (activeCollector?.collector_profile_id && activeCollector.ajo_collector_profiles) {
+    const { commission_type, commission_value } = activeCollector.ajo_collector_profiles;
+    collectorCompensationKobo = commission_type === 'percentage'
+      ? Math.round(poolKobo * commission_value / 10000)
+      : Math.min(commission_value, poolKobo);
   }
 
   const netPayoutKobo = Math.max(0, poolKobo - feeKobo - collectorCompensationKobo);
