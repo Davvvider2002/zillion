@@ -162,6 +162,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-member-profile"
+  to   = "/.netlify/functions/coop-member-profile"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-member-submit-nin"
+  to   = "/.netlify/functions/coop-member-submit-nin"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-record-savings-payment"
   to   = "/.netlify/functions/coop-record-savings-payment"
   status = 200
