@@ -28,17 +28,6 @@
  *  - Cycle 1 is created automatically (status OPEN) - a scheme with
  *    no cycle has nowhere for a contribution to attach to, so this
  *    isn't a separate "start cycle" step the admin has to remember.
- *  - If referral_code is supplied and resolves to an ACTIVE agent,
- *    one ajo_referral_attributions row is created, first-touch and
- *    permanent - this is the ONLY moment attribution can ever happen
- *    for a scheme (Part 5.1 of the proposal). An invalid or missing
- *    code is never an error; it just means this scheme has no
- *    referring agent, which is the normal case for most schemes. This
- *    stays entirely separate from the new collector-compensation
- *    system - referral commission rewards who brought the scheme to
- *    the platform, collector compensation rewards who's actually
- *    doing the ongoing collection work; the same person can earn both,
- *    but they are not the same payment.
  *
  * personal_savings additionally requires collector_profile_id - every
  * Ajo participant, solo or grouped, now goes through a verified
@@ -49,7 +38,7 @@
  * they ever reach this endpoint.
  *
  * Body: { name, scheme_type, contribution_amount_kobo, frequency,
- *         cycle_length, payout_order?, referral_code?,
+ *         cycle_length, payout_order?,
  *         collector_profile_id (required for personal_savings),
  *         collector_compensation_type? ('fixed'|'percentage'),
  *         collector_compensation_value? (kobo, or basis points if
@@ -162,27 +151,6 @@ exports.handler = async (event) => {
     if (collectorErr) {
       return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but the collector could not be linked: ${collectorErr.message}. Contact support.` });
     }
-
-    // "The Ajo agent is also a collector" for individual savers -
-    // the same person, one identity. Get-or-create their ajo_agents
-    // row and link it to the collector profile they were just
-    // assigned as, rather than leaving these as two disconnected
-    // records for the same person. This does not create a referral
-    // attribution by itself (that stays tied to an explicit
-    // referral_code, entered deliberately, not inferred from
-    // choosing a collector) - it only ensures the identity link
-    // exists so their agent and collector records are provably the
-    // same person, not that this scheme now credits referral
-    // commission automatically.
-    let { data: linkedAgent } = await db.from('ajo_agents').select('id, collector_profile_id').eq('zillion_id', collectorProfile.zillion_id).maybeSingle();
-    if (linkedAgent && !linkedAgent.collector_profile_id) {
-      await db.from('ajo_agents').update({ collector_profile_id: collectorProfile.id }).eq('id', linkedAgent.id);
-    }
-    // No agent row existing yet is the normal case for most
-    // collectors - not every collector is also a referring agent,
-    // and one isn't created here just because they collected for a
-    // personal savings scheme. The link only applies when an agent
-    // identity already exists for this same person.
   }
 
   // Group schemes: the admin IS the collector, not two entities that
@@ -224,20 +192,5 @@ exports.handler = async (event) => {
     }
   }
 
-  let referralAttribution = null;
-  const referralCode = (body.referral_code || '').trim();
-  if (referralCode) {
-    const { data: agent } = await db.from('ajo_agents')
-      .select('id').eq('referral_code', referralCode).eq('status', 'ACTIVE').maybeSingle();
-    if (agent) {
-      const { data: attribution } = await db.from('ajo_referral_attributions')
-        .insert({ agent_id: agent.id, scheme_id: scheme.id }).select().single();
-      referralAttribution = attribution || null;
-    }
-    // An unknown or inactive code is silently ignored, not an error -
-    // this scheme simply has no referring agent, same as if no code
-    // had been supplied at all.
-  }
-
-  return ok({ success: true, scheme, cycle: cycle1, referral_attributed: !!referralAttribution });
+  return ok({ success: true, scheme, cycle: cycle1 });
 };
