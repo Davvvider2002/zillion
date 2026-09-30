@@ -26,6 +26,7 @@
  "netlify/functions/coop-member-status.js": 2,
  "netlify/functions/coop-portal-employees.js": 1,
  "netlify/functions/coop-portal-journal-entry.js": 1,
+ "netlify/functions/coop-portal-journal-voucher.js": 2,
  "netlify/functions/coop-portal-payroll-import.js": 1,
  "netlify/functions/coop-portal-payroll-run.js": 2,
  "netlify/functions/coop-portal-record-dividend-payout.js": 1,
