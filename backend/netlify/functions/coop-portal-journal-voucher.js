@@ -2,7 +2,14 @@
  * zillion/backend/netlify/functions/coop-portal-journal-voucher.js
  *
  * POST /api/v1/coop-portal-journal-voucher
- * Body: { member_id, total_amount_kobo, source, reference?, legs: [{ type, amount_kobo, target_id? }] }
+ * Body: { member_id, total_amount_kobo, source, reference?, debit_account_id?, legs: [{ type, amount_kobo, target_id? }] }
+ *
+ * debit_account_id: which specific bank or cash account the money actually landed in — a society with more
+ * than one bank account (or a head office cash box plus a branch one) needs to say which, not just "bank" or
+ * "cash" in the abstract. Must be one of the society's own accounts classified sub_type='bank_cash' in the
+ * chart of accounts. Optional - omit it and every leg falls back to the same single default account
+ * (CASH/BANK by code) every other payment-recording endpoint already uses, so nothing breaks for a society
+ * that only has the one of each.
  *
  * Splits one lump-sum payment from a member across multiple categories in a single action — the example
  * that prompted this: a member wires ₦100,000 to the society's bank account, and it needs to become
@@ -40,7 +47,7 @@ const { hasAddon } = require('../../lib/coopEntitlements');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 const LEG_TYPES = ['savings', 'dues', 'loan_repayment', 'shares', 'investment'];
-const CASH = '1000', BANK = '1010', SHARE_CAPITAL = '3000', MEMBER_INVESTMENT_PAYABLE = '2210';
+const BANK = '1010', MEMBER_INVESTMENT_PAYABLE = '2210';
 const PERMISSION_FOR_LEG = { savings: ['savings', 'create'], dues: ['dues', 'create'], loan_repayment: ['loans', 'edit'], shares: ['members', 'create'], investment: ['investment', 'create'] };
 
 const fmtNaira = kobo => '₦' + (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -90,6 +97,19 @@ exports.handler = async (event) => {
   if (!member) return err(404, 'Member not found');
   if (member.coop_id !== coopId) return err(403, 'This member does not belong to your society.');
   if (member.status !== 'ACTIVE') return err(409, `This member's status is ${member.status}, not ACTIVE`);
+
+  // Which specific bank/cash account this landed in, for a society that keeps more than one — validated once,
+  // reused for every leg below. Omitted entirely -> every leg falls back to its own single CASH/BANK default,
+  // exactly as if this feature didn't exist.
+  let debitAccount = null;
+  const debitAccountId = (body.debit_account_id || '').trim();
+  if (debitAccountId) {
+    const { data: account } = await db.from('coop_chart_of_accounts').select('id, coop_id, currency, sub_type, account_name').eq('id', debitAccountId).maybeSingle();
+    if (!account) return err(404, 'Selected account not found');
+    if (account.coop_id !== coopId) return err(403, 'That account does not belong to your society.');
+    if (account.sub_type !== 'bank_cash') return err(400, `"${account.account_name}" is not classified as a bank or cash account.`);
+    debitAccount = { id: account.id, currency: account.currency };
+  }
 
   // Validate every leg's shape and target BEFORE recording anything.
   const legsSum = legsInput.reduce((s, l) => s + (Number.isInteger(l.amount_kobo) ? l.amount_kobo : 0), 0);
@@ -160,7 +180,7 @@ exports.handler = async (event) => {
           coop_id: coopId, member_id: memberId, savings_plan_id: leg.planId, amount_kobo: leg.amountKobo, source, reference, recorded_by: actor,
         }).select().single();
         if (error) throw new Error(`Savings leg failed: ${error.message}`);
-        const posted = await recordSavingsPaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, memberRef, reference);
+        const posted = await recordSavingsPaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, memberRef, reference, debitAccount);
         await alertIfNotBooked(db, posted, { source: 'coop-portal-journal-voucher', what: 'A voucher savings leg', amountKobo: leg.amountKobo });
         legResults.push({ leg_type: 'savings', amount_kobo: leg.amountKobo, target_id: leg.planId, resulting_table: 'coop_savings_transactions', resulting_transaction_id: created.id });
 
@@ -169,7 +189,7 @@ exports.handler = async (event) => {
           coop_id: coopId, member_id: memberId, amount_kobo: leg.amountKobo, source, reference, recorded_by: actor,
         }).select().single();
         if (error) throw new Error(`Dues leg failed: ${error.message}`);
-        await recordDuesPaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, memberRef);
+        await recordDuesPaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, memberRef, debitAccount);
         legResults.push({ leg_type: 'dues', amount_kobo: leg.amountKobo, target_id: null, resulting_table: 'coop_dues_transactions', resulting_transaction_id: created.id });
 
       } else if (leg.type === 'loan_repayment') {
@@ -179,7 +199,7 @@ exports.handler = async (event) => {
           principal_portion_kobo: principalPortionKobo, interest_portion_kobo: interestPortionKobo,
         }).select().single();
         if (error) throw new Error(`Loan repayment leg failed: ${error.message}`);
-        await recordLoanRepaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, principalPortionKobo, interestPortionKobo, memberRef);
+        await recordLoanRepaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, principalPortionKobo, interestPortionKobo, memberRef, debitAccount);
         const { completed } = await finalizeLoanIfFullyRepaid(db, leg.loan, leg.society);
         if (!completed && leg.loan.status === 'DISBURSED') await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', leg.loan.id);
         legResults.push({ leg_type: 'loan_repayment', amount_kobo: leg.amountKobo, target_id: leg.loan.id, resulting_table: 'coop_loan_repayments', resulting_transaction_id: created.id, loan_completed: completed });
@@ -196,9 +216,12 @@ exports.handler = async (event) => {
         await db.from('coop_investment_products').update({ units_sold: leg.product.units_sold + leg.units }).eq('id', leg.product.id);
         try {
           if (await accountingIsReady(db, coopId)) {
-            const accounts = await getAccounts(db, coopId, [BANK, MEMBER_INVESTMENT_PAYABLE]);
-            if (accounts[BANK] && accounts[MEMBER_INVESTMENT_PAYABLE]) {
-              await postEntry(db, coopId, `Investment purchase — ${leg.product.name} — ${member.name || memberId} (voucher)`, actor, accounts[BANK], accounts[MEMBER_INVESTMENT_PAYABLE], leg.amountKobo);
+            // Investment purchases are bank-only in the standalone flow this mirrors (no cash_in_person branch
+            // there) - debitAccount overrides that single default the same way it does for every other leg.
+            const accounts = await getAccounts(db, coopId, debitAccount ? [MEMBER_INVESTMENT_PAYABLE] : [BANK, MEMBER_INVESTMENT_PAYABLE]);
+            const resolvedDebit = debitAccount || accounts[BANK];
+            if (resolvedDebit && accounts[MEMBER_INVESTMENT_PAYABLE]) {
+              await postEntry(db, coopId, `Investment purchase — ${leg.product.name} — ${member.name || memberId} (voucher)`, actor, resolvedDebit, accounts[MEMBER_INVESTMENT_PAYABLE], leg.amountKobo);
             }
           }
         } catch (e) { console.error('[coop-portal-journal-voucher] investment leg ledger post failed (non-fatal):', e.message); }
@@ -209,15 +232,8 @@ exports.handler = async (event) => {
           coop_id: coopId, member_id: memberId, amount_kobo: leg.amountKobo, source, reference, recorded_by: actor,
         }).select().single();
         if (error) throw new Error(`Shares leg failed: ${error.message}`);
-        try {
-          if (await accountingIsReady(db, coopId)) {
-            const debitCode = source === 'cash_in_person' ? CASH : BANK;
-            const accounts = await getAccounts(db, coopId, [debitCode, SHARE_CAPITAL]);
-            if (accounts[debitCode] && accounts[SHARE_CAPITAL]) {
-              await postEntry(db, coopId, `Share capital contribution — ${member.name || memberId} (voucher)`, actor, accounts[debitCode], accounts[SHARE_CAPITAL], leg.amountKobo);
-            }
-          }
-        } catch (e) { console.error('[coop-portal-journal-voucher] shares leg ledger post failed (non-fatal):', e.message); }
+        const posted = await recordSharePaymentJournalEntry(db, coopId, leg.amountKobo, source, actor, memberRef, reference, debitAccount);
+        await alertIfNotBooked(db, posted, { source: 'coop-portal-journal-voucher', what: 'A voucher shares leg', amountKobo: leg.amountKobo });
         legResults.push({ leg_type: 'shares', amount_kobo: leg.amountKobo, target_id: null, resulting_table: 'coop_share_transactions', resulting_transaction_id: created.id });
       }
     }
@@ -229,7 +245,8 @@ exports.handler = async (event) => {
   }
 
   const { data: voucher, error: voucherErr } = await db.from('coop_journal_vouchers').insert({
-    coop_id: coopId, member_id: memberId, total_amount_kobo: totalAmountKobo, source, reference, created_by: actor,
+    coop_id: coopId, member_id: memberId, total_amount_kobo: totalAmountKobo, source, reference,
+    debit_account_id: debitAccount ? debitAccount.id : null, created_by: actor,
   }).select().single();
 
   if (!voucherErr && voucher) {
