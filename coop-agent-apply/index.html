@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Become a Zillion Coop Agent</title>
+<style>
+  :root { --ink:#0A2E1A; --amber:#F59E0B; --cream:#F7F3EC; --muted:#C8BFA8; --card:#0F3A22; --line:rgba(247,243,236,.14); --red:#E85D5D; --green:#2D8A4E; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  .wrap{max-width:480px;margin:0 auto;padding:28px 20px 60px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-weight:700;font-size:19px;margin-bottom:6px}
+  .brand .z{width:32px;height:32px;border-radius:8px;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:800}
+  .sub{font-size:13.5px;color:var(--muted);margin-bottom:22px;line-height:1.5}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .field .hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+  input,textarea{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px;font-family:inherit}
+  textarea{resize:vertical;min-height:70px}
+  .btn{padding:13px 18px;border-radius:9px;border:none;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;width:100%}
+  .btn-primary{background:var(--amber);color:var(--ink)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+  .error{color:var(--red);font-size:13px;margin-bottom:12px;display:none}
+  .success{text-align:center;padding:20px 0}
+  .success .icon{font-size:44px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="z">Z</span> Zillion Coop</div>
+  <div class="sub">Become an agent — recruit cooperative societies onto the Coop platform and earn a commission on their subscription. No fee to apply.</div>
+
+  <div class="card" id="form-card">
+    <div class="field"><label>Full name</label><input type="text" id="ag-name" placeholder="e.g. David Ayomidotun"></div>
+    <div class="field"><label>Phone number</label><input type="tel" id="ag-phone" placeholder="08012345678"></div>
+    <div class="field"><label>Email</label><input type="email" id="ag-email" placeholder="you@example.com"><div class="hint">We'll email you the decision here.</div></div>
+    <div class="field"><label>Address</label><input type="text" id="ag-address" placeholder="Street address"></div>
+    <div class="field"><label>Office location</label><input type="text" id="ag-office" placeholder="e.g. Lagos, Nigeria"></div>
+    <div class="field"><label>Number of staff</label><input type="number" id="ag-staff" placeholder="e.g. 5"></div>
+    <div class="field"><label>Qualifications</label><textarea id="ag-qualifications" placeholder="Relevant certifications, education, professional background"></textarea></div>
+    <div class="field"><label>Experience selling SaaS or software products</label><textarea id="ag-experience" placeholder="Describe any relevant sales experience, past roles, or results"></textarea></div>
+    <div class="error" id="ag-error"></div>
+    <button class="btn btn-primary" id="ag-submit-btn" onclick="submitApplication()">Submit application</button>
+  </div>
+
+  <div class="card success" id="success-card" style="display:none">
+    <div class="icon">✅</div>
+    <div style="font-weight:700;font-size:17px;margin-bottom:8px">Application submitted</div>
+    <div style="font-size:13.5px;color:var(--muted);line-height:1.5">Zillion Admin will review your application and email you the decision. No further action needed for now.</div>
+  </div>
+</div>
+
+<script>
+const API = '/.netlify/functions';
+
+async function submitApplication() {
+  const errEl = document.getElementById('ag-error');
+  errEl.style.display = 'none';
+
+  const name = document.getElementById('ag-name').value.trim();
+  const phone = document.getElementById('ag-phone').value.trim();
+  const email = document.getElementById('ag-email').value.trim();
+  const address = document.getElementById('ag-address').value.trim();
+  const office_location = document.getElementById('ag-office').value.trim();
+  const staffRaw = document.getElementById('ag-staff').value.trim();
+  const qualifications = document.getElementById('ag-qualifications').value.trim();
+  const saas_experience = document.getElementById('ag-experience').value.trim();
+
+  if (!name) { errEl.textContent = 'Enter your full name.'; errEl.style.display = 'block'; return; }
+  if (!phone) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Enter a valid email address.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ag-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch(`${API}/coop-agent-public-apply`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, phone, email, address, office_location,
+        staff_count: staffRaw ? parseInt(staffRaw, 10) : undefined,
+        qualifications, saas_experience,
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Submit application';
+    if (!res.ok) { errEl.textContent = data.error || 'Could not submit — try again.'; errEl.style.display = 'block'; return; }
+
+    document.getElementById('form-card').style.display = 'none';
+    document.getElementById('success-card').style.display = 'block';
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Submit application';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
