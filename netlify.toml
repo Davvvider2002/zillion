@@ -372,6 +372,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-journal-voucher"
+  to   = "/.netlify/functions/coop-portal-journal-voucher"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent"
   to   = "/coop-agent/index.html"
   status = 200
