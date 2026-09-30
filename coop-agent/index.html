@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zillion Coop — Agent</title>
+<style>
+:root{
+  --ink:#0A2E1A;--amber:#F59E0B;--amber-d:#D97706;
+  --cream:#F7F3EC;--muted:#C8BFA8;
+  --card:#0F3A22;--line:rgba(247,243,236,0.14);
+  --red:#E85D5D;--redl:rgba(232,93,93,.14);
+  --green-mid:#1A5C32;--green-lt:#2D8A4E;--greenl:rgba(45,138,78,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--ink);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:1000px;margin:0 auto;padding:24px}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-weight:700;font-size:18px}
+.brand .z{width:32px;height:32px;border-radius:8px;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:800}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+.card-title{font-size:16px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.btn{padding:11px 18px;border-radius:9px;border:none;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--amber);color:var(--ink)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--cream);border:1px solid var(--line)}
+.btn-sm{padding:8px 14px;font-size:13px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.field input{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px;font-family:inherit}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.pill-amber{background:rgba(245,158,11,.15);color:var(--amber)}
+.pill-green{background:var(--greenl);color:var(--green-lt)}
+.pill-red{background:var(--redl);color:var(--red)}
+.pill-muted{background:var(--line);color:var(--muted)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+td{padding:12px 8px;border-bottom:1px solid var(--line)}
+.no-data{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.metric-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:6px}
+.metric{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px}
+.metric .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+.metric .value{font-size:19px;font-weight:800}
+.otp-boxes{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.otp-boxes input{width:42px;height:52px;text-align:center;font-size:20px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;font-size:13.5px;z-index:1001;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.toast.error{border-color:var(--red);color:var(--red)}
+</style>
+</head>
+<body>
+
+<div id="login-screen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="card" style="max-width:400px;width:100%">
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="brand" style="justify-content:center;margin-bottom:8px"><span class="z">Z</span> Zillion Coop</div>
+      <div style="font-size:13px;color:var(--muted)">Agent</div>
+    </div>
+
+    <div id="login-step-phone">
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button type="button" id="channel-tab-sms" class="btn btn-primary btn-sm" style="flex:1" onclick="setOtpChannel('sms')">Text me a code</button>
+        <button type="button" id="channel-tab-email" class="btn btn-ghost btn-sm" style="flex:1" onclick="setOtpChannel('email')">Email me a code</button>
+      </div>
+      <div class="field"><label>Phone number</label><input type="tel" id="agent-phone" placeholder="08012345678"></div>
+      <div class="field" id="agent-email-field" style="display:none"><label>Email</label><input type="email" id="agent-email" placeholder="you@example.com"></div>
+      <div id="phone-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="sendAgentOtp()" id="send-otp-btn">Send code</button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:14px">Use the phone number you applied with — no separate account needed.</div>
+    </div>
+
+    <div id="login-step-otp" style="display:none">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px;text-align:center">Enter the 6-digit code sent to you</div>
+      <div class="otp-boxes">
+        <input maxlength="1" id="otp0"><input maxlength="1" id="otp1"><input maxlength="1" id="otp2">
+        <input maxlength="1" id="otp3"><input maxlength="1" id="otp4"><input maxlength="1" id="otp5">
+      </div>
+      <div id="otp-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;text-align:center"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="verifyAgentOtp()" id="verify-otp-btn">Verify &amp; sign in</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="backToPhone()">Use a different number</button>
+    </div>
+  </div>
+</div>
+
+<div id="app-shell" style="display:none">
+  <div class="topbar">
+    <div class="brand"><span class="z">Z</span> Zillion Coop — Agent</div>
+    <button class="btn btn-ghost btn-sm" onclick="signOut()">Sign out</button>
+  </div>
+  <div class="wrap">
+    <div class="card" id="profile-card">
+      <div class="no-data">Loading…</div>
+    </div>
+
+    <div class="card" id="earnings-card" style="display:none">
+      <div class="card-title">Your commission</div>
+      <div class="card-sub">What you've earned referring cooperative societies onto the Coop subscription, and any override from agents you've recruited.</div>
+      <div class="metric-row">
+        <div class="metric"><div class="label">Accrued</div><div class="value" id="em-accrued">—</div></div>
+        <div class="metric"><div class="label">Paid</div><div class="value" id="em-paid">—</div></div>
+        <div class="metric"><div class="label">Outstanding</div><div class="value" id="em-outstanding">—</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px" id="em-tier-breakdown"></div>
+    </div>
+
+    <div class="card" id="clients-card" style="display:none">
+      <div class="card-title">Your clients
+        <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">Every cooperative society you've referred, and whether their subscription is current — your commission only accrues while a referral is within its 24-month window, shown per client below.</div>
+      <div id="clients-list"><div class="no-data">Loading…</div></div>
+    </div>
+
+    <div class="card" id="subagents-card" style="display:none">
+      <div class="card-title">Agents you've recruited</div>
+      <div class="card-sub">You earn an override on their own commission — set by Zillion Admin, on top of what they earn, never deducted from it.</div>
+      <div id="subagents-list"><div class="no-data">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/.netlify/functions';
+let agentToken = localStorage.getItem('coop_agent_token') || '';
+let pendingPhone = '';
+let otpChannel = 'sms';
+
+function toast(msg, isError=false, ms=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+function fmtNaira(kobo) { return '₦' + ((kobo||0)/100).toLocaleString(); }
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString() : '—'; }
+
+function normalisePhone(raw) {
+  const d = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) return raw;
+  if (d.startsWith('0')) return '+234' + d.slice(1);
+  return '+234' + d;
+}
+
+function setOtpChannel(channel) {
+  otpChannel = channel;
+  document.getElementById('channel-tab-sms').className = 'btn btn-sm ' + (channel === 'sms' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('channel-tab-email').className = 'btn btn-sm ' + (channel === 'email' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('agent-email-field').style.display = channel === 'email' ? '' : 'none';
+}
+
+async function sendAgentOtp() {
+  const raw = document.getElementById('agent-phone').value.trim();
+  const errEl = document.getElementById('phone-error');
+  errEl.style.display = 'none';
+  if (!raw) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
+  pendingPhone = normalisePhone(raw);
+
+  const payload = { phone: pendingPhone, channel: otpChannel };
+  if (otpChannel === 'email') {
+    const email = document.getElementById('agent-email').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Enter a valid email address.'; errEl.style.display = 'block'; return; }
+    payload.email = email;
+  }
+
+  const btn = document.getElementById('send-otp-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(`${API}/send-otp`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Send code';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to send code.'; errEl.style.display = 'block'; return; }
+    document.getElementById('login-step-phone').style.display = 'none';
+    document.getElementById('login-step-otp').style.display = '';
+    document.getElementById('otp0').focus();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Send code';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function backToPhone() {
+  document.getElementById('login-step-otp').style.display = 'none';
+  document.getElementById('login-step-phone').style.display = '';
+  [0,1,2,3,4,5].forEach(i => document.getElementById('otp'+i).value = '');
+}
+
+[0,1,2,3,4,5].forEach(i => {
+  document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('otp'+i);
+    if (!box) return;
+    box.addEventListener('input', () => { if (box.value && i < 5) document.getElementById('otp'+(i+1)).focus(); });
+  });
+});
+
+async function verifyAgentOtp() {
+  const code = [0,1,2,3,4,5].map(i => document.getElementById('otp'+i).value).join('');
+  const errEl = document.getElementById('otp-error');
+  errEl.style.display = 'none';
+  if (code.length < 6) { errEl.textContent = 'Enter all 6 digits.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('verify-otp-btn');
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  try {
+    const res = await fetch(`${API}/verify-otp`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: pendingPhone, otp: code }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Verify & sign in';
+    if (!res.ok || !data.verified) { errEl.textContent = data.error || 'Incorrect code.'; errEl.style.display = 'block'; return; }
+    agentToken = data.token;
+    localStorage.setItem('coop_agent_token', agentToken);
+    showApp();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Verify & sign in';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function signOut() {
+  localStorage.removeItem('coop_agent_token');
+  agentToken = '';
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'block';
+  loadDashboard();
+}
+
+function subscriptionPill(client) {
+  if (client.never_expires) return '<span class="pill pill-green">Active</span>';
+  const status = (client.subscription_status || '').toLowerCase();
+  if (status === 'active') return `<span class="pill pill-green">Active${client.subscription_paid_until ? ' &middot; paid until ' + fmtDate(client.subscription_paid_until) : ''}</span>`;
+  if (status === 'trial') return `<span class="pill pill-amber">Trial${client.trial_ends_at ? ' &middot; ends ' + fmtDate(client.trial_ends_at) : ''}</span>`;
+  if (status === 'trial_expired') return '<span class="pill pill-red">Trial expired</span>';
+  if (status === 'suspended') return '<span class="pill pill-red">Suspended</span>';
+  return `<span class="pill pill-muted">${client.subscription_status || 'Unknown'}</span>`;
+}
+
+async function loadDashboard() {
+  const profileCard = document.getElementById('profile-card');
+  try {
+    const res = await fetch(`${API}/coop-agent-my-dashboard`, { headers: { Authorization: 'Bearer ' + agentToken } });
+    const data = await res.json();
+    if (!res.ok) { profileCard.innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+
+    const a = data.agent;
+    const rateText = ((a.commission_rate_bps || 0) / 100).toFixed(1) + '%';
+    profileCard.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:19px;font-weight:700">${a.name}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">Referral code: <b style="color:var(--cream);font-family:monospace">${a.referral_code}</b></div>
+        </div>
+        <span class="pill ${a.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${a.status}</span>
+      </div>
+      <div style="font-size:13px;color:var(--muted);margin-top:10px">Your commission rate: <b style="color:var(--cream)">${rateText}</b> of each referred society's subscription payment</div>
+      ${a.parent ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Recruited by: ${a.parent.name} (${a.parent.referral_code})</div>` : ''}
+    `;
+
+    document.getElementById('em-accrued').textContent = fmtNaira(data.earnings.total_accrued_kobo);
+    document.getElementById('em-paid').textContent = fmtNaira(data.earnings.total_paid_kobo);
+    document.getElementById('em-outstanding').textContent = fmtNaira(data.earnings.outstanding_kobo);
+    document.getElementById('em-tier-breakdown').textContent =
+      `Direct referrals: ${fmtNaira(data.earnings.tier1_accrued_kobo)} · Overrides from recruited agents: ${fmtNaira(data.earnings.tier2_override_accrued_kobo)}`;
+    document.getElementById('earnings-card').style.display = '';
+
+    const clientsList = document.getElementById('clients-list');
+    if (!data.clients.length) {
+      clientsList.innerHTML = '<div class="no-data">No societies referred yet — share your referral code to get started.</div>';
+    } else {
+      const rows = data.clients.map(c => `
+        <tr>
+          <td>${c.name}</td>
+          <td>${subscriptionPill(c)}</td>
+          <td>${c.subscription_plan || '—'}</td>
+          <td>${fmtDate(c.referred_at)}</td>
+          <td>${c.within_commission_window ? '<span class="pill pill-green">Yes</span>' : '<span class="pill pill-muted">Cap reached</span>'}</td>
+        </tr>`).join('');
+      clientsList.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Society</th><th>Subscription</th><th>Plan</th><th>Referred</th><th>Earning commission</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    }
+    document.getElementById('clients-card').style.display = '';
+
+    if (data.sub_agents && data.sub_agents.length) {
+      const subRows = data.sub_agents.map(s => `
+        <tr>
+          <td>${s.name}</td>
+          <td style="font-family:monospace">${s.referral_code}</td>
+          <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
+        </tr>`).join('');
+      document.getElementById('subagents-list').innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Agent</th><th>Referral code</th><th>Status</th></tr></thead>
+        <tbody>${subRows}</tbody>
+      </table></div>`;
+      document.getElementById('subagents-card').style.display = '';
+    }
+  } catch (e) {
+    profileCard.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+if (agentToken) showApp();
+</script>
+</body>
+</html>
