@@ -377,6 +377,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-loan-guarantor-override"
+  to   = "/.netlify/functions/coop-portal-loan-guarantor-override"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent"
   to   = "/coop-agent/index.html"
   status = 200
