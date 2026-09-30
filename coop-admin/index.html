@@ -1067,6 +1067,10 @@ tr:last-child td{border-bottom:none}
         </select>
       </div>
     </div>
+    <div class="field"><label>Which account did this land in?</label>
+      <select id="jv-debit-account"></select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Only needed if your society keeps more than one bank or cash account — leave on the default otherwise.</div>
+    </div>
     <div class="field"><label>Reference</label><input type="text" id="jv-reference" placeholder="e.g. bank teller number, receipt number"></div>
 
     <div id="jv-legs" style="margin:14px 0"></div>
@@ -5321,6 +5325,12 @@ async function openJournalVoucherModal() {
   document.getElementById('jv-add-leg-btn').disabled = true;
   journalVoucherLegCount = 0;
   updateJournalVoucherBalance();
+
+  if (!accountingAccounts) await fetchChartOfAccounts();
+  const bankCashAccounts = (accountingAccounts || []).filter(a => a.sub_type === 'bank_cash');
+  document.getElementById('jv-debit-account').innerHTML = '<option value="">Default (based on source, above)</option>'
+    + bankCashAccounts.map(a => `<option value="${a.id}">${a.account_name} (${a.account_code})</option>`).join('');
+
   openModal('modal-journal-voucher');
 
   journalVoucherHasInvestmentAddon = (portalData.addons || []).some(a => a.addon_key === 'investment');
@@ -5418,6 +5428,7 @@ async function submitJournalVoucher() {
   const totalNaira = parseFloat(document.getElementById('jv-total').value) || 0;
   const source = document.getElementById('jv-source').value;
   const reference = document.getElementById('jv-reference').value.trim();
+  const debitAccountId = document.getElementById('jv-debit-account').value;
 
   if (!memberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
   if (totalNaira <= 0) { errEl.textContent = 'Enter the total amount received.'; errEl.style.display = 'block'; return; }
@@ -5446,7 +5457,7 @@ async function submitJournalVoucher() {
   try {
     const res = await fetch(`${API}/coop-portal-journal-voucher`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-      body: JSON.stringify({ member_id: memberId, total_amount_kobo: totalKobo, source, reference: reference || undefined, legs }),
+      body: JSON.stringify({ member_id: memberId, total_amount_kobo: totalKobo, source, reference: reference || undefined, debit_account_id: debitAccountId || undefined, legs }),
     });
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'Record split payment';
