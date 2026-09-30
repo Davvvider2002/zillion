@@ -52,7 +52,7 @@ exports.handler = async (event) => {
 
     const loanIds = (data || []).map(l => l.id);
     const { data: allGuarantors } = loanIds.length
-      ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', loanIds)
+      ? await db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, approved_by, coop_members(name, phone_normalized)').in('loan_id', loanIds)
       : { data: [] };
 
     // Ajo track record — informational only, never a gate. One bulk lookup for every applicant on this page,
