@@ -1056,7 +1056,6 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Member</label>
       <select id="jv-member" onchange="onJournalVoucherMemberChange()">
         <option value="">Select a member…</option>
-        ${(portalData.members || []).map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('')}
       </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -5312,7 +5311,8 @@ let journalVoucherInvestmentProducts = [];
 let journalVoucherHasInvestmentAddon = false;
 
 async function openJournalVoucherModal() {
-  document.getElementById('jv-member').value = '';
+  document.getElementById('jv-member').innerHTML = '<option value="">Select a member…</option>'
+    + (portalData.members || []).map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
   document.getElementById('jv-total').value = '';
   document.getElementById('jv-source').value = 'bank_transfer_manual';
   document.getElementById('jv-reference').value = '';
