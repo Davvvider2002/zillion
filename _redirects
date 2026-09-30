@@ -115,6 +115,10 @@
 /api/v1/admin-ajo-overview  /.netlify/functions/admin-ajo-overview  200
 /api/v1/admin-coop-agents  /.netlify/functions/admin-coop-agents  200
 /api/v1/admin-ajo-collector-platform-fee  /.netlify/functions/admin-ajo-collector-platform-fee  200
+/api/v1/coop-agent-public-apply  /.netlify/functions/coop-agent-public-apply  200
+/api/v1/admin-coop-agent-applications  /.netlify/functions/admin-coop-agent-applications  200
+/coop-agent-apply           /coop-agent-apply/index.html          200
+/coop-agent-apply/          /coop-agent-apply/index.html          200
 /api/v1/ajo-member-join-scheme  /.netlify/functions/ajo-member-join-scheme  200
 /api/v1/ajo-member-record-contribution  /.netlify/functions/ajo-member-record-contribution  200
 /api/v1/ajo-admin-process-cycle  /.netlify/functions/ajo-admin-process-cycle  200
