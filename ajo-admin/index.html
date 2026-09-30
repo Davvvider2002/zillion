@@ -120,16 +120,6 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
       <div class="card-sub">Every group you administer — configure once, the rotation runs itself from there. As admin, you're also this group's collector.</div>
       <div id="schemes-list"><div class="no-data">Loading…</div></div>
     </div>
-
-    <div class="card">
-      <div class="card-title">Recruit a Collector</div>
-      <div class="card-sub">Grows the pool of collectors available to individual savers — not tied to your own groups, which you already collect for yourself. Registration fee is compulsory; paying it doesn't activate them — escrow verification still does.</div>
-      <div id="recruit-fee-display" style="margin-bottom:12px"></div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="openSetRecruitFeeModal()">Set registration fee</button>
-        <button class="btn btn-primary btn-sm" id="recruit-link-btn" style="display:none" onclick="openRecruitLinkModal()">Get join link</button>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -145,28 +135,6 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
     <div id="es-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitEscrowSetup()" id="es-btn">Submit</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-escrow-setup')">Cancel</button>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modal-set-recruit-fee">
-  <div class="modal-box">
-    <div class="modal-title">Set registration fee</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Charged to anyone who joins as a collector through your link. Compulsory — cannot be set to free.</div>
-    <div class="field"><label>Registration fee (₦)</label><input type="number" id="rf-amount"></div>
-    <div id="rf-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="submitRecruitFee()" id="rf-btn">Save</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-set-recruit-fee')">Cancel</button>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modal-recruit-link">
-  <div class="modal-box">
-    <div class="modal-title">Share this to recruit a collector</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Anyone with this link or QR code can apply to become an Ajo collector. They'll pay the registration fee, then still need to complete escrow verification separately before they can start collecting.</div>
-    <div style="text-align:center;background:#fff;border-radius:10px;padding:16px;margin-bottom:14px" id="rl-qr-box"></div>
-    <div class="field"><label>Link</label><input type="text" id="rl-url" readonly style="font-family:monospace;font-size:12px"></div>
-    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="copyRecruitLink()">Copy link</button>
-    <button class="btn btn-ghost" style="width:100%" onclick="closeModal('modal-recruit-link')">Close</button>
   </div>
 </div>
 
@@ -213,10 +181,6 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
         <option value="admin_assigned">Admin-assigned</option>
         <option value="priority">Priority (need-based)</option>
       </select>
-    </div>
-    <div class="field">
-      <label>Referred by an agent? (optional)</label>
-      <input type="text" id="cs-referral-code" placeholder="e.g. AJO-DAVID01">
     </div>
     <div id="cs-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitCreateScheme()" id="cs-btn">Create group</button>
@@ -350,7 +314,6 @@ function showApp() {
   loadSchemes();
   loadCollectorProfile();
   loadCollectorHistory();
-  loadRecruitFeeStatus();
 }
 
 async function loadSchemes() {
@@ -471,12 +434,16 @@ async function loadCollectorProfile() {
         <button class="btn btn-primary" onclick="openEscrowSetupModal()">Resubmit details</button>`;
     } else {
       const score = profile.compliance_score;
+      const commissionText = profile.commission_type === 'percentage'
+        ? `${(profile.commission_value / 100).toFixed(1)}% commission`
+        : `${fmtNaira(profile.commission_value)} commission`;
       card.innerHTML = `
         <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
           <div class="score-ring" style="background:${standingColor(score)}22;color:${standingColor(score)};border:2px solid ${standingColor(score)}">${score}</div>
           <div style="flex:1;min-width:200px">
             <div style="font-size:17px;font-weight:700;margin-bottom:4px">Escrow verified</div>
             <div style="font-size:13px;color:var(--muted)">${profile.escrow_account_name ? `${profile.escrow_account_name} · ${profile.escrow_account_number || ''}` : ''}</div>
+            <div style="font-size:13px;color:var(--amber);margin-top:4px">${commissionText} on group contributions — set by Zillion Admin. Individual savers you collect for separately entitle you to their first monthly contribution instead, not this rate.</div>
           </div>
         </div>`;
     }
@@ -529,75 +496,6 @@ async function submitEscrowSetup() {
     btn.disabled = false; btn.textContent = 'Submit';
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
-}
-
-let currentRecruitFeeKobo = null;
-let myAdminZillionId = null;
-
-async function loadRecruitFeeStatus() {
-  const el = document.getElementById('recruit-fee-display');
-  try {
-    const res = await fetch(`${API}/ajo-configure-collector-joining-fee`, { headers: { Authorization: 'Bearer ' + adminToken } });
-    const data = await res.json();
-    currentRecruitFeeKobo = data.joining_fee_kobo;
-    myAdminZillionId = data.admin_zillion_id;
-    if (currentRecruitFeeKobo) {
-      el.innerHTML = `<div style="font-size:13px;color:var(--muted)">Current registration fee: <b style="color:var(--cream)">${fmtNaira(currentRecruitFeeKobo)}</b></div>`;
-      document.getElementById('recruit-link-btn').style.display = '';
-    } else {
-      el.innerHTML = `<div style="font-size:13px;color:var(--muted)">No registration fee set yet — set one before you can share a recruitment link.</div>`;
-      document.getElementById('recruit-link-btn').style.display = 'none';
-    }
-  } catch (e) {
-    el.innerHTML = `<div style="font-size:13px;color:var(--red)">Failed to load: ${e.message}</div>`;
-  }
-}
-
-function openSetRecruitFeeModal() {
-  document.getElementById('rf-amount').value = currentRecruitFeeKobo ? (currentRecruitFeeKobo / 100) : '';
-  document.getElementById('rf-error').style.display = 'none';
-  openModal('modal-set-recruit-fee');
-}
-
-async function submitRecruitFee() {
-  const errEl = document.getElementById('rf-error');
-  errEl.style.display = 'none';
-  const amountNaira = parseFloat(document.getElementById('rf-amount').value);
-  if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a fee greater than zero — it cannot be free.'; errEl.style.display = 'block'; return; }
-
-  const btn = document.getElementById('rf-btn');
-  btn.disabled = true; btn.textContent = 'Saving...';
-  try {
-    const res = await fetch(`${API}/ajo-configure-collector-joining-fee`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
-      body: JSON.stringify({ joining_fee_kobo: Math.round(amountNaira * 100) }),
-    });
-    const data = await res.json();
-    btn.disabled = false; btn.textContent = 'Save';
-    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
-    closeModal('modal-set-recruit-fee');
-    toast('Registration fee saved');
-    loadRecruitFeeStatus();
-  } catch (e) {
-    btn.disabled = false; btn.textContent = 'Save';
-    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
-  }
-}
-
-function openRecruitLinkModal() {
-  const url = `${location.origin}/ajo-collector-join/?admin_id=${encodeURIComponent(myAdminZillionId)}`;
-  document.getElementById('rl-url').value = url;
-  const qrBox = document.getElementById('rl-qr-box');
-  qrBox.innerHTML = '';
-  try { new QRCode(qrBox, { text: url, width: 220, height: 220, colorDark: '#0D1F1A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); }
-  catch (e) { qrBox.innerHTML = '<div style="color:#999;font-size:12px;padding:20px">QR code unavailable</div>'; }
-  openModal('modal-recruit-link');
-}
-
-function copyRecruitLink() {
-  const input = document.getElementById('rl-url');
-  input.select();
-  navigator.clipboard?.writeText(input.value).then(() => toast('Link copied')).catch(() => document.execCommand('copy'));
 }
 
 function openSchemeJoinLinkModal(schemeId, schemeName) {
@@ -699,7 +597,6 @@ async function openSchemeDetail(schemeId) {
         <div><b>Payout order:</b> ${s.payout_order.replace(/_/g, ' ')}</div>
         <div><b>Cycle length:</b> ${s.cycle_length}</div>
         <div><b>Status:</b> ${s.status}</div>
-        <div><b>Referred by:</b> ${data.referred_by ? data.referred_by.referral_code : '—'}</div>
       </div>
       <div style="font-weight:700;margin-bottom:6px">Collector</div>
       <div style="background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:18px">
@@ -728,7 +625,6 @@ function openCreateSchemeModal() {
   document.getElementById('cs-name').value = '';
   document.getElementById('cs-amount').value = '';
   document.getElementById('cs-cycles').value = '';
-  document.getElementById('cs-referral-code').value = '';
   document.getElementById('cs-error').style.display = 'none';
   openModal('modal-create-scheme');
 }
@@ -739,7 +635,6 @@ async function submitCreateScheme() {
   const name = document.getElementById('cs-name').value.trim();
   const amountNaira = parseFloat(document.getElementById('cs-amount').value);
   const cycles = parseInt(document.getElementById('cs-cycles').value, 10);
-  const referralCode = document.getElementById('cs-referral-code').value.trim();
   if (!name) { errEl.textContent = 'Group name is required.'; errEl.style.display = 'block'; return; }
   if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid contribution amount.'; errEl.style.display = 'block'; return; }
   if (!cycles || cycles <= 0) { errEl.textContent = 'Enter a valid number of cycles.'; errEl.style.display = 'block'; return; }
@@ -756,20 +651,13 @@ async function submitCreateScheme() {
         frequency: document.getElementById('cs-frequency').value,
         cycle_length: cycles,
         payout_order: document.getElementById('cs-payout-order').value,
-        referral_code: referralCode || undefined,
       }),
     });
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'Create group';
     if (!res.ok) { errEl.textContent = data.error || 'Failed to create group.'; errEl.style.display = 'block'; return; }
     closeModal('modal-create-scheme');
-    if (referralCode && !data.referral_attributed) {
-      toast(`"${data.scheme.name}" created — but "${referralCode}" wasn't recognized as an active agent, so no referral was linked.`, true, 5000);
-    } else if (data.referral_attributed) {
-      toast(`"${data.scheme.name}" created and linked to agent ${referralCode}.`);
-    } else {
-      toast(`"${data.scheme.name}" created.`);
-    }
+    toast(`"${data.scheme.name}" created.`);
     loadSchemes();
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Create group';
