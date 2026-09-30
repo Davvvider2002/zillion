@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS coop_journal_vouchers (
   total_amount_kobo bigint NOT NULL CHECK (total_amount_kobo > 0),
   source text NOT NULL,
   reference text,
+  debit_account_id uuid REFERENCES coop_chart_of_accounts(id),
   created_by text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
