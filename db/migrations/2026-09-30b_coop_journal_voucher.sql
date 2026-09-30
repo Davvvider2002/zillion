@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS coop_journal_voucher_legs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   voucher_id uuid NOT NULL REFERENCES coop_journal_vouchers(id),
   coop_id text NOT NULL REFERENCES coop_societies(coop_id),
-  leg_type text NOT NULL CHECK (leg_type IN ('savings', 'dues', 'loan_repayment', 'shares')),
+  leg_type text NOT NULL CHECK (leg_type IN ('savings', 'dues', 'loan_repayment', 'shares', 'investment')),
   amount_kobo bigint NOT NULL CHECK (amount_kobo > 0),
   target_id uuid,
   resulting_table text NOT NULL,
