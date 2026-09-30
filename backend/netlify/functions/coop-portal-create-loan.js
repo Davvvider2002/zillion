@@ -17,8 +17,17 @@
  * guarantor-count enforcement) lives in coopLoanCreation.js, shared
  * with coop-loan-apply.js, so both paths always apply identical rules.
  *
- * Body: { member_id, guarantor_member_ids, principal_kobo, repayment_months, loan_package_id?, savings_plan_id? }
+ * external_guarantors is admin-only — for a guarantor who isn't an existing cooperative member (a family
+ * member or business contact standing in for someone, say). Identified by a government ID (NIN, passport,
+ * driver's license, or voter's card) instead of a member_id, stored encrypted the same way a member's own NIN
+ * already is elsewhere in this codebase. An external guarantor has no wallet to approve from, so their
+ * consent can only ever be recorded through coop-portal-loan-guarantor-override.js afterward, by an admin —
+ * never automatically, and never through this endpoint itself.
+ *
+ * Body: { member_id, guarantor_member_ids, external_guarantors?, principal_kobo, repayment_months, loan_package_id?, savings_plan_id? }
  *   guarantor_member_ids: string[] — guarantor_member_id (singular) still accepted for backward compatibility.
+ *   external_guarantors: { name, id_type, id_number }[] — counts toward the same required_guarantor_count as
+ *     guarantor_member_ids, not a separate cap.
  */
 'use strict';
 
@@ -53,18 +62,21 @@ exports.handler = async (event) => {
   const memberId           = (body.member_id || '').trim();
   const guarantorMemberIds = Array.isArray(body.guarantor_member_ids) ? body.guarantor_member_ids.map(id => (id || '').trim()).filter(Boolean)
     : body.guarantor_member_id ? [(body.guarantor_member_id || '').trim()] : [];
+  const externalGuarantors = Array.isArray(body.external_guarantors) ? body.external_guarantors.map(eg => ({
+    name: (eg.name || '').trim(), idType: (eg.id_type || '').trim().toUpperCase(), idNumber: (eg.id_number || '').trim(),
+  })) : [];
   const principalKobo      = Number.isInteger(body.principal_kobo) ? body.principal_kobo : 0;
   const repaymentMonths    = Number.isInteger(body.repayment_months) ? body.repayment_months : 0;
   const loanPackageId      = (body.loan_package_id || '').trim() || null;
   const savingsPlanId      = (body.savings_plan_id || '').trim() || null;
 
   if (!memberId) return err(400, 'member_id is required');
-  if (!guarantorMemberIds.length) return err(400, 'At least one guarantor_member_id is required (guarantor_member_ids)');
+  if (!guarantorMemberIds.length && !externalGuarantors.length) return err(400, 'At least one guarantor is required (guarantor_member_ids and/or external_guarantors)');
   if (principalKobo <= 0) return err(400, 'principal_kobo must be a positive integer');
   if (repaymentMonths <= 0) return err(400, 'repayment_months must be a positive integer');
 
   const result = await createLoanApplication(db, {
-    coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds,
+    coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds, externalGuarantors,
   });
 
   if (!result.success) return err(400, result.error);
