@@ -21,6 +21,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
+const { applyGuarantorDecision } = require('../../lib/coopLoanGuarantorDecision');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -61,39 +62,16 @@ exports.handler = async (event) => {
   if (!myGuarantorRow) return err(403, 'You are not a named guarantor on this loan');
   if (myGuarantorRow.status !== 'PENDING') return err(409, `You have already ${myGuarantorRow.status.toLowerCase()} this loan`);
 
-  const { error: rowUpdateErr } = await db.from('coop_loan_guarantors')
-    .update({ status: decision, responded_at: new Date().toISOString() }).eq('id', myGuarantorRow.id);
-  if (rowUpdateErr) return err(500, `Failed to record decision: ${rowUpdateErr.message}`);
-
-  const { data: allGuarantorRows } = await db.from('coop_loan_guarantors').select('status').eq('loan_id', loanId);
-
-  let newLoanStatus = 'PENDING_GUARANTOR'; // default: still waiting on someone else
-  let rejectionReason = null;
-  if (decision === 'DECLINED') {
-    newLoanStatus = 'REJECTED';
-    rejectionReason = `Declined by guarantor (${guarantorMember.name || 'unnamed'}): ${declineReason}`;
-  } else if ((allGuarantorRows || []).every(g => g.status === 'APPROVED')) {
-    newLoanStatus = 'PENDING_APPROVAL';
-  }
-
-  let updated = loan;
-  if (newLoanStatus !== 'PENDING_GUARANTOR') {
-    const { data: updatedLoan, error: loanUpdateErr } = await db.from('coop_loans')
-      .update({ status: newLoanStatus, rejection_reason: rejectionReason })
-      .eq('id', loanId).select().single();
-    if (loanUpdateErr) return err(500, `Decision recorded, but failed to update loan status: ${loanUpdateErr.message}`);
-    updated = updatedLoan;
-  }
-
-  const stillWaitingOn = (allGuarantorRows || []).filter(g => g.status === 'PENDING').length;
+  const result = await applyGuarantorDecision(db, loanId, myGuarantorRow, decision, declineReason, guarantorMember.name || 'unnamed');
+  if (!result.ok) return err(500, result.error);
 
   return ok({
     success: true,
-    loan:    updated,
+    loan:    result.loan,
     message: decision === 'DECLINED'
       ? 'Guarantor declined — loan application closed.'
-      : newLoanStatus === 'PENDING_APPROVAL'
+      : result.newLoanStatus === 'PENDING_APPROVAL'
         ? 'All guarantors have confirmed — loan now with admin for review.'
-        : `Guarantor confirmed — still waiting on ${stillWaitingOn} more guarantor${stillWaitingOn === 1 ? '' : 's'}.`,
+        : `Guarantor confirmed — still waiting on ${result.stillWaitingOn} more guarantor${result.stillWaitingOn === 1 ? '' : 's'}.`,
   });
 };
