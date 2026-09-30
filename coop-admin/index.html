@@ -890,16 +890,12 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <div class="modal-overlay" id="modal-create-loan">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:560px">
     <div class="modal-title">Create loan</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">For a loan requested in person or by phone. The guarantor still has to confirm before this goes to admin review — same as a member applying directly.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">For a loan requested in person or by phone. Every guarantor still has to confirm before this goes to admin review — either themselves from their own wallet, or recorded manually by an admin afterward (Loans list, once this is created) — same safeguard as a member applying directly, just not skipped because someone else initiated it.</div>
     <div class="field">
       <label>Borrower</label>
       <select id="cl-member"><option value="">Select a member...</option></select>
-    </div>
-    <div class="field">
-      <label>Guarantor</label>
-      <select id="cl-guarantor"><option value="">Select a member...</option></select>
     </div>
     <div class="field" id="cl-package-row" style="display:none">
       <label>Loan package</label>
@@ -913,6 +909,10 @@ tr:last-child td{border-bottom:none}
       <label>Repayment period (months)</label>
       <input type="number" id="cl-months" placeholder="e.g. 6" value="6">
     </div>
+
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px" id="cl-guarantors-label">Guarantors</label>
+    <div id="cl-guarantors"></div>
+
     <div id="cl-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitCreateLoan()" id="cl-submit-btn">Create loan</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-create-loan')">Cancel</button>
@@ -1923,7 +1923,14 @@ function renderLoans() {
           <tr>
             <td>${l.borrower?.name || l.borrower?.phone_normalized || '—'}</td>
             <td>${l.interest_kobo > 0 ? `${fmtNaira(l.principal_kobo)} <span style="color:var(--amber);font-size:12px">+${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)</span>` : fmtNaira(l.principal_kobo)}</td>
-            <td>${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</td>
+            <td>${(l.guarantors || []).map(g => {
+              const name = g.is_external ? `${g.external_name} (external)` : (g.coop_members?.name || '—');
+              const statusLabel = g.status === 'PENDING' ? ' — pending' : g.status === 'DECLINED' ? ' — declined' : '';
+              const overrideBtns = g.status === 'PENDING' && hasPortalAction('loans', 'edit')
+                ? ` <button class="rbtn" style="padding:1px 6px;font-size:10.5px" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','APPROVED')">✓</button><button class="rbtn" style="padding:1px 6px;font-size:10.5px" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','DECLINED')">✗</button>`
+                : '';
+              return `<div style="white-space:nowrap">${name}${statusLabel}${overrideBtns}</div>`;
+            }).join('') || '—'}</td>
             <td>${loanStatusPill(l.status)}</td>
             <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
             <td>${loanActionButtons(l)}</td>
@@ -1932,6 +1939,28 @@ function renderLoans() {
       </table></div>
     </div>
   `;
+}
+
+async function guarantorOverride(guarantorId, name, decision) {
+  let reason = '';
+  if (decision === 'DECLINED') {
+    reason = prompt(`Reason ${name} is declining (the borrower will see this):`);
+    if (!reason || !reason.trim()) return;
+  } else if (!confirm(`Record ${name} as having approved this loan? Use this only when you have their actual consent (a signature, a call, etc.) — this is not a substitute for asking them.`)) {
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/coop-portal-loan-guarantor-override`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ guarantor_id: guarantorId, decision, reason: reason || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to record decision.'); return; }
+    notify(data.message || 'Recorded.');
+    await refreshAndRender();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
 }
 
 function switchLoansView(mode) {
@@ -2205,9 +2234,8 @@ async function openCreateLoanModal() {
   document.getElementById('cl-months').value = '6';
 
   const members = (portalData.members || []).filter(m => m.status === 'ACTIVE');
-  const memberOptions = members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
-  document.getElementById('cl-member').innerHTML = '<option value="">Select a member...</option>' + memberOptions;
-  document.getElementById('cl-guarantor').innerHTML = '<option value="">Select a member...</option>' + memberOptions;
+  document.getElementById('cl-member').innerHTML = '<option value="">Select a member...</option>'
+    + members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
 
   try {
     const res = await fetch(`${API}/coop-portal-loan-packages`, { headers: { Authorization: 'Bearer ' + portalToken } });
@@ -2222,7 +2250,38 @@ async function openCreateLoanModal() {
     }
   } catch (e) { /* non-fatal — package selection just won't show if this fails */ }
 
+  const requiredCount = portalData.society?.required_guarantor_count || 1;
+  document.getElementById('cl-guarantors-label').textContent = `Guarantor${requiredCount === 1 ? '' : 's'} (${requiredCount} required)`;
+  const memberOptionsHtml = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  document.getElementById('cl-guarantors').innerHTML = Array.from({ length: requiredCount }, (_, i) => `
+    <div class="cl-guarantor-slot" style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="cl-g-type-${i}" value="member" checked onchange="toggleGuarantorSlotType(${i})"> Member</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="cl-g-type-${i}" value="external" onchange="toggleGuarantorSlotType(${i})"> Not a member</label>
+      </div>
+      <select class="cl-g-member" id="cl-g-member-${i}" style="margin-bottom:0">${memberOptionsHtml}</select>
+      <div class="cl-g-external" id="cl-g-external-${i}" style="display:none">
+        <input type="text" class="cl-g-ext-name" placeholder="Full name" style="margin-bottom:6px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <select class="cl-g-ext-idtype">
+            <option value="NIN">NIN</option>
+            <option value="PASSPORT">Passport</option>
+            <option value="DRIVERS_LICENSE">Driver's license</option>
+            <option value="VOTERS_CARD">Voter's card</option>
+          </select>
+          <input type="text" class="cl-g-ext-idnumber" placeholder="ID number">
+        </div>
+      </div>
+    </div>
+  `).join('');
+
   openModal('modal-create-loan');
+}
+
+function toggleGuarantorSlotType(i) {
+  const type = document.querySelector(`input[name="cl-g-type-${i}"]:checked`).value;
+  document.getElementById(`cl-g-member-${i}`).style.display = type === 'member' ? '' : 'none';
+  document.getElementById(`cl-g-external-${i}`).style.display = type === 'external' ? '' : 'none';
 }
 
 async function submitCreateLoan() {
@@ -2230,16 +2289,34 @@ async function submitCreateLoan() {
   errEl.style.display = 'none';
 
   const memberId = document.getElementById('cl-member').value;
-  const guarantorId = document.getElementById('cl-guarantor').value;
   const packageId = document.getElementById('cl-package').value;
   const amountNaira = parseFloat(document.getElementById('cl-amount').value);
   const months = parseInt(document.getElementById('cl-months').value);
 
   if (!memberId) { errEl.textContent = 'Select a borrower.'; errEl.style.display = 'block'; return; }
-  if (!guarantorId) { errEl.textContent = 'Select a guarantor.'; errEl.style.display = 'block'; return; }
-  if (memberId === guarantorId) { errEl.textContent = 'The borrower and guarantor cannot be the same person.'; errEl.style.display = 'block'; return; }
   if (!amountNaira || amountNaira <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
   if (!months || months <= 0) { errEl.textContent = 'Enter a valid repayment period.'; errEl.style.display = 'block'; return; }
+
+  const guarantorMemberIds = [];
+  const externalGuarantors = [];
+  const slots = document.querySelectorAll('.cl-guarantor-slot');
+  for (let i = 0; i < slots.length; i++) {
+    const type = document.querySelector(`input[name="cl-g-type-${i}"]:checked`).value;
+    if (type === 'member') {
+      const id = document.getElementById(`cl-g-member-${i}`).value;
+      if (!id) { errEl.textContent = 'Select every guarantor, or switch a slot to "Not a member" and fill in their details.'; errEl.style.display = 'block'; return; }
+      if (id === memberId) { errEl.textContent = 'The borrower cannot also be their own guarantor.'; errEl.style.display = 'block'; return; }
+      guarantorMemberIds.push(id);
+    } else {
+      const slot = slots[i];
+      const name = slot.querySelector('.cl-g-ext-name').value.trim();
+      const idType = slot.querySelector('.cl-g-ext-idtype').value;
+      const idNumber = slot.querySelector('.cl-g-ext-idnumber').value.trim();
+      if (!name || !idNumber) { errEl.textContent = 'Fill in the name and ID number for every non-member guarantor.'; errEl.style.display = 'block'; return; }
+      externalGuarantors.push({ name, id_type: idType, id_number: idNumber });
+    }
+  }
+  if (new Set(guarantorMemberIds).size !== guarantorMemberIds.length) { errEl.textContent = 'The same member is selected as guarantor more than once.'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('cl-submit-btn');
   btn.disabled = true; btn.textContent = 'Creating...';
@@ -2247,7 +2324,7 @@ async function submitCreateLoan() {
     const res = await fetch(`${API}/coop-portal-create-loan`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
       body: JSON.stringify({
-        member_id: memberId, guarantor_member_id: guarantorId,
+        member_id: memberId, guarantor_member_ids: guarantorMemberIds, external_guarantors: externalGuarantors,
         principal_kobo: Math.round(amountNaira * 100), repayment_months: months,
         loan_package_id: packageId || undefined,
       }),
