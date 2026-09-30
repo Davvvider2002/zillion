@@ -166,7 +166,7 @@ async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, cre
  * @param {number} principalPortionKobo  from computeRepaymentSplitForLoan, computed ONCE by the caller before inserting the new repayment row
  * @param {number} interestPortionKobo   from the same call - never recomputed here
  */
-async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, createdBy, principalPortionKobo = null, interestPortionKobo = 0, borrower = null) {
+async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, createdBy, principalPortionKobo = null, interestPortionKobo = 0, borrower = null, debitAccountOverride = null) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
 
@@ -174,6 +174,10 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
     if (source === 'cash_in_person') debitCode = CASH_ACCOUNT_CODE;
     else if (source === 'savings_deduction') debitCode = MEMBER_SAVINGS_PAYABLE_ACCOUNT_CODE;
     else debitCode = BANK_ACCOUNT_CODE; // bank_transfer_manual, offline_zil, and any other/unrecognized source default here
+
+    // debitAccountOverride: a caller who already knows exactly which bank/cash account to use (a society with
+    // more than one - see coop-portal-journal-voucher.js) skips the source-derived default above entirely.
+    // Every other caller leaves this unset and gets the same CASH/BANK/savings-deduction behavior as always.
 
     // principalPortionKobo defaults to the full amount when the caller
     // didn't pass a split (e.g. a no-interest loan) - amountKobo is
@@ -185,10 +189,11 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
     const description = borrowerLabel ? `${baseDescription} — ${borrowerLabel} via ${sourceLabel}` : `${baseDescription} via ${sourceLabel}`;
 
     if (interestPortionKobo > 0) {
-      const accounts = await getAccounts(db, coopId, [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE, debitCode]);
+      const codes = debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE, debitCode];
+      const accounts = await getAccounts(db, coopId, codes);
       const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
       const interestReceivable = accounts[LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE];
-      const debitAccount = accounts[debitCode];
+      const debitAccount = debitAccountOverride || accounts[debitCode];
       if (!principalReceivable || !interestReceivable || !debitAccount) return { booked: false, reason: 'accounts_missing' };
 
       return await postEntryLines(db, coopId, description, createdBy, [
@@ -198,9 +203,9 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
       ]);
     }
 
-    const accounts = await getAccounts(db, coopId, [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, debitCode]);
+    const accounts = await getAccounts(db, coopId, debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, debitCode]);
     const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
-    const debitAccount = accounts[debitCode];
+    const debitAccount = debitAccountOverride || accounts[debitCode];
     if (!principalReceivable || !debitAccount) return { booked: false, reason: 'accounts_missing' };
     return await postEntry(db, coopId, description, createdBy, debitAccount, principalReceivable, amountKobo);
   } catch (e) {
