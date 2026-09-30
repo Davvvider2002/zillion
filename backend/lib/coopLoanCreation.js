@@ -28,6 +28,9 @@ const { computeDuesOwing } = require('./coopDues');
 const { calculateLoanInterest } = require('./coopLoanInterest');
 const { computeMaxLoanAmount } = require('./coopLoanPackages');
 const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('./coopReducingBalanceSchedule');
+const { encryptNIN } = require('./coopDojahNin');
+
+const EXTERNAL_ID_TYPES = ['NIN', 'PASSPORT', 'DRIVERS_LICENSE', 'VOTERS_CARD'];
 
 /**
  * @param {object} db  Supabase client
@@ -39,10 +42,15 @@ const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('./c
  * @param {number} params.principalKobo
  * @param {number} params.repaymentMonths
  * @param {string[]} params.guarantorMemberIds
+ * @param {Array<{name:string, idType:string, idNumber:string}>} [params.externalGuarantors]  guarantors who
+ *   are not existing cooperative members — no member_id, identified instead by a government ID. Their consent
+ *   can only ever be recorded by an admin (coop-portal-loan-guarantor-override.js), since there's no wallet
+ *   for them to respond from themselves. Counts toward the same required_guarantor_count as member guarantors
+ *   — one society-level number, not two separate caps.
  * @returns {Promise<{success: boolean, loan?: object, error?: string, interestKobo?: number, interestRatePercent?: number, totalRepayableKobo?: number, guarantorNames?: string[]}>}
  */
 async function createLoanApplication(db, params) {
-  const { coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds } = params;
+  const { coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds, externalGuarantors = [] } = params;
 
   const { data: member } = await db.from('coop_members').select('id, status').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
   if (!member) return { success: false, error: 'Member not found in this society' };
@@ -54,15 +62,26 @@ async function createLoanApplication(db, params) {
 
   const requiredGuarantorCount = society?.required_guarantor_count || 1;
   const uniqueGuarantorIds = [...new Set(guarantorMemberIds || [])];
-  if (uniqueGuarantorIds.length !== requiredGuarantorCount) {
-    return { success: false, error: `This society requires exactly ${requiredGuarantorCount} guarantor${requiredGuarantorCount === 1 ? '' : 's'} — ${uniqueGuarantorIds.length} provided${(guarantorMemberIds || []).length !== uniqueGuarantorIds.length ? ' (duplicates were removed)' : ''}.` };
+
+  for (const eg of externalGuarantors) {
+    if (!eg.name || !String(eg.name).trim()) return { success: false, error: 'Every external guarantor needs a name' };
+    if (!EXTERNAL_ID_TYPES.includes(eg.idType)) return { success: false, error: `External guarantor ID type must be one of: ${EXTERNAL_ID_TYPES.join(', ')}` };
+    if (!eg.idNumber || !String(eg.idNumber).trim()) return { success: false, error: `Every external guarantor needs their ${eg.idType} number` };
   }
 
-  const { data: guarantors } = await db.from('coop_members').select('id, name').eq('coop_id', coopId).in('id', uniqueGuarantorIds);
+  const totalGuarantorCount = uniqueGuarantorIds.length + externalGuarantors.length;
+  if (totalGuarantorCount !== requiredGuarantorCount) {
+    return { success: false, error: `This society requires exactly ${requiredGuarantorCount} guarantor${requiredGuarantorCount === 1 ? '' : 's'} — ${totalGuarantorCount} provided${(guarantorMemberIds || []).length !== uniqueGuarantorIds.length ? ' (duplicate members were removed)' : ''}.` };
+  }
+
+  const { data: guarantors } = uniqueGuarantorIds.length
+    ? await db.from('coop_members').select('id, name').eq('coop_id', coopId).in('id', uniqueGuarantorIds)
+    : { data: [] };
   if (!guarantors || guarantors.length !== uniqueGuarantorIds.length) {
     return { success: false, error: 'One or more guarantors are not existing members of this society' };
   }
   if (uniqueGuarantorIds.includes(member.id)) return { success: false, error: 'A member cannot guarantee their own loan' };
+  if (!guarantors.length && !externalGuarantors.length) return { success: false, error: 'At least one guarantor (member or external) is required' };
 
   if (society?.dues_enforcement_enabled && society.dues_enforcement_rules?.block_loan_application) {
     const dues = await computeDuesOwing(db, member, society);
@@ -131,16 +150,28 @@ async function createLoanApplication(db, params) {
     total_repayable_kobo: totalRepayableKobo,
     repayment_months: repaymentMonths,
     monthly_repayment_kobo: monthlyRepaymentKobo,
-    guarantor_member_id: guarantors[0].id, // first guarantor, kept for any legacy single-guarantor display - coop_loan_guarantors below is the real source of truth
+    guarantor_member_id: guarantors.length ? guarantors[0].id : null, // first MEMBER guarantor, kept for any legacy single-guarantor display - null when every guarantor is external. coop_loan_guarantors below is the real source of truth either way.
     interest_method: interestMethod,
     reducing_balance_monthly_rate_percent: reducingBalanceRatePercent,
   }).select().single();
 
   if (insertErr) return { success: false, error: `Failed to create loan: ${insertErr.message}` };
 
-  const { error: guarantorInsertErr } = await db.from('coop_loan_guarantors').insert(
-    guarantors.map(g => ({ loan_id: created.id, member_id: g.id }))
-  );
+  let externalRows;
+  try {
+    externalRows = externalGuarantors.map(eg => ({
+      loan_id: created.id, member_id: null, is_external: true,
+      external_name: eg.name.trim(), external_id_type: eg.idType, external_id_encrypted: encryptNIN(eg.idNumber),
+    }));
+  } catch (e) {
+    // Encryption key missing/misconfigured - same defensive posture as every other place in this codebase
+    // that encrypts sensitive fields (see coopDojahNin.js's own mustEnv guard).
+    await db.from('coop_loans').delete().eq('id', created.id);
+    return { success: false, error: `Failed to secure external guarantor details: ${e.message}` };
+  }
+
+  const guarantorRows = [...guarantors.map(g => ({ loan_id: created.id, member_id: g.id })), ...externalRows];
+  const { error: guarantorInsertErr } = await db.from('coop_loan_guarantors').insert(guarantorRows);
   if (guarantorInsertErr) {
     // The loan row exists but its guarantors don't - clean up rather
     // than leave an orphaned loan no one can ever action.
@@ -148,7 +179,8 @@ async function createLoanApplication(db, params) {
     return { success: false, error: `Failed to record guarantors: ${guarantorInsertErr.message}` };
   }
 
-  return { success: true, loan: created, guarantorNames: guarantors.map(g => g.name), interestRatePercent, interestKobo, totalRepayableKobo };
+  const guarantorNames = [...guarantors.map(g => g.name), ...externalGuarantors.map(eg => `${eg.name.trim()} (external)`)];
+  return { success: true, loan: created, guarantorNames, interestRatePercent, interestKobo, totalRepayableKobo };
 }
 
 module.exports = { createLoanApplication };
