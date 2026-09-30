@@ -54,6 +54,13 @@
 <div id="screen-phone" class="screen active">
   <div class="hdr"><div><div class="hdr-title">Zillion Ajo Collector</div><div class="hdr-sub">Sign in with your phone number</div></div></div>
   <input id="phone-input" type="tel" placeholder="e.g. 08012345678" autocomplete="tel">
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button type="button" class="btn-outline" id="channel-btn-sms" style="flex:1;padding:9px;font-size:13px;border-radius:12px;cursor:pointer" onclick="setOtpChannel('sms')">&#x1F4F1; SMS</button>
+    <button type="button" class="btn-outline" id="channel-btn-email" style="flex:1;padding:9px;font-size:13px;border-radius:12px;cursor:pointer" onclick="setOtpChannel('email')">&#x2709;&#xFE0F; Email</button>
+  </div>
+  <div id="email-input-wrap" style="display:none">
+    <input id="email-input" type="email" placeholder="you@example.com" autocomplete="email">
+  </div>
   <button class="btn" onclick="doSendOtp()">Send code</button>
 </div>
 
@@ -166,14 +173,29 @@ async function apiFetch(path, opts) {
 }
 
 // ── Login ────────────────────────────────────────────────────────
+let OTP_CHANNEL = 'sms';
+
+function setOtpChannel(channel) {
+  OTP_CHANNEL = channel;
+  document.getElementById('channel-btn-sms').style.background = channel === 'sms' ? 'var(--g)' : 'transparent';
+  document.getElementById('channel-btn-sms').style.color = channel === 'sms' ? '#05140D' : 'var(--g)';
+  document.getElementById('channel-btn-email').style.background = channel === 'email' ? 'var(--g)' : 'transparent';
+  document.getElementById('channel-btn-email').style.color = channel === 'email' ? '#05140D' : 'var(--g)';
+  document.getElementById('email-input-wrap').style.display = channel === 'email' ? 'block' : 'none';
+}
+
 async function doSendOtp() {
   const phone = (document.getElementById('phone-input').value || '').trim();
   if (!phone) { toast('Enter your phone number', true); return; }
+  const email = (document.getElementById('email-input').value || '').trim();
+  if (OTP_CHANNEL === 'email' && !email) { toast('Enter your email address', true); return; }
   try {
-    const r = await apiFetch('/send-otp', { method: 'POST', body: JSON.stringify({ phone }) });
+    const payload = { phone, channel: OTP_CHANNEL };
+    if (OTP_CHANNEL === 'email') payload.email = email;
+    const r = await apiFetch('/send-otp', { method: 'POST', body: JSON.stringify(payload) });
     if (!r.ok) { toast(r.data.error || 'Could not send code', true); return; }
     STATE.phone = phone;
-    document.getElementById('otp-sub').textContent = 'Sent to ' + phone;
+    document.getElementById('otp-sub').textContent = OTP_CHANNEL === 'email' ? 'Sent to ' + email : 'Sent to ' + phone;
     goTo('screen-otp');
   } catch (e) {
     toast('Network error: ' + e.message, true);
@@ -380,6 +402,7 @@ if ('serviceWorker' in navigator) {
 }
 
 loadSession();
+setOtpChannel('sms');
 if (STATE.token && STATE.zillionId) {
   loadHome();
 } else {
