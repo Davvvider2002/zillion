@@ -38,29 +38,33 @@ const isOnline = s => s === 'flutterwave_checkout' || s === 'webhook_flutterwave
 const memberLabel = m => (m && m.name ? `${m.name} (Member #${String(m.id).slice(0, 8)})` : (m && m.id ? `Member #${String(m.id).slice(0, 8)}` : null));
 const fmtNaira = k => '₦' + (k / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-async function postMemberDeposit(db, coopId, { kind, creditCode, amountKobo, source, createdBy, member, reference }) {
+async function postMemberDeposit(db, coopId, { kind, creditCode, amountKobo, source, createdBy, member, reference, debitAccount }) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
+    // debitAccount lets a caller who already knows exactly which bank/cash account to use (a society with
+    // more than one, picked explicitly - see coop-portal-journal-voucher.js) skip the source-derived default
+    // entirely. Every other caller leaves this unset and gets the same CASH/BANK-by-source behavior as always.
     const debitCode = source === 'cash_in_person' ? CASH : BANK;
-    const accounts = await getAccounts(db, coopId, [debitCode, creditCode]);
-    if (!accounts[debitCode] || !accounts[creditCode]) return { booked: false, reason: 'accounts_missing' };
+    const accounts = await getAccounts(db, coopId, debitAccount ? [creditCode] : [debitCode, creditCode]);
+    const resolvedDebit = debitAccount || accounts[debitCode];
+    if (!resolvedDebit || !accounts[creditCode]) return { booked: false, reason: 'accounts_missing' };
 
     const who = memberLabel(member);
     const via = SOURCE_LABELS[source] || String(source || 'payment').replace(/_/g, ' ');
     const ref = isOnline(source) && reference ? ` (ref ${reference})` : '';
     const description = who ? `${kind} — ${who} via ${via}${ref}` : `${kind} via ${via}${ref}`;
-    return await postEntry(db, coopId, description, createdBy, accounts[debitCode], accounts[creditCode], amountKobo);
+    return await postEntry(db, coopId, description, createdBy, resolvedDebit, accounts[creditCode], amountKobo);
   } catch (e) {
     console.error('[coopMemberPaymentAccounting] non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };
   }
 }
 
-const recordSavingsPaymentJournalEntry = (db, coopId, amountKobo, source, createdBy, member = null, reference = null) =>
-  postMemberDeposit(db, coopId, { kind: 'Savings payment received', creditCode: SAVINGS_PAYABLE, amountKobo, source, createdBy, member, reference });
+const recordSavingsPaymentJournalEntry = (db, coopId, amountKobo, source, createdBy, member = null, reference = null, debitAccount = null) =>
+  postMemberDeposit(db, coopId, { kind: 'Savings payment received', creditCode: SAVINGS_PAYABLE, amountKobo, source, createdBy, member, reference, debitAccount });
 
-const recordSharePaymentJournalEntry = (db, coopId, amountKobo, source, createdBy, member = null, reference = null) =>
-  postMemberDeposit(db, coopId, { kind: 'Share capital contribution', creditCode: SHARE_CAPITAL, amountKobo, source, createdBy, member, reference });
+const recordSharePaymentJournalEntry = (db, coopId, amountKobo, source, createdBy, member = null, reference = null, debitAccount = null) =>
+  postMemberDeposit(db, coopId, { kind: 'Share capital contribution', creditCode: SHARE_CAPITAL, amountKobo, source, createdBy, member, reference, debitAccount });
 
 /**
  * Turns a failed post into something a person will see. "Accounting not set up
