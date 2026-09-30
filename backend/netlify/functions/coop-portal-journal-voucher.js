@@ -10,12 +10,13 @@
  * balances, not just as an abstract balanced journal entry.
  *
  * Deliberately does NOT let the caller pick raw chart-of-accounts lines the way coop-portal-journal-entry.js
- * does (that tool already exists, for genuine GL-only adjustments) - every leg here is one of the same four
- * categories a standalone payment already supports (savings, dues, loan_repayment, shares), and each leg is
- * recorded through the EXACT SAME logic its own single-purpose endpoint uses
+ * does (that tool already exists, for genuine GL-only adjustments) - every leg here is one of the same five
+ * categories a standalone payment already supports (savings, dues, loan_repayment, shares, investment), and
+ * each leg is recorded through the EXACT SAME logic its own single-purpose endpoint uses
  * (coop-portal-record-savings-payment.js etc.) - same table inserts, same journal postings, same loan
- * completion checks. The only difference is one shared reference and one shared "this all came from the same
- * ₦100,000" record (coop_journal_vouchers / coop_journal_voucher_legs) tying the pieces together afterward.
+ * completion checks, same investment-addon gate and unit-price arithmetic. The only difference is one shared
+ * reference and one shared "this all came from the same ₦100,000" record (coop_journal_vouchers /
+ * coop_journal_voucher_legs) tying the pieces together afterward.
  *
  * All legs are validated BEFORE any of them are recorded - wrong account, wrong status, an amount exceeding
  * what's owed on a loan, or legs that don't sum to the stated total are all caught up front, so a mistake on
@@ -35,11 +36,12 @@ const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting'
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { computeTotalRemainingKobo, finalizeLoanIfFullyRepaid } = require('../../lib/coopLoanCompletion');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
+const { hasAddon } = require('../../lib/coopEntitlements');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
-const LEG_TYPES = ['savings', 'dues', 'loan_repayment', 'shares'];
-const CASH = '1000', BANK = '1010', SHARE_CAPITAL = '3000';
-const PERMISSION_FOR_LEG = { savings: ['savings', 'create'], dues: ['dues', 'create'], loan_repayment: ['loans', 'edit'], shares: ['members', 'create'] };
+const LEG_TYPES = ['savings', 'dues', 'loan_repayment', 'shares', 'investment'];
+const CASH = '1000', BANK = '1010', SHARE_CAPITAL = '3000', MEMBER_INVESTMENT_PAYABLE = '2210';
+const PERMISSION_FOR_LEG = { savings: ['savings', 'create'], dues: ['dues', 'create'], loan_repayment: ['loans', 'edit'], shares: ['members', 'create'], investment: ['investment', 'create'] };
 
 const fmtNaira = kobo => '₦' + (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -124,6 +126,22 @@ exports.handler = async (event) => {
       if (remainingKobo <= 0) return err(409, 'That loan has nothing left to repay.');
       if (amountKobo > remainingKobo) return err(400, `The loan repayment leg (${fmtNaira(amountKobo)}) is more than the ${fmtNaira(remainingKobo)} still owed on that loan.`);
       preparedLegs.push({ type: 'loan_repayment', amountKobo, loan, society: society || {} });
+    } else if (leg.type === 'investment') {
+      if (!(await hasAddon(db, coopId, 'investment'))) return err(403, 'Investment is not enabled for this society — add it from the Add-ons tab before splitting a payment into it.');
+      const productId = (leg.target_id || '').trim();
+      if (!productId) return err(400, 'An investment leg needs target_id (the product_id)');
+      const { data: product } = await db.from('coop_investment_products').select('*').eq('id', productId).eq('coop_id', coopId).eq('active', true).maybeSingle();
+      if (!product) return err(404, 'Investment product not found or not active for one of the legs');
+      if (amountKobo % product.unit_price_kobo !== 0) {
+        return err(400, `The investment leg (${fmtNaira(amountKobo)}) isn't an exact multiple of ${product.name}'s unit price (${fmtNaira(product.unit_price_kobo)}) — adjust it to a whole number of units.`);
+      }
+      const units = amountKobo / product.unit_price_kobo;
+      if (product.product_type === 'general') {
+        const unitsRemaining = product.total_units - product.units_sold;
+        if (units > unitsRemaining) return err(400, `Only ${unitsRemaining} unit(s) remain available in ${product.name} — the investment leg asks for ${units}.`);
+      }
+      preparedLegs.push({ type: 'investment', amountKobo, product, units });
+
     } else if (leg.type === 'dues' || leg.type === 'shares') {
       preparedLegs.push({ type: leg.type, amountKobo });
     }
@@ -165,6 +183,26 @@ exports.handler = async (event) => {
         const { completed } = await finalizeLoanIfFullyRepaid(db, leg.loan, leg.society);
         if (!completed && leg.loan.status === 'DISBURSED') await db.from('coop_loans').update({ status: 'REPAYING' }).eq('id', leg.loan.id);
         legResults.push({ leg_type: 'loan_repayment', amount_kobo: leg.amountKobo, target_id: leg.loan.id, resulting_table: 'coop_loan_repayments', resulting_transaction_id: created.id, loan_completed: completed });
+
+      } else if (leg.type === 'investment') {
+        const purchasedAt = new Date();
+        const maturityDate = new Date(purchasedAt);
+        maturityDate.setMonth(maturityDate.getMonth() + leg.product.tenure_months);
+        const { data: created, error } = await db.from('coop_member_investments').insert({
+          coop_id: coopId, member_id: memberId, product_id: leg.product.id, units_purchased: leg.units, principal_kobo: leg.amountKobo,
+          maturity_date: maturityDate.toISOString().slice(0, 10), auto_reinvest: false,
+        }).select().single();
+        if (error) throw new Error(`Investment leg failed: ${error.message}`);
+        await db.from('coop_investment_products').update({ units_sold: leg.product.units_sold + leg.units }).eq('id', leg.product.id);
+        try {
+          if (await accountingIsReady(db, coopId)) {
+            const accounts = await getAccounts(db, coopId, [BANK, MEMBER_INVESTMENT_PAYABLE]);
+            if (accounts[BANK] && accounts[MEMBER_INVESTMENT_PAYABLE]) {
+              await postEntry(db, coopId, `Investment purchase — ${leg.product.name} — ${member.name || memberId} (voucher)`, actor, accounts[BANK], accounts[MEMBER_INVESTMENT_PAYABLE], leg.amountKobo);
+            }
+          }
+        } catch (e) { console.error('[coop-portal-journal-voucher] investment leg ledger post failed (non-fatal):', e.message); }
+        legResults.push({ leg_type: 'investment', amount_kobo: leg.amountKobo, target_id: leg.product.id, resulting_table: 'coop_member_investments', resulting_transaction_id: created.id, units_purchased: leg.units });
 
       } else if (leg.type === 'shares') {
         const { data: created, error } = await db.from('coop_share_transactions').insert({
