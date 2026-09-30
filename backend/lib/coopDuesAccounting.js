@@ -158,14 +158,17 @@ async function recordDuesAccrual(db, coopId) {
  * compatible: existing callers that don't pass it still work, just
  * without the richer description.
  */
-async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, createdBy, member = null) {
+async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, createdBy, member = null, debitAccountOverride = null) {
   try {
     const { ready } = await accountingIsReady(db, coopId);
     if (!ready) return { booked: false, reason: 'accounting_not_ready' };
 
+    // debitAccountOverride: a caller who already knows exactly which bank/cash account to use (a society with
+    // more than one - see coop-portal-journal-voucher.js) skips the source-derived default. Every other
+    // caller leaves this unset and gets the same behavior as always.
     const debitCode = sourceToAccountCode(source);
-    const accounts = await getSystemAccounts(db, coopId, [debitCode, DUES_RECEIVABLE_ACCOUNT_CODE]);
-    const debitAccount = accounts[debitCode];
+    const accounts = await getSystemAccounts(db, coopId, debitAccountOverride ? [DUES_RECEIVABLE_ACCOUNT_CODE] : [debitCode, DUES_RECEIVABLE_ACCOUNT_CODE]);
+    const debitAccount = debitAccountOverride || accounts[debitCode];
     const receivable = accounts[DUES_RECEIVABLE_ACCOUNT_CODE];
     if (!debitAccount || !receivable) return { booked: false, reason: 'accounts_missing' };
 
