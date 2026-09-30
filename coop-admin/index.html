@@ -1047,6 +1047,39 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- JOURNAL VOUCHER: split one member payment across categories -->
+<div class="modal-overlay" id="modal-journal-voucher">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-title">Split member payment</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">A lump sum from one member, split across savings, dues, loan repayment, or shares. Each split updates that part of the member's own account exactly as if it had been recorded separately — this just does it in one action, with one reference.</div>
+
+    <div class="field"><label>Member</label>
+      <select id="jv-member" onchange="onJournalVoucherMemberChange()">
+        <option value="">Select a member…</option>
+        ${(portalData.members || []).map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Total amount received (₦)</label><input type="number" id="jv-total" oninput="updateJournalVoucherBalance()" placeholder="e.g. 100000"></div>
+      <div class="field"><label>Source</label>
+        <select id="jv-source">
+          <option value="bank_transfer_manual">Bank transfer</option>
+          <option value="cash_in_person">Cash</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Reference</label><input type="text" id="jv-reference" placeholder="e.g. bank teller number, receipt number"></div>
+
+    <div id="jv-legs" style="margin:14px 0"></div>
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="addJournalVoucherLeg()" id="jv-add-leg-btn" disabled title="Select a member first">＋ Add split</button>
+
+    <div id="jv-balance-display" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
+    <div id="jv-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitJournalVoucher()" id="jv-btn">Record split payment</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-journal-voucher')">Cancel</button>
+  </div>
+</div>
+
 <!-- RECONCILIATION SOURCE MODAL -->
 <div class="modal-overlay" id="modal-reconciliation-source">
   <div class="modal-box">
@@ -5024,7 +5057,10 @@ function renderAccountingContent() {
     </div>
     <div class="card">
       <div class="card-title">Journal entries
-        ${hasPortalAction('accounting', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>＋ New entry</button>` : ''}
+        <div style="display:flex;gap:8px">
+          ${hasPortalAction('accounting', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openJournalVoucherModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>&#x1F4B8; Split member payment</button>` : ''}
+          ${hasPortalAction('accounting', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()" ${!accountingOpeningDone ? 'disabled title="Set opening balances first"' : ''}>＋ New entry</button>` : ''}
+        </div>
       </div>
       <div class="card-sub">All entries post immediately — there's no draft stage in this version. Only manually-created entries can be edited or deleted; anything generated automatically (opening balances, payroll, reconciliation) stays fixed here.</div>
       <div class="table-wrap"><table>
@@ -5267,6 +5303,142 @@ async function submitJournalEntry() {
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Save entry';
+  }
+}
+
+// --- Journal Voucher: split a member's lump-sum payment across categories ---
+let journalVoucherLegCount = 0;
+
+function openJournalVoucherModal() {
+  document.getElementById('jv-member').value = '';
+  document.getElementById('jv-total').value = '';
+  document.getElementById('jv-source').value = 'bank_transfer_manual';
+  document.getElementById('jv-reference').value = '';
+  document.getElementById('jv-legs').innerHTML = '';
+  document.getElementById('jv-error').style.display = 'none';
+  document.getElementById('jv-add-leg-btn').disabled = true;
+  journalVoucherLegCount = 0;
+  updateJournalVoucherBalance();
+  openModal('modal-journal-voucher');
+}
+
+function onJournalVoucherMemberChange() {
+  const memberId = document.getElementById('jv-member').value;
+  document.getElementById('jv-add-leg-btn').disabled = !memberId;
+  document.getElementById('jv-legs').innerHTML = '';
+  journalVoucherLegCount = 0;
+  if (memberId) addJournalVoucherLeg();
+  updateJournalVoucherBalance();
+}
+
+function journalVoucherLegTargetOptions(type, memberId) {
+  if (type === 'savings') {
+    const plans = (portalData.savings_plans || []).filter(p => p.member_id === memberId && p.status === 'ACTIVE');
+    if (!plans.length) return '<option value="">No active savings plans for this member</option>';
+    return plans.map(p => `<option value="${p.id}">${fmtNaira(p.saved_kobo || 0)} saved of ${fmtNaira(p.target_amount_kobo || 0)} target</option>`).join('');
+  }
+  if (type === 'loan_repayment') {
+    const loans = (portalData.loans || []).filter(l => l.member_id === memberId && ['DISBURSED', 'REPAYING'].includes(l.status));
+    if (!loans.length) return '<option value="">No active loans for this member</option>';
+    return loans.map(l => `<option value="${l.id}">${fmtNaira(l.principal_kobo || 0)} principal — ${l.status}</option>`).join('');
+  }
+  return '';
+}
+
+function addJournalVoucherLeg() {
+  const memberId = document.getElementById('jv-member').value;
+  if (!memberId) return;
+  const id = journalVoucherLegCount++;
+  const row = document.createElement('div');
+  row.id = `jv-leg-${id}`;
+  row.style.cssText = 'display:grid;grid-template-columns:120px 1fr 130px 24px;gap:6px;margin-bottom:8px;align-items:center';
+  row.innerHTML = `
+    <select class="jv-leg-type" onchange="onJournalVoucherLegTypeChange(${id})" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+      <option value="savings">Savings</option>
+      <option value="dues">Dues</option>
+      <option value="loan_repayment">Loan repayment</option>
+      <option value="shares">Shares</option>
+    </select>
+    <select class="jv-leg-target" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">${journalVoucherLegTargetOptions('savings', memberId)}</select>
+    <input class="jv-leg-amount" type="number" placeholder="Amount (₦)" oninput="updateJournalVoucherBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
+    <button onclick="document.getElementById('jv-leg-${id}').remove();updateJournalVoucherBalance()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">×</button>
+  `;
+  document.getElementById('jv-legs').appendChild(row);
+  updateJournalVoucherBalance();
+}
+
+function onJournalVoucherLegTypeChange(id) {
+  const memberId = document.getElementById('jv-member').value;
+  const row = document.getElementById(`jv-leg-${id}`);
+  const type = row.querySelector('.jv-leg-type').value;
+  const targetSelect = row.querySelector('.jv-leg-target');
+  targetSelect.innerHTML = journalVoucherLegTargetOptions(type, memberId);
+  targetSelect.style.display = (type === 'dues' || type === 'shares') ? 'none' : '';
+  updateJournalVoucherBalance();
+}
+
+function updateJournalVoucherBalance() {
+  const totalNaira = parseFloat(document.getElementById('jv-total').value) || 0;
+  let allocatedNaira = 0;
+  document.querySelectorAll('#jv-legs > div').forEach(row => {
+    allocatedNaira += parseFloat(row.querySelector('.jv-leg-amount')?.value) || 0;
+  });
+  const remaining = totalNaira - allocatedNaira;
+  const display = document.getElementById('jv-balance-display');
+  const balanced = Math.abs(remaining) < 0.01 && totalNaira > 0 && document.querySelectorAll('#jv-legs > div').length > 0;
+  display.style.color = balanced ? 'var(--green-lt)' : 'var(--amber)';
+  display.textContent = balanced
+    ? `Allocated: ₦${allocatedNaira.toLocaleString()} of ₦${totalNaira.toLocaleString()} ✓ balanced`
+    : `Allocated: ₦${allocatedNaira.toLocaleString()} of ₦${totalNaira.toLocaleString()} — ${remaining > 0 ? `₦${remaining.toLocaleString()} left to allocate` : `₦${Math.abs(remaining).toLocaleString()} over the total`}`;
+}
+
+async function submitJournalVoucher() {
+  const errEl = document.getElementById('jv-error');
+  errEl.style.display = 'none';
+
+  const memberId = document.getElementById('jv-member').value;
+  const totalNaira = parseFloat(document.getElementById('jv-total').value) || 0;
+  const source = document.getElementById('jv-source').value;
+  const reference = document.getElementById('jv-reference').value.trim();
+
+  if (!memberId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+  if (totalNaira <= 0) { errEl.textContent = 'Enter the total amount received.'; errEl.style.display = 'block'; return; }
+  if (source === 'cash_in_person' && !reference) { errEl.textContent = 'A reference is required for cash payments.'; errEl.style.display = 'block'; return; }
+
+  const legs = [];
+  let valid = true;
+  document.querySelectorAll('#jv-legs > div').forEach(row => {
+    const type = row.querySelector('.jv-leg-type')?.value;
+    const targetId = row.querySelector('.jv-leg-target')?.value;
+    const amountNaira = parseFloat(row.querySelector('.jv-leg-amount')?.value);
+    if (!amountNaira || amountNaira <= 0) { valid = false; return; }
+    if ((type === 'savings' || type === 'loan_repayment') && !targetId) { valid = false; return; }
+    const leg = { type, amount_kobo: Math.round(amountNaira * 100) };
+    if (type === 'savings' || type === 'loan_repayment') leg.target_id = targetId;
+    legs.push(leg);
+  });
+  if (!valid || !legs.length) { errEl.textContent = 'Every split needs a valid amount, and savings/loan splits need a target selected.'; errEl.style.display = 'block'; return; }
+
+  const totalKobo = Math.round(totalNaira * 100);
+  const legsSum = legs.reduce((s, l) => s + l.amount_kobo, 0);
+  if (legsSum !== totalKobo) { errEl.textContent = `The splits total ₦${(legsSum/100).toLocaleString()}, not ₦${totalNaira.toLocaleString()} — they must add up exactly before this can be recorded.`; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('jv-btn');
+  btn.disabled = true; btn.textContent = 'Recording...';
+  try {
+    const res = await fetch(`${API}/coop-portal-journal-voucher`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ member_id: memberId, total_amount_kobo: totalKobo, source, reference: reference || undefined, legs }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Record split payment';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to record.'; errEl.style.display = 'block'; return; }
+    notify(`Payment split recorded across ${data.legs.length} categor${data.legs.length === 1 ? 'y' : 'ies'}.`);
+    closeModal('modal-journal-voucher');
+    await refreshAndRender();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Record split payment';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
 
