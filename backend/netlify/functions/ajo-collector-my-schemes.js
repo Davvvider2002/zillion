@@ -44,7 +44,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   const { data: profile } = await db.from('ajo_collector_profiles')
-    .select('id, escrow_status, escrow_account_number, escrow_account_name, escrow_rejection_reason, compliance_score, delisted_at, delisted_reason')
+    .select('id, escrow_status, escrow_account_number, escrow_account_name, escrow_rejection_reason, compliance_score, delisted_at, delisted_reason, commission_type, commission_value')
     .eq('zillion_id', zillionId).maybeSingle();
 
   const { data: collectorRows } = await db.from('ajo_collectors')
