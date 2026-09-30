@@ -1051,7 +1051,7 @@ tr:last-child td{border-bottom:none}
 <div class="modal-overlay" id="modal-journal-voucher">
   <div class="modal-box" style="max-width:640px">
     <div class="modal-title">Split member payment</div>
-    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">A lump sum from one member, split across savings, dues, loan repayment, or shares. Each split updates that part of the member's own account exactly as if it had been recorded separately — this just does it in one action, with one reference.</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">A lump sum from one member, split across savings, dues, loan repayment, shares, or investment. Each split updates that part of the member's own account exactly as if it had been recorded separately — this just does it in one action, with one reference. An investment split must be an exact multiple of that product's unit price.</div>
 
     <div class="field"><label>Member</label>
       <select id="jv-member" onchange="onJournalVoucherMemberChange()">
@@ -5308,8 +5308,10 @@ async function submitJournalEntry() {
 
 // --- Journal Voucher: split a member's lump-sum payment across categories ---
 let journalVoucherLegCount = 0;
+let journalVoucherInvestmentProducts = [];
+let journalVoucherHasInvestmentAddon = false;
 
-function openJournalVoucherModal() {
+async function openJournalVoucherModal() {
   document.getElementById('jv-member').value = '';
   document.getElementById('jv-total').value = '';
   document.getElementById('jv-source').value = 'bank_transfer_manual';
@@ -5320,6 +5322,16 @@ function openJournalVoucherModal() {
   journalVoucherLegCount = 0;
   updateJournalVoucherBalance();
   openModal('modal-journal-voucher');
+
+  journalVoucherHasInvestmentAddon = (portalData.addons || []).some(a => a.addon_key === 'investment');
+  journalVoucherInvestmentProducts = [];
+  if (journalVoucherHasInvestmentAddon) {
+    try {
+      const res = await fetch(`${API}/coop-portal-investment-products`, { headers: { Authorization: 'Bearer ' + portalToken } });
+      const data = await res.json();
+      journalVoucherInvestmentProducts = (data.products || []).filter(p => p.active);
+    } catch (e) { /* investment leg option just won't have products to pick if this fails */ }
+  }
 }
 
 function onJournalVoucherMemberChange() {
@@ -5342,6 +5354,11 @@ function journalVoucherLegTargetOptions(type, memberId) {
     if (!loans.length) return '<option value="">No active loans for this member</option>';
     return loans.map(l => `<option value="${l.id}">${fmtNaira(l.principal_kobo || 0)} principal — ${l.status}</option>`).join('');
   }
+  if (type === 'investment') {
+    if (!journalVoucherHasInvestmentAddon) return '<option value="">Investment is not enabled for this society</option>';
+    if (!journalVoucherInvestmentProducts.length) return '<option value="">No active investment products</option>';
+    return journalVoucherInvestmentProducts.map(p => `<option value="${p.id}" data-unit-price="${p.unit_price_kobo}">${p.name} — ${fmtNaira(p.unit_price_kobo)}/unit</option>`).join('');
+  }
   return '';
 }
 
@@ -5358,6 +5375,7 @@ function addJournalVoucherLeg() {
       <option value="dues">Dues</option>
       <option value="loan_repayment">Loan repayment</option>
       <option value="shares">Shares</option>
+      <option value="investment">Investment</option>
     </select>
     <select class="jv-leg-target" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">${journalVoucherLegTargetOptions('savings', memberId)}</select>
     <input class="jv-leg-amount" type="number" placeholder="Amount (₦)" oninput="updateJournalVoucherBalance()" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
