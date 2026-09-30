@@ -10,14 +10,25 @@
  * created_by_zillion_id on the row IS the admin relationship.
  *
  * The group admin IS the collector - not two separate entities that
- * happen to coincide, but one role. Every group scheme created here
- * automatically assigns its creator as the collector too (mirroring
- * ajo-admin-manage-collector.js's assign logic exactly: straight to
- * ACTIVE if they already have a verified escrow profile from a prior
- * scheme, PENDING_ESCROW otherwise). There is no separate "assign a
- * different collector" step for a group scheme - that flow has been
- * removed from ajo-admin-manage-collector.js entirely, since it would
- * contradict the merged role this system now enforces.
+ * happen to coincide, but one role, and the official one: he creates
+ * the group, sends the joining link to members, and manages every
+ * transaction from his own Collector Dashboard.
+ *
+ * The one compulsory recruitment fee (paid once, to Zillion Admin -
+ * see admin-ajo-collector-platform-fee.js and
+ * ajo-collector-public-join-init.js) qualifies a person to collect
+ * for BOTH group and individual savings - it is not paid twice for
+ * two different capacities. Which means creating a GROUP scheme
+ * requires the creator to ALREADY be an approved, ACTIVE, non-delisted
+ * collector, exactly the same requirement personal_savings already
+ * had for whoever it picks from the directory. There is no more
+ * "auto-create a free PENDING_ESCROW stub for whoever creates a
+ * group" - that path let a group admin start collecting without ever
+ * paying the fee real individual-savings collectors always had to
+ * pay, which was the actual gap here, not a group/individual product
+ * difference. Someone who hasn't yet applied and been approved gets
+ * a clear, actionable error pointing at the real application flow,
+ * not a silent free pass.
  *
  * Deliberately does NOT auto-enrol the creator as a scheme MEMBER
  * (contributor) - that's still a separate action (see the standalone
@@ -35,7 +46,10 @@
  * admin who could assign one later the way a group scheme does. Must
  * already be a real, ACTIVE, non-delisted collector profile - exactly
  * what ajo-collector-directory.js shows a person choosing from before
- * they ever reach this endpoint.
+ * they ever reach this endpoint. For a GROUP scheme the same check
+ * applies to the creator's own zillion_id instead of a chosen
+ * collector_profile_id, since for groups he's collecting for his own
+ * scheme, not one someone else picked him for.
  *
  * Body: { name, scheme_type, contribution_amount_kobo, frequency,
  *         cycle_length, payout_order?,
@@ -54,6 +68,8 @@ const { verifyJWT }        = require('../../lib/validators');
 const SCHEME_TYPES = ['rotational', 'daily_thrift', 'target_thrift', 'personal_savings'];
 const FREQUENCIES = ['daily', 'weekly', 'monthly'];
 const PAYOUT_ORDERS = ['fixed', 'random', 'admin_assigned', 'priority'];
+
+const NOT_A_COLLECTOR_YET_ERROR = "You need to be an approved collector before you can create a group — apply through the official collector recruitment link (ask Zillion Admin, or check the Ajo Collectors page) and wait for your escrow to be verified. The one recruitment fee covers both group and individual collecting, so you'll only ever pay it once.";
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -87,13 +103,10 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  // Personal savings has no separate group admin to assign a
-  // collector later, the way a group scheme does - the creator IS
-  // the sole member, so a collector has to be chosen at the moment of
-  // creation, not left to a step that never comes. Must already be a
-  // real, verified, non-delisted collector - exactly what
-  // ajo-collector-directory.js would show the person choosing from,
-  // not just any zillion_id.
+  // Both scheme types now require an already-approved, ACTIVE, non-delisted collector - personal_savings
+  // picks one from the directory (collector_profile_id), a group requires the CREATOR to already be one
+  // themselves. Neither path creates a collector profile for free anymore; that only happens through the
+  // real recruitment application (ajo-collector-public-join-init.js) and Zillion Admin's approval.
   let collectorProfile = null;
   if (schemeType === 'personal_savings') {
     const collectorProfileId = (body.collector_profile_id || '').trim();
@@ -101,6 +114,10 @@ exports.handler = async (event) => {
     const { data: profile } = await db.from('ajo_collector_profiles').select('id, zillion_id, escrow_status, delisted_at').eq('id', collectorProfileId).maybeSingle();
     if (!profile) return err(404, 'Selected collector not found');
     if (profile.escrow_status !== 'ACTIVE' || profile.delisted_at) return err(400, 'Selected collector is not currently available — their escrow is not active or they have been delisted');
+    collectorProfile = profile;
+  } else {
+    const { data: profile } = await db.from('ajo_collector_profiles').select('id, zillion_id, escrow_status, delisted_at').eq('zillion_id', zillionId).maybeSingle();
+    if (!profile || profile.escrow_status !== 'ACTIVE' || profile.delisted_at) return err(403, NOT_A_COLLECTOR_YET_ERROR);
     collectorProfile = profile;
   }
 
@@ -129,57 +146,17 @@ exports.handler = async (event) => {
   // exception, since there's no one else who could ever join.
   if (schemeType === 'personal_savings') {
     await db.from('ajo_scheme_members').insert({ scheme_id: scheme.id, zillion_id: zillionId, cycle_position: 1 });
-
-    // Goes straight to ACTIVE, not PENDING_ESCROW - collectorProfile
-    // was already confirmed ACTIVE and non-delisted above, at
-    // selection time. Re-gating it here would just repeat a check
-    // that already happened.
-    const { error: collectorErr } = await db.from('ajo_collectors').insert({
-      scheme_id: scheme.id, zillion_id: collectorProfile.zillion_id,
-      status: 'ACTIVE', collector_profile_id: collectorProfile.id,
-    });
-    if (collectorErr) {
-      return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but the collector could not be linked: ${collectorErr.message}. Contact support.` });
-    }
   }
 
-  // Group schemes: the admin IS the collector, not two entities that
-  // happen to coincide - so this happens automatically here, not as
-  // a separate step the admin has to remember or a different person
-  // they have to name. Mirrors ajo-admin-manage-collector.js's own
-  // assign logic exactly (get-or-create the profile, straight to
-  // ACTIVE if already escrow-verified elsewhere, PENDING_ESCROW
-  // otherwise) since this is functionally the same operation, just
-  // triggered by scheme creation instead of a separate admin action.
-  if (schemeType !== 'personal_savings') {
-    let { data: adminProfile } = await db.from('ajo_collector_profiles').select('*').eq('zillion_id', zillionId).maybeSingle();
-    if (!adminProfile) {
-      const { data: createdProfile, error: profileErr } = await db.from('ajo_collector_profiles')
-        .insert({ zillion_id: zillionId }).select().single();
-      if (profileErr) {
-        return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but your collector profile could not be set up: ${profileErr.message}. Contact support.` });
-      }
-      adminProfile = createdProfile;
-    }
-
-    if (adminProfile.delisted_at) {
-      // A delisted person still owns the scheme they created, but
-      // cannot become its collector - the scheme exists with no
-      // active collector until this is resolved, rather than
-      // silently letting a compliance-failed person keep collecting.
-      return ok({
-        success: true, scheme, cycle: cycle1,
-        warning: `Scheme created, but you were delisted as a collector (${adminProfile.delisted_reason || 'compliance threshold'}) and cannot collect for it. Contact support.`,
-      });
-    }
-
-    const collectorStatus = adminProfile.escrow_status === 'ACTIVE' ? 'ACTIVE' : 'PENDING_ESCROW';
-    const { error: adminCollectorErr } = await db.from('ajo_collectors').insert({
-      scheme_id: scheme.id, zillion_id: zillionId, status: collectorStatus, collector_profile_id: adminProfile.id,
-    });
-    if (adminCollectorErr) {
-      return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but the collector link could not be set up: ${adminCollectorErr.message}. Contact support.` });
-    }
+  // Both paths land here identically now - collectorProfile was already confirmed ACTIVE and non-delisted
+  // above (either the one picked from the directory, or the group creator's own), so this is a straight
+  // link, never a re-check or a fresh PENDING_ESCROW stub.
+  const { error: collectorErr } = await db.from('ajo_collectors').insert({
+    scheme_id: scheme.id, zillion_id: collectorProfile.zillion_id,
+    status: 'ACTIVE', collector_profile_id: collectorProfile.id,
+  });
+  if (collectorErr) {
+    return ok({ success: true, scheme, cycle: cycle1, warning: `Scheme created, but the collector could not be linked: ${collectorErr.message}. Contact support.` });
   }
 
   return ok({ success: true, scheme, cycle: cycle1 });
