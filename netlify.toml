@@ -367,6 +367,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-agent-my-dashboard"
+  to   = "/.netlify/functions/coop-agent-my-dashboard"
+  status = 200
+
+[[redirects]]
+  from = "/coop-agent"
+  to   = "/coop-agent/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coop-agent/"
+  to   = "/coop-agent/index.html"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent-apply"
   to   = "/coop-agent-apply/index.html"
   status = 200
