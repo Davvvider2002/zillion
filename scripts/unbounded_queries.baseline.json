@@ -75,6 +75,7 @@
  "netlify/functions/commission-config.js|commission_configs": 1,
  "netlify/functions/compliance-ctr.js|transactions": 1,
  "netlify/functions/compliance-str.js|fraud_events": 1,
+ "netlify/functions/coop-agent-my-dashboard.js|coop_agents": 1,
  "netlify/functions/coop-flutterwave-webhook.js|coop_society_addons": 1,
  "netlify/functions/coop-loans-admin.js|coop_loan_guarantors": 1,
  "netlify/functions/coop-loans-admin.js|coop_loans": 1,
