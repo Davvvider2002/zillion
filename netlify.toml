@@ -382,6 +382,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-agent-prospects"
+  to   = "/.netlify/functions/coop-agent-prospects"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-agent-engagement-report"
+  to   = "/.netlify/functions/coop-agent-engagement-report"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-agent-pipeline"
+  to   = "/.netlify/functions/admin-coop-agent-pipeline"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent"
   to   = "/coop-agent/index.html"
   status = 200
