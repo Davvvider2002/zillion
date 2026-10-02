@@ -1439,10 +1439,19 @@ async function loadDashboardCharts() {
     }));
   }
 
+  const chartsGrid = document.getElementById('dashboard-charts-grid');
+  const showAnalyticsError = (msg) => {
+    // Retrying calls renderDashboard(), not loadDashboardCharts() directly - this error state just replaced
+    // the whole grid (the canvases loadDashboardCharts needs are gone), and renderDashboard rebuilds the
+    // entire card's HTML, including those canvases, before calling loadDashboardCharts itself again.
+    if (chartsGrid) chartsGrid.innerHTML = `<div style="grid-column:1/-1;background:var(--ink);border-radius:10px;padding:18px;color:#FF8A8A;font-size:13px">Analytics couldn't load: ${msg}. <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="renderDashboard()">Retry</button></div>`;
+  };
+
   try {
     const res = await fetch(`${API}/coop-portal-dashboard-analytics`, { headers: { Authorization: 'Bearer ' + portalToken } });
-    const data = await res.json();
-    if (!res.ok) return;
+    let data;
+    try { data = await res.json(); } catch { showAnalyticsError('the server sent back something unreadable'); return; }
+    if (!res.ok) { showAnalyticsError(data?.error || `server returned ${res.status}`); return; }
 
     const palette = { amber: '#E8930C', teal: '#00C896', blue: '#3B82F6', purple: '#8B5CF6', red: '#EF4444', muted: '#9CC4B0' };
     Chart.defaults.color = palette.muted;
@@ -1467,19 +1476,26 @@ async function loadDashboardCharts() {
     }));
 
     const statusColors = { PENDING_APPROVAL: palette.amber, DISBURSED: palette.blue, REPAYING: palette.purple, COMPLETED: palette.teal, REJECTED: palette.red, DEFAULTED: palette.red };
-    const statusEntries = Object.entries(data.loan_status_breakdown);
-    _dashboardChartInstances.push(new Chart(document.getElementById('chart-loans'), {
-      type: 'doughnut',
-      data: {
-        labels: statusEntries.map(([status]) => status.replace(/_/g, ' ')),
-        datasets: [{ data: statusEntries.map(([, v]) => v.count), backgroundColor: statusEntries.map(([status]) => statusColors[status] || palette.muted) }],
-      },
-      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
-    }));
+    const statusEntries = Object.entries(data.loan_status_breakdown || {});
+    const loansCanvas = document.getElementById('chart-loans');
+    if (!statusEntries.length) {
+      // An empty doughnut (no loans booked yet) renders as a blank circle, easy to mistake for "broken" -
+      // a plain message is clearer than a chart with nothing in it.
+      loansCanvas.replaceWith(Object.assign(document.createElement('div'), { style: 'display:flex;align-items:center;justify-content:center;height:180px;color:var(--muted);font-size:12.5px', textContent: 'No loans booked yet' }));
+    } else {
+      _dashboardChartInstances.push(new Chart(loansCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: statusEntries.map(([status]) => status.replace(/_/g, ' ')),
+          datasets: [{ data: statusEntries.map(([, v]) => v.count), backgroundColor: statusEntries.map(([status]) => statusColors[status] || palette.muted) }],
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
+      }));
+    }
 
-    document.getElementById('dues-collected-figure').textContent = fmtNaira(data.total_dues_paid_kobo);
+    document.getElementById('dues-collected-figure').textContent = fmtNaira(data.total_dues_paid_kobo || 0);
   } catch (e) {
-    console.warn('[dashboard] analytics failed to load (non-fatal):', e.message);
+    showAnalyticsError(e.message);
   }
 }
 
