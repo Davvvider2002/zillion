@@ -397,6 +397,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-upload-loan-document"
+  to   = "/.netlify/functions/coop-portal-upload-loan-document"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-loan-override-document"
+  to   = "/.netlify/functions/coop-portal-loan-override-document"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent"
   to   = "/coop-agent/index.html"
   status = 200
