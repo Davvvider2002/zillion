@@ -539,7 +539,7 @@ tbody tr:last-child td{border-bottom:none;}
         <span class="si">🏦</span> Thrift &amp; Loan
       </button>
       <button class="snav-item" id="nav-coopagents"
-              onclick="showSec('coopagents',this);loadCoopAgents();loadCoopAgentApplications();renderCoopAgentLink()">
+              onclick="showSec('coopagents',this);loadCoopAgents();loadCoopAgentApplications();renderCoopAgentLink();loadCoopAgentPipeline()">
         <span class="si">🧑‍🤝‍🧑</span> Coop Agents
       </button>
       <button class="snav-item" id="nav-backups"
@@ -1256,6 +1256,43 @@ tbody tr:last-child td{border-bottom:none;}
       <tbody id="coop-agents-table-body"><tr><td colspan="10" class="no-data">Loading...</td></tr></tbody>
     </table></div>
   </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Prospect Pipeline
+      <button class="rbtn" onclick="loadCoopAgentPipeline()">&#x21BB;</button>
+    </div>
+    <div class="card-sub">Every cooperative society any agent is pursuing, rolled up from the engagement reports they log after each meeting or demo. Classify a lead (A–D) and assign an account manager from the list below to get it followed up.</div>
+    <div class="metrics-row" id="pipeline-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">Top requested features</div>
+        <div id="pipeline-top-features" style="font-size:12.5px"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">Top pain points</div>
+        <div id="pipeline-top-pain-points" style="font-size:12.5px"></div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">Per-agent performance</div>
+    <div class="table-wrap" style="margin-bottom:16px"><table>
+      <thead><tr><th>Agent</th><th>Prospects</th><th>Hot</th><th>Qualified</th><th>Onboarded</th><th>Members repr.</th><th>Meetings (mo.)</th><th>Pending follow-up</th></tr></thead>
+      <tbody id="pipeline-per-agent-body"><tr><td colspan="8" class="no-data">Loading...</td></tr></tbody>
+    </table></div>
+
+    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">Needs follow-up</div>
+    <div class="table-wrap" style="margin-bottom:16px"><table>
+      <thead><tr><th>Cooperative</th><th>Agent</th><th>Status</th><th>Next meeting was due</th></tr></thead>
+      <tbody id="pipeline-followup-body"><tr><td colspan="4" class="no-data">Loading...</td></tr></tbody>
+    </table></div>
+
+    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">All prospects</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Cooperative</th><th>Agent</th><th>Status</th><th>Grade</th><th>Account manager</th><th></th></tr></thead>
+      <tbody id="pipeline-prospects-body"><tr><td colspan="6" class="no-data">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
 </div>
 
 <div id="sec-ajocollectors" class="sec">
@@ -1367,6 +1404,32 @@ tbody tr:last-child td{border-bottom:none;}
 </div>
 
 <!-- Verify Escrow modal -->
+<div id="modal-classify-prospect" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div class="card" style="max-width:420px;width:100%">
+    <div class="card-title">Classify prospect — <span id="cp-name"></span></div>
+    <label class="field-label">Lead grade</label>
+    <select class="field-input" id="cp-grade" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+      <option value="">Ungraded</option>
+      <option value="A">A — Immediate commercial opportunity</option>
+      <option value="B">B — Strong opportunity requiring follow-up</option>
+      <option value="C">C — Potential opportunity / nurture</option>
+      <option value="D">D — Low potential / not currently qualified</option>
+    </select>
+    <label class="field-label">Assigned account manager</label>
+    <input class="field-input" type="text" id="cp-manager" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="cp-technical"> Technical/Product review required</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="cp-customisation"> Customisation review required</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="cp-escalation"> Management escalation required</label>
+    <label class="field-label">Internal comments</label>
+    <textarea class="field-input" id="cp-comments" style="margin-bottom:12px;width:100%;box-sizing:border-box;min-height:70px"></textarea>
+    <div id="cp-error" style="display:none;color:#c0392b;font-size:13px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="rbtn" style="flex:1;background:var(--gl);color:var(--g);font-weight:700" onclick="submitClassifyProspect()">Save</button>
+      <button class="rbtn" style="flex:1" onclick="document.getElementById('modal-classify-prospect').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-verify-escrow" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
     <div style="font-size:17px;font-weight:700;margin-bottom:4px">Verify escrow — <span id="ve-name"></span></div>
@@ -3874,6 +3937,103 @@ async function rejectCoopAgentApplication(applicationId, name) {
     loadCoopAgentApplications();
   } catch (e) {
     alert('Network error: ' + e.message);
+  }
+}
+
+// --- Coop Agent prospect pipeline analytics ---
+let pipelineProspectsById = {};
+
+async function loadCoopAgentPipeline() {
+  try {
+    const res = await fetch(`${API}/admin-coop-agent-pipeline`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('pipeline-summary').innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+
+    pipelineProspectsById = {};
+    (data.prospects || []).forEach(p => { pipelineProspectsById[p.id] = p; });
+
+    const s = data.summary;
+    document.getElementById('pipeline-summary').innerHTML = `
+      <div class="metric"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase">Prospects</div><div style="font-size:19px;font-weight:800">${s.total_prospects}</div></div>
+      <div class="metric"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase">Agents active</div><div style="font-size:19px;font-weight:800">${s.total_agents_with_prospects}</div></div>
+      <div class="metric"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase">Meetings this month</div><div style="font-size:19px;font-weight:800">${s.total_meetings_this_month}</div></div>
+      <div class="metric"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase">Onboarded</div><div style="font-size:19px;font-weight:800">${s.total_onboarded}</div></div>
+      <div class="metric"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase">Members repr.</div><div style="font-size:19px;font-weight:800">${s.total_members_represented.toLocaleString()}</div></div>
+    `;
+
+    document.getElementById('pipeline-top-features').innerHTML = (data.top_feature_requests || []).length
+      ? data.top_feature_requests.map(f => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--grb)"><span>${f.feature}</span><b>${f.count}</b></div>`).join('')
+      : '<div class="no-data">None logged yet</div>';
+    document.getElementById('pipeline-top-pain-points').innerHTML = (data.top_pain_points || []).length
+      ? data.top_pain_points.map(p => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--grb)"><span>${p.pain_point}</span><b>${p.count}</b></div>`).join('')
+      : '<div class="no-data">None logged yet</div>';
+
+    document.getElementById('pipeline-per-agent-body').innerHTML = (data.per_agent || []).length
+      ? data.per_agent.map(a => `
+        <tr>
+          <td>${a.agent_name}</td><td>${a.prospects_total}</td><td>${a.hot}</td><td>${a.qualified}</td><td>${a.onboarded}</td>
+          <td>${a.members_represented.toLocaleString()}</td><td>${a.meetings_this_month}</td>
+          <td>${a.pending_followups > 0 ? `<span class="badge b-warn">${a.pending_followups}</span>` : '0'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="8" class="no-data">No agent activity yet.</td></tr>';
+
+    document.getElementById('pipeline-followup-body').innerHTML = (data.needs_follow_up || []).length
+      ? data.needs_follow_up.map(f => `
+        <tr><td>${f.cooperative_name}</td><td>${f.agent_name}</td><td>${f.lead_status}</td><td>${new Date(f.next_meeting_date).toLocaleDateString()}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="no-data">Nothing overdue.</td></tr>';
+
+    document.getElementById('pipeline-prospects-body').innerHTML = (data.prospects || []).length
+      ? data.prospects.map(p => `
+        <tr>
+          <td>${p.cooperative_name}</td><td>${(data.per_agent.find(a => a.agent_id === p.agent_id) || {}).agent_name || ''}</td>
+          <td>${p.lead_status}</td><td>${p.lead_grade || '—'}</td><td>${p.assigned_account_manager || '—'}</td>
+          <td><button class="rbtn" style="padding:3px 10px;font-size:11px" onclick="openClassifyProspectModal('${p.id}')">Classify</button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" class="no-data">No prospects yet.</td></tr>';
+  } catch (e) {
+    document.getElementById('pipeline-summary').innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function openClassifyProspectModal(prospectId) {
+  const p = pipelineProspectsById[prospectId];
+  if (!p) return;
+  document.getElementById('cp-name').textContent = p.cooperative_name;
+  document.getElementById('cp-grade').value = p.lead_grade || '';
+  document.getElementById('cp-manager').value = p.assigned_account_manager || '';
+  document.getElementById('cp-technical').checked = !!p.technical_review_required;
+  document.getElementById('cp-customisation').checked = !!p.customisation_review_required;
+  document.getElementById('cp-escalation').checked = !!p.management_escalation_required;
+  document.getElementById('cp-comments').value = p.internal_comments || '';
+  document.getElementById('cp-error').style.display = 'none';
+  document.getElementById('modal-classify-prospect').dataset.prospectId = prospectId;
+  document.getElementById('modal-classify-prospect').style.display = 'flex';
+}
+
+async function submitClassifyProspect() {
+  const prospectId = document.getElementById('modal-classify-prospect').dataset.prospectId;
+  const errEl = document.getElementById('cp-error');
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch(`${API}/admin-coop-agent-pipeline`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({
+        action: 'classify', prospect_id: prospectId,
+        lead_grade: document.getElementById('cp-grade').value || null,
+        assigned_account_manager: document.getElementById('cp-manager').value.trim(),
+        technical_review_required: document.getElementById('cp-technical').checked,
+        customisation_review_required: document.getElementById('cp-customisation').checked,
+        management_escalation_required: document.getElementById('cp-escalation').checked,
+        internal_comments: document.getElementById('cp-comments').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
+    document.getElementById('modal-classify-prospect').style.display = 'none';
+    notify('Prospect classified.');
+    loadCoopAgentPipeline();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
   }
 }
 
