@@ -211,7 +211,7 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Meeting type</label>
-        <select id="le-meeting-type"><option value="">Select…</option><option value="PHYSICAL">Physical</option><option value="ZOOM">Zoom</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="OTHER">Other</option></select>
+        <select id="le-meeting-type"><option value="">Select…</option><option value="PHYSICAL">Physical (onsite)</option><option value="ZOOM">Zoom (online)</option><option value="WHATSAPP">WhatsApp (online)</option><option value="PHONE">Phone (online)</option><option value="OTHER">Other</option></select>
       </div>
       <div class="field"><label>Engagement type</label>
         <select id="le-engagement-type"><option value="">Select…</option><option value="FIRST_INTRODUCTION">First Introduction</option><option value="PRODUCT_DEMO">Product Demo</option><option value="FOLLOW_UP">Follow-up</option><option value="ONBOARDING">Onboarding</option><option value="RENEWAL_UPGRADE">Renewal/Upgrade</option></select>
@@ -249,7 +249,18 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
     <div class="section-label">Feature requests / customisation</div>
     <div id="le-feature-requests"></div>
     <button type="button" class="btn btn-ghost btn-sm" onclick="addFeatureRequestRow()">+ Add request</button>
-    <div class="field" style="margin-top:10px"><label>Customisation explanation</label><textarea id="le-custom-explanation"></textarea></div>
+    <div class="field" style="margin-top:10px"><label>Customisation category</label>
+      <select id="le-custom-category">
+        <option value="">Select…</option>
+        <option value="Report">Report</option><option value="Workflow">Workflow</option><option value="Accounting">Accounting</option>
+        <option value="Loan">Loan</option><option value="Savings">Savings</option><option value="Ajo">Ajo</option>
+        <option value="Dividend">Dividend</option><option value="Share Capital">Share Capital</option><option value="Payment">Payment</option>
+        <option value="Member Portal/Wallet">Member Portal/Wallet</option><option value="Integration/API">Integration/API</option>
+        <option value="Notification">Notification</option><option value="User Interface">User Interface</option>
+        <option value="Regulatory/Compliance">Regulatory/Compliance</option><option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Customisation explanation</label><textarea id="le-custom-explanation"></textarea></div>
     <div class="field"><label>Essential before onboarding?</label>
       <select id="le-custom-essential"><option value="">Select…</option><option value="YES">Yes</option><option value="NO">No</option><option value="CAN_ONBOARD_WITHOUT">They can onboard without it</option><option value="TO_BE_DISCUSSED">To be discussed</option></select>
     </div>
@@ -313,6 +324,9 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
     <div class="field"><label>Would they recommend Zillion Coop to another cooperative?</label>
       <select id="le-recommend"><option value="">Select…</option><option value="DEFINITELY">Definitely</option><option value="PROBABLY">Probably</option><option value="NOT_SURE">Not sure</option><option value="PROBABLY_NOT">Probably not</option></select>
     </div>
+
+    <div class="section-label">Comments</div>
+    <div class="field"><label>Anything else worth noting that didn't fit above</label><textarea id="le-comments" style="min-height:70px"></textarea></div>
 
     <div class="section-label">Summary</div>
     <div class="field"><label>3–5 sentences: what did they want, what did they like, what concerns remain, what happens next?</label><textarea id="le-summary" style="min-height:90px"></textarea></div>
@@ -646,8 +660,8 @@ function openLogEngagementModal(prospectId) {
   document.getElementById('le-prospect-name').textContent = prospect ? prospect.cooperative_name : '';
 
   document.getElementById('le-date').value = new Date().toISOString().slice(0, 10);
-  ['le-time','le-location','le-dm-name','le-dm-position','le-dm-contact','le-impressive','le-biggest-problem','le-custom-explanation','le-questions','le-objection-details','le-objection-resolution','le-required-response','le-plan','le-next-meeting','le-responsible','le-expected-outcome','le-opportunity','le-blockers','le-summary'].forEach(id => document.getElementById(id).value = '');
-  ['le-meeting-type','le-engagement-type','le-duration','le-reaction','le-custom-essential','le-timeline','le-recommend'].forEach(id => document.getElementById(id).value = '');
+  ['le-time','le-location','le-dm-name','le-dm-position','le-dm-contact','le-impressive','le-biggest-problem','le-custom-explanation','le-questions','le-objection-details','le-objection-resolution','le-required-response','le-plan','le-next-meeting','le-responsible','le-expected-outcome','le-opportunity','le-blockers','le-comments','le-summary'].forEach(id => document.getElementById(id).value = '');
+  ['le-meeting-type','le-engagement-type','le-duration','le-reaction','le-custom-category','le-custom-essential','le-timeline','le-recommend'].forEach(id => document.getElementById(id).value = '');
   ['le-current-members','le-potential-members','le-quoted'].forEach(id => document.getElementById(id).value = '');
   ['le-rate-interest','le-rate-fit','le-rate-commercial','le-rate-dm','le-rate-likelihood'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('le-lead-status').value = prospect ? prospect.lead_status : 'QUALIFIED';
@@ -701,6 +715,7 @@ async function submitEngagementReport() {
     pain_points: checkGroupValues('pain'),
     biggest_problem_description: document.getElementById('le-biggest-problem').value.trim(),
     feature_requests: featureRequests,
+    customisation_category: document.getElementById('le-custom-category').value || undefined,
     customisation_explanation: document.getElementById('le-custom-explanation').value.trim(),
     customisation_essential: document.getElementById('le-custom-essential').value || undefined,
     questions_asked: document.getElementById('le-questions').value.split('\n').map(s => s.trim()).filter(Boolean),
@@ -730,6 +745,7 @@ async function submitEngagementReport() {
     biggest_opportunity: document.getElementById('le-opportunity').value.trim(),
     adoption_blockers: document.getElementById('le-blockers').value.trim(),
     would_recommend: document.getElementById('le-recommend').value || undefined,
+    comments: document.getElementById('le-comments').value.trim(),
     summary: document.getElementById('le-summary').value.trim(),
   };
 
