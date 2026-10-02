@@ -54,6 +54,9 @@ exports.handler = async (event) => {
     const { data: allGuarantors } = loanIds.length
       ? await db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, approved_by, coop_members(name, phone_normalized)').in('loan_id', loanIds)
       : { data: [] };
+    const { data: allOverrides } = loanIds.length
+      ? await db.from('coop_loan_overrides').select('loan_id, bypassed_checks, reason, approved_by, created_at').in('loan_id', loanIds)
+      : { data: [] };
 
     // Ajo track record — informational only, never a gate. One bulk lookup for every applicant on this page,
     // not one per loan (this list has no coop_id filter by default, so it can span every society at once).
@@ -63,6 +66,7 @@ exports.handler = async (event) => {
       ...loan,
       guarantors: (allGuarantors || []).filter(g => g.loan_id === loan.id),
       ajo_signal: ajoSignals.get(loan.coop_members?.zillion_id) || null,
+      overrides: (allOverrides || []).filter(o => o.loan_id === loan.id),
     }));
 
     return ok({ loans: loansWithGuarantors });
