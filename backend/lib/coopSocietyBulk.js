@@ -89,15 +89,17 @@ async function loadLoanRepaymentInputs(db, loanIds) {
 }
 
 /** loans + guarantors + live repayment status (for loans that have been disbursed). */
-async function enrichLoans(db, loans, guarantors, society) {
+async function enrichLoans(db, loans, guarantors, society, overrides = []) {
   const withStatus = (loans || []).filter(l => OPEN_STATUSES.includes(l.status));
   const { schedule, paid, penalty } = await loadLoanRepaymentInputs(db, withStatus.map(l => l.id));
   const guarantorsByLoan = groupBy(guarantors || [], g => g.loan_id);
+  const overridesByLoan = groupBy(overrides || [], o => o.loan_id);
   return (loans || []).map(l => {
     const g = guarantorsByLoan.get(l.id) || [];
-    if (!OPEN_STATUSES.includes(l.status)) return { ...l, guarantors: g };
+    const ov = overridesByLoan.get(l.id) || [];
+    if (!OPEN_STATUSES.includes(l.status)) return { ...l, guarantors: g, overrides: ov };
     const repayment = buildLoanRepaymentStatus({ schedule: schedule.get(l.id) || [], paidKobo: paid.get(l.id) || 0, penaltyKobo: penalty.get(l.id) || 0 }, society, l.total_repayable_kobo);
-    return { ...l, guarantors: g, repayment };
+    return { ...l, guarantors: g, overrides: ov, repayment };
   });
 }
 
