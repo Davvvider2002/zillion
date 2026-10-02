@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS coop_agent_engagement_reports (
   biggest_opportunity text,
   adoption_blockers text,
   would_recommend text CHECK (would_recommend IS NULL OR would_recommend IN ('DEFINITELY','PROBABLY','NOT_SURE','PROBABLY_NOT')),
+  comments text, -- open-ended, doesn't fit any structured section above
   summary text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
