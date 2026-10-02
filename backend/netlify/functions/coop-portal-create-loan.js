@@ -68,6 +68,25 @@ exports.handler = async (event) => {
   const principalKobo      = Number.isInteger(body.principal_kobo) ? body.principal_kobo : 0;
   const repaymentMonths    = Number.isInteger(body.repayment_months) ? body.repayment_months : 0;
   const loanPackageId      = (body.loan_package_id || '').trim() || null;
+
+  // Qualification override - bypasses the dues-owing and max-amount gates below, never the structural checks
+  // (member must exist/be ACTIVE, guarantor count/identity). Requires its OWN permission, separate from the
+  // 'loans'/'create' already checked above - holding one does not imply the other.
+  let override = null;
+  if (body.override && (body.override.reason || body.override.document_storage_path)) {
+    if (!(await requirePortalPermission(db, auth, 'loans', 'override'))) {
+      return err(403, 'You do not have the loan override permission. Ask your society admin to grant it.');
+    }
+    override = {
+      reason: (body.override.reason || '').trim(),
+      approvedBy: auth.payload.merchant_id || 'unknown',
+      documentStoragePath: (body.override.document_storage_path || '').trim(),
+      documentFileName: (body.override.document_file_name || '').trim(),
+      documentMimeType: (body.override.document_mime_type || '').trim() || undefined,
+    };
+    if (!override.reason) return err(400, 'A reason is required for a loan override.');
+    if (!override.documentStoragePath || !override.documentFileName) return err(400, 'A supporting document is required for a loan override — upload one first via coop-portal-upload-loan-document.');
+  }
   const savingsPlanId      = (body.savings_plan_id || '').trim() || null;
 
   if (!memberId) return err(400, 'member_id is required');
@@ -76,14 +95,20 @@ exports.handler = async (event) => {
   if (repaymentMonths <= 0) return err(400, 'repayment_months must be a positive integer');
 
   const result = await createLoanApplication(db, {
-    coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds, externalGuarantors,
+    coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds, externalGuarantors, override,
   });
 
-  if (!result.success) return err(400, result.error);
+  if (!result.success) {
+    return { statusCode: 400, headers: hdr, body: JSON.stringify({ error: result.error, override_missing: !!result.overrideMissing }) };
+  }
 
   return ok({
     success: true,
     loan: result.loan,
-    message: `Loan created — waiting for ${(result.guarantorNames || []).join(', ') || 'the guarantor(s)'} to confirm before it's ready for approval and disbursement.`,
+    bypassed_checks: result.bypassedChecks || [],
+    warning: result.warning,
+    message: (result.bypassedChecks || []).length
+      ? `Loan created with an override on: ${result.bypassedChecks.join(', ')} — waiting for ${(result.guarantorNames || []).join(', ') || 'the guarantor(s)'} to confirm before it's ready for approval and disbursement.`
+      : `Loan created — waiting for ${(result.guarantorNames || []).join(', ') || 'the guarantor(s)'} to confirm before it's ready for approval and disbursement.`,
   });
 };
