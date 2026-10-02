@@ -140,6 +140,7 @@ exports.handler = async (event) => {
     adoption_blockers: (body.adoption_blockers || '').trim() || null,
 
     would_recommend: body.would_recommend || null,
+    comments: (body.comments || '').trim() || null,
     summary: (body.summary || '').trim() || null,
   };
 
