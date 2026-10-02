@@ -86,11 +86,11 @@ exports.handler = async (event) => {
     // Savings growth - total deposited per month.
     let savingsTxns;
     try {
-      savingsTxns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo, created_at').eq('coop_id', coopId).order('id'));
+      savingsTxns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo, recorded_at').eq('coop_id', coopId).order('id'));
     } catch (e) { return err(500, `Failed loading savings data: ${e.message}`); }
     const savingsByMonth = new Array(months.length).fill(0);
     for (const t of (savingsTxns || [])) {
-      const idx = monthIndexByKey.get(monthKey(new Date(t.created_at)));
+      const idx = monthIndexByKey.get(monthKey(new Date(t.recorded_at)));
       if (idx !== undefined) savingsByMonth[idx] += (t.amount_kobo || 0);
     }
 
