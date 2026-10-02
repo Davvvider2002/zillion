@@ -120,6 +120,9 @@
 /api/v1/coop-agent-my-dashboard  /.netlify/functions/coop-agent-my-dashboard  200
 /api/v1/coop-portal-journal-voucher  /.netlify/functions/coop-portal-journal-voucher  200
 /api/v1/coop-portal-loan-guarantor-override  /.netlify/functions/coop-portal-loan-guarantor-override  200
+/api/v1/coop-agent-prospects  /.netlify/functions/coop-agent-prospects  200
+/api/v1/coop-agent-engagement-report  /.netlify/functions/coop-agent-engagement-report  200
+/api/v1/admin-coop-agent-pipeline  /.netlify/functions/admin-coop-agent-pipeline  200
 /coop-agent           /coop-agent/index.html          200
 /coop-agent/          /coop-agent/index.html          200
 /coop-agent-apply           /coop-agent-apply/index.html          200
