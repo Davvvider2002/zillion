@@ -70,11 +70,13 @@ exports.handler = async (event) => {
   // Chunked AND paged: one .in() over every loan id in a society builds a URL long enough to be
   // rejected, and the error was ignored - guarantors would have silently vanished.
   const allLoanGuarantors = [];
+  const allLoanOverrides = [];
   for (const ids of chunk(loanIdsForGuarantors)) {
     allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
+    allLoanOverrides.push(...await fetchAllRows(() => db.from('coop_loan_overrides').select('loan_id, bypassed_checks, reason, approved_by, created_at').in('loan_id', ids).order('id')));
   }
 
-  const loans = await enrichLoans(db, loansRaw, allLoanGuarantors, society);
+  const loans = await enrichLoans(db, loansRaw, allLoanGuarantors, society, allLoanOverrides);
 
   const { data: notifications } = await db.from('coop_notifications')
     .select('*, target_member:coop_members!coop_notifications_target_member_id_fkey(name)')
