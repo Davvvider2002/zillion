@@ -47,6 +47,22 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
 .otp-boxes input{width:42px;height:52px;text-align:center;font-size:20px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream)}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;font-size:13.5px;z-index:1001;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .toast.error{border-color:var(--red);color:var(--red)}
+.field select,.field textarea{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px;font-family:inherit}
+.field textarea{resize:vertical;min-height:60px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:999;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:14px}
+.section-label{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);margin:20px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+.section-label:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 10px;margin-bottom:6px}
+.check-grid label{display:flex;align-items:flex-start;gap:6px;font-size:12.5px;cursor:pointer;line-height:1.3}
+.check-grid input{margin-top:2px;flex-shrink:0}
+.rating-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12.5px}
+.rating-row select{width:80px}
+.dyn-row{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;position:relative}
+.dyn-row input,.dyn-row select{margin-bottom:6px}
+.dyn-remove{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--red);cursor:pointer;font-size:15px}
 </style>
 </head>
 <body>
@@ -117,6 +133,194 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
       <div class="card-sub">You earn an override on their own commission — set by Zillion Admin, on top of what they earn, never deducted from it.</div>
       <div id="subagents-list"><div class="no-data">Loading…</div></div>
     </div>
+
+    <div class="card" id="prospects-card">
+      <div class="card-title">Your prospect pipeline
+        <button class="btn btn-primary btn-sm" onclick="openAddProspectModal()">+ Add prospect</button>
+      </div>
+      <div class="card-sub">Every cooperative society you're pursuing. Log an engagement report after each meeting or demo — Zillion Admin reviews the pipeline and follows up based on what you record here.</div>
+      <div id="prospects-list"><div class="no-data">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PROSPECT -->
+<div class="modal-overlay" id="modal-add-prospect">
+  <div class="modal-box">
+    <div class="modal-title">Add a prospect</div>
+    <div class="field"><label>Cooperative name</label><input type="text" id="ap-name" placeholder="e.g. Unity Thrift Cooperative"></div>
+    <div class="field"><label>Registration number</label><input type="text" id="ap-regno"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Location</label><input type="text" id="ap-location" placeholder="e.g. Ikeja"></div>
+      <div class="field"><label>State</label><input type="text" id="ap-state"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Current members</label>
+        <select id="ap-member-band">
+          <option value="">Not sure</option>
+          <option value="1-50">1–50</option><option value="51-100">51–100</option><option value="101-250">101–250</option>
+          <option value="251-500">251–500</option><option value="501-1000">501–1,000</option><option value="1001-5000">1,001–5,000</option><option value="5000+">5,000+</option>
+        </select>
+      </div>
+      <div class="field"><label>Estimated active members</label><input type="number" id="ap-active-members"></div>
+    </div>
+    <div class="field"><label>Type of cooperative</label>
+      <select id="ap-type">
+        <option value="">Select…</option>
+        <option value="THRIFT_CREDIT">Thrift & Credit</option><option value="MULTIPURPOSE">Multipurpose</option>
+        <option value="AGRICULTURAL">Agricultural</option><option value="STAFF_EMPLOYEES">Staff/Employees</option>
+        <option value="HOUSING">Housing</option><option value="INVESTMENT">Investment</option>
+        <option value="COMMUNITY_BASED">Community-Based</option><option value="PROFESSIONAL_ASSOCIATION">Professional Association</option>
+        <option value="OTHER">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Current management method</label>
+      <select id="ap-mgmt">
+        <option value="">Select…</option>
+        <option value="MANUAL_PAPER">Manual/Paper</option><option value="EXCEL_SPREADSHEET">Excel/Spreadsheet</option>
+        <option value="WHATSAPP">WhatsApp</option><option value="EXISTING_COOP_SOFTWARE">Existing Cooperative Software</option>
+        <option value="ACCOUNTING_SOFTWARE">Accounting Software</option><option value="COMBINATION">Combination of systems</option>
+        <option value="OTHER">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>If using software, name it</label><input type="text" id="ap-software-name"></div>
+    <div id="ap-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitAddProspect()" id="ap-btn">Add prospect</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeProspectModal('modal-add-prospect')">Cancel</button>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="modal-overlay" id="modal-history">
+  <div class="modal-box">
+    <div class="modal-title">Engagement history</div>
+    <div id="history-list"><div class="no-data">Loading…</div></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:14px" onclick="closeProspectModal('modal-history')">Close</button>
+  </div>
+</div>
+
+<!-- LOG ENGAGEMENT (the big one) -->
+<div class="modal-overlay" id="modal-log-engagement">
+  <div class="modal-box" style="max-width:700px">
+    <div class="modal-title">Log engagement — <span id="le-prospect-name"></span></div>
+
+    <div class="section-label">Meeting details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Date</label><input type="date" id="le-date"></div>
+      <div class="field"><label>Start time</label><input type="time" id="le-time"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Meeting type</label>
+        <select id="le-meeting-type"><option value="">Select…</option><option value="PHYSICAL">Physical</option><option value="ZOOM">Zoom</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="OTHER">Other</option></select>
+      </div>
+      <div class="field"><label>Engagement type</label>
+        <select id="le-engagement-type"><option value="">Select…</option><option value="FIRST_INTRODUCTION">First Introduction</option><option value="PRODUCT_DEMO">Product Demo</option><option value="FOLLOW_UP">Follow-up</option><option value="ONBOARDING">Onboarding</option><option value="RENEWAL_UPGRADE">Renewal/Upgrade</option></select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Location / platform</label><input type="text" id="le-location"></div>
+      <div class="field"><label>Duration</label>
+        <select id="le-duration"><option value="">Select…</option><option value="UNDER_30MIN">Under 30 mins</option><option value="30_60MIN">30–60 mins</option><option value="1_2HR">1–2 hrs</option><option value="2HR_PLUS">2+ hrs</option></select>
+      </div>
+    </div>
+
+    <div class="section-label">Key decision maker</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Name</label><input type="text" id="le-dm-name"></div>
+      <div class="field"><label>Position</label><input type="text" id="le-dm-position"></div>
+    </div>
+    <div class="field"><label>Phone / email</label><input type="text" id="le-dm-contact"></div>
+
+    <div class="section-label">Features demonstrated</div>
+    <div class="check-grid" id="le-features"></div>
+
+    <div class="section-label">Customer reaction</div>
+    <div class="field"><label>Overall reaction</label>
+      <select id="le-reaction"><option value="">Select…</option><option value="VERY_POSITIVE">Very Positive</option><option value="POSITIVE">Positive</option><option value="NEUTRAL">Neutral</option><option value="CONCERNED">Concerned</option><option value="NEGATIVE">Negative</option></select>
+    </div>
+    <div class="field"><label>What attracted them most? (pick up to 3)</label></div>
+    <div class="check-grid" id="le-attractions"></div>
+    <div class="field"><label>Most impressive feature, in their words</label><textarea id="le-impressive"></textarea></div>
+
+    <div class="section-label">Pain points</div>
+    <div class="check-grid" id="le-pain-points"></div>
+    <div class="field"><label>Their biggest management problem</label><textarea id="le-biggest-problem"></textarea></div>
+
+    <div class="section-label">Feature requests / customisation</div>
+    <div id="le-feature-requests"></div>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="addFeatureRequestRow()">+ Add request</button>
+    <div class="field" style="margin-top:10px"><label>Customisation explanation</label><textarea id="le-custom-explanation"></textarea></div>
+    <div class="field"><label>Essential before onboarding?</label>
+      <select id="le-custom-essential"><option value="">Select…</option><option value="YES">Yes</option><option value="NO">No</option><option value="CAN_ONBOARD_WITHOUT">They can onboard without it</option><option value="TO_BE_DISCUSSED">To be discussed</option></select>
+    </div>
+
+    <div class="section-label">Questions & objections</div>
+    <div class="field"><label>Questions asked (one per line)</label><textarea id="le-questions"></textarea></div>
+    <div class="field"><label>Objections raised</label></div>
+    <div class="check-grid" id="le-objections"></div>
+    <div class="field"><label>Objection details</label><textarea id="le-objection-details"></textarea></div>
+    <div class="field"><label>How was it addressed?</label><textarea id="le-objection-resolution"></textarea></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="le-needs-response"> Zillion needs to provide a further response</label>
+    <div class="field"><label>Required response from Zillion</label><textarea id="le-required-response"></textarea></div>
+
+    <div class="section-label">Commercial opportunity</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Current members (confirmed)</label><input type="number" id="le-current-members"></div>
+      <div class="field"><label>Potential members</label><input type="number" id="le-potential-members"></div>
+    </div>
+    <div class="field"><label>Commercial interest shown</label></div>
+    <div class="check-grid" id="le-commercial-interest"></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:10px 0;cursor:pointer"><input type="checkbox" id="le-pricing-discussed"> Pricing was discussed</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Plan/package discussed</label><input type="text" id="le-plan"></div>
+      <div class="field"><label>Quoted amount (₦)</label><input type="number" id="le-quoted"></div>
+    </div>
+    <div class="field"><label>Add-ons of interest</label></div>
+    <div class="check-grid" id="le-addons"></div>
+
+    <div class="section-label">Lead status</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Status after this meeting</label>
+        <select id="le-lead-status">
+          <option value="HOT">🟢 Hot — Ready to Onboard</option>
+          <option value="WARM">🟡 Warm — Follow-up Required</option>
+          <option value="QUALIFIED" selected>🔵 Qualified — Further Discovery Required</option>
+          <option value="NURTURE">⚪ Nurture</option>
+          <option value="NOT_INTERESTED">🔴 Not Interested</option>
+        </select>
+      </div>
+      <div class="field"><label>Estimated onboarding timeline</label>
+        <select id="le-timeline"><option value="">Select…</option><option value="Immediately">Immediately</option><option value="Within 7 days">Within 7 days</option><option value="8-30 days">8–30 days</option><option value="1-3 months">1–3 months</option><option value="3-6 months">3–6 months</option><option value="More than 6 months">More than 6 months</option><option value="Unknown">Unknown</option></select>
+      </div>
+    </div>
+
+    <div class="section-label">Next action</div>
+    <div class="check-grid" id="le-next-actions"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+      <div class="field"><label>Next meeting date</label><input type="date" id="le-next-meeting"></div>
+      <div class="field"><label>Responsible person</label><input type="text" id="le-responsible"></div>
+    </div>
+    <div class="field"><label>Expected outcome</label><textarea id="le-expected-outcome"></textarea></div>
+
+    <div class="section-label">Your assessment</div>
+    <div class="rating-row">Customer interest <select id="le-rate-interest"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="rating-row">Product fit <select id="le-rate-fit"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="rating-row">Commercial potential <select id="le-rate-commercial"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="rating-row">Decision-maker engagement <select id="le-rate-dm"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="rating-row">Likelihood of onboarding <select id="le-rate-likelihood"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="field"><label>Biggest opportunity here</label><textarea id="le-opportunity"></textarea></div>
+    <div class="field"><label>What could prevent them adopting Zillion Coop?</label><textarea id="le-blockers"></textarea></div>
+    <div class="field"><label>Would they recommend Zillion Coop to another cooperative?</label>
+      <select id="le-recommend"><option value="">Select…</option><option value="DEFINITELY">Definitely</option><option value="PROBABLY">Probably</option><option value="NOT_SURE">Not sure</option><option value="PROBABLY_NOT">Probably not</option></select>
+    </div>
+
+    <div class="section-label">Summary</div>
+    <div class="field"><label>3–5 sentences: what did they want, what did they like, what concerns remain, what happens next?</label><textarea id="le-summary" style="min-height:90px"></textarea></div>
+
+    <div style="font-size:11px;color:var(--muted);margin:10px 0">Attachments (profile, photos, sample reports, etc.) aren't supported here yet — email or share those separately for now.</div>
+    <div id="le-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitEngagementReport()" id="le-btn">Save engagement report</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeProspectModal('modal-log-engagement')">Cancel</button>
   </div>
 </div>
 
@@ -234,6 +438,7 @@ function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'block';
   loadDashboard();
+  loadProspects();
 }
 
 function subscriptionPill(client) {
@@ -308,6 +513,265 @@ async function loadDashboard() {
     }
   } catch (e) {
     profileCard.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+// ── Prospect pipeline ────────────────────────────────────────────
+const FEATURE_LIST = ['Cooperative Dashboard','Member Management','Member Registration/Import','Public Member Join Page','QR Code Member Recruitment','Member Wallet','Savings','Ajo/Daily Contributions','Share Capital','Dividends','Loans','Guarantors','Loan Repayment','Accounting','Double-Entry Ledger','Bank Reconciliation','Payments/Collections','Investments','Payroll/HR','Reports & Analytics','Notifications','User Roles & Permissions','Audit Trail','Multi-currency'];
+const ATTRACTION_LIST = ['Ease of use','Member management','Savings management','Ajo','Loans','Accounting','Share Capital','Dividends','Payments','Member Wallet','Reports','QR/member recruitment','Automation','Security','Pricing'];
+const PAIN_POINT_LIST = ['Manual record keeping','Lost/missing records','Difficult member tracking','Savings reconciliation problems','Ajo management problems','Loan tracking problems','Loan repayment monitoring','Guarantor management','Accounting difficulties','Bank reconciliation','Dividend calculation','Share capital tracking','Member communication','Poor reporting','Lack of transparency','Difficulty recruiting members','Multiple disconnected systems','Fraud/control concerns'];
+const OBJECTION_LIST = ['Price','Implementation','Data migration','Security','Payment integration','Internet connectivity','Training','Member adoption','Existing software','Customisation','Contract terms','Support','Management approval'];
+const COMMERCIAL_INTEREST_LIST = ['Requested Pricing','Requested Proposal','Requested Invoice/Quotation','Requested Trial','Requested Onboarding','Requested Management Presentation','Requested Board Presentation','Not commercially ready'];
+const ADDON_LIST = ['Ajo','Payments','Accounting','Payroll/HR','SMS/WhatsApp','Analytics','Credit/Collections'];
+const NEXT_ACTION_LIST = ['Send proposal','Send quotation','Schedule second demo','Demonstrate specific feature','Management/Board meeting','Technical discussion','Customisation assessment','Data migration discussion','Contract discussion','Start trial','Begin onboarding','No further action'];
+
+function checkGroupHtml(name, items) {
+  return items.map(item => `<label><input type="checkbox" class="cb-${name}" value="${item}"> ${item}</label>`).join('');
+}
+function checkGroupValues(name) {
+  return Array.from(document.querySelectorAll(`.cb-${name}:checked`)).map(el => el.value);
+}
+function setCheckGroupValues(name, values) {
+  const set = new Set(values || []);
+  document.querySelectorAll(`.cb-${name}`).forEach(el => { el.checked = set.has(el.value); });
+}
+
+let leProspectId = null;
+let currentProspects = [];
+
+function prospectStatusPill(status) {
+  const map = { HOT: ['pill-red','🟢 Hot'], WARM: ['pill-amber','🟡 Warm'], QUALIFIED: ['pill-green','🔵 Qualified'], NURTURE: ['pill-muted','⚪ Nurture'], NOT_INTERESTED: ['pill-muted','🔴 Not interested'] };
+  const [cls, label] = map[status] || ['pill-muted', status];
+  return `<span class="pill ${cls}">${label}</span>`;
+}
+
+async function loadProspects() {
+  const listEl = document.getElementById('prospects-list');
+  try {
+    const res = await fetch(`${API}/coop-agent-prospects`, { headers: { Authorization: 'Bearer ' + agentToken } });
+    const data = await res.json();
+    if (!res.ok) { listEl.innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+    currentProspects = data.prospects || [];
+    if (!currentProspects.length) { listEl.innerHTML = '<div class="no-data">No prospects yet — add your first one above.</div>'; return; }
+
+    listEl.innerHTML = currentProspects.map(p => `
+      <div style="background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:15px">${p.cooperative_name}</div>
+            <div style="font-size:12px;color:var(--muted)">${p.location || ''}${p.location && p.state ? ', ' : ''}${p.state || ''}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${p.lead_grade ? `<span class="pill pill-amber">Grade ${p.lead_grade}</span>` : ''}
+            ${prospectStatusPill(p.lead_status)}
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">${p.engagement_count} engagement${p.engagement_count === 1 ? '' : 's'} logged${p.last_engagement_date ? ' · last on ' + fmtDate(p.last_engagement_date) : ''}</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="openLogEngagementModal('${p.id}')">Log engagement</button>
+          <button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${p.id}')">History</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+  }
+}
+
+function closeProspectModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openAddProspectModal() {
+  ['ap-name','ap-regno','ap-location','ap-state','ap-active-members','ap-software-name'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ap-member-band').value = '';
+  document.getElementById('ap-type').value = '';
+  document.getElementById('ap-mgmt').value = '';
+  document.getElementById('ap-error').style.display = 'none';
+  document.getElementById('modal-add-prospect').classList.add('open');
+}
+
+async function submitAddProspect() {
+  const errEl = document.getElementById('ap-error');
+  errEl.style.display = 'none';
+  const name = document.getElementById('ap-name').value.trim();
+  if (!name) { errEl.textContent = 'Enter the cooperative\'s name.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('ap-btn');
+  btn.disabled = true; btn.textContent = 'Adding...';
+  try {
+    const res = await fetch(`${API}/coop-agent-prospects`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + agentToken },
+      body: JSON.stringify({
+        cooperative_name: name,
+        registration_number: document.getElementById('ap-regno').value.trim(),
+        location: document.getElementById('ap-location').value.trim(),
+        state: document.getElementById('ap-state').value.trim(),
+        member_count_band: document.getElementById('ap-member-band').value || undefined,
+        estimated_active_members: parseInt(document.getElementById('ap-active-members').value) || undefined,
+        cooperative_type: document.getElementById('ap-type').value || undefined,
+        current_management_method: document.getElementById('ap-mgmt').value || undefined,
+        current_software_name: document.getElementById('ap-software-name').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Add prospect';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to add prospect.'; errEl.style.display = 'block'; return; }
+    closeProspectModal('modal-add-prospect');
+    toast('Prospect added.');
+    loadProspects();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Add prospect';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+function addFeatureRequestRow(feature = '', reason = '', priority = 'MED', users = '') {
+  const container = document.getElementById('le-feature-requests');
+  const row = document.createElement('div');
+  row.className = 'dyn-row fr-row';
+  row.innerHTML = `
+    <button type="button" class="dyn-remove" onclick="this.parentElement.remove()">×</button>
+    <input type="text" class="fr-feature" placeholder="Requested feature/customisation" value="${feature}">
+    <input type="text" class="fr-reason" placeholder="Why they need it" value="${reason}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <select class="fr-priority"><option value="HIGH" ${priority === 'HIGH' ? 'selected' : ''}>High</option><option value="MED" ${priority === 'MED' ? 'selected' : ''}>Medium</option><option value="LOW" ${priority === 'LOW' ? 'selected' : ''}>Low</option></select>
+      <input type="text" class="fr-users" placeholder="Users affected" value="${users}">
+    </div>
+  `;
+  container.appendChild(row);
+}
+
+function openLogEngagementModal(prospectId) {
+  leProspectId = prospectId;
+  const prospect = currentProspects.find(p => p.id === prospectId);
+  document.getElementById('le-prospect-name').textContent = prospect ? prospect.cooperative_name : '';
+
+  document.getElementById('le-date').value = new Date().toISOString().slice(0, 10);
+  ['le-time','le-location','le-dm-name','le-dm-position','le-dm-contact','le-impressive','le-biggest-problem','le-custom-explanation','le-questions','le-objection-details','le-objection-resolution','le-required-response','le-plan','le-next-meeting','le-responsible','le-expected-outcome','le-opportunity','le-blockers','le-summary'].forEach(id => document.getElementById(id).value = '');
+  ['le-meeting-type','le-engagement-type','le-duration','le-reaction','le-custom-essential','le-timeline','le-recommend'].forEach(id => document.getElementById(id).value = '');
+  ['le-current-members','le-potential-members','le-quoted'].forEach(id => document.getElementById(id).value = '');
+  ['le-rate-interest','le-rate-fit','le-rate-commercial','le-rate-dm','le-rate-likelihood'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('le-lead-status').value = prospect ? prospect.lead_status : 'QUALIFIED';
+  document.getElementById('le-needs-response').checked = false;
+  document.getElementById('le-pricing-discussed').checked = false;
+  document.getElementById('le-feature-requests').innerHTML = '';
+  document.getElementById('le-error').style.display = 'none';
+
+  document.getElementById('le-features').innerHTML = checkGroupHtml('feat', FEATURE_LIST);
+  document.getElementById('le-attractions').innerHTML = checkGroupHtml('attr', ATTRACTION_LIST);
+  document.getElementById('le-pain-points').innerHTML = checkGroupHtml('pain', PAIN_POINT_LIST);
+  document.getElementById('le-objections').innerHTML = checkGroupHtml('obj', OBJECTION_LIST);
+  document.getElementById('le-commercial-interest').innerHTML = checkGroupHtml('comm', COMMERCIAL_INTEREST_LIST);
+  document.getElementById('le-addons').innerHTML = checkGroupHtml('addon', ADDON_LIST);
+  document.getElementById('le-next-actions').innerHTML = checkGroupHtml('next', NEXT_ACTION_LIST);
+
+  document.getElementById('modal-log-engagement').classList.add('open');
+}
+
+async function submitEngagementReport() {
+  const errEl = document.getElementById('le-error');
+  errEl.style.display = 'none';
+
+  const date = document.getElementById('le-date').value;
+  const leadStatus = document.getElementById('le-lead-status').value;
+  if (!date) { errEl.textContent = 'Enter the engagement date.'; errEl.style.display = 'block'; return; }
+
+  const featureRequests = Array.from(document.querySelectorAll('.fr-row')).map(row => ({
+    feature: row.querySelector('.fr-feature').value.trim(),
+    reason: row.querySelector('.fr-reason').value.trim(),
+    priority: row.querySelector('.fr-priority').value,
+    estimated_users_affected: row.querySelector('.fr-users').value.trim(),
+  })).filter(fr => fr.feature);
+
+  const ratingOrNull = v => v ? parseInt(v) : undefined;
+
+  const payload = {
+    prospect_id: leProspectId, engagement_date: date,
+    start_time: document.getElementById('le-time').value || undefined,
+    meeting_type: document.getElementById('le-meeting-type').value || undefined,
+    engagement_type: document.getElementById('le-engagement-type').value || undefined,
+    location_or_platform: document.getElementById('le-location').value.trim(),
+    duration_band: document.getElementById('le-duration').value || undefined,
+    key_decision_maker_name: document.getElementById('le-dm-name').value.trim(),
+    key_decision_maker_position: document.getElementById('le-dm-position').value.trim(),
+    key_decision_maker_contact: document.getElementById('le-dm-contact').value.trim(),
+    features_demonstrated: checkGroupValues('feat'),
+    overall_reaction: document.getElementById('le-reaction').value || undefined,
+    top_attractions: checkGroupValues('attr'),
+    most_impressive_feature: document.getElementById('le-impressive').value.trim(),
+    pain_points: checkGroupValues('pain'),
+    biggest_problem_description: document.getElementById('le-biggest-problem').value.trim(),
+    feature_requests: featureRequests,
+    customisation_explanation: document.getElementById('le-custom-explanation').value.trim(),
+    customisation_essential: document.getElementById('le-custom-essential').value || undefined,
+    questions_asked: document.getElementById('le-questions').value.split('\n').map(s => s.trim()).filter(Boolean),
+    objections: checkGroupValues('obj'),
+    objection_details: document.getElementById('le-objection-details').value.trim(),
+    objection_resolution: document.getElementById('le-objection-resolution').value.trim(),
+    needs_further_response: document.getElementById('le-needs-response').checked,
+    required_response: document.getElementById('le-required-response').value.trim(),
+    current_members_estimate: parseInt(document.getElementById('le-current-members').value) || undefined,
+    potential_members_estimate: parseInt(document.getElementById('le-potential-members').value) || undefined,
+    commercial_interest: checkGroupValues('comm'),
+    pricing_discussed: document.getElementById('le-pricing-discussed').checked,
+    plan_discussed: document.getElementById('le-plan').value.trim(),
+    quoted_amount_kobo: document.getElementById('le-quoted').value ? Math.round(parseFloat(document.getElementById('le-quoted').value) * 100) : undefined,
+    addons_of_interest: checkGroupValues('addon'),
+    lead_status: leadStatus,
+    estimated_onboarding_timeline: document.getElementById('le-timeline').value || undefined,
+    next_actions: checkGroupValues('next'),
+    next_meeting_date: document.getElementById('le-next-meeting').value || undefined,
+    responsible_person: document.getElementById('le-responsible').value.trim(),
+    expected_outcome: document.getElementById('le-expected-outcome').value.trim(),
+    rating_customer_interest: ratingOrNull(document.getElementById('le-rate-interest').value),
+    rating_product_fit: ratingOrNull(document.getElementById('le-rate-fit').value),
+    rating_commercial_potential: ratingOrNull(document.getElementById('le-rate-commercial').value),
+    rating_decision_maker_engagement: ratingOrNull(document.getElementById('le-rate-dm').value),
+    rating_likelihood_onboarding: ratingOrNull(document.getElementById('le-rate-likelihood').value),
+    biggest_opportunity: document.getElementById('le-opportunity').value.trim(),
+    adoption_blockers: document.getElementById('le-blockers').value.trim(),
+    would_recommend: document.getElementById('le-recommend').value || undefined,
+    summary: document.getElementById('le-summary').value.trim(),
+  };
+
+  const btn = document.getElementById('le-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`${API}/coop-agent-engagement-report`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + agentToken },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Save engagement report';
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
+    closeProspectModal('modal-log-engagement');
+    toast('Engagement report saved.');
+    loadProspects();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Save engagement report';
+    errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+async function openHistoryModal(prospectId) {
+  const listEl = document.getElementById('history-list');
+  listEl.innerHTML = '<div class="no-data">Loading…</div>';
+  document.getElementById('modal-history').classList.add('open');
+  try {
+    const res = await fetch(`${API}/coop-agent-engagement-report?prospect_id=${encodeURIComponent(prospectId)}`, { headers: { Authorization: 'Bearer ' + agentToken } });
+    const data = await res.json();
+    if (!res.ok) { listEl.innerHTML = `<div class="no-data">${data.error || 'Unable to load'}</div>`; return; }
+    if (!data.reports.length) { listEl.innerHTML = '<div class="no-data">No engagements logged yet.</div>'; return; }
+    listEl.innerHTML = data.reports.map(r => `
+      <div style="border-bottom:1px solid var(--line);padding:10px 0">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <b style="font-size:13px">${fmtDate(r.engagement_date)}${r.engagement_type ? ' · ' + r.engagement_type.replace(/_/g,' ') : ''}</b>
+          ${prospectStatusPill(r.lead_status)}
+        </div>
+        ${r.summary ? `<div style="font-size:12.5px;color:var(--muted);margin-top:4px">${r.summary}</div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
   }
 }
 
