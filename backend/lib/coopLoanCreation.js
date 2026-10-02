@@ -190,7 +190,12 @@ async function createLoanApplication(db, params) {
     return { success: false, error: `Failed to secure external guarantor details: ${e.message}` };
   }
 
-  const guarantorRows = [...guarantors.map(g => ({ loan_id: created.id, member_id: g.id })), ...externalRows];
+  // Every row in a batch insert must carry the SAME set of keys - PostgREST builds one INSERT from the union
+  // of keys across the whole array, and a row missing a key another row has gets an explicit NULL for it
+  // rather than falling back to the column's own default. So is_external: false is spelled out here even
+  // though it matches the column default, or a loan with a MIX of member and external guarantors would send
+  // NULL for the member rows and violate the NOT NULL constraint.
+  const guarantorRows = [...guarantors.map(g => ({ loan_id: created.id, member_id: g.id, is_external: false })), ...externalRows];
   const { error: guarantorInsertErr } = await db.from('coop_loan_guarantors').insert(guarantorRows);
   if (guarantorInsertErr) {
     // The loan row exists but its guarantors don't - clean up rather
