@@ -47,10 +47,28 @@ const EXTERNAL_ID_TYPES = ['NIN', 'PASSPORT', 'DRIVERS_LICENSE', 'VOTERS_CARD'];
  *   can only ever be recorded by an admin (coop-portal-loan-guarantor-override.js), since there's no wallet
  *   for them to respond from themselves. Counts toward the same required_guarantor_count as member guarantors
  *   — one society-level number, not two separate caps.
- * @returns {Promise<{success: boolean, loan?: object, error?: string, interestKobo?: number, interestRatePercent?: number, totalRepayableKobo?: number, guarantorNames?: string[]}>}
+ * @param {{reason:string, approvedBy:string, documentStoragePath:string, documentFileName:string, documentMimeType?:string}} [params.override]
+ *   Lets a caller holding the separately-granted 'loans'/'override' permission push a loan through even when
+ *   the member fails a qualification gate below (outstanding dues, or amount over their package cap) — never
+ *   bypasses structural checks (member must exist and be ACTIVE, guarantor count/identity), only the two
+ *   genuine eligibility gates. Only consulted if one of those gates would otherwise fail; a caller who passes
+ *   override for a member who qualifies fine gets a normal, non-overridden loan with nothing recorded, so the
+ *   override audit trail (coop_loan_overrides) only ever contains real overrides. All three fields are
+ *   required together whenever a gate actually needs clearing — the caller validates reason/document presence
+ *   before calling this (see coop-portal-create-loan.js), since the right error message depends on which
+ *   gate(s) actually failed.
+ * @returns {Promise<{success: boolean, loan?: object, error?: string, interestKobo?: number, interestRatePercent?: number, totalRepayableKobo?: number, guarantorNames?: string[], bypassedChecks?: string[], overrideMissing?: boolean}>}
  */
 async function createLoanApplication(db, params) {
-  const { coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds, externalGuarantors = [] } = params;
+  const { coopId, memberId, savingsPlanId, loanPackageId, principalKobo, repaymentMonths, guarantorMemberIds, externalGuarantors = [], override = null } = params;
+  const bypassedChecks = [];
+
+  // An override object must be fully filled in to ever be used - a truthy-but-incomplete one (e.g. missing
+  // the document) is treated as no override at all, so the normal qualification error surfaces instead of
+  // silently bypassing a check with blank evidence.
+  const overrideReady = !!(override && override.reason && String(override.reason).trim() && override.approvedBy
+    && override.documentStoragePath && String(override.documentStoragePath).trim()
+    && override.documentFileName && String(override.documentFileName).trim());
 
   const { data: member } = await db.from('coop_members').select('id, status').eq('id', memberId).eq('coop_id', coopId).maybeSingle();
   if (!member) return { success: false, error: 'Member not found in this society' };
@@ -86,7 +104,8 @@ async function createLoanApplication(db, params) {
   if (society?.dues_enforcement_enabled && society.dues_enforcement_rules?.block_loan_application) {
     const dues = await computeDuesOwing(db, member, society);
     if (dues && dues.owing_kobo > 0) {
-      return { success: false, error: `This member has outstanding dues of \u20a6${(dues.owing_kobo / 100).toLocaleString()} — this must be cleared before a loan can be created.` };
+      if (!overrideReady) return { success: false, error: `This member has outstanding dues of \u20a6${(dues.owing_kobo / 100).toLocaleString()} — this must be cleared before a loan can be created, or use the loan override with a reason and supporting document.`, overrideMissing: true };
+      bypassedChecks.push('dues_owing');
     }
   }
 
@@ -105,7 +124,8 @@ async function createLoanApplication(db, params) {
 
     const maxAllowedKobo = await computeMaxLoanAmount(db, pkg, member.id);
     if (principalKobo > maxAllowedKobo) {
-      return { success: false, error: `The maximum for "${pkg.name}" is \u20a6${(maxAllowedKobo / 100).toLocaleString()} for this member — requested \u20a6${(principalKobo / 100).toLocaleString()}.` };
+      if (!overrideReady) return { success: false, error: `The maximum for "${pkg.name}" is \u20a6${(maxAllowedKobo / 100).toLocaleString()} for this member — requested \u20a6${(principalKobo / 100).toLocaleString()}, or use the loan override with a reason and supporting document.`, overrideMissing: true };
+      bypassedChecks.push('max_amount_exceeded');
     }
   }
 
@@ -179,8 +199,25 @@ async function createLoanApplication(db, params) {
     return { success: false, error: `Failed to record guarantors: ${guarantorInsertErr.message}` };
   }
 
+  if (bypassedChecks.length) {
+    const { error: overrideErr } = await db.from('coop_loan_overrides').insert({
+      loan_id: created.id, coop_id: coopId, bypassed_checks: bypassedChecks,
+      reason: override.reason, approved_by: override.approvedBy,
+      document_storage_path: override.documentStoragePath, document_file_name: override.documentFileName,
+      document_mime_type: override.documentMimeType || null,
+    });
+    // The loan is real and already fully created at this point - an override-record failure is reported as a
+    // warning, never unwound. Losing the audit trail for WHY it was overridden is bad, but deleting a loan
+    // whose guarantors, interest schedule and member-facing state are already correct would be worse.
+    if (overrideErr) {
+      const guarantorNames = [...guarantors.map(g => g.name), ...externalGuarantors.map(eg => `${eg.name.trim()} (external)`)];
+      return { success: true, loan: created, guarantorNames, interestRatePercent, interestKobo, totalRepayableKobo, bypassedChecks,
+        warning: `Loan created, but the override record could not be saved: ${overrideErr.message}. Contact support to reconcile.` };
+    }
+  }
+
   const guarantorNames = [...guarantors.map(g => g.name), ...externalGuarantors.map(eg => `${eg.name.trim()} (external)`)];
-  return { success: true, loan: created, guarantorNames, interestRatePercent, interestKobo, totalRepayableKobo };
+  return { success: true, loan: created, guarantorNames, interestRatePercent, interestKobo, totalRepayableKobo, bypassedChecks };
 }
 
 module.exports = { createLoanApplication };
