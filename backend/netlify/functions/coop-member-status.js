@@ -98,7 +98,7 @@ exports.handler = async (event) => {
 
   const loanIdsForGuarantors = (loansRaw || []).map(l => l.id);
   const { data: myLoansGuarantors } = loanIdsForGuarantors.length
-    ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, coop_members(name)').in('loan_id', loanIdsForGuarantors)
+    ? await db.from('coop_loan_guarantors').select('loan_id, status, responded_at, is_external, external_name, coop_members(name)').in('loan_id', loanIdsForGuarantors)
     : { data: [] };
 
   const loans = await Promise.all((loansRaw || []).map(async (l) => {
