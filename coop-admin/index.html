@@ -913,6 +913,16 @@ tr:last-child td{border-bottom:none}
     <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px" id="cl-guarantors-label">Guarantors</label>
     <div id="cl-guarantors"></div>
 
+    <div id="cl-override-panel" style="display:none;border:1px solid #D97706;background:rgba(217,118,6,.08);border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">⚠ This member doesn't qualify as entered</div>
+      <div id="cl-override-reason-display" style="font-size:12.5px;color:var(--muted);margin-bottom:10px"></div>
+      <label class="field-label">Override reason (required)</label>
+      <textarea class="field-input" id="cl-override-reason" style="width:100%;box-sizing:border-box;margin-bottom:10px;min-height:60px" placeholder="Why this loan is being approved despite the above"></textarea>
+      <label class="field-label">Supporting document (required — PDF, JPEG, PNG or WEBP, max 10MB)</label>
+      <input type="file" id="cl-override-file" accept=".pdf,.jpg,.jpeg,.png,.webp" style="width:100%;margin-bottom:10px">
+      <div id="cl-override-file-status" style="font-size:11.5px;color:var(--muted)"></div>
+    </div>
+
     <div id="cl-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="submitCreateLoan()" id="cl-submit-btn">Create loan</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-create-loan')">Cancel</button>
@@ -1926,12 +1936,13 @@ function renderLoans() {
             <td>${(l.guarantors || []).map(g => {
               const name = g.is_external ? `${g.external_name} (external)` : (g.coop_members?.name || '—');
               const statusLabel = g.status === 'PENDING' ? ' — pending' : g.status === 'DECLINED' ? ' — declined' : '';
+              const btnStyle = 'border:1px solid var(--grb);background:#fff;border-radius:6px;padding:1px 6px;font-size:10.5px;cursor:pointer;margin-left:3px';
               const overrideBtns = g.status === 'PENDING' && hasPortalAction('loans', 'edit')
-                ? ` <button class="rbtn" style="padding:1px 6px;font-size:10.5px" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','APPROVED')">✓</button><button class="rbtn" style="padding:1px 6px;font-size:10.5px" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','DECLINED')">✗</button>`
+                ? ` <button style="${btnStyle}" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','APPROVED')">✓</button><button style="${btnStyle}" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','DECLINED')">✗</button>`
                 : '';
               return `<div style="white-space:nowrap">${name}${statusLabel}${overrideBtns}</div>`;
             }).join('') || '—'}</td>
-            <td>${loanStatusPill(l.status)}</td>
+            <td>${loanStatusPill(l.status)}${(l.overrides || []).length ? `<div><button style="border:1px solid #D97706;background:rgba(217,118,6,.1);color:#D97706;border-radius:6px;padding:1px 6px;font-size:10.5px;cursor:pointer;margin-top:4px" onclick="viewLoanOverride('${l.id}')">⚠ Override</button></div>` : ''}</td>
             <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
             <td>${loanActionButtons(l)}</td>
           </tr>
@@ -1958,6 +1969,21 @@ async function guarantorOverride(guarantorId, name, decision) {
     if (!res.ok) { alert(data.error || 'Failed to record decision.'); return; }
     notify(data.message || 'Recorded.');
     await refreshAndRender();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function viewLoanOverride(loanId) {
+  try {
+    const res = await fetch(`${API}/coop-portal-loan-override-document?loan_id=${encodeURIComponent(loanId)}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Unable to load override details.'); return; }
+    const checkLabels = { dues_owing: 'outstanding dues', max_amount_exceeded: 'amount over the package limit' };
+    const lines = data.overrides.map(o =>
+      `${new Date(o.created_at).toLocaleDateString()} — bypassed: ${o.bypassed_checks.map(c => checkLabels[c] || c).join(', ')}\nReason: ${o.reason}\nApproved by: ${o.approved_by}`
+    ).join('\n\n');
+    if (confirm(`${lines}\n\nOpen the supporting document?`)) window.open(data.document_url, '_blank');
   } catch (e) {
     alert('Network error: ' + e.message);
   }
@@ -2232,6 +2258,10 @@ async function openCreateLoanModal() {
   document.getElementById('cl-error').style.display = 'none';
   document.getElementById('cl-amount').value = '';
   document.getElementById('cl-months').value = '6';
+  document.getElementById('cl-override-panel').style.display = 'none';
+  document.getElementById('cl-override-reason').value = '';
+  document.getElementById('cl-override-file').value = '';
+  document.getElementById('cl-override-file-status').textContent = '';
 
   const members = (portalData.members || []).filter(m => m.status === 'ACTIVE');
   document.getElementById('cl-member').innerHTML = '<option value="">Select a member...</option>'
@@ -2318,6 +2348,36 @@ async function submitCreateLoan() {
   }
   if (new Set(guarantorMemberIds).size !== guarantorMemberIds.length) { errEl.textContent = 'The same member is selected as guarantor more than once.'; errEl.style.display = 'block'; return; }
 
+  const overridePanelOpen = document.getElementById('cl-override-panel').style.display !== 'none';
+  let override;
+  if (overridePanelOpen) {
+    const reason = document.getElementById('cl-override-reason').value.trim();
+    const fileInput = document.getElementById('cl-override-file');
+    if (!reason) { errEl.textContent = 'Enter a reason for the override.'; errEl.style.display = 'block'; return; }
+    if (!fileInput.files.length) { errEl.textContent = 'Attach a supporting document for the override.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('cl-submit-btn');
+    btn.disabled = true; btn.textContent = 'Uploading document...';
+    try {
+      const file = fileInput.files[0];
+      const fileBase64 = await fileToBase64(file);
+      const uploadRes = await fetch(`${API}/coop-portal-upload-loan-document`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+        body: JSON.stringify({ file_base64: fileBase64, file_name: file.name, mime_type: file.type }),
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) { errEl.textContent = uploadData.error || 'Failed to upload the document.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create loan'; return; }
+      override = {
+        reason, document_storage_path: uploadData.document_storage_path,
+        document_file_name: uploadData.document_file_name, document_mime_type: uploadData.document_mime_type,
+      };
+    } catch (e) {
+      errEl.textContent = 'Failed to read or upload the document: ' + e.message; errEl.style.display = 'block';
+      document.getElementById('cl-submit-btn').disabled = false; document.getElementById('cl-submit-btn').textContent = 'Create loan';
+      return;
+    }
+  }
+
   const btn = document.getElementById('cl-submit-btn');
   btn.disabled = true; btn.textContent = 'Creating...';
   try {
@@ -2327,18 +2387,38 @@ async function submitCreateLoan() {
         member_id: memberId, guarantor_member_ids: guarantorMemberIds, external_guarantors: externalGuarantors,
         principal_kobo: Math.round(amountNaira * 100), repayment_months: months,
         loan_package_id: packageId || undefined,
+        override: override || undefined,
       }),
     });
     const data = await res.json();
-    if (!res.ok) { errEl.textContent = data.error || 'Failed to create loan.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create loan'; return; }
+    btn.disabled = false; btn.textContent = 'Create loan';
+    if (!res.ok) {
+      if (data.override_missing && !overridePanelOpen) {
+        document.getElementById('cl-override-reason-display').textContent = data.error;
+        document.getElementById('cl-override-panel').style.display = 'block';
+        errEl.textContent = 'Fill in the override details below, or change the amount/clear dues and try again.';
+        errEl.style.display = 'block';
+        return;
+      }
+      errEl.textContent = data.error || 'Failed to create loan.'; errEl.style.display = 'block';
+      return;
+    }
     closeModal('modal-create-loan');
     notify(data.message || 'Loan created');
-    btn.disabled = false; btn.textContent = 'Create loan';
     await refreshAndRender();
   } catch (e) {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Create loan';
   }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('Could not read the file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function openLoanPackagesModal() {
@@ -3807,6 +3887,10 @@ function renderPermissionCheckboxes(containerId, checkedGroups) {
       <thead><tr><th></th>${actionKeys.map(a => `<th style="text-align:center;padding-bottom:6px">${ACTION_LABELS[a]}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--grb);font-size:12.5px;cursor:pointer">
+      <input type="checkbox" id="${containerId}-loan-override" ${checkedMap.get('loans')?.has('override') ? 'checked' : ''} style="width:auto">
+      Can approve loan qualification overrides (bypass outstanding-dues or over-limit checks with a reason and supporting document) — separate from ordinary loan access above
+    </label>
   `;
 }
 
@@ -3819,6 +3903,10 @@ function collectCheckedPermissions(containerId) {
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(cb.dataset.action);
   });
+  if (document.getElementById(`${containerId}-loan-override`)?.checked) {
+    if (!map.has('loans')) map.set('loans', []);
+    map.get('loans').push('override');
+  }
   return Array.from(map.entries()).map(([permission_key, actions]) => ({ permission_key, actions }));
 }
 
