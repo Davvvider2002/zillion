@@ -2,7 +2,9 @@
  * zillion/backend/netlify/functions/coop-public-join-init.js
  *
  * POST /api/v1/coop-public-join-init
- * Body: { coop_id, name, phone, email? }
+ * Body: { coop_id, name, phone, email?, postcode? }
+ *   postcode: optional NIPOST digital postcode (self-declared). Validated up front - before the payment step - so a
+ *   typo is caught while the person is still on the form rather than after they've paid.
  *
  * Public, unauthenticated - the first step of a prospect joining a
  * society via a shared link or QR code. Two paths:
@@ -30,6 +32,7 @@
 
 const { getServiceClient } = require('../../lib/supabase');
 const { activateMember, normalisePhone } = require('../../lib/coopActivateMember');
+const { validateOptionalPostcode } = require('../../lib/ngPostcode');
 const { checkMemberCapAllows } = require('../../lib/coopMemberCap');
 const { calculateFees }    = require('../../lib/coopFees');
 const { logAlert }         = require('../../lib/alerts');
@@ -55,6 +58,9 @@ exports.handler = async (event) => {
   if (!name)   return err(400, 'name is required');
   if (!phone)  return err(400, 'phone is required');
 
+  const pc = validateOptionalPostcode(body.postcode);
+  if (!pc.ok) return err(400, pc.error);
+
   const db = getServiceClient();
 
   const { data: society } = await db.from('coop_societies').select('coop_id, name, joining_fee_kobo, flutterwave_subaccount_id').eq('coop_id', coopId).maybeSingle();
@@ -66,7 +72,7 @@ exports.handler = async (event) => {
   const joiningFeeKobo = society.joining_fee_kobo || 0;
 
   if (joiningFeeKobo === 0) {
-    const result = await activateMember(db, { coopId, rawPhone: phone, name, openingBalanceKobo: 0, activatedBy: 'public_join_link' });
+    const result = await activateMember(db, { coopId, rawPhone: phone, name, openingBalanceKobo: 0, activatedBy: 'public_join_link', postcode: pc.value });
     if (!result.ok) return err(400, result.error);
     if (result.status === 'already_existed') return err(409, 'This phone number is already a member of this society');
 
@@ -90,7 +96,7 @@ exports.handler = async (event) => {
   const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, stampDutyKobo, totalKobo } = calculateFees(joiningFeeKobo);
 
   const { data: application, error: appErr } = await db.from('coop_join_applications').insert({
-    coop_id: coopId, name, phone, email, amount_kobo: baseKobo, status: 'PENDING_PAYMENT',
+    coop_id: coopId, name, phone, email, postcode: pc.value, amount_kobo: baseKobo, status: 'PENDING_PAYMENT',
   }).select().single();
   if (appErr) return err(500, `Failed to start application: ${appErr.message}`);
 
