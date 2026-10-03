@@ -50,10 +50,11 @@ exports.handler = async (event) => {
   const rawPhone   = (body.phone || '').trim();
   const name       = (body.name || '').trim();
   const openingBalance = Number.isInteger(body.opening_balance_kobo) ? body.opening_balance_kobo : 0;
+  const postcode   = (body.postcode || '').trim() || undefined; // optional, format-checked inside activateMember
 
   const result = await activateMember(db, {
     coopId, rawPhone, name, openingBalanceKobo: openingBalance,
-    activatedBy: `portal:${auth.payload.merchant_id}`,
+    activatedBy: `portal:${auth.payload.merchant_id}`, postcode,
   });
 
   if (result.status === 'error') return err(400, result.error);
