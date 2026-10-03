@@ -72,7 +72,7 @@ exports.handler = async (event) => {
   const allLoanGuarantors = [];
   const allLoanOverrides = [];
   for (const ids of chunk(loanIdsForGuarantors)) {
-    allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, approved_by, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
+    allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, external_postcode, approved_by, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
     allLoanOverrides.push(...await fetchAllRows(() => db.from('coop_loan_overrides').select('loan_id, bypassed_checks, reason, approved_by, created_at').in('loan_id', ids).order('id')));
   }
 
