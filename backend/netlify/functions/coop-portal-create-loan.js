@@ -26,7 +26,8 @@
  *
  * Body: { member_id, guarantor_member_ids, external_guarantors?, principal_kobo, repayment_months, loan_package_id?, savings_plan_id? }
  *   guarantor_member_ids: string[] — guarantor_member_id (singular) still accepted for backward compatibility.
- *   external_guarantors: { name, id_type, id_number }[] — counts toward the same required_guarantor_count as
+ *   external_guarantors: { name, id_type, id_number, postcode? }[] — postcode optional (NIPOST digital postcode,
+ *     self-declared; see ngPostcode.js). Counts toward the same required_guarantor_count as
  *     guarantor_member_ids, not a separate cap.
  */
 'use strict';
@@ -64,6 +65,7 @@ exports.handler = async (event) => {
     : body.guarantor_member_id ? [(body.guarantor_member_id || '').trim()] : [];
   const externalGuarantors = Array.isArray(body.external_guarantors) ? body.external_guarantors.map(eg => ({
     name: (eg.name || '').trim(), idType: (eg.id_type || '').trim().toUpperCase(), idNumber: (eg.id_number || '').trim(),
+    postcode: (eg.postcode || '').trim(),
   })) : [];
   const principalKobo      = Number.isInteger(body.principal_kobo) ? body.principal_kobo : 0;
   const repaymentMonths    = Number.isInteger(body.repayment_months) ? body.repayment_months : 0;
