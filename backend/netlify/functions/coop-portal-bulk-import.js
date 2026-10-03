@@ -11,7 +11,8 @@
  * resource to own here — only new members being created).
  *
  * Expected CSV columns (header row required): phone, name,
- * opening_balance (optional, in Naira). Column order doesn't matter.
+ * opening_balance (optional, in Naira), postcode (optional NIPOST digital postcode, e.g. FC-02-A09-DB-09; a row with a
+ * malformed one fails that row only, like an invalid phone). Column order doesn't matter.
  *
  * Body: { csv_text }
  */
@@ -43,6 +44,7 @@ function parseCsv(text) {
   const phoneIdx = headerCells.findIndex(c => PHONE_ALIASES.includes(c));
   const nameIdx = headerCells.indexOf('name');
   const balanceIdx = headerCells.indexOf('opening_balance');
+  const postcodeIdx = headerCells.findIndex(c => ['postcode', 'digital postcode', 'digital_postcode'].includes(c));
 
   if (phoneIdx === -1) {
     return { rows: [], error: `CSV must have a "phone" column in its header row. Detected header: [${headerCells.map(c => `"${c}"`).join(', ')}] (using "${delimiter === '\t' ? 'tab' : delimiter}" as the separator).` };
@@ -56,6 +58,7 @@ function parseCsv(text) {
       phone: cells[phoneIdx] || '',
       name: nameIdx !== -1 ? (cells[nameIdx] || '') : '',
       openingBalanceNaira: balanceIdx !== -1 ? (cells[balanceIdx] || '') : '',
+      postcode: postcodeIdx !== -1 ? (cells[postcodeIdx] || '') : '',
     });
   }
   return { rows };
@@ -112,7 +115,7 @@ exports.handler = async (event) => {
     }
 
     const result = await activateMember(db, {
-      coopId, rawPhone: row.phone, name: row.name, openingBalanceKobo, activatedBy,
+      coopId, rawPhone: row.phone, name: row.name, openingBalanceKobo, activatedBy, postcode: row.postcode,
     });
 
     if (result.status === 'created') {
