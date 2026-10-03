@@ -17,6 +17,7 @@
 const { createHmac } = require('crypto');
 const { resolveOrCreateZillionId } = require('./zillionId');
 const { computeWalletDeviceHash }  = require('./crypto');
+const { validateOptionalPostcode } = require('./ngPostcode');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -27,12 +28,18 @@ function normalisePhone(raw) {
 
 /**
  * @param {object} db  Supabase client
- * @param {object} params { coopId, rawPhone, name, openingBalanceKobo, activatedBy }
+ * @param {object} params { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode? }
+ *   postcode is an optional, self-declared NIPOST digital postcode (see ngPostcode.js) - format-checked here, up
+ *   front, so a malformed one fails the whole activation before any identity/wallet side effects, the same way an
+ *   invalid phone does. Not applied when the member already existed (an existing record is never overwritten here).
  * @returns {Promise<{ok: boolean, status: 'created'|'already_existed'|'error', member?, error?, phone?}>}
  */
-async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy }) {
+async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode }) {
   if (!rawPhone) return { ok: false, status: 'error', error: 'phone is required' };
   if (openingBalanceKobo < 0) return { ok: false, status: 'error', error: 'opening balance cannot be negative' };
+
+  const pc = validateOptionalPostcode(postcode);
+  if (!pc.ok) return { ok: false, status: 'error', error: pc.error };
 
   const phone = normalisePhone(rawPhone);
   if (!/^\+\d{10,15}$/.test(phone)) return { ok: false, status: 'error', error: `Invalid phone number: "${phone}"`, phone };
@@ -89,6 +96,7 @@ async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, 
       opening_balance_kobo: openingBalanceKobo || 0,
       activated_by:         activatedBy,
       member_number:        memberNumber,
+      postcode:             pc.value,
     }).select().single();
     created = result.data; insertErr = result.error;
     // Only retry if it was specifically the member_number uniqueness
