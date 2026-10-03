@@ -76,7 +76,7 @@ exports.handler = async (event) => {
   // rejected, and the error was ignored - guarantors would have silently vanished.
   const allLoanGuarantors = [];
   for (const ids of chunk(loanIdsForGuarantors)) {
-    allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, approved_by, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
+    allLoanGuarantors.push(...await fetchAllRows(() => db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, external_postcode, approved_by, coop_members(name, phone_normalized)').in('loan_id', ids).order('id')));
   }
 
   const loans = await enrichLoans(db, loansRaw, allLoanGuarantors, society);
