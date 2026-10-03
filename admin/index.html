@@ -1662,7 +1662,9 @@ tbody tr:last-child td{border-bottom:none;}
     <label class="field-label">Phone Number</label>
     <input class="field-input" type="text" id="tam-phone" placeholder="e.g. 08011111111" style="margin-bottom:12px;width:100%;box-sizing:border-box">
     <label class="field-label">Name</label>
-    <input class="field-input" type="text" id="tam-name" placeholder="e.g. Amina Bello" style="margin-bottom:18px;width:100%;box-sizing:border-box">
+    <input class="field-input" type="text" id="tam-name" placeholder="e.g. Amina Bello" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Digital postcode (optional)</label>
+    <input class="field-input" type="text" id="tam-postcode" placeholder="e.g. FC-02-A09-DB-09" style="margin-bottom:18px;width:100%;box-sizing:border-box">
     <div id="tam-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
     <div style="display:flex;gap:10px">
       <button onclick="closeActivateMemberModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
@@ -5394,6 +5396,7 @@ function renderCtSettlement(society) {
 function openActivateMemberModal() {
   document.getElementById('tam-phone').value = '';
   document.getElementById('tam-name').value = '';
+  document.getElementById('tam-postcode').value = '';
   document.getElementById('tam-error').style.display = 'none';
   document.getElementById('activate-member-modal').style.display = 'flex';
 }
@@ -5404,11 +5407,12 @@ async function submitActivateMember() {
   errEl.style.display = 'none';
   const phone = document.getElementById('tam-phone').value.trim();
   const name = document.getElementById('tam-name').value.trim();
+  const postcode = document.getElementById('tam-postcode').value.trim();
   if (!phone || !name) { errEl.textContent = 'Phone and name are required.'; errEl.style.display = 'block'; return; }
   try {
     const res = await fetch(`${API}/coop-activate-member`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
-      body: JSON.stringify({ coop_id: ctCurrentCoopId, phone, name }),
+      body: JSON.stringify({ coop_id: ctCurrentCoopId, phone, name, postcode: postcode || undefined }),
     });
     const data = await res.json();
     if (!res.ok && !data.member) { errEl.textContent = data.error || 'Failed to activate member.'; errEl.style.display = 'block'; return; }
