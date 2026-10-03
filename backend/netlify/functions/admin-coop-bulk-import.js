@@ -43,6 +43,7 @@ function parseCsv(text) {
   const phoneIdx = headerCells.indexOf('phone');
   const nameIdx = headerCells.indexOf('name');
   const balanceIdx = headerCells.indexOf('opening_balance');
+  const postcodeIdx = headerCells.findIndex(c => ['postcode', 'digital postcode', 'digital_postcode'].includes(c));
 
   if (phoneIdx === -1) return { rows: [], error: 'CSV must have a "phone" column in its header row' };
 
@@ -54,6 +55,7 @@ function parseCsv(text) {
       phone: cells[phoneIdx] || '',
       name: nameIdx !== -1 ? (cells[nameIdx] || '') : '',
       openingBalanceNaira: balanceIdx !== -1 ? (cells[balanceIdx] || '') : '',
+      postcode: postcodeIdx !== -1 ? (cells[postcodeIdx] || '') : '',
     });
   }
   return { rows };
@@ -109,7 +111,7 @@ exports.handler = async (event) => {
     }
 
     const result = await activateMember(db, {
-      coopId, rawPhone: row.phone, name: row.name, openingBalanceKobo, activatedBy,
+      coopId, rawPhone: row.phone, name: row.name, openingBalanceKobo, activatedBy, postcode: row.postcode,
     });
 
     if (result.status === 'created') {
