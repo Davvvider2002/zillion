@@ -90,7 +90,7 @@ exports.handler = async (event) => {
 
   const result = await activateMember(db, {
     coopId: application.coop_id, rawPhone: application.phone, name: application.name,
-    openingBalanceKobo: 0, activatedBy: 'public_join_link',
+    openingBalanceKobo: 0, activatedBy: 'public_join_link', postcode: application.postcode,
   });
   if (!result.ok) return err(500, `Payment verified but membership creation failed: ${result.error}. Contact support with reference ${txRef}.`);
 
