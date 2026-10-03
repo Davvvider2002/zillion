@@ -29,6 +29,7 @@ const { calculateLoanInterest } = require('./coopLoanInterest');
 const { computeMaxLoanAmount } = require('./coopLoanPackages');
 const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('./coopReducingBalanceSchedule');
 const { encryptNIN } = require('./coopDojahNin');
+const { validateOptionalPostcode } = require('./ngPostcode');
 
 const EXTERNAL_ID_TYPES = ['NIN', 'PASSPORT', 'DRIVERS_LICENSE', 'VOTERS_CARD'];
 
@@ -42,11 +43,13 @@ const EXTERNAL_ID_TYPES = ['NIN', 'PASSPORT', 'DRIVERS_LICENSE', 'VOTERS_CARD'];
  * @param {number} params.principalKobo
  * @param {number} params.repaymentMonths
  * @param {string[]} params.guarantorMemberIds
- * @param {Array<{name:string, idType:string, idNumber:string}>} [params.externalGuarantors]  guarantors who
+ * @param {Array<{name:string, idType:string, idNumber:string, postcode?:string}>} [params.externalGuarantors]  guarantors who
  *   are not existing cooperative members — no member_id, identified instead by a government ID. Their consent
  *   can only ever be recorded by an admin (coop-portal-loan-guarantor-override.js), since there's no wallet
  *   for them to respond from themselves. Counts toward the same required_guarantor_count as member guarantors
- *   — one society-level number, not two separate caps.
+ *   — one society-level number, not two separate caps. postcode is optional and self-declared (see
+ *   ngPostcode.js), kept for future analytics/verification; a MEMBER guarantor's postcode is simply their own
+ *   coop_members.postcode, so it's only collected here for people who have no member record.
  * @param {{reason:string, approvedBy:string, documentStoragePath:string, documentFileName:string, documentMimeType?:string}} [params.override]
  *   Lets a caller holding the separately-granted 'loans'/'override' permission push a loan through even when
  *   the member fails a qualification gate below (outstanding dues, or amount over their package cap) — never
@@ -81,8 +84,12 @@ async function createLoanApplication(db, params) {
   const requiredGuarantorCount = society?.required_guarantor_count || 1;
   const uniqueGuarantorIds = [...new Set(guarantorMemberIds || [])];
 
+  const externalPostcodes = [];
   for (const eg of externalGuarantors) {
     if (!eg.name || !String(eg.name).trim()) return { success: false, error: 'Every external guarantor needs a name' };
+    const pc = validateOptionalPostcode(eg.postcode);
+    if (!pc.ok) return { success: false, error: `${String(eg.name).trim()}: ${pc.error}` };
+    externalPostcodes.push(pc.value);
     if (!EXTERNAL_ID_TYPES.includes(eg.idType)) return { success: false, error: `External guarantor ID type must be one of: ${EXTERNAL_ID_TYPES.join(', ')}` };
     if (!eg.idNumber || !String(eg.idNumber).trim()) return { success: false, error: `Every external guarantor needs their ${eg.idType} number` };
   }
@@ -179,9 +186,10 @@ async function createLoanApplication(db, params) {
 
   let externalRows;
   try {
-    externalRows = externalGuarantors.map(eg => ({
+    externalRows = externalGuarantors.map((eg, i) => ({
       loan_id: created.id, member_id: null, is_external: true,
       external_name: eg.name.trim(), external_id_type: eg.idType, external_id_encrypted: encryptNIN(eg.idNumber),
+      external_postcode: externalPostcodes[i],
     }));
   } catch (e) {
     // Encryption key missing/misconfigured - same defensive posture as every other place in this codebase
