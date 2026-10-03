@@ -93,6 +93,9 @@ function renderForm() {
     <input id="jf-phone" type="tel" placeholder="08012345678">
     <label>Email (optional)</label>
     <input id="jf-email" type="email" placeholder="your@email.com">
+    <label>Digital postcode (optional)</label>
+    <input id="jf-postcode" type="text" placeholder="e.g. FC-02-A09-DB-09" autocapitalize="characters">
+    <div style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px">Find yours at <a href="https://postcode.gov.ng" target="_blank" rel="noopener" style="color:var(--green2)">postcode.gov.ng</a>. You can skip this.</div>
     <div class="error" id="jf-error"></div>
     <button class="btn btn-primary" id="jf-btn" onclick="submitJoin()">${feeKobo > 0 ? 'Continue to payment' : 'Join now'}</button>
   `;
@@ -104,6 +107,7 @@ async function submitJoin() {
   const name = document.getElementById('jf-name').value.trim();
   const phone = document.getElementById('jf-phone').value.trim();
   const email = document.getElementById('jf-email').value.trim();
+  const postcode = document.getElementById('jf-postcode').value.trim();
   if (!name) { errEl.textContent = 'Enter your full name.'; errEl.style.display = 'block'; return; }
   if (!phone) { errEl.textContent = 'Enter your phone number.'; errEl.style.display = 'block'; return; }
 
@@ -112,7 +116,7 @@ async function submitJoin() {
   try {
     const res = await fetch(`${API}/coop-public-join-init`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coop_id: coopId, name, phone, email, return_url: location.origin + location.pathname + '?coop_id=' + encodeURIComponent(coopId) }),
+      body: JSON.stringify({ coop_id: coopId, name, phone, email, postcode: postcode || undefined, return_url: location.origin + location.pathname + '?coop_id=' + encodeURIComponent(coopId) }),
     });
     const data = await res.json();
     btn.disabled = false;
