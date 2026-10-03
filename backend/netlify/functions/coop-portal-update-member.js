@@ -3,8 +3,8 @@
  *
  * POST /api/v1/coop-portal-update-member
  *
- * Society admin editing a member's name, email, address, or
- * occupation. Phone number is deliberately NOT editable here — it's
+ * Society admin editing a member's name, email, address,
+ * postcode, or occupation. Phone number is deliberately NOT editable here — it's
  * the primary identity key the whole rest of the system resolves
  * zillion_id, login, and device linking from. Changing it here
  * without also updating zillion_identities and everything downstream
@@ -12,7 +12,7 @@
  * genuinely needed later, it deserves its own careful design, not a
  * quiet addition to this endpoint.
  *
- * Body: { member_id, name?, email?, address?, occupation? } — at
+ * Body: { member_id, name?, email?, address?, postcode?, occupation? } — at
  * least one field must be provided; only the fields provided are
  * changed.
  */
@@ -21,6 +21,7 @@
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
+const { validateOptionalPostcode } = require('../../lib/ngPostcode');
 
 // Controlled list, matching public-coop-signup.js's VALID_INDUSTRIES
 // pattern, so analytics can aggregate by category rather than
@@ -70,17 +71,23 @@ exports.handler = async (event) => {
   if (body.address !== undefined) {
     updates.address = String(body.address).trim() || null;
   }
+  if (body.postcode !== undefined) {
+    // Optional and self-declared (see ngPostcode.js): blank clears it, anything else must be a well-formed code.
+    const pc = validateOptionalPostcode(body.postcode);
+    if (!pc.ok) return err(400, pc.error);
+    updates.postcode = pc.value;
+  }
   if (body.occupation !== undefined) {
     if (body.occupation && !VALID_OCCUPATIONS.includes(body.occupation)) return err(400, 'occupation is not a recognized category');
     updates.occupation = body.occupation || null;
   }
-  if (!Object.keys(updates).length) return err(400, 'Provide at least one of name, email, address, occupation to update');
+  if (!Object.keys(updates).length) return err(400, 'Provide at least one of name, email, address, postcode, occupation to update');
 
   // eq('coop_id', ...) here is what prevents an admin from editing a
   // member outside their own society, even if they somehow guessed
   // another member's id.
   const { data: updated, error: updateErr } = await db.from('coop_members')
-    .update(updates).eq('id', body.member_id).eq('coop_id', coopId).select('id, name, email, address, occupation').maybeSingle();
+    .update(updates).eq('id', body.member_id).eq('coop_id', coopId).select('id, name, email, address, postcode, occupation').maybeSingle();
 
   if (updateErr) return err(500, `Failed to update member: ${updateErr.message}`);
   if (!updated) return err(404, 'Member not found in your society');
