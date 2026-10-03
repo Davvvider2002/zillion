@@ -52,7 +52,7 @@ exports.handler = async (event) => {
 
     const loanIds = (data || []).map(l => l.id);
     const { data: allGuarantors } = loanIds.length
-      ? await db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, approved_by, coop_members(name, phone_normalized)').in('loan_id', loanIds)
+      ? await db.from('coop_loan_guarantors').select('id, loan_id, status, responded_at, is_external, external_name, external_id_type, external_postcode, approved_by, coop_members(name, phone_normalized)').in('loan_id', loanIds)
       : { data: [] };
     const { data: allOverrides } = loanIds.length
       ? await db.from('coop_loan_overrides').select('loan_id, bypassed_checks, reason, approved_by, created_at').in('loan_id', loanIds)
