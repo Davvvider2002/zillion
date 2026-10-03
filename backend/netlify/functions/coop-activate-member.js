@@ -44,6 +44,7 @@ exports.handler = async (event) => {
   const rawPhone       = (body.phone || '').trim();
   const name             = (body.name || '').trim();
   const openingBalance     = Number.isInteger(body.opening_balance_kobo) ? body.opening_balance_kobo : 0;
+  const postcode           = (body.postcode || '').trim() || undefined; // optional, format-checked inside activateMember
 
   if (!coopId) return err(400, 'coop_id is required');
 
@@ -55,7 +56,7 @@ exports.handler = async (event) => {
 
   const result = await activateMember(db, {
     coopId, rawPhone, name, openingBalanceKobo: openingBalance,
-    activatedBy: auth.payload.username || auth.payload.sub,
+    activatedBy: auth.payload.username || auth.payload.sub, postcode,
   });
 
   if (result.status === 'error') return err(400, result.error);
