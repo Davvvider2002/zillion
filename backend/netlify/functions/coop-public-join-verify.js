@@ -25,7 +25,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { activateMember }   = require('../../lib/coopActivateMember');
 const { checkMemberCapAllows } = require('../../lib/coopMemberCap');
-const { calculateFees }    = require('../../lib/coopFees');
+const { expectedTotalKobo } = require('../../lib/coopFees');
 const { logAlert }         = require('../../lib/alerts');
 
 exports.handler = async (event) => {
@@ -67,7 +67,7 @@ exports.handler = async (event) => {
   }
 
   const v = verifyData.data || {};
-  const { totalKobo } = calculateFees(application.amount_kobo);
+  const totalKobo = expectedTotalKobo(application); // what they were asked to pay at checkout, not today's formula
   const verifiedOk = verifyData.status === 'success'
     && v.status === 'successful'
     && v.tx_ref === txRef
