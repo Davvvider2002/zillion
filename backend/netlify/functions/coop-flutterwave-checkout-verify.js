@@ -23,7 +23,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { verifyJWT }        = require('../../lib/validators');
 const { resolveMemberForZillionId } = require('../../lib/coopMemberResolve');
-const { calculateFees }    = require('../../lib/coopFees');
+const { expectedTotalKobo } = require('../../lib/coopFees');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
@@ -80,11 +80,9 @@ exports.handler = async (event) => {
   }
 
   const v = verifyData.data || {};
-  // session.amount_kobo is the BASE (credited) amount — the customer
-  // was actually charged base + both fees, re-derived here via the
-  // same shared calculation used at checkout-init, never stored
-  // separately.
-  const { totalKobo } = calculateFees(session.amount_kobo);
+  // session.amount_kobo is the BASE (credited) amount; the customer was charged base + fees. Verified against the
+  // total recorded when checkout started, not today's formula - see expectedTotalKobo in coopFees.js.
+  const totalKobo = expectedTotalKobo(session);
   const verifiedOk = verifyData.status === 'success'
     && v.status === 'successful'
     && v.tx_ref === txRef
