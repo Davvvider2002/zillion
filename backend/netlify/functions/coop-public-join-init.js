@@ -96,7 +96,8 @@ exports.handler = async (event) => {
   const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, stampDutyKobo, totalKobo } = calculateFees(joiningFeeKobo);
 
   const { data: application, error: appErr } = await db.from('coop_join_applications').insert({
-    coop_id: coopId, name, phone, email, postcode: pc.value, amount_kobo: baseKobo, status: 'PENDING_PAYMENT',
+    coop_id: coopId, name, phone, email, postcode: pc.value, amount_kobo: baseKobo,
+    total_charged_kobo: totalKobo, zillion_fee_kobo: zillionFeeKobo, status: 'PENDING_PAYMENT',
   }).select().single();
   if (appErr) return err(500, `Failed to start application: ${appErr.message}`);
 
