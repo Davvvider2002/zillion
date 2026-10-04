@@ -37,4 +37,19 @@ function calculateFees(baseKobo) {
   return { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, stampDutyKobo, totalKobo };
 }
 
-module.exports = { calculateFees };
+/**
+ * What this payment was supposed to come to, for verification.
+ *
+ * Prefers the total recorded when the checkout was started (total_charged_kobo) - exactly what the customer was
+ * asked to pay - over re-deriving it from today's formula. Re-deriving was fine while the fee never changed, but
+ * the moment it does, a payment started under the old fee and confirmed after would be judged against the new
+ * one and rejected even though the customer paid exactly what they were asked. Rows from before this was
+ * recorded have no stored total and fall back to the formula (correct for them, since the fee hadn't changed).
+ */
+function expectedTotalKobo(row) {
+  const stored = Number(row && row.total_charged_kobo);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  return calculateFees(row.amount_kobo).totalKobo;
+}
+
+module.exports = { calculateFees, expectedTotalKobo };
