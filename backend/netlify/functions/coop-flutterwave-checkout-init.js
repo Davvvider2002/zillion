@@ -185,7 +185,9 @@ exports.handler = async (event) => {
     loan_id:               loanId,
     product_id:              productId,
     units:                      units,
-    amount_kobo:              baseKobo, // the credited amount — fees are re-derived from this at verify time via the same shared helper, never stored separately
+    amount_kobo:              baseKobo, // the credited amount (what the society receives)
+    total_charged_kobo:       totalKobo,       // what the customer was actually asked to pay - verified against this, not re-derived
+    zillion_fee_kobo:         zillionFeeKobo,  // our share of that, kept so revenue history survives any later rate change
   });
   if (insertErr) return err(500, `Failed to record checkout session: ${insertErr.message}`);
 
