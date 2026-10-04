@@ -75,7 +75,8 @@ exports.handler = async (event) => {
   const { baseKobo, flutterwaveFeeKobo, zillionFeeKobo, stampDutyKobo, totalKobo } = calculateFees(settings.joining_fee_kobo);
 
   const { data: application, error: appErr } = await db.from('ajo_collector_join_applications').insert({
-    name, phone, email, amount_kobo: baseKobo, status: 'PENDING_PAYMENT',
+    name, phone, email, amount_kobo: baseKobo,
+    total_charged_kobo: totalKobo, zillion_fee_kobo: zillionFeeKobo, status: 'PENDING_PAYMENT',
   }).select().single();
   if (appErr) return err(500, `Failed to start application: ${appErr.message}`);
 
