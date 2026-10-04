@@ -63,8 +63,8 @@ exports.handler = async (event) => {
       dues_frequency:                frequency,
       dues_enforcement_enabled:        enforcementEnabled,
       dues_enforcement_rules:            enforcementRules,
-      late_fee_type:                        lateFeeType,
-      late_fee_value:                          lateFeeValue,
+      late_fee_type:                        lateFeeType,   // null = no late fee (the schema allows it, as every reader assumes)
+      late_fee_value:                          lateFeeValue || 0, // the column is NOT NULL: 0, never null, when there is no late fee
     })
     .eq('coop_id', coopId)
     .select().single();
