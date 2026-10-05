@@ -33,6 +33,7 @@
 const { getServiceClient } = require('../../lib/supabase');
 const { activateMember, normalisePhone } = require('../../lib/coopActivateMember');
 const { validateOptionalPostcode } = require('../../lib/ngPostcode');
+const { limitByIp, limitByKey, tooManyRequests } = require('../../lib/publicRateLimit');
 const { checkMemberCapAllows } = require('../../lib/coopMemberCap');
 const { calculateFees }    = require('../../lib/coopFees');
 const { logAlert }         = require('../../lib/alerts');
@@ -62,6 +63,13 @@ exports.handler = async (event) => {
   if (!pc.ok) return err(400, pc.error);
 
   const db = getServiceClient();
+
+  // Anyone can call this and it creates rows (and, for paid societies, a payment link) each time: throttle floods without
+  // getting in the way of a genuine meeting-full of members signing up together on one Wi-Fi.
+  const ipLimit = await limitByIp(db, event, 'coop-join', { windowMinutes: 60, maxAttempts: 150, lockoutMinutes: 15 });
+  if (!ipLimit.allowed) return tooManyRequests(ipLimit.retryAfterSeconds, 'join requests');
+  const phoneLimit = await limitByKey(db, 'coop-join', normalisePhone(phone), { windowMinutes: 60, maxAttempts: 6, lockoutMinutes: 30 });
+  if (!phoneLimit.allowed) return tooManyRequests(phoneLimit.retryAfterSeconds, 'attempts for this phone number');
 
   const { data: society } = await db.from('coop_societies').select('coop_id, name, joining_fee_kobo, flutterwave_subaccount_id').eq('coop_id', coopId).maybeSingle();
   if (!society) return err(404, 'Society not found');

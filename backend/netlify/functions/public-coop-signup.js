@@ -30,6 +30,8 @@ const { getServiceClient } = require('../../lib/supabase');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 const { computeSubscriptionTotal } = require('../../lib/coopPricing');
 const { recordTermsAcceptance, getClientIp } = require('../../lib/coopTermsAcceptance');
+const { findNameConflict, nameTakenMessage, isNameKeyViolation } = require('../../lib/coopSocietyName');
+const { limitByIp, tooManyRequests } = require('../../lib/publicRateLimit');
 
 function mustEnv(name) {
   const v = process.env[name];
@@ -109,6 +111,15 @@ exports.handler = async (event) => {
   const { data: existingMerchant } = await db.from('merchants').select('merchant_id').eq('merchant_id', merchantId).maybeSingle();
   if (existingMerchant) return err(409, `An account already exists for this phone number. Contact support if this is unexpected.`);
 
+  // One name, one live society: the same cooperative cannot be registered twice under different phone numbers. This is a
+  // courtesy check; the database's unique index is the real lock (and is what catches two sign-ups racing).
+  if ((await findNameConflict(db, name)).conflict) return err(409, nameTakenMessage(name));
+
+  // Throttle only real creation attempts (after the checks above), so a typo or a taken name never costs anyone their
+  // allowance. 5 a day per connection is far above any genuine need and far below a flood.
+  const creationLimit = await limitByIp(db, event, 'coop-signup', { windowMinutes: 24 * 60, maxAttempts: 5, lockoutMinutes: 24 * 60 });
+  if (!creationLimit.allowed) return tooManyRequests(creationLimit.retryAfterSeconds, 'registrations');
+
   const pricing = await computeSubscriptionTotal(db, { tier: plan, cycle, addonKeys });
   if (!pricing.ok) return err(400, pricing.error);
 
@@ -155,6 +166,7 @@ exports.handler = async (event) => {
 
   if (societyErr) {
     await db.from('merchants').delete().eq('merchant_id', merchantId);
+    if (isNameKeyViolation(societyErr)) return err(409, nameTakenMessage(name));   // lost a race with an identical sign-up
     return err(500, `Failed to register society: ${societyErr.message}`);
   }
 
