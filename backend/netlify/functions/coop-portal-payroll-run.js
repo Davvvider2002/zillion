@@ -20,7 +20,8 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
-const { computeMonthlyStatutoryDeductions } = require('../../lib/coopStatutoryDeductions');
+const { computeMonthlyStatutoryDeductions, getStatutoryConfig, getPayeBands } = require('../../lib/coopStatutoryDeductions');
+const { fetchAllRows, chunk } = require('../../lib/coopPaginate');
 const { accountingIsReady, getAccounts, postEntryLines } = require('../../lib/coopAccountingHelpers');
 
 const BANK_ACCOUNT_CODE = '1010';
@@ -114,28 +115,50 @@ exports.handler = async (event) => {
     }).select().single();
     if (runErr) return err(500, `Failed to create payroll run: ${runErr.message}`);
 
-    const { data: employees } = await db.from('coop_employees').select('id').eq('coop_id', coopId).eq('status', 'ACTIVE');
+    // Everything this run needs is read in a handful of batched queries up front, then worked out in memory. It used to
+    // run 3-4 queries PER EMPLOYEE (plus two tax-table lookups per employee), so a 300-person payroll meant over a
+    // thousand sequential queries in one request - past the function time limit. Same arithmetic, same figures.
+    const employees = await fetchAllRows(() => db.from('coop_employees').select('id').eq('coop_id', coopId).eq('status', 'ACTIVE').order('id'));
+
+    const componentsByEmployee = new Map();
+    const loanByEmployee = new Map();
+    for (const ids of chunk(employees.map(e => e.id))) {
+      const comps = await fetchAllRows(() => db.from('coop_employee_salary_components')
+        .select('employee_id, component_type, amount_kobo').in('employee_id', ids).eq('active', true).order('id'));
+      for (const c of comps) {
+        if (!componentsByEmployee.has(c.employee_id)) componentsByEmployee.set(c.employee_id, []);
+        componentsByEmployee.get(c.employee_id).push(c);
+      }
+      const staffLoans = await fetchAllRows(() => db.from('coop_staff_loans')
+        .select('id, employee_id, principal_kobo, monthly_deduction_kobo').in('employee_id', ids).eq('status', 'ACTIVE').order('id'));
+      for (const sl of staffLoans) if (!loanByEmployee.has(sl.employee_id)) loanByEmployee.set(sl.employee_id, sl);
+    }
+    const repaidByLoan = new Map();
+    for (const ids of chunk([...loanByEmployee.values()].map(l => l.id))) {
+      const repayments = await fetchAllRows(() => db.from('coop_staff_loan_repayments')
+        .select('staff_loan_id, amount_kobo').in('staff_loan_id', ids).order('id'));
+      for (const r of repayments) repaidByLoan.set(r.staff_loan_id, (repaidByLoan.get(r.staff_loan_id) || 0) + r.amount_kobo);
+    }
+    const statutory = { config: await getStatutoryConfig(db), bands: await getPayeBands(db) };
 
     const lines = [];
-    for (const emp of (employees || [])) {
-      const { data: components } = await db.from('coop_employee_salary_components')
-        .select('component_type, amount_kobo').eq('employee_id', emp.id).eq('active', true);
+    for (const emp of employees) {
+      const components = componentsByEmployee.get(emp.id);
       if (!components || components.length === 0) continue; // no salary set yet - skip rather than pay ₦0
 
       const basic = components.find(c => c.component_type === 'basic');
       const grossMonthlyKobo = components.reduce((s, c) => s + c.amount_kobo, 0);
       const basicMonthlyKobo = basic?.amount_kobo || 0;
 
-      const deductions = await computeMonthlyStatutoryDeductions(db, { grossMonthlyKobo, basicMonthlyKobo });
+      const deductions = await computeMonthlyStatutoryDeductions(db, { grossMonthlyKobo, basicMonthlyKobo }, statutory);
 
       // If this employee has an active staff loan, deduct this month's
       // installment - capped at whatever genuinely remains, so the
       // final installment never over-deducts past what's actually owed.
       let staffLoanDeductionKobo = 0;
-      const { data: staffLoan } = await db.from('coop_staff_loans')
-        .select('id, principal_kobo, monthly_deduction_kobo').eq('employee_id', emp.id).eq('status', 'ACTIVE').maybeSingle();
+      const staffLoan = loanByEmployee.get(emp.id);
       if (staffLoan) {
-        const remaining = await computeStaffLoanRemainingBalance(db, staffLoan.id, staffLoan.principal_kobo);
+        const remaining = Math.max(0, staffLoan.principal_kobo - (repaidByLoan.get(staffLoan.id) || 0));
         staffLoanDeductionKobo = Math.min(staffLoan.monthly_deduction_kobo, remaining);
       }
 
@@ -163,7 +186,7 @@ exports.handler = async (event) => {
     if (!run) return err(404, 'Payroll run not found');
     if (run.status === 'processed') return err(400, 'This payroll run has already been processed');
 
-    const { data: lines } = await db.from('coop_payroll_run_lines').select('*').eq('payroll_run_id', payroll_run_id);
+    const lines = await fetchAllRows(() => db.from('coop_payroll_run_lines').select('*').eq('payroll_run_id', payroll_run_id).order('id'));
     if (!lines || lines.length === 0) return err(400, 'This payroll run has no employees to process');
 
     // Apply staff loan deductions first - each one becomes a real

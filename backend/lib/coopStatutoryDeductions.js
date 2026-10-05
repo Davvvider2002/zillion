@@ -63,11 +63,14 @@ function computePayeFromTaxableIncome(taxableAnnualKobo, bands) {
  *
  * @param {object} db
  * @param {{ grossMonthlyKobo: number, basicMonthlyKobo: number }} pay
+ * @param {{config:object, bands:Array}} [preloaded]  tax tables already loaded by the caller (see body)
  * @returns {Promise<{ payeKobo, pensionEmployeeKobo, pensionEmployerKobo, nhfKobo, nsitfKobo }>}  all monthly
  */
-async function computeMonthlyStatutoryDeductions(db, { grossMonthlyKobo, basicMonthlyKobo }) {
-  const config = await getStatutoryConfig(db);
-  const bands = await getPayeBands(db);
+async function computeMonthlyStatutoryDeductions(db, { grossMonthlyKobo, basicMonthlyKobo }, preloaded) {
+  // preloaded = { config, bands }: a payroll run works out hundreds of employees against the SAME tax tables, so it
+  // loads them once and passes them in rather than paying two queries per employee. Omitted = load them here, as before.
+  const config = (preloaded && preloaded.config) || await getStatutoryConfig(db);
+  const bands = (preloaded && preloaded.bands) || await getPayeBands(db);
 
   const grossAnnualKobo = grossMonthlyKobo * 12;
   const basicAnnualKobo = basicMonthlyKobo * 12;

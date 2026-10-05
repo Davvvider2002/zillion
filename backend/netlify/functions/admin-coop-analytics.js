@@ -16,6 +16,7 @@
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
+const { fetchAllRows } = require('../../lib/coopPaginate'); // these read the WHOLE platform; an unpaged read silently stops at 1,000 rows
 const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
@@ -33,7 +34,7 @@ exports.handler = async (event) => {
   const db = getServiceClient();
 
   // Societies by industry, and by country
-  const { data: societies } = await db.from('coop_societies').select('coop_id, primary_industry, country, base_currency, status');
+  const societies = await fetchAllRows(() => db.from('coop_societies').select('coop_id, primary_industry, country, base_currency, status').order('coop_id'));
   const societiesByIndustry = {};
   const societiesByCountry = {};
   for (const s of (societies || [])) {
@@ -44,7 +45,7 @@ exports.handler = async (event) => {
   }
 
   // Members by occupation
-  const { data: members } = await db.from('coop_members').select('id, occupation, status').eq('status', 'ACTIVE');
+  const members = await fetchAllRows(() => db.from('coop_members').select('id, occupation, status').eq('status', 'ACTIVE').order('id'));
   const membersByOccupation = {};
   for (const m of (members || [])) {
     const key = m.occupation || 'Not specified';
@@ -56,9 +57,9 @@ exports.handler = async (event) => {
   // count toward "average size" (a rejected or pending application
   // isn't a real loan pattern yet); repayment rate uses completed +
   // disbursed/repaying loans to show what fraction have been paid off.
-  const { data: loans } = await db.from('coop_loans')
+  const loans = await fetchAllRows(() => db.from('coop_loans')
     .select('member_id, principal_kobo, total_repayable_kobo, status, coop_members!coop_loans_member_id_fkey(occupation)')
-    .in('status', ['DISBURSED', 'REPAYING', 'COMPLETED']);
+    .in('status', ['DISBURSED', 'REPAYING', 'COMPLETED']).order('id'));
 
   const loansByOccupation = {};
   for (const l of (loans || [])) {

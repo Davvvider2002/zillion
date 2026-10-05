@@ -24,9 +24,28 @@ const SEVERITY_EMOJI = { CRITICAL: '🔴', WARNING: '🟠', INFO: '🟢' };
  * @param {string} opts.source   which function/subsystem raised it, e.g. 'admin-reconcile-all'
  * @param {string} opts.message  human-readable summary
  * @param {object} [opts.context]  any structured detail (coin_id, holder_hash, drift amount, etc.)
+ * @param {number} [opts.dedupeHours]  for alerts that describe a STANDING condition re-checked on a schedule ("8 fraud
+ *   events still unresolved"): if the same source+message was already raised within this many hours, say nothing - not a
+ *   new row and, importantly, not another Discord ping. Put the changing detail (the count) IN the message, so a real
+ *   change is a different message and alerts immediately. Without this, a job that re-checks every 4 hours raised the
+ *   identical warning 72 times in a week. Omit it for one-off, event-driven alerts. If the duplicate check itself fails,
+ *   the alert is raised anyway - a missed alert is worse than a repeated one.
+ * @returns {Promise<{suppressed: boolean}>}
  */
 async function logAlert(db, opts) {
   const severity = opts.severity || 'INFO';
+
+  if (opts.dedupeHours > 0) {
+    try {
+      const since = new Date(Date.now() - opts.dedupeHours * 3600 * 1000).toISOString();
+      const { data } = await db.from('system_alerts').select('alert_id')
+        .eq('source', opts.source).eq('message', opts.message).gte('created_at', since).limit(1);
+      if (data && data.length) return { suppressed: true };
+    } catch (e) {
+      console.error('[logAlert] duplicate check failed (alerting anyway):', e.message);
+    }
+  }
+
   try {
     await db.from('system_alerts').insert({
       severity,
@@ -43,6 +62,7 @@ async function logAlert(db, opts) {
       if (!result.sent) console.warn('[logAlert] Discord post did not send:', result.reason);
     });
   }
+  return { suppressed: false };
 }
 
 async function postToDiscord(severity, source, message, context) {

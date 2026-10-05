@@ -14,6 +14,7 @@
 'use strict';
 
 const { getServiceClient }     = require('../../lib/supabase');
+const { fetchAllRows, chunk }  = require('../../lib/coopPaginate');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
@@ -48,19 +49,26 @@ exports.handler = async (event) => {
     const productId = (event.queryStringParameters || {}).product_id;
     if (!productId) return err(400, 'product_id query param is required');
 
-    const { data: investments } = await db.from('coop_member_investments')
+    const investments = await fetchAllRows(() => db.from('coop_member_investments')
       .select('*, coop_members(name, phone_normalized)').eq('product_id', productId).eq('coop_id', coopId)
-      .order('purchased_at', { ascending: false });
+      .order('purchased_at', { ascending: false }).order('id'));
 
-    const withAccrued = await Promise.all((investments || []).map(async (inv) => {
-      const { data: accruals } = await db.from('coop_investment_accruals').select('amount_kobo').eq('member_investment_id', inv.id);
-      const totalAccruedKobo = (accruals || []).reduce((s, a) => s + a.amount_kobo, 0);
+    // One batched read for every investment's accruals - this used to fire one query PER investment, all at once.
+    const accruedByInvestment = new Map();
+    for (const ids of chunk(investments.map(i => i.id))) {
+      const accruals = await fetchAllRows(() => db.from('coop_investment_accruals')
+        .select('member_investment_id, amount_kobo').in('member_investment_id', ids).order('id'));
+      for (const a of accruals) accruedByInvestment.set(a.member_investment_id, (accruedByInvestment.get(a.member_investment_id) || 0) + a.amount_kobo);
+    }
+
+    const withAccrued = investments.map((inv) => {
+      const totalAccruedKobo = accruedByInvestment.get(inv.id) || 0;
       return {
         id: inv.id, member_name: inv.coop_members?.name || inv.coop_members?.phone_normalized || 'Unknown',
         units_purchased: inv.units_purchased, principal_kobo: inv.principal_kobo, maturity_date: inv.maturity_date,
         status: inv.status, auto_reinvest: inv.auto_reinvest, total_accrued_kobo: totalAccruedKobo,
       };
-    }));
+    });
 
     return ok({ investments: withAccrued });
   }

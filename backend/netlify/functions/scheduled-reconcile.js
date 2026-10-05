@@ -50,13 +50,16 @@ exports.handler = async () => {
       .select('*', { count: 'exact', head: true })
       .eq('resolved', false);
     if ((count || 0) > 0) {
-      alertsRaised++;
-      await logAlert(db, {
+      // A standing condition re-checked every 4 hours: remind once a day, not six times a day. The count is in the
+      // message, so a NEW unresolved event is a different message and alerts straight away.
+      const r = await logAlert(db, {
         severity: 'WARNING',
         source:   SOURCE,
         message:  `${count} unresolved fraud event(s) pending review`,
         context:  { open_fraud_count: count },
+        dedupeHours: 24,
       });
+      if (!r.suppressed) alertsRaised++;
     }
   } catch (e) {
     console.error('[scheduled-reconcile] fraud check failed:', e.message);
@@ -70,13 +73,14 @@ exports.handler = async () => {
       .eq('status', 'PENDING')
       .lt('requested_at', cutoff);
     if ((count || 0) > 0) {
-      alertsRaised++;
-      await logAlert(db, {
+      const r = await logAlert(db, {
         severity: 'INFO',
         source:   SOURCE,
         message:  `${count} agent MFB change request(s) pending review for over 48 hours`,
         context:  { stale_request_count: count },
+        dedupeHours: 24, // same standing-condition reminder as above: once a day, not every run
       });
+      if (!r.suppressed) alertsRaised++;
     }
   } catch (e) {
     // Table may not exist in all environments — non-fatal
