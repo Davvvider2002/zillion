@@ -30,7 +30,6 @@
  "netlify/functions/coop-portal-payroll-import.js": 1,
  "netlify/functions/coop-portal-payroll-run.js": 2,
  "netlify/functions/coop-portal-record-dividend-payout.js": 1,
- "netlify/functions/coop-portal-record-investment.js": 1,
  "netlify/functions/coop-portal-staff-loan-report.js": 1,
  "netlify/functions/coop-portal-staff-loans.js": 1,
  "netlify/functions/coop-portal-users.js": 1,

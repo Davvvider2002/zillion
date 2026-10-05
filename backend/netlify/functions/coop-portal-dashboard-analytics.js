@@ -20,7 +20,6 @@
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety } = require('../../lib/coopPortalAuth');
-const { fetchAllRows } = require('../../lib/coopPaginate');
 
 const MONTHS_BACK = 6;
 
@@ -56,65 +55,25 @@ exports.handler = async (event) => {
   if (!resolved.ok) return err(resolved.status, resolved.error);
   const coopId = resolved.society.coop_id;
 
-  // Everything past this point was previously unguarded - any one query failing (a transient Supabase
-  // error, an RLS issue, anything) threw all the way out of the handler uncaught, which Netlify reports to
-  // the browser as a bare 502 with no detail at all, rather than a readable error. Each step below is now
-  // labeled, so a failure says WHICH part broke instead of just "502".
+  // One database call does all of it. This used to download every member, every savings transaction, every loan and every
+  // dues payment the society had ever recorded (1,000 rows per request, offset-paged) and total them in JavaScript - which
+  // a society with ~100k+ transactions could not finish within the function time limit. The database returns just the
+  // handful of numbers the charts need (see coop_dashboard_analytics in db/migrations/2026-10-05_scale_aggregates.sql).
   try {
     const months = buildLastNMonths(MONTHS_BACK);
-    const monthIndexByKey = new Map(months.map((m, i) => [m.key, i]));
-    const windowStart = new Date(months[0].key + '-01');
+    const { data, error } = await db.rpc('coop_dashboard_analytics', { p_coop_id: coopId, p_since: `${months[0].key}-01` });
+    if (error) return err(500, `Failed loading analytics: ${error.message}`);
+    const a = data || {};
 
-    // Member growth - new activations per month, plus a running
-    // cumulative total so the chart can show either.
-    let members;
-    try {
-      members = await fetchAllRows(() => db.from('coop_members').select('activated_at').eq('coop_id', coopId).order('id'));
-    } catch (e) { return err(500, `Failed loading member growth data: ${e.message}`); }
-    const newMembersByMonth = new Array(months.length).fill(0);
-    let membersBeforeWindow = 0;
-    for (const m of (members || [])) {
-      if (!m.activated_at) continue;
-      const d = new Date(m.activated_at);
-      const idx = monthIndexByKey.get(monthKey(d));
-      if (idx !== undefined) newMembersByMonth[idx]++;
-      else if (d < windowStart) membersBeforeWindow++;
-    }
-    let cumulative = membersBeforeWindow;
+    const newMembersByMonth = months.map(m => Number((a.members_by_month || {})[m.key]) || 0);
+    let cumulative = Number(a.members_before_window) || 0;
     const cumulativeMembersByMonth = newMembersByMonth.map(n => (cumulative += n));
+    const savingsByMonth = months.map(m => Number((a.savings_by_month || {})[m.key]) || 0);
 
-    // Savings growth - total deposited per month.
-    let savingsTxns;
-    try {
-      savingsTxns = await fetchAllRows(() => db.from('coop_savings_transactions').select('amount_kobo, recorded_at').eq('coop_id', coopId).order('id'));
-    } catch (e) { return err(500, `Failed loading savings data: ${e.message}`); }
-    const savingsByMonth = new Array(months.length).fill(0);
-    for (const t of (savingsTxns || [])) {
-      const idx = monthIndexByKey.get(monthKey(new Date(t.recorded_at)));
-      if (idx !== undefined) savingsByMonth[idx] += (t.amount_kobo || 0);
-    }
-
-    // Loan portfolio breakdown by status - a snapshot, not a
-    // time-series, so it's just current counts and principal totals.
-    let loans;
-    try {
-      loans = await fetchAllRows(() => db.from('coop_loans').select('status, principal_kobo').eq('coop_id', coopId).order('id'));
-    } catch (e) { return err(500, `Failed loading loan portfolio data: ${e.message}`); }
     const loanBreakdown = {};
-    for (const l of (loans || [])) {
-      if (!loanBreakdown[l.status]) loanBreakdown[l.status] = { count: 0, principal_kobo: 0 };
-      loanBreakdown[l.status].count++;
-      loanBreakdown[l.status].principal_kobo += (l.principal_kobo || 0);
+    for (const [status, v] of Object.entries(a.loan_status || {})) {
+      loanBreakdown[status] = { count: Number(v.count) || 0, principal_kobo: Number(v.principal_kobo) || 0 };
     }
-
-    // Dues collected - total across every member, all time (a running
-    // total, not scoped to the current year, since it's shown as a
-    // single summary figure, not broken down by year on this chart).
-    let duesTxns;
-    try {
-      duesTxns = await fetchAllRows(() => db.from('coop_dues_transactions').select('amount_kobo').eq('coop_id', coopId).order('id'));
-    } catch (e) { return err(500, `Failed loading dues data: ${e.message}`); }
-    const totalDuesPaidKobo = (duesTxns || []).reduce((s, d) => s + (d.amount_kobo || 0), 0);
 
     return ok({
       months: months.map(m => m.label),
@@ -122,7 +81,7 @@ exports.handler = async (event) => {
       cumulative_members_by_month: cumulativeMembersByMonth,
       savings_growth_kobo: savingsByMonth,
       loan_status_breakdown: loanBreakdown,
-      total_dues_paid_kobo: totalDuesPaidKobo,
+      total_dues_paid_kobo: Number(a.total_dues_kobo) || 0,
     });
   } catch (e) {
     return err(500, `Unexpected error building analytics: ${e.message}`);

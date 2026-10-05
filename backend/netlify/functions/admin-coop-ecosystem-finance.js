@@ -17,6 +17,7 @@
 'use strict';
 
 const { getServiceClient }       = require('../../lib/supabase');
+const { fetchAllRows }           = require('../../lib/coopPaginate'); // revenue totals: a truncated read here is a silently WRONG revenue figure
 const { verifyJWT, requireRole } = require('../../lib/validators');
 
 exports.handler = async (event) => {
@@ -32,10 +33,10 @@ exports.handler = async (event) => {
 
   const db = getServiceClient();
 
-  const { data: societies } = await db.from('coop_societies')
-    .select('coop_id, name, subscription_plan, subscription_cycle, subscription_status, status');
-  const { data: payments } = await db.from('coop_subscription_payments')
-    .select('coop_id, amount_kobo, type, status, paid_at').eq('status', 'success').order('paid_at', { ascending: false });
+  const societies = await fetchAllRows(() => db.from('coop_societies')
+    .select('coop_id, name, subscription_plan, subscription_cycle, subscription_status, status').order('coop_id'));
+  const payments = await fetchAllRows(() => db.from('coop_subscription_payments')
+    .select('coop_id, amount_kobo, type, status, paid_at').eq('status', 'success').order('paid_at', { ascending: false }).order('id'));
 
   const paymentsByCoop = new Map();
   for (const p of (payments || [])) {

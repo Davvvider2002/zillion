@@ -17,6 +17,7 @@
 'use strict';
 
 const { fetchAllRows, chunk } = require('./coopPaginate');
+const { sumMapViaRpc } = require('./coopTotals');
 const { buildDuesOwing } = require('./coopDues');
 const { buildLoanRepaymentStatus } = require('./coopLoanRepaymentStatus');
 
@@ -33,13 +34,15 @@ function groupBy(rows, keyOf) {
 
 /** members + dues owing (and optionally share capital). */
 async function enrichMembers(db, coopId, members, society, { withShareCapital = false } = {}) {
-  const readDues = society && society.dues_amount_kobo > 0
-    ? fetchAllRows(() => db.from('coop_dues_transactions').select('member_id, amount_kobo').eq('coop_id', coopId).order('id')) : Promise.resolve([]);
-  const readShares = withShareCapital
-    ? fetchAllRows(() => db.from('coop_share_transactions').select('member_id, amount_kobo').eq('coop_id', coopId).order('id')) : Promise.resolve([]);
-  const [duesTxns, shareTxns] = await Promise.all([readDues, readShares]);
-  const paid = sumBy(duesTxns, r => r.member_id, r => r.amount_kobo || 0);
-  const shares = sumBy(shareTxns, r => r.member_id, r => r.amount_kobo || 0);
+  // Totals come from the database (one small answer each); the paged row-by-row read below is only the fallback for a
+  // database that doesn't have the aggregate functions installed yet. See lib/coopTotals.js for why.
+  const duesWanted = !!(society && society.dues_amount_kobo > 0);
+  const [paid, shares] = await Promise.all([
+    !duesWanted ? new Map() : (async () => (await sumMapViaRpc(db, 'coop_sum_dues_by_member', coopId))
+      || sumBy(await fetchAllRows(() => db.from('coop_dues_transactions').select('member_id, amount_kobo').eq('coop_id', coopId).order('id')), r => r.member_id, r => r.amount_kobo || 0))(),
+    !withShareCapital ? new Map() : (async () => (await sumMapViaRpc(db, 'coop_sum_shares_by_member', coopId))
+      || sumBy(await fetchAllRows(() => db.from('coop_share_transactions').select('member_id, amount_kobo').eq('coop_id', coopId).order('id')), r => r.member_id, r => r.amount_kobo || 0))(),
+  ]);
   return (members || []).map(m => {
     const out = { ...m, dues: buildDuesOwing(m, society, paid.get(m.id) || 0) };
     if (withShareCapital) out.share_capital_kobo = shares.get(m.id) || 0;
@@ -49,8 +52,8 @@ async function enrichMembers(db, coopId, members, society, { withShareCapital = 
 
 /** plans + saved so far. A member's opening balance is credited only to their earliest plan, so it is never double-counted. */
 async function enrichPlans(db, coopId, plans, members) {
-  const txns = await fetchAllRows(() => db.from('coop_savings_transactions').select('savings_plan_id, amount_kobo').eq('coop_id', coopId).order('id'));
-  const savedByPlan = sumBy(txns, r => r.savings_plan_id, r => r.amount_kobo || 0);
+  const savedByPlan = (await sumMapViaRpc(db, 'coop_sum_savings_by_plan', coopId))
+    || sumBy(await fetchAllRows(() => db.from('coop_savings_transactions').select('savings_plan_id, amount_kobo').eq('coop_id', coopId).order('id')), r => r.savings_plan_id, r => r.amount_kobo || 0);
   const memberById = new Map((members || []).map(m => [m.id, m]));
   const earliest = {};
   for (const p of (plans || [])) {

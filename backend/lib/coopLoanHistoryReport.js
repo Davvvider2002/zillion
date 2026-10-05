@@ -16,6 +16,7 @@
 'use strict';
 
 const { computeLoanRepaymentStatus } = require('./coopLoanRepaymentStatus');
+const { fetchAllRows, chunk } = require('./coopPaginate');
 
 /**
  * @param {object} db  Supabase client
@@ -25,7 +26,7 @@ const { computeLoanRepaymentStatus } = require('./coopLoanRepaymentStatus');
 async function computeLoanHistoryReport(db, coopId) {
   const { data: society } = await db.from('coop_societies').select('late_fee_type, late_fee_value, loan_late_fee_type, loan_late_fee_value').eq('coop_id', coopId).maybeSingle();
 
-  const { data: loans } = await db.from('coop_loans')
+  const loans = await fetchAllRows(() => db.from('coop_loans')
     .select(`
       id, member_id, principal_kobo, interest_rate_percent, interest_kobo, total_repayable_kobo, repayment_months, monthly_repayment_kobo, status,
       requested_at, approved_at, disbursed_at, rejection_reason,
@@ -33,9 +34,12 @@ async function computeLoanHistoryReport(db, coopId) {
       borrower:coop_members!coop_loans_member_id_fkey(id, name, phone_normalized)
     `)
     .eq('coop_id', coopId)
-    .order('requested_at', { ascending: false });
+    .order('requested_at', { ascending: false }).order('id'));   // complete list: an unpaged read stops at 1,000 loans
 
-  const loansWithDetail = await Promise.all((loans || []).map(async (l) => {
+  // Bounded parallelism: a query set per loan fired all at once (a society can have thousands of loans) exhausts the
+  // database's connections; 25 at a time is quick and safe.
+  const loansWithDetail = [];
+  for (const batch of chunk(loans, 25)) loansWithDetail.push(...await Promise.all(batch.map(async (l) => {
     let repayment = null;
     let repayments = [];
     if (['DISBURSED', 'REPAYING', 'COMPLETED'].includes(l.status)) {
@@ -64,7 +68,7 @@ async function computeLoanHistoryReport(db, coopId) {
       repayments,
       _member: l.borrower,
     };
-  }));
+  })));
 
   // Group by member — one row per member with all their loans nested,
   // rather than a flat loan list, since "member by member" was the
