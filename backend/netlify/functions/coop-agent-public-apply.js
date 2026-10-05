@@ -18,6 +18,7 @@
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
+const { limitByIp, tooManyRequests } = require('../../lib/publicRateLimit');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -52,6 +53,12 @@ exports.handler = async (event) => {
 
   const phone = normalisePhone(rawPhone);
   const db = getServiceClient();
+
+  // An applicant who already has an application waiting needs no second one - and nobody needs fifty.
+  const { data: pending } = await db.from('coop_agent_applications').select('id').eq('phone', phone).eq('status', 'PENDING').limit(1);
+  if (pending && pending.length) return err(409, 'We already have your application and it is waiting for review. Zillion Admin will email you the decision.');
+  const ipLimit = await limitByIp(db, event, 'coop-agent-apply', { windowMinutes: 24 * 60, maxAttempts: 5, lockoutMinutes: 24 * 60 });
+  if (!ipLimit.allowed) return tooManyRequests(ipLimit.retryAfterSeconds, 'applications');
 
   const { data: application, error } = await db.from('coop_agent_applications').insert({
     name, phone, email, address, office_location: officeLocation,

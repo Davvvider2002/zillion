@@ -34,6 +34,7 @@
 'use strict';
 
 const { getServiceClient } = require('../../lib/supabase');
+const { limitByIp, limitByKey, tooManyRequests } = require('../../lib/publicRateLimit');
 const { calculateFees } = require('../../lib/coopFees');
 
 function normalisePhone(raw) {
@@ -65,6 +66,12 @@ exports.handler = async (event) => {
 
   const phone = normalisePhone(rawPhone);
   const db = getServiceClient();
+
+  // Public, creates an application row and a payment link each call: throttle floods (see lib/publicRateLimit.js).
+  const ipLimit = await limitByIp(db, event, 'ajo-collector-join', { windowMinutes: 60, maxAttempts: 60, lockoutMinutes: 15 });
+  if (!ipLimit.allowed) return tooManyRequests(ipLimit.retryAfterSeconds, 'applications');
+  const phoneLimit = await limitByKey(db, 'ajo-collector-join', phone, { windowMinutes: 60, maxAttempts: 6, lockoutMinutes: 30 });
+  if (!phoneLimit.allowed) return tooManyRequests(phoneLimit.retryAfterSeconds, 'attempts for this phone number');
 
   const { data: settings } = await db.from('ajo_collector_platform_settings').select('joining_fee_kobo').eq('id', true).maybeSingle();
   if (!settings) return err(503, 'Collector recruitment is not open yet — Zillion has not set a registration fee. Contact support.');

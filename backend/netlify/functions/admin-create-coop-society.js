@@ -33,6 +33,7 @@ const { verifyJWT, requireRole } = require('../../lib/validators');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
 const { auditLog }               = require('../../lib/auditLog');
 const { computeSubscriptionTotal } = require('../../lib/coopPricing');
+const { findNameConflict, isNameKeyViolation } = require('../../lib/coopSocietyName');
 
 const VALID_PLANS = ['launch', 'growth', 'scale'];
 const VALID_CYCLES = ['monthly', 'yearly'];
@@ -121,6 +122,10 @@ exports.handler = async (event) => {
   const { data: existingMerchant } = await db.from('merchants').select('merchant_id').eq('merchant_id', merchantId).maybeSingle();
   if (existingMerchant) return err(409, `A merchant already exists for this phone number (${merchantId}) — choose a different number or use the existing account.`);
 
+  // One name, one live society (see lib/coopSocietyName.js). Staff get told WHICH society holds the name.
+  const nameCheck = await findNameConflict(db, name);
+  if (nameCheck.conflict) return err(409, `A society with this name (or a near-identical one) already exists: ${nameCheck.coopId}. Add a distinguishing word such as the town, or open the existing society instead.`);
+
   let zillionId = null;
   try { zillionId = await resolveOrCreateZillionId(db, phone, 'merchant'); }
   catch (e) { console.warn('[admin-create-coop-society] zillion identity link failed (non-fatal):', e.message); }
@@ -172,6 +177,7 @@ exports.handler = async (event) => {
     // Clean up the merchant we just created rather than leave an
     // orphaned, non-functional merchant record with no society behind it.
     await db.from('merchants').delete().eq('merchant_id', merchantId);
+    if (isNameKeyViolation(societyErr)) return err(409, 'A society with this name (or a near-identical one) was registered a moment ago. Add a distinguishing word such as the town.');
     return err(500, `Failed to create the society record: ${societyErr.message}`);
   }
 
