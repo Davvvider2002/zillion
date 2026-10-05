@@ -23,6 +23,7 @@ const { getMemberCapStatus }     = require('../../lib/coopMemberCap');
 const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = require('../../lib/coopTermsAcceptance');
 const { listAddons } = require('../../lib/coopEntitlements');
 const { fetchAllRows, chunk } = require('../../lib/coopPaginate');
+const { bigJsonResponse } = require('../../lib/coopResponse');
 const { enrichMembers, enrichPlans, enrichLoans } = require('../../lib/coopSocietyBulk');
 
 exports.handler = async (event) => {
@@ -109,7 +110,8 @@ exports.handler = async (event) => {
     permissionActions = Array.from(grouped.entries()).map(([permission_key, actions]) => ({ permission_key, actions }));
   }
 
-  return ok({
+  // The one response here that grows with a society's size - see lib/coopResponse.js (compresses only when it must).
+  return bigJsonResponse(event, {
     society,
     is_owner: isOwner,
     permissions,
@@ -129,5 +131,5 @@ exports.handler = async (event) => {
       active_loans_kobo: activeLoansKobo,
     },
     member_plan: await getMemberCapStatus(db, coopId),
-  });
+  }, hdr);
 };
