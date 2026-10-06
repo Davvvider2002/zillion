@@ -5160,6 +5160,126 @@ function parseReconCsv(text) {
   return lines;
 }
 
+// ── Flutterwave ledger ─────────────────────────────────────────────────────────────────────────
+let flwLedger = { includeTest: false, from: '', to: '', report: null };
+const flwKobo = k => '₦' + ((k || 0) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // exact: a ledger must not round to whole naira
+const flwEsc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const FLW_FLAGS = {
+  TEST_MODE: ['Test payment', 'muted'], NO_JOURNAL: ['No journal entry', 'red'], UNBALANCED_JOURNAL: ['Unbalanced entry', 'red'], JOURNAL_DOES_NOT_MATCH_LEDGER: ['Entry ≠ ledger', 'red'],
+  HELD_TOO_LONG: ['Held too long', 'amber'], OWED_BY_ZILLION: ['Owed by Zillion', 'amber'], VARIANCE: ['Variance', 'red'], UNKNOWN_TRANSACTIONS: ['Covers unrecorded payments', 'red'], WRONG_ACCOUNT: ['Different account', 'red'],
+};
+const FLW_PURPOSE = { savings: 'Savings', dues: 'Dues', loan_repayment: 'Loan repayment', share_capital: 'Share capital', investment: 'Investment', joining_fee: 'Joining fee', refund_due: 'Not credited – refund due', settlement: 'Settlement' };
+
+function flwQuery(extra = {}) {
+  const p = new URLSearchParams(); p.set('live', flwLedger.includeTest ? '0' : '1');
+  if (flwLedger.from) p.set('from', flwLedger.from); if (flwLedger.to) p.set('to', flwLedger.to);
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  return p.toString();
+}
+
+async function loadFlutterwaveLedger() {
+  const body = document.getElementById('flw-ledger-body'); if (!body) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-flutterwave-ledger?${flwQuery()}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const data = await res.json();
+    if (!res.ok) { body.innerHTML = `<div class="no-data">${flwEsc(data.error || 'The ledger could not be loaded.')}</div>`; return; }
+    flwLedger.report = data; renderFlutterwaveLedger();
+  } catch (e) {
+    body.innerHTML = `<div class="no-data">Could not load the ledger: ${flwEsc(e.message)} <button class="btn btn-ghost btn-sm" onclick="loadFlutterwaveLedger()">Retry</button></div>`;
+  }
+}
+
+function renderFlutterwaveLedger() {
+  const body = document.getElementById('flw-ledger-body'); const r = flwLedger.report; if (!body || !r) return;
+  const canEdit = hasPortalAction('accounting', 'edit'), sa = r.settlement_account, sm = r.summary;
+  const tile = (label, value, sub, tone) => `<div style="flex:1;min-width:150px;background:var(--ink);border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:19px;font-weight:700;margin-top:4px;${tone ? `color:${tone}` : ''}">${value}</div>${sub ? `<div style="font-size:11.5px;color:var(--muted);margin-top:3px">${sub}</div>` : ''}</div>`;
+
+  const banner = !r.live_key ? `<div style="border:1px solid var(--amber);background:rgba(245,158,11,.1);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:14px">Flutterwave is currently running in <b>test mode</b>. Test payments are recorded, but Flutterwave never settles them, so they are hidden here unless you tick “Include test payments”.</div>` : '';
+
+  const settleSelect = canEdit
+    ? `<select onchange="changeFlwSettlementAccount(this)" style="padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">${sa.options.map(o => `<option value="${flwEsc(o.code)}" ${o.code === sa.books_account_code ? 'selected' : ''}>${flwEsc(o.code)} — ${flwEsc(o.name)}</option>`).join('')}</select>`
+    : `${flwEsc(sa.books_account_code)} — ${flwEsc(sa.books_account_name || '')}`;
+  const tiles = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    ${tile('Held by Flutterwave', flwKobo(sm.balance_kobo), `${sm.held_payments_count} payment(s) awaiting settlement${sm.oldest_held_days ? ` · oldest ${sm.oldest_held_days}d` : ''}`, sm.balance_kobo < 0 ? 'var(--red)' : '')}
+    ${tile('Settled to your bank', flwKobo(sm.total_out_kobo), `of ${flwKobo(sm.total_in_kobo)} collected, all time`)}
+    ${sm.owed_by_zillion_count ? tile('Owed to you by Zillion', flwKobo(sm.owed_by_zillion_kobo), `${sm.owed_by_zillion_count} bank transfer(s) received by Zillion on your behalf`, 'var(--amber)') : ''}
+  </div>
+  <div style="font-size:13px;margin-bottom:14px;padding:10px 14px;border:1px solid var(--line);border-radius:10px">
+    <b>Settlement account</b> — Flutterwave pays out to <b>${flwEsc(sa.bank_name || '—')}</b>${sa.account_number ? ` · ${flwEsc(sa.account_number)}` : ''}${sa.bank_code ? ` (bank ${flwEsc(sa.bank_code)})` : ''}.
+    Recorded in your books as ${settleSelect}${!sa.books_account_selected ? ` <span class="pill pill-amber">default — confirm it</span>` : ''}
+  </div>`;
+
+  const checks = `<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Matching &amp; integrity ${r.all_ok ? '<span class="pill pill-green">all clear</span>' : '<span class="pill pill-red">needs attention</span>'}</div>
+    ${r.checks.map(c => `<div style="font-size:13px;padding:4px 0;display:flex;gap:8px"><span style="width:16px;font-weight:700;color:${c.ok === true ? 'var(--green-lt)' : c.ok === false ? 'var(--red)' : 'var(--muted)'}">${c.ok === true ? '✓' : c.ok === false ? '✗' : '?'}</span><span>${flwEsc(c.label)}${c.detail ? `<div style="color:${c.ok === false ? 'var(--red)' : 'var(--muted)'};font-size:12px">${flwEsc(c.detail)}</div>` : ''}</span></div>`).join('')}</div>`;
+
+  const controls = `<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
+    <div class="field" style="margin:0"><label>From</label><input type="date" id="flw-from" value="${flwEsc(flwLedger.from)}" onchange="applyFlwDates()"></div>
+    <div class="field" style="margin:0"><label>To</label><input type="date" id="flw-to" value="${flwEsc(flwLedger.to)}" onchange="applyFlwDates()"></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;text-transform:none;letter-spacing:normal;margin-bottom:8px"><input type="checkbox" ${flwLedger.includeTest ? 'checked' : ''} onchange="toggleFlwTest(this)"> Include test payments</label>
+  </div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Showing ${fmtDate(r.from)} – ${fmtDate(r.to)}. Opening balance ${flwKobo(sm.opening_balance_kobo)}.</div>`;
+
+  const rows = r.entries.map(e => {
+    const drcr = e.journal_lines.length ? e.journal_lines.map(l => `<div style="white-space:nowrap;font-size:11.5px"><b>${l.side}</b> ${flwEsc(l.account_code)} ${flwEsc(l.account_name)} ${flwKobo(l.amount_kobo)}</div>`).join('') : '<span style="color:var(--red);font-size:12px">no entry</span>';
+    const status = e.type === 'PAYMENT' ? (e.settled_in ? `<span class="pill pill-green">Settled</span>` : `<span class="pill pill-amber">${e.channel === 'virtual_account' ? 'Owed by Zillion' : 'Held'}</span>`)
+      : `<span class="pill ${e.match_status === 'MATCHED' ? 'pill-green' : 'pill-red'}">${flwEsc((e.match_status || '').replace('_', ' ').toLowerCase())}</span>`;
+    const flags = e.flags.filter(f => FLW_FLAGS[f] && !['OWED_BY_ZILLION'].includes(f)).map(f => `<span class="pill pill-${FLW_FLAGS[f][1]}">${FLW_FLAGS[f][0]}</span>`).join(' ');
+    const who = e.type === 'SETTLEMENT' ? `Settlement ${flwEsc(e.flw_settlement_id)}${e.fees_kobo ? ` <span style="color:var(--muted)">(fee ${flwKobo(e.fees_kobo)})</span>` : ''}` : `${flwEsc(e.counterparty_name || '—')}<div style="font-size:11.5px;color:var(--muted)">${flwEsc(e.counterparty_phone || '')}</div>`;
+    return `<tr>
+      <td style="white-space:nowrap">${fmtDate(e.date)}</td>
+      <td>${flwEsc(FLW_PURPOSE[e.purpose] || e.purpose || '')}${!e.live_mode ? ' <span class="pill pill-muted">test</span>' : ''}</td>
+      <td>${who}</td>
+      <td style="font-size:11.5px;word-break:break-all">${flwEsc(e.reference || '')}</td>
+      <td style="text-align:right;white-space:nowrap">${e.in_kobo ? flwKobo(e.in_kobo) : ''}</td>
+      <td style="text-align:right;white-space:nowrap">${e.out_kobo ? flwKobo(e.out_kobo) : ''}</td>
+      <td style="text-align:right;white-space:nowrap;font-weight:600;${e.balance_kobo < 0 ? 'color:var(--red)' : ''}">${flwKobo(e.balance_kobo)}</td>
+      <td>${drcr}${e.journal_entry_number ? `<div style="font-size:11px;color:var(--muted)">entry #${e.journal_entry_number}</div>` : ''}</td>
+      <td>${status}${flags ? `<div style="margin-top:4px">${flags}</div>` : ''}</td>
+    </tr>`;
+  }).join('');
+  const table = r.entries.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Reference</th><th style="text-align:right">In</th><th style="text-align:right">Out</th><th style="text-align:right">Balance</th><th>Dr / Cr</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<div class="no-data">No Flutterwave payments in this period.</div>`;
+
+  body.innerHTML = banner + tiles + checks + controls + table;
+}
+
+function toggleFlwTest(cb) { flwLedger.includeTest = cb.checked; loadFlutterwaveLedger(); }
+function applyFlwDates() { flwLedger.from = document.getElementById('flw-from').value; flwLedger.to = document.getElementById('flw-to').value; loadFlutterwaveLedger(); }
+
+async function changeFlwSettlementAccount(sel) {
+  try {
+    const res = await fetch(`${API}/coop-portal-flutterwave-ledger`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: JSON.stringify({ action: 'set_settlement_account', account_code: sel.value }) });
+    const data = await res.json();
+    if (!res.ok) { notify(data.error || 'Could not change the settlement account', true); loadFlutterwaveLedger(); return; }
+    notify(`Settlements will now be booked to ${data.account_code} — ${data.account_name}`);
+    loadFlutterwaveLedger();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+
+async function syncFlwSettlements(btn) {
+  btn.disabled = true; const label = btn.textContent; btn.textContent = 'Syncing…';
+  try {
+    const res = await fetch(`${API}/coop-portal-flutterwave-ledger`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: JSON.stringify({ action: 'sync_settlements' }) });
+    const data = await res.json();
+    if (!res.ok) notify(data.error || 'Sync failed', true);
+    else if (data.skipped) notify(`Nothing to sync: ${data.skipped}`);
+    else if (data.errors && data.errors.length) notify(`Sync finished with problems: ${data.errors[0]}`, true);
+    else notify(`Synced: ${data.recorded} new settlement(s) booked${data.variances ? `, ${data.variances} not matching — see the checks below` : ''}`);
+    loadFlutterwaveLedger();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+  btn.disabled = false; btn.textContent = label;
+}
+
+async function exportFlwLedgerCsv() {
+  try {
+    const res = await fetch(`${API}/coop-portal-flutterwave-ledger?${flwQuery({ format: 'csv' })}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); notify(d.error || 'Export failed', true); return; }
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a'); a.href = url; a.download = 'flutterwave-ledger.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+
 async function renderAccounting() {
   const el = document.getElementById('view-accounting');
   const hasAccounting = (portalData.addons || []).some(a => a.addon_key === 'accounting');
@@ -5199,6 +5319,11 @@ async function fetchJournalEntries() {
 }
 
 function renderAccountingContent() {
+  renderAccountingContentBase();
+  loadFlutterwaveLedger();
+}
+
+function renderAccountingContentBase() {
   const el = document.getElementById('view-accounting');
   const baseCurrency = portalData.society.base_currency || 'NGN';
   el.innerHTML = `
@@ -5239,6 +5364,16 @@ function renderAccountingContent() {
         <div class="field" style="flex:1;margin-bottom:0"><label>To</label><input type="date" id="report-end-date" onchange="loadFinancialReport()"></div>
       </div>
       <div id="report-content">${accountingOpeningDone ? '<div class="no-data">Select a report above.</div>' : '<div class="no-data">Set opening balances first.</div>'}</div>
+    </div>
+    <div class="card" id="flw-ledger-card">
+      <div class="card-title">Flutterwave ledger
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="exportFlwLedgerCsv()">⬇ Export CSV</button>
+          ${hasPortalAction('accounting', 'edit') ? `<button class="btn btn-primary btn-sm" onclick="syncFlwSettlements(this)">↻ Sync settlements</button>` : ''}
+        </div>
+      </div>
+      <div class="card-sub">Every payment Flutterwave collects for your society, every settlement it pays into your bank, and the journal entries behind each. The balance is what Flutterwave is still holding for you.</div>
+      <div id="flw-ledger-body"><div class="no-data">Loading…</div></div>
     </div>
     <div class="card">
       <div class="card-title">Chart of accounts

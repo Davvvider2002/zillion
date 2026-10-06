@@ -35,6 +35,7 @@ const SUB_TYPES = {
 const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1000', name: 'Cash', type: 'ASSET', subType: 'bank_cash' },
   { code: '1010', name: 'Bank Account', type: 'ASSET', subType: 'bank_cash' },
+  { code: '1020', name: 'Flutterwave Collections (Unsettled)', type: 'ASSET', isSystem: true, subType: 'other_assets' },
   { code: '1100', name: 'Loan Principal Receivable', type: 'ASSET', subType: 'debtors' },
   { code: '1110', name: 'Loan Interest Receivable', type: 'ASSET', subType: 'debtors' },
   { code: '1150', name: 'Dues Receivable', type: 'ASSET', isSystem: true, subType: 'debtors' },
@@ -53,6 +54,7 @@ const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '3910', name: 'Retained Earnings', type: 'EQUITY', subType: 'reserves_surplus' },
   { code: '4000', name: 'Interest Income', type: 'INCOME', subType: 'direct_income' },
   { code: '4100', name: 'Dues Income', type: 'INCOME', subType: 'direct_income' },
+  { code: '4120', name: 'Joining & Registration Fees', type: 'INCOME', isSystem: true, subType: 'direct_income' },
   { code: '4150', name: 'Interest Income on Loans', type: 'INCOME', subType: 'direct_income' },
   { code: '4160', name: 'Loan Penalty Income', type: 'INCOME', subType: 'indirect_income' },
   { code: '4200', name: 'Other Income', type: 'INCOME', subType: 'indirect_income' },

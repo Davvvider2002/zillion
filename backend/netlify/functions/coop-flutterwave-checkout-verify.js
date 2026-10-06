@@ -29,6 +29,8 @@ const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAcc
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { settleLoanAfterRepayment } = require('../../lib/coopLoanCompletion');
 const { recordSavingsPaymentJournalEntry, recordSharePaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
+const { recordFlutterwavePayment, recordUncreditedPayment } = require('../../lib/coopFlutterwaveLedger');
+const { FLW_CLEARING_CODE, BANK_CODE } = require('../../lib/coopFlutterwaveAccounts');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -94,10 +96,18 @@ exports.handler = async (event) => {
     return ok({ success: false, message: 'Payment could not be verified as successful.', _debug: v });
   }
 
+  // Everything the Flutterwave ledger needs to record this payment (see lib/coopFlutterwaveLedger.js). Recording never blocks crediting.
+  const flwCtx = {
+    coopId: session.coop_id, memberId: session.member_id, amountKobo: session.amount_kobo, grossKobo: totalKobo,
+    flwTransactionId: String(transactionId), flwTxRef: txRef, occurredAt: v.created_at || new Date().toISOString(),
+    providerData: { flw_ref: v.flw_ref, payment_type: v.payment_type, app_fee: v.app_fee, amount_settled: v.amount_settled, charged_amount: v.charged_amount },
+  };
+
   if (session.type === 'investment') {
     const { data: product } = await db.from('coop_investment_products').select('*').eq('id', session.product_id).maybeSingle();
     if (!product) {
       await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+      await recordUncreditedPayment(db, { ...flwCtx, purpose: 'investment', reason: 'the investment product no longer exists' });
       return ok({ success: false, message: `Payment confirmed but this product no longer exists. Contact support with reference ${txRef} for a refund.` });
     }
 
@@ -108,6 +118,7 @@ exports.handler = async (event) => {
     // only ever an early, honest rejection, never a guarantee.
     if (product.product_type === 'general' && session.units > (product.total_units - product.units_sold)) {
       await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+      await recordUncreditedPayment(db, { ...flwCtx, purpose: 'investment', reason: 'the product sold out before the payment cleared' });
       return ok({ success: false, message: `Payment confirmed, but this product sold out before your payment cleared. Contact support with reference ${txRef} for a refund - your investment was not created.` });
     }
 
@@ -131,20 +142,23 @@ exports.handler = async (event) => {
     await db.from('coop_investment_products').update({ units_sold: product.units_sold + session.units }).eq('id', session.product_id);
     await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
 
+    let investEntryId = null;
     try {
       if (await accountingIsReady(db, session.coop_id)) {
-        const accounts = await getAccounts(db, session.coop_id, ['1010', '2210']);
-        const bank = accounts['1010'];
+        const accounts = await getAccounts(db, session.coop_id, [FLW_CLEARING_CODE, BANK_CODE, '2210']);
+        const bank = accounts[FLW_CLEARING_CODE] || accounts[BANK_CODE];   // held by Flutterwave until settled; Bank only if a chart lacks 1020
         const investmentPayable = accounts['2210'];
         if (bank && investmentPayable) {
           const { data: memberRow } = await db.from('coop_members').select('name').eq('id', session.member_id).maybeSingle();
           const memberLabel = memberRow?.name ? `${memberRow.name} (Member #${String(session.member_id).slice(0, 8)})` : `Member #${String(session.member_id).slice(0, 8)}`;
-          await postEntry(db, session.coop_id, `Investment purchase — ${product.name} — ${memberLabel}`, `checkout:flutterwave_v3`, bank, investmentPayable, session.amount_kobo);
+          const posted = await postEntry(db, session.coop_id, `Investment purchase — ${product.name} — ${memberLabel}`, `checkout:flutterwave_v3`, bank, investmentPayable, session.amount_kobo);
+          if (posted && posted.booked) investEntryId = posted.entry_id;
         }
       }
     } catch (e) {
       console.error('[coop-flutterwave-checkout-verify] accounting post failed (non-fatal):', e.message);
     }
+    await recordFlutterwavePayment(db, { ...flwCtx, purpose: 'investment', journalEntryId: investEntryId });
 
     return ok({
       success: true, type: 'investment', amount_kobo: session.amount_kobo, units: session.units,
@@ -168,6 +182,7 @@ exports.handler = async (event) => {
       // (for instance the loan was fully repaid in the meantime). Record nothing rather
       // than distort the books; say so honestly, with the reference needed to resolve it.
       await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
+      await recordUncreditedPayment(db, { ...flwCtx, purpose: 'loan_repayment', reason: 'the loan is no longer open for repayment' });
       return ok({ success: false, message: `Payment confirmed, but this loan is no longer open for repayment (it may already be fully repaid). Contact support with reference ${txRef} so the payment can be applied or refunded.` });
     }
     loanCtx = loan;
@@ -201,10 +216,12 @@ exports.handler = async (event) => {
   await db.from('coop_checkout_sessions').update({ status: 'completed', flw_transaction_id: transactionId }).eq('tx_ref', txRef);
 
   let loanCompleted = false;
+  let journalEntryId = null;   // the entry that booked this payment, for the Flutterwave ledger
   if (session.type === 'loan_repayment') {
     const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
-    await recordLoanRepaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3',
+    const loanPosted = await recordLoanRepaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3',
       splitPortions.principal_portion_kobo, splitPortions.interest_portion_kobo, borrower ? { id: borrower.id, name: borrower.name } : null);
+    if (loanPosted && loanPosted.booked) journalEntryId = loanPosted.entry_id;
     ({ completed: loanCompleted } = await settleLoanAfterRepayment(db, loanCtx, session.coop_id));
   }
 
@@ -214,13 +231,17 @@ exports.handler = async (event) => {
     const { data: payer } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
     const record = session.type === 'savings' ? recordSavingsPaymentJournalEntry : recordSharePaymentJournalEntry;
     const posted = await record(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3', payer, txRef);
+    if (posted && posted.booked) journalEntryId = posted.entry_id;
     await alertIfNotBooked(db, posted, { source: 'coop-flutterwave-checkout-verify', what: `Online ${session.type === 'savings' ? 'savings' : 'share capital'} payment ${txRef}`, amountKobo: session.amount_kobo });
   }
 
   if (session.type === 'dues') {
     const { data: duesMember } = await db.from('coop_members').select('id, name').eq('id', session.member_id).maybeSingle();
-    await recordDuesPaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3', duesMember ? { id: duesMember.id, name: duesMember.name } : null);
+    const duesPosted = await recordDuesPaymentJournalEntry(db, session.coop_id, session.amount_kobo, 'flutterwave_checkout', 'checkout:flutterwave_v3', duesMember ? { id: duesMember.id, name: duesMember.name } : null);
+    if (duesPosted && duesPosted.booked) journalEntryId = duesPosted.entry_id;
   }
+
+  await recordFlutterwavePayment(db, { ...flwCtx, purpose: session.type, journalEntryId });
 
   return ok({
     success: true,

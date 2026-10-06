@@ -26,6 +26,7 @@ const { getServiceClient } = require('../../lib/supabase');
 const { activateMember }   = require('../../lib/coopActivateMember');
 const { checkMemberCapAllows } = require('../../lib/coopMemberCap');
 const { expectedTotalKobo } = require('../../lib/coopFees');
+const { recordJoiningFeePayment, recordUncreditedPayment } = require('../../lib/coopFlutterwaveLedger');
 const { logAlert }         = require('../../lib/alerts');
 
 exports.handler = async (event) => {
@@ -79,12 +80,22 @@ exports.handler = async (event) => {
     return ok({ success: false, message: 'Payment could not be verified as successful.', _debug: v });
   }
 
+  // What the Flutterwave ledger needs to record this payment. The joining fee is the society's money (it is split to the
+  // society's sub-account) and was previously not booked in its accounts at all.
+  const flwCtx = {
+    coopId: application.coop_id, amountKobo: application.amount_kobo, grossKobo: totalKobo,
+    flwTransactionId: String(transactionId), flwTxRef: txRef, occurredAt: v.created_at || new Date().toISOString(),
+    memberName: application.name, memberPhone: application.phone,
+    providerData: { flw_ref: v.flw_ref, payment_type: v.payment_type, app_fee: v.app_fee, amount_settled: v.amount_settled },
+  };
+
   // Re-check the cap at the moment of creation, not just at init - a
   // society could have filled up in the time it took this prospect to
   // complete payment.
   const capCheck = await checkMemberCapAllows(db, application.coop_id, 1);
   if (!capCheck.ok) {
     await db.from('coop_join_applications').update({ status: 'FAILED' }).eq('id', application.id);
+    await recordUncreditedPayment(db, { ...flwCtx, purpose: 'joining_fee', reason: 'the society reached its member limit before the payment completed' });
     return ok({ success: false, message: `Payment received, but this society has since reached its member limit. ${capCheck.error} Contact the society admin for a refund.` });
   }
 
@@ -93,6 +104,8 @@ exports.handler = async (event) => {
     openingBalanceKobo: 0, activatedBy: 'public_join_link', postcode: application.postcode,
   });
   if (!result.ok) return err(500, `Payment verified but membership creation failed: ${result.error}. Contact support with reference ${txRef}.`);
+
+  await recordJoiningFeePayment(db, { ...flwCtx, memberId: result.member.id });
 
   const { data: society } = await db.from('coop_societies').select('name').eq('coop_id', application.coop_id).maybeSingle();
 

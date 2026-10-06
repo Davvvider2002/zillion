@@ -24,6 +24,7 @@
 'use strict';
 
 const { accountingIsReady, getAccounts, postEntry } = require('./coopAccountingHelpers');
+const { receiptDebitCode } = require('./coopFlutterwaveAccounts');
 const { logAlert } = require('./alerts');
 
 const CASH = '1000', BANK = '1010', SAVINGS_PAYABLE = '2000', SHARE_CAPITAL = '3000';
@@ -44,9 +45,10 @@ async function postMemberDeposit(db, coopId, { kind, creditCode, amountKobo, sou
     // debitAccount lets a caller who already knows exactly which bank/cash account to use (a society with
     // more than one, picked explicitly - see coop-portal-journal-voucher.js) skip the source-derived default
     // entirely. Every other caller leaves this unset and gets the same CASH/BANK-by-source behavior as always.
-    const debitCode = source === 'cash_in_person' ? CASH : BANK;
-    const accounts = await getAccounts(db, coopId, debitAccount ? [creditCode] : [debitCode, creditCode]);
-    const resolvedDebit = debitAccount || accounts[debitCode];
+    const debitCode = receiptDebitCode(source);   // cash -> Cash; Flutterwave -> 1020 (held by Flutterwave until settled); else Bank
+    const accounts = await getAccounts(db, coopId, debitAccount ? [creditCode] : [debitCode, BANK, creditCode]);
+    // A chart that somehow lacks the clearing account falls back to Bank rather than leaving the payment unbooked.
+    const resolvedDebit = debitAccount || accounts[debitCode] || accounts[BANK];
     if (!resolvedDebit || !accounts[creditCode]) return { booked: false, reason: 'accounts_missing' };
 
     const who = memberLabel(member);
