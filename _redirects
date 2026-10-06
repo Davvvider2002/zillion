@@ -126,6 +126,7 @@
 /api/v1/coop-portal-upload-loan-document  /.netlify/functions/coop-portal-upload-loan-document  200
 /api/v1/coop-portal-loan-override-document  /.netlify/functions/coop-portal-loan-override-document  200
 /api/v1/coop-portal-flutterwave-ledger  /.netlify/functions/coop-portal-flutterwave-ledger  200
+/api/v1/admin-coop-flutterwave-ledger  /.netlify/functions/admin-coop-flutterwave-ledger  200
 /coop-agent           /coop-agent/index.html          200
 /coop-agent/          /coop-agent/index.html          200
 /coop-agent-apply           /coop-agent-apply/index.html          200

@@ -416,6 +416,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-coop-flutterwave-ledger"
+  to   = "/.netlify/functions/admin-coop-flutterwave-ledger"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent"
   to   = "/coop-agent/index.html"
   status = 200

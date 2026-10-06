@@ -91,3 +91,41 @@ GRANT EXECUTE ON FUNCTION coop_flutterwave_ledger_totals(text, timestamptz, bool
 
 -- (for databases created before the channel column existed)
 ALTER TABLE coop_flutterwave_ledger ADD COLUMN IF NOT EXISTS channel text NOT NULL DEFAULT 'checkout' CHECK (channel IN ('checkout','virtual_account'));
+
+-- 7. platform-wide view for Zillion: one row per society, all added up by the database in a single pass (no per-society loop).
+--    Compares the ledger with the books' own balance on 1020 for EVERY society, including one that has books activity but no
+--    ledger rows at all (a payment booked without being ledgered). 'owed' = bank transfers that landed in Zillion's balance.
+CREATE OR REPLACE FUNCTION coop_flutterwave_platform_summary() RETURNS jsonb
+LANGUAGE sql STABLE SET search_path = public AS $$
+  WITH led AS (
+    SELECT coop_id,
+      coalesce(sum(amount_kobo) FILTER (WHERE direction = 'IN'  AND live_mode), 0)::bigint AS in_kobo,
+      coalesce(sum(amount_kobo) FILTER (WHERE direction = 'OUT' AND live_mode), 0)::bigint AS out_kobo,
+      (coalesce(sum(amount_kobo) FILTER (WHERE direction = 'IN'), 0) - coalesce(sum(amount_kobo) FILTER (WHERE direction = 'OUT'), 0))::bigint AS all_modes_balance_kobo,
+      coalesce(sum(amount_kobo) FILTER (WHERE entry_type = 'PAYMENT' AND live_mode AND channel = 'checkout' AND settled_in IS NULL), 0)::bigint AS held_kobo,
+      count(*) FILTER (WHERE entry_type = 'PAYMENT' AND live_mode AND channel = 'checkout' AND settled_in IS NULL) AS held_count,
+      min(occurred_at) FILTER (WHERE entry_type = 'PAYMENT' AND live_mode AND channel = 'checkout' AND settled_in IS NULL) AS oldest_held_at,
+      coalesce(sum(amount_kobo) FILTER (WHERE entry_type = 'PAYMENT' AND live_mode AND channel = 'virtual_account' AND settled_in IS NULL), 0)::bigint AS owed_kobo,
+      count(*) FILTER (WHERE entry_type = 'PAYMENT' AND live_mode AND channel = 'virtual_account' AND settled_in IS NULL) AS owed_count,
+      max(occurred_at) FILTER (WHERE entry_type = 'SETTLEMENT') AS last_settlement_at,
+      count(*) FILTER (WHERE entry_type = 'SETTLEMENT' AND match_status <> 'MATCHED') AS unmatched_settlements,
+      count(*) FILTER (WHERE entry_type = 'SETTLEMENT' AND account_matches = false) AS wrong_account_settlements,
+      count(*) FILTER (WHERE NOT live_mode) AS test_rows,
+      count(*) FILTER (WHERE journal_entry_id IS NULL) AS rows_without_journal
+    FROM coop_flutterwave_ledger GROUP BY coop_id),
+  gl AS (
+    SELECT l.coop_id, sum(CASE WHEN lower(l.line_type) = 'debit' THEN l.base_amount ELSE -l.base_amount END)::bigint AS gl_kobo
+    FROM coop_journal_entry_lines l JOIN coop_chart_of_accounts a ON a.id = l.account_id
+    WHERE a.account_code = '1020' GROUP BY l.coop_id)
+  SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.coop_id), '[]'::jsonb) FROM (
+    SELECT coalesce(led.coop_id, gl.coop_id) AS coop_id,
+      coalesce(led.in_kobo, 0) AS in_kobo, coalesce(led.out_kobo, 0) AS out_kobo,
+      coalesce(led.held_kobo, 0) AS held_kobo, coalesce(led.held_count, 0) AS held_count, led.oldest_held_at,
+      coalesce(led.owed_kobo, 0) AS owed_kobo, coalesce(led.owed_count, 0) AS owed_count, led.last_settlement_at,
+      coalesce(led.unmatched_settlements, 0) AS unmatched_settlements, coalesce(led.wrong_account_settlements, 0) AS wrong_account_settlements,
+      coalesce(led.test_rows, 0) AS test_rows, coalesce(led.rows_without_journal, 0) AS rows_without_journal,
+      coalesce(gl.gl_kobo, 0) AS gl_kobo, (coalesce(gl.gl_kobo, 0) - coalesce(led.all_modes_balance_kobo, 0))::bigint AS difference_kobo
+    FROM led FULL JOIN gl ON gl.coop_id = led.coop_id) t
+$$;
+REVOKE ALL ON FUNCTION coop_flutterwave_platform_summary() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION coop_flutterwave_platform_summary() TO service_role;
