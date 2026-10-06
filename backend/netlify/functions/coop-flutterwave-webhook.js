@@ -40,6 +40,7 @@ const { creditAgentCommissionIfApplicable } = require('../../lib/coopAgentCommis
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
 const { recordFlutterwavePayment } = require('../../lib/coopFlutterwaveLedger');
+const { refreshPayout } = require('../../lib/coopFlutterwavePayouts');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -68,6 +69,24 @@ exports.handler = async (event) => {
   let payload;
   try { payload = JSON.parse(event.body || '{}'); }
   catch { return reject(400, 'Invalid JSON'); }
+
+  // A transfer WE sent (a payout to a society) finished or failed. The payload is only a prompt: the real status is asked of
+  // Flutterwave itself (as their documentation advises), so a forged or stale notification cannot move a payout. Anything that is
+  // not one of our own payout references is acknowledged and ignored.
+  if (payload.event === 'transfer.completed') {
+    const t = payload.data || payload.transfer || {};
+    if (t.reference && String(t.reference).startsWith('ZPO-')) {
+      try {
+        const db = getServiceClient();
+        const { data: payout } = await db.from('coop_flutterwave_payouts').select('id').eq('payout_ref', t.reference).maybeSingle();
+        if (payout) await refreshPayout(db, payout.id);
+      } catch (e) {
+        console.error('[coop-flutterwave-webhook] payout refresh failed:', e.message);
+        return reject(500, 'Payout update failed, will retry');
+      }
+    }
+    return ok({ handled: 'transfer' });
+  }
 
   // Only interested in completed bank-transfer charges (virtual account
   // payments land as charge.completed with payment_type:'account') —

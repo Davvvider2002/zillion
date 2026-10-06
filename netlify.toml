@@ -25,6 +25,10 @@
 # resumable-cursor design (same 30s ceiling as scheduled-reconcile). Needs BACKUP_ENCRYPTION_KEY set, or it
 # skips itself and raises one alert rather than writing unencrypted backups.
 # Daily: pull each society's Flutterwave settlements and book/match them (see the file header).
+# Daily: propose society payouts for money Zillion holds on their behalf, chase processing ones (never approves anything).
+[functions."scheduled-flutterwave-payouts"]
+  schedule = "0 7 * * *"
+
 [functions."scheduled-flutterwave-settlements"]
   schedule = "30 6 * * *"
 
@@ -418,6 +422,11 @@
 [[redirects]]
   from = "/api/v1/admin-coop-flutterwave-ledger"
   to   = "/.netlify/functions/admin-coop-flutterwave-ledger"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-flutterwave-payouts"
+  to   = "/.netlify/functions/admin-coop-flutterwave-payouts"
   status = 200
 
 [[redirects]]

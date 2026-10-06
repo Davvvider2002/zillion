@@ -892,6 +892,13 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="card-sub">What Flutterwave has collected for each society's members: waiting to settle, owed on by Zillion, and which societies need attention. Open a society's own Accounting for its full ledger.</div>
       <div id="society-collections-content"><div class="no-data">Loading...</div></div>
     </div>
+    <div class="card" style="margin-bottom:16px" id="payouts-card">
+      <div class="card-title">Payouts to Societies
+        <button class="rbtn" onclick="loadPayouts()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">Bank-transfer money Zillion holds for societies is paid out here. Every payout is approved by people before any money moves, and approving needs a fresh authenticator code.</div>
+      <div id="payouts-content"><div class="no-data">Loading...</div></div>
+    </div>
     <div id="coop-subplan-setup-banner" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div>
         <div style="font-weight:700;font-size:14px">Subscription billing isn't set up yet</div>
@@ -1769,6 +1776,20 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:10px">
       <button onclick="closeSendNotificationModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitSendNotification()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payout action modal -->
+<div id="payout-action-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:460px;width:100%;max-height:90vh;overflow:auto">
+    <div id="pa-title" style="font-size:17px;font-weight:700;margin-bottom:12px"></div>
+    <div id="pa-summary" style="font-size:13px;margin-bottom:14px"></div>
+    <div id="pa-fields"></div>
+    <div id="pa-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closePayoutAction()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button id="pa-submit" onclick="submitPayoutAction()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Confirm</button>
     </div>
   </div>
 </div>
@@ -3650,6 +3671,108 @@ async function setupSubscriptionPlans() {
   }
 }
 
+// ── Payouts to societies ─────────────────────────────────────────────────────────────────────────────
+let payoutData = null, payoutAction = null;
+const poKobo = k => '₦' + ((k || 0) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const poEsc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const PO_PILL = { PENDING_APPROVAL: ['Awaiting approval', '#e67e22'], APPROVED: ['Approved', '#3498db'], PROCESSING: ['Sending / processing', '#8e44ad'], PAID: ['Paid', 'var(--g)'], FAILED: ['Failed', '#e74c3c'], REJECTED: ['Rejected', '#e74c3c'], CANCELLED: ['Cancelled', 'var(--tx3)'] };
+const PO_NAME = { MATCH: ['✓ name verified', 'var(--g)'], MISMATCH: ['⚠ name does NOT match', '#e74c3c'], UNVERIFIED: ['? name not verified', '#e67e22'] };
+
+async function loadPayouts() {
+  const el = document.getElementById('payouts-content'); if (!el) return;
+  try {
+    const res = await fetch(`${API}/admin-coop-flutterwave-payouts`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const d = await res.json();
+    if (!res.ok) { el.innerHTML = `<div class="no-data">${poEsc(d.error || 'Failed to load')}</div>`; return; }
+    payoutData = d; renderPayouts();
+  } catch (e) { el.innerHTML = `<div class="no-data">Network error: ${poEsc(e.message)} <button class="rbtn" onclick="loadPayouts()">Retry</button></div>`; }
+}
+
+function renderPayouts() {
+  const el = document.getElementById('payouts-content'), d = payoutData; if (!el || !d) return;
+  const c = d.config, me = d.you;
+  const mode = c.automatic_enabled && c.live_key
+    ? `<div style="background:rgba(46,204,113,.1);border:1px solid var(--g);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px"><b>Automatic transfers are ON.</b> A fully approved payout is sent to the society's bank straight away.</div>`
+    : `<div style="background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px"><b>Automatic transfers are OFF.</b> ${c.live_key ? 'Set ZILLION_PAYOUTS_ENABLED=true to turn them on.' : 'Flutterwave is not in live mode.'} Approved payouts wait, and you can pay them yourself and record it with “Mark paid manually”.</div>`;
+  const rules = `<div style="font-size:11.5px;color:var(--tx3);margin-bottom:12px">Rules: the person who prepares a payout can never approve it · ${poKobo(c.dual_approval_kobo)} and above needs two approvers · limits: ${poKobo(c.min_kobo)} minimum, ${poKobo(c.max_kobo)} per payout, ${poKobo(c.daily_limit_kobo)} per 24 hours.${me.totp_enabled ? '' : ' <b style="color:#e74c3c">You have not set up an authenticator, so you cannot approve.</b>'}</div>`;
+  const rows = d.payouts.map(p => {
+    const pill = PO_PILL[p.status] || [p.status, 'var(--tx3)'], nm = PO_NAME[p.name_check] || PO_NAME.UNVERIFIED;
+    const approvals = p.events.filter(e => e.event === 'APPROVED'), mine = p.requested_by === me.id, iApproved = approvals.some(e => e.actor === me.id);
+    const btn = (label, action, danger) => `<button class="rbtn" style="${danger ? 'color:#e74c3c' : ''}" onclick="openPayoutAction('${action}','${p.id}')">${label}</button>`;
+    const acts = [];
+    if (p.status === 'PENDING_APPROVAL') { if (me.can_approve && !mine && !iApproved) acts.push(btn('Approve', 'approve')); if (me.can_approve) acts.push(btn('Reject', 'reject', true)); if (mine || me.role === 'SUPER_ADMIN') acts.push(btn('Cancel', 'cancel', true)); }
+    if (p.status === 'APPROVED') { if (me.can_approve && !mine) { if (c.automatic_enabled && !p.needs_verification) acts.push(btn('Retry sending', 'retry')); acts.push(btn('Mark paid manually', 'mark_paid')); } if (me.can_approve) acts.push(btn('Reject', 'reject', true)); if (mine || me.role === 'SUPER_ADMIN') acts.push(btn('Cancel', 'cancel', true)); }
+    if (p.status === 'PROCESSING') { acts.push(btn('Check status', 'refresh')); if (p.needs_verification && me.can_approve && !mine) { acts.push(btn('Confirm NOT sent', 'confirm_not_sent')); acts.push(btn('Mark paid manually', 'mark_paid')); } }
+    const warn = p.needs_verification ? `<div style="color:#e74c3c;font-size:12px;margin-top:4px">⚠ We cannot tell whether this was sent. It will NOT be retried automatically — check Flutterwave first.</div>` : (p.failure_reason && ['APPROVED', 'FAILED', 'REJECTED'].includes(p.status) ? `<div style="color:#e67e22;font-size:12px;margin-top:4px">${poEsc(p.failure_reason)}</div>` : '');
+    const trail = p.events.map(e => `<div style="font-size:11.5px;color:var(--tx3)">${new Date(e.created_at).toLocaleString('en-NG')} · <b>${poEsc(e.event)}</b> · ${poEsc(e.actor_name || e.actor)}${e.note ? ` — ${poEsc(e.note)}` : ''}</div>`).join('');
+    return `<tr>
+      <td>${poEsc(p.society_name)}<div style="font-size:11px;color:var(--tx3)">${poEsc(p.payout_ref)} · ${p.item_count} receipt(s)</div></td>
+      <td style="text-align:right;white-space:nowrap;font-weight:600">${poKobo(p.amount_kobo)}</td>
+      <td><div>${poEsc(p.dest_bank_code)} · ${poEsc(p.dest_account_number)}</div><div style="font-size:11.5px">${poEsc(p.resolved_account_name || p.dest_account_name || '')}</div><div style="font-size:11px;color:${nm[1]}">${nm[0]}</div></td>
+      <td><span style="color:${pill[1]};font-weight:600">${pill[0]}</span><div style="font-size:11px;color:var(--tx3)">${approvals.length} of ${p.approvals_required} approval(s)${p.execution ? ` · ${p.execution.toLowerCase()}` : ''}</div>${warn}
+        <details style="margin-top:4px"><summary style="cursor:pointer;font-size:11.5px;color:var(--tx3)">Audit trail</summary>${trail}</details></td>
+      <td>${acts.join(' ') || '—'}</td></tr>`;
+  }).join('');
+  el.innerHTML = mode + rules + (d.payouts.length ? `<div class="table-wrap"><table><thead><tr><th>Society</th><th style="text-align:right">Amount</th><th>Paying to</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="no-data">No payouts yet. Use “Prepare payout” on a society above that is owed money.</div>`);
+}
+
+async function prepareFlwPayout(coopId) {
+  if (!confirm('Prepare a payout of everything this society is owed? Nothing is sent until it has been approved.')) return;
+  try {
+    const res = await fetch(`${API}/admin-coop-flutterwave-payouts`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ action: 'prepare', coop_id: coopId }) });
+    const d = await res.json();
+    if (!res.ok) { notify(d.error || 'Could not prepare the payout', true); return; }
+    notify(`Payout of ${poKobo(d.payout.amount_kobo)} prepared — it now needs approval`);
+    loadPayouts(); loadSocietyCollections();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+
+function openPayoutAction(action, payoutId) {
+  const p = payoutData.payouts.find(x => x.id === payoutId); if (!p) return;
+  payoutAction = { action, payoutId }; const nm = PO_NAME[p.name_check] || PO_NAME.UNVERIFIED;
+  const needsCode = ['approve', 'mark_paid', 'confirm_not_sent', 'retry'].includes(action);
+  const titles = { approve: 'Approve payout', reject: 'Reject payout', cancel: 'Cancel payout', mark_paid: 'Record a manual payment', confirm_not_sent: 'Confirm nothing was sent', retry: 'Retry sending', refresh: 'Check status' };
+  document.getElementById('pa-title').textContent = titles[action] || 'Payout';
+  document.getElementById('pa-summary').innerHTML = `<div style="border:1px solid var(--grb);border-radius:10px;padding:12px">
+    <div style="font-size:19px;font-weight:700">${poKobo(p.amount_kobo)}</div>
+    <div>to <b>${poEsc(p.society_name)}</b></div>
+    <div style="margin-top:8px">Bank <b>${poEsc(p.dest_bank_code)}</b> · account <b>${poEsc(p.dest_account_number)}</b></div>
+    <div>Name on file: <b>${poEsc(p.dest_account_name || '—')}</b></div>
+    <div>Bank says: <b>${poEsc(p.resolved_account_name || 'could not be confirmed')}</b></div>
+    <div style="color:${nm[1]};font-weight:600;margin-top:4px">${nm[0]}</div></div>`;
+  let f = '';
+  if (action === 'approve' && p.name_check !== 'MATCH') f += `<label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;margin-bottom:12px;text-transform:none;letter-spacing:normal"><input type="checkbox" id="pa-ack" style="margin-top:3px"> <span>I have independently confirmed that this account belongs to <b>${poEsc(p.society_name)}</b>${p.name_check === 'MISMATCH' ? ', even though the bank shows a different name' : ''}.</span></label>`;
+  if (action === 'mark_paid') f += `<label class="field-label">Bank / Flutterwave reference of the payment</label><input class="field-input" id="pa-ref" style="margin-bottom:10px;width:100%;box-sizing:border-box"><label class="field-label">Transfer fee you paid (₦, optional)</label><input class="field-input" id="pa-fee" type="number" step="0.01" style="margin-bottom:10px;width:100%;box-sizing:border-box">`;
+  if (action === 'confirm_not_sent') f += `<label class="field-label">How did you check? (required)</label><input class="field-input" id="pa-note" placeholder="e.g. no transfer with this reference in the Flutterwave dashboard" style="margin-bottom:10px;width:100%;box-sizing:border-box">`;
+  if (action === 'reject') f += `<label class="field-label">Reason</label><input class="field-input" id="pa-reason" style="margin-bottom:10px;width:100%;box-sizing:border-box">`;
+  if (needsCode) f += `<label class="field-label">Authenticator code (6 digits)</label><input class="field-input" id="pa-totp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="margin-bottom:10px;width:100%;box-sizing:border-box">`;
+  document.getElementById('pa-fields').innerHTML = f;
+  document.getElementById('pa-error').style.display = 'none';
+  document.getElementById('pa-submit').textContent = { approve: 'Approve', reject: 'Reject', cancel: 'Cancel payout', mark_paid: 'Record payment', confirm_not_sent: 'Confirm', retry: 'Retry', refresh: 'Check' }[action] || 'Confirm';
+  document.getElementById('payout-action-modal').style.display = 'flex';
+}
+function closePayoutAction() { document.getElementById('payout-action-modal').style.display = 'none'; payoutAction = null; }
+
+async function submitPayoutAction() {
+  if (!payoutAction) return;
+  const { action, payoutId } = payoutAction, errEl = document.getElementById('pa-error'), val = id => (document.getElementById(id) || {}).value || '';
+  const body = { action, payout_id: payoutId };
+  if (document.getElementById('pa-totp')) body.totp_code = val('pa-totp').trim();
+  if (action === 'approve') body.acknowledge_destination = !!(document.getElementById('pa-ack') && document.getElementById('pa-ack').checked);
+  if (action === 'mark_paid') { body.reference = val('pa-ref').trim(); if (val('pa-fee')) body.fee_kobo = Math.round(Number(val('pa-fee')) * 100); }
+  if (action === 'confirm_not_sent') body.note = val('pa-note').trim();
+  if (action === 'reject') body.reason = val('pa-reason').trim();
+  const btn = document.getElementById('pa-submit'); btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/admin-coop-flutterwave-payouts`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify(body) });
+    const d = await res.json();
+    if (!res.ok) { errEl.textContent = d.error || 'That did not work.'; errEl.style.display = 'block'; btn.disabled = false; return; }
+    closePayoutAction(); btn.disabled = false;
+    notify(action === 'approve' && d.approvals < d.required ? `Approved (${d.approvals} of ${d.required}) — a second approver is still needed` : (action === 'approve' ? 'Approved' : 'Done'));
+    loadPayouts(); loadSocietyCollections();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; btn.disabled = false; }
+}
+
 async function loadSocietyCollections() {
   const el = document.getElementById('society-collections-content');
   if (!el) return;
@@ -3676,7 +3799,7 @@ async function loadSocietyCollections() {
         <tbody>${d.societies.map(s => `<tr>
           <td>${esc(s.name)}<div style="font-size:11px;color:var(--tx3)">${esc(s.settlement_account || 'no settlement account on file')}</div></td>
           <td style="text-align:right;white-space:nowrap">${s.held_count ? `${kobo(s.held_kobo)}<div style="font-size:11px;color:var(--tx3)">${s.held_count} payment(s)${s.oldest_held_days != null ? ` · oldest ${s.oldest_held_days}d` : ''}</div>` : '—'}</td>
-          <td style="text-align:right;white-space:nowrap;${s.owed_count ? 'color:#e67e22;font-weight:600' : ''}">${s.owed_count ? `${kobo(s.owed_by_zillion_kobo)}<div style="font-size:11px;font-weight:400">${s.owed_count} transfer(s)</div>` : '—'}</td>
+          <td style="text-align:right;white-space:nowrap;${s.owed_count ? 'color:#e67e22;font-weight:600' : ''}">${s.owed_count ? `${kobo(s.owed_by_zillion_kobo)}<div style="font-size:11px;font-weight:400">${s.owed_count} transfer(s)</div><button class="rbtn" style="margin-top:4px" onclick="prepareFlwPayout('${esc(s.coop_id)}')">Prepare payout</button>` : '—'}</td>
           <td style="white-space:nowrap">${s.last_settlement_at ? new Date(s.last_settlement_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
           <td>${s.attention.length ? s.attention.map(w => `<div style="color:#e74c3c;font-size:12px">⚠ ${esc(w)}</div>`).join('') : (s.has_activity ? '<span style="color:var(--g)">✓ matched</span>' : '<span style="color:var(--tx3)">no activity yet</span>')}</td>
         </tr>`).join('') || '<tr><td colspan="5" class="no-data">No society is set up for Flutterwave collections yet.</td></tr>'}</tbody>
@@ -4573,6 +4696,7 @@ async function loadCoopThriftSocieties() {
   loadAddonModulesAdmin();
   loadEcosystemFinance();
   loadSocietyCollections();
+  loadPayouts();
   const tbody = document.getElementById('coopthrift-table-body');
   tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
   try {

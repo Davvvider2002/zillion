@@ -29,6 +29,7 @@ const { accountingIsReady, getAccounts, postEntry, postEntryLines } = require('.
 const { FLW_CLEARING_CODE, BANK_CODE, BANK_CHARGES_CODE, JOINING_FEE_INCOME_CODE } = require('./coopFlutterwaveAccounts');
 const { fetchAllRows, chunk } = require('./coopPaginate');
 const { logAlert } = require('./alerts');
+const zl = require('./zillionLedgerHelpers');
 
 const STALE_HELD_DAYS = 5;                 // a live payment still unsettled after this long is worth a look
 const SETTLED_STATUSES = ['completed', 'successful', 'success', 'processed', 'settled'];
@@ -80,6 +81,18 @@ async function recordFlutterwavePayment(db, p) {
     if (error) {
       if (error.code === '23505') return { recorded: false, duplicate: true };
       throw new Error(error.message);
+    }
+    // A bank transfer into a member's virtual account lands in ZILLION's balance, not the society's: Zillion now OWES that money
+    // to the society, and its own books must say so (Dr Bank / Cr Owed to Societies) - or the later payout would drive that
+    // liability negative. Only for live money, and only the first time this transaction is recorded.
+    if (p.channel === 'virtual_account' && isLiveMode()) {
+      try {
+        const accts = await zl.getAccounts(db, ['1000', '2000']);
+        if (accts['1000'] && accts['2000']) {
+          const posted = await zl.postEntry(db, `Bank transfer received on behalf of society ${p.coopId} (ref ${p.flwTxRef || p.flwTransactionId})`, 'system:flutterwave-ledger', accts['1000'], accts['2000'], p.amountKobo);
+          if (posted.booked) await db.from('coop_flutterwave_ledger').update({ provider_data: { ...(p.providerData || {}), zillion_journal_entry_id: posted.entry_id } }).eq('coop_id', p.coopId).eq('flw_transaction_id', String(p.flwTransactionId));
+        }
+      } catch (e) { console.error(`[${SOURCE}] Zillion-side entry for transfer ${p.flwTransactionId} failed:`, e.message); }
     }
     return { recorded: true };
   } catch (e) {
