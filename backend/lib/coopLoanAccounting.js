@@ -47,6 +47,7 @@
 'use strict';
 
 const { accountingIsReady, getAccounts, postEntry, postEntryLines } = require('./coopAccountingHelpers');
+const { receiptDebitCode, isFlutterwaveSource } = require('./coopFlutterwaveAccounts');
 const { computeReducingBalanceSplit } = require('./coopReducingBalanceSplit');
 
 // Human-readable label for the journal description - the source
@@ -173,7 +174,7 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
     let debitCode;
     if (source === 'cash_in_person') debitCode = CASH_ACCOUNT_CODE;
     else if (source === 'savings_deduction') debitCode = MEMBER_SAVINGS_PAYABLE_ACCOUNT_CODE;
-    else debitCode = BANK_ACCOUNT_CODE; // bank_transfer_manual, offline_zil, and any other/unrecognized source default here
+    else debitCode = receiptDebitCode(source); // Flutterwave -> 1020 (held until settled); bank_transfer_manual, offline_zil and anything else -> Bank
 
     // debitAccountOverride: a caller who already knows exactly which bank/cash account to use (a society with
     // more than one - see coop-portal-journal-voucher.js) skips the source-derived default above entirely.
@@ -189,11 +190,11 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
     const description = borrowerLabel ? `${baseDescription} — ${borrowerLabel} via ${sourceLabel}` : `${baseDescription} via ${sourceLabel}`;
 
     if (interestPortionKobo > 0) {
-      const codes = debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE, debitCode];
+      const codes = debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE, debitCode, BANK_ACCOUNT_CODE];
       const accounts = await getAccounts(db, coopId, codes);
       const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
       const interestReceivable = accounts[LOAN_INTEREST_RECEIVABLE_ACCOUNT_CODE];
-      const debitAccount = debitAccountOverride || accounts[debitCode];
+      const debitAccount = debitAccountOverride || accounts[debitCode] || (isFlutterwaveSource(source) ? accounts[BANK_ACCOUNT_CODE] : undefined);
       if (!principalReceivable || !interestReceivable || !debitAccount) return { booked: false, reason: 'accounts_missing' };
 
       return await postEntryLines(db, coopId, description, createdBy, [
@@ -203,9 +204,9 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
       ]);
     }
 
-    const accounts = await getAccounts(db, coopId, debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, debitCode]);
+    const accounts = await getAccounts(db, coopId, debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, debitCode, BANK_ACCOUNT_CODE]);
     const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
-    const debitAccount = debitAccountOverride || accounts[debitCode];
+    const debitAccount = debitAccountOverride || accounts[debitCode] || (isFlutterwaveSource(source) ? accounts[BANK_ACCOUNT_CODE] : undefined);
     if (!principalReceivable || !debitAccount) return { booked: false, reason: 'accounts_missing' };
     return await postEntry(db, coopId, description, createdBy, debitAccount, principalReceivable, amountKobo);
   } catch (e) {

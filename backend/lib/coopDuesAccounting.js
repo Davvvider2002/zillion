@@ -51,6 +51,7 @@ const { ensureChartOfAccounts } = require('./coopAccounting');
 const { computeTotalDuesAccrued } = require('./coopDues');
 const { fetchAllRows } = require('./coopPaginate');
 const { postEntry } = require('./coopAccountingHelpers');
+const { receiptDebitCode } = require('./coopFlutterwaveAccounts');
 
 const CASH_ACCOUNT_CODE = '1000';
 const BANK_ACCOUNT_CODE = '1010';
@@ -58,7 +59,7 @@ const DUES_RECEIVABLE_ACCOUNT_CODE = '1150';
 const DUES_INCOME_ACCOUNT_CODE = '4100';
 
 function sourceToAccountCode(source) {
-  return source === 'cash_in_person' ? CASH_ACCOUNT_CODE : BANK_ACCOUNT_CODE;
+  return receiptDebitCode(source);   // cash -> Cash; Flutterwave -> 1020 (held by Flutterwave until settled); else Bank
 }
 
 // Human-readable label for the journal description/memo - the exact
@@ -167,8 +168,8 @@ async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, cre
     // more than one - see coop-portal-journal-voucher.js) skips the source-derived default. Every other
     // caller leaves this unset and gets the same behavior as always.
     const debitCode = sourceToAccountCode(source);
-    const accounts = await getSystemAccounts(db, coopId, debitAccountOverride ? [DUES_RECEIVABLE_ACCOUNT_CODE] : [debitCode, DUES_RECEIVABLE_ACCOUNT_CODE]);
-    const debitAccount = debitAccountOverride || accounts[debitCode];
+    const accounts = await getSystemAccounts(db, coopId, debitAccountOverride ? [DUES_RECEIVABLE_ACCOUNT_CODE] : [debitCode, BANK_ACCOUNT_CODE, DUES_RECEIVABLE_ACCOUNT_CODE]);
+    const debitAccount = debitAccountOverride || accounts[debitCode] || accounts[BANK_ACCOUNT_CODE];   // no clearing account -> Bank, never unbooked
     const receivable = accounts[DUES_RECEIVABLE_ACCOUNT_CODE];
     if (!debitAccount || !receivable) return { booked: false, reason: 'accounts_missing' };
 

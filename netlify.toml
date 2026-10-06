@@ -24,6 +24,10 @@
 # Daily backups for every active society plus one platform backup. See scheduled-backups.js header for the
 # resumable-cursor design (same 30s ceiling as scheduled-reconcile). Needs BACKUP_ENCRYPTION_KEY set, or it
 # skips itself and raises one alert rather than writing unencrypted backups.
+# Daily: pull each society's Flutterwave settlements and book/match them (see the file header).
+[functions."scheduled-flutterwave-settlements"]
+  schedule = "30 6 * * *"
+
 [functions."scheduled-backups"]
   schedule = "0 1 * * *"
 
@@ -404,6 +408,11 @@
 [[redirects]]
   from = "/api/v1/coop-portal-loan-override-document"
   to   = "/.netlify/functions/coop-portal-loan-override-document"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-flutterwave-ledger"
+  to   = "/.netlify/functions/coop-portal-flutterwave-ledger"
   status = 200
 
 [[redirects]]

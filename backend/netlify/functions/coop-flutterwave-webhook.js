@@ -39,6 +39,7 @@ const { postZillionSubscriptionRevenue } = require('../../lib/zillionSubscriptio
 const { creditAgentCommissionIfApplicable } = require('../../lib/coopAgentCommission');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
+const { recordFlutterwavePayment } = require('../../lib/coopFlutterwaveLedger');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -249,6 +250,14 @@ exports.handler = async (event) => {
     }
     const duesPosted = await recordDuesPaymentJournalEntry(db, duesMember.coop_id, duesKobo, 'webhook_flutterwave', 'webhook:flutterwave', { id: duesMember.id, name: duesMember.name });
     await alertIfNotBooked(db, duesPosted, { source: 'coop-flutterwave-webhook', what: `A dues payment (tx_ref ${tx_ref})`, amountKobo: duesKobo });
+    // A transfer into a member's virtual account lands in Zillion's balance (no split to the society), so its channel is
+    // 'virtual_account': it is shown as owed to the society, not as waiting for the society's own settlement.
+    await recordFlutterwavePayment(db, {
+      coopId: duesMember.coop_id, memberId: duesMember.id, memberName: duesMember.name, purpose: 'dues', channel: 'virtual_account',
+      amountKobo: duesKobo, grossKobo: duesKobo, flwTransactionId: String(flwTransactionId), flwTxRef: tx_ref,
+      occurredAt: payload.data.created_at || new Date().toISOString(), journalEntryId: duesPosted && duesPosted.booked ? duesPosted.entry_id : null,
+      providerData: { flw_ref: payload.data.flw_ref, payment_type: payload.data.payment_type },
+    });
     console.log(`[coop-flutterwave-webhook] ✅ Credited ₦${amount} dues to member ${duesMember.id} (tx_ref: ${tx_ref})`);
     return ok({ success: true, credited: 'dues' });
   }
@@ -277,6 +286,12 @@ exports.handler = async (event) => {
   const savingsKobo = Math.round(Number(amount) * 100);
   const savingsPosted = await recordSavingsPaymentJournalEntry(db, plan.coop_id, savingsKobo, 'webhook_flutterwave', 'webhook:flutterwave', savingsMember, tx_ref);
   await alertIfNotBooked(db, savingsPosted, { source: 'coop-flutterwave-webhook', what: `A savings payment (tx_ref ${tx_ref})`, amountKobo: savingsKobo });
+  await recordFlutterwavePayment(db, {
+    coopId: plan.coop_id, memberId: plan.member_id, memberName: savingsMember && savingsMember.name, purpose: 'savings', channel: 'virtual_account',
+    amountKobo: savingsKobo, grossKobo: savingsKobo, flwTransactionId: String(flwTransactionId), flwTxRef: tx_ref,
+    occurredAt: payload.data.created_at || new Date().toISOString(), journalEntryId: savingsPosted && savingsPosted.booked ? savingsPosted.entry_id : null,
+    providerData: { flw_ref: payload.data.flw_ref, payment_type: payload.data.payment_type },
+  });
 
   console.log(`[coop-flutterwave-webhook] ✅ Credited ₦${amount} to plan ${plan.id} (tx_ref: ${tx_ref})`);
   return ok({ success: true, transaction: created });

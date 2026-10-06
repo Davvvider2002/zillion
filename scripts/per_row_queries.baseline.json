@@ -5,6 +5,7 @@
  "lib/coopAgentHierarchy.js": 1,
  "lib/coopAttribution.js": 1,
  "lib/coopBackup.js": 1,
+ "lib/coopFlutterwaveLedger.js": 2,
  "lib/coopKycBilling.js": 1,
  "lib/coopLoanHistoryReport.js": 1,
  "lib/coopLoanPackages.js": 1,
@@ -33,6 +34,7 @@
  "netlify/functions/coop-portal-staff-loan-report.js": 1,
  "netlify/functions/coop-portal-staff-loans.js": 1,
  "netlify/functions/coop-portal-users.js": 1,
+ "netlify/functions/scheduled-flutterwave-settlements.js": 1,
  "netlify/functions/scheduled-reconcile.js": 4,
  "netlify/functions/sync.js": 1,
  "netlify/functions/wallet-recover.js": 2
