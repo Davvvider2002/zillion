@@ -885,6 +885,13 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="card-sub">Subscription revenue across every society, and reconciliation against real Flutterwave settlements.</div>
       <div id="ecosystem-finance-content"><div class="no-data">Loading...</div></div>
     </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Society Collections (Flutterwave)
+        <button class="rbtn" onclick="loadSocietyCollections()">&#x21BB;</button>
+      </div>
+      <div class="card-sub">What Flutterwave has collected for each society's members: waiting to settle, owed on by Zillion, and which societies need attention. Open a society's own Accounting for its full ledger.</div>
+      <div id="society-collections-content"><div class="no-data">Loading...</div></div>
+    </div>
     <div id="coop-subplan-setup-banner" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div>
         <div style="font-weight:700;font-size:14px">Subscription billing isn't set up yet</div>
@@ -3643,6 +3650,42 @@ async function setupSubscriptionPlans() {
   }
 }
 
+async function loadSocietyCollections() {
+  const el = document.getElementById('society-collections-content');
+  if (!el) return;
+  el.innerHTML = '<div class="no-data">Loading...</div>';
+  const kobo = k => '₦' + ((k || 0) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // exact, never rounded
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  try {
+    const res = await fetch(`${API}/admin-coop-flutterwave-ledger`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const d = await res.json();
+    if (!res.ok) { el.innerHTML = `<div class="no-data">${esc(d.error || 'Failed to load')}</div>`; return; }
+    const t = d.totals;
+    const tile = (label, value, sub, warn) => `<div><div style="font-size:20px;font-weight:700;${warn ? 'color:#e74c3c' : ''}">${value}</div><div style="font-size:11px;color:var(--tx3)">${label}</div>${sub ? `<div style="font-size:11px;color:var(--tx3);margin-top:2px">${sub}</div>` : ''}</div>`;
+    const banner = d.live_key ? '' : `<div style="background:rgba(245,158,11,.12);border:1px solid var(--am);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px">Flutterwave is in <b>test mode</b>: payments are recorded but never settle, so none are counted here.</div>`;
+    el.innerHTML = `${banner}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px">
+        ${tile('Held by Flutterwave for societies', kobo(t.held_by_flutterwave_kobo), 'waiting to settle to their banks')}
+        ${tile('Owed to societies by Zillion', kobo(t.owed_by_zillion_kobo), 'bank transfers that landed in your balance', t.owed_by_zillion_kobo > 0)}
+        ${tile('Collected / settled', `${kobo(t.collected_kobo)} / ${kobo(t.settled_kobo)}`, 'all time, live payments')}
+        ${tile('Societies needing attention', t.societies_needing_attention, `of ${t.societies_listed} set up for Flutterwave`, t.societies_needing_attention > 0)}
+      </div>
+      ${d.orphaned_coop_ids.length ? `<div style="background:rgba(231,76,60,.12);border:1px solid #e74c3c;border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px">Flutterwave activity recorded for society id(s) that no longer exist: ${d.orphaned_coop_ids.map(esc).join(', ')}</div>` : ''}
+      <div class="table-wrap"><table>
+        <thead><tr><th>Society</th><th style="text-align:right">Held</th><th style="text-align:right">Owed by Zillion</th><th>Last settled</th><th>Status</th></tr></thead>
+        <tbody>${d.societies.map(s => `<tr>
+          <td>${esc(s.name)}<div style="font-size:11px;color:var(--tx3)">${esc(s.settlement_account || 'no settlement account on file')}</div></td>
+          <td style="text-align:right;white-space:nowrap">${s.held_count ? `${kobo(s.held_kobo)}<div style="font-size:11px;color:var(--tx3)">${s.held_count} payment(s)${s.oldest_held_days != null ? ` · oldest ${s.oldest_held_days}d` : ''}</div>` : '—'}</td>
+          <td style="text-align:right;white-space:nowrap;${s.owed_count ? 'color:#e67e22;font-weight:600' : ''}">${s.owed_count ? `${kobo(s.owed_by_zillion_kobo)}<div style="font-size:11px;font-weight:400">${s.owed_count} transfer(s)</div>` : '—'}</td>
+          <td style="white-space:nowrap">${s.last_settlement_at ? new Date(s.last_settlement_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+          <td>${s.attention.length ? s.attention.map(w => `<div style="color:#e74c3c;font-size:12px">⚠ ${esc(w)}</div>`).join('') : (s.has_activity ? '<span style="color:var(--g)">✓ matched</span>' : '<span style="color:var(--tx3)">no activity yet</span>')}</td>
+        </tr>`).join('') || '<tr><td colspan="5" class="no-data">No society is set up for Flutterwave collections yet.</td></tr>'}</tbody>
+      </table></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="no-data">Network error: ${esc(e.message)} <button class="rbtn" onclick="loadSocietyCollections()">Retry</button></div>`;
+  }
+}
+
 async function loadEcosystemFinance() {
   const el = document.getElementById('ecosystem-finance-content');
   el.innerHTML = '<div class="no-data">Loading...</div>';
@@ -4529,6 +4572,7 @@ async function loadCoopThriftSocieties() {
   document.getElementById('coop-subplan-setup-banner').style.display = 'flex';
   loadAddonModulesAdmin();
   loadEcosystemFinance();
+  loadSocietyCollections();
   const tbody = document.getElementById('coopthrift-table-body');
   tbody.innerHTML = '<tr><td colspan="4" class="no-data">Loading...</td></tr>';
   try {
