@@ -4939,6 +4939,28 @@ async function loadReconciliationHistory() {
   }
 }
 
+/**
+ * What opens when a MATCHED statement line is clicked. A line can be matched four ways and each remembers its source differently:
+ * to one record (type + id), to several (a group, keyed by the line itself), by a journal entry the person posted to explain it
+ * (no match type at all, only the entry), or - for old or odd data - to nothing recorded. Returns null for the last, so the screen
+ * can say so instead of asking the server about "null".
+ */
+function reconciliationSourceFor(l) {
+  if (l.matched_type === 'group') return { type: 'group', id: l.id };
+  if (l.matched_type && l.matched_id) return { type: l.matched_type, id: l.matched_id };
+  if (l.resolved_journal_entry_id) return { type: 'resolved_entry', id: l.resolved_journal_entry_id };
+  return null;
+}
+function reconMatchedClick(l) {
+  const s = reconciliationSourceFor(l);
+  return s ? `openReconciliationSourceModal('${s.type}','${s.id}')` : `notify('This bank line is marked as matched, but no record was linked to it, so there is no source to show.', true)`;
+}
+function reconMatchedPill(l) {
+  if (l.matched_type === 'group') return `<span class="pill pill-green">Matched · ${(l.group_components || []).length} entries</span>`;
+  if (!l.matched_type && l.resolved_journal_entry_id) return '<span class="pill pill-green">Matched · journalled</span>';
+  return '<span class="pill pill-green">Matched</span>';
+}
+
 async function viewReconciliationBatch(batchId) {
   const detailEl = document.getElementById('recon-detail-card');
   detailEl.innerHTML = `<div class="card"><div class="card-title">Reconciliation detail</div><div class="no-data">Loading...</div></div>`;
@@ -4969,13 +4991,13 @@ async function viewReconciliationBatch(batchId) {
           <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>${data.lines.map(l => `
             <tr style="cursor:pointer" onclick="${l.match_status === 'matched'
-              ? (l.matched_type === 'group' ? `openReconciliationSourceModal('group','${l.id}')` : `openReconciliationSourceModal('${l.matched_type}','${l.matched_id}')`)
+              ? reconMatchedClick(l)
               : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},'${(l.description || '').replace(/'/g, "\\'")}','${l.id}','${data.batch.id}')`}">
               <td>${fmtDate(l.statement_date)}</td>
               <td>${l.description || '—'}</td>
               <td>${fmtNaira(l.amount_kobo)}</td>
               <td>${l.match_status === 'matched'
-                ? (l.matched_type === 'group' ? `<span class="pill pill-green">Matched · ${(l.group_components || []).length} entries</span>` : '<span class="pill pill-green">Matched</span>')
+                ? reconMatchedPill(l)
                 : `<span class="pill pill-red">Unmatched — click to journal</span>${hasPortalAction('reconciliation', 'create') ? `<div style="margin-top:4px"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openGroupMatch('${l.id}')">Match to several entries…</button></div>` : ''}`}</td>
             </tr>
           `).join('') || '<tr><td colspan="4" class="no-data">No lines.</td></tr>'}</tbody>
@@ -5186,7 +5208,7 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
     } else if (data.type === 'journal_entry') {
       document.getElementById('rs-body').innerHTML = `
         <div style="font-size:13px;line-height:1.8">
-          <div><b>Source:</b> Entry #${flwEsc(data.entry_number)} in your books</div>
+          <div><b>Source:</b> ${data.explained_by_you ? `You explained this bank line by posting entry #${flwEsc(data.entry_number)}` : `Entry #${flwEsc(data.entry_number)} in your books`}</div>
           <div><b>Date:</b> ${fmtDate(data.date)}</div>
           <div><b>Description:</b> ${flwEsc(data.description || '—')}</div>
           <div><b>Recorded by:</b> ${flwEsc(data.created_by || '—')}</div>
