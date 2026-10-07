@@ -42,6 +42,10 @@ exports.handler = async (event) => {
 
   const { type, id } = event.queryStringParameters || {};
   if (!type || !id) return err(400, 'type and id query params are required');
+  // A line marked matched with nothing linked to it (the screen used to send the literal word "null"): say so plainly
+  if (type === 'null' || type === 'undefined' || id === 'null' || id === 'undefined') {
+    return err(400, 'This bank line is marked as matched, but no record was linked to it, so there is no source to show.');
+  }
 
   if (type === 'loan_disbursement') {
     const { data: loan } = await db.from('coop_loans')
@@ -88,16 +92,23 @@ exports.handler = async (event) => {
     });
   }
 
-  if (type === 'journal_entry') {   // id is the journal LINE that was matched (an entry can touch the bank account twice)
-    const { data: line } = await db.from('coop_journal_entry_lines').select('id, journal_entry_id').eq('id', id).eq('coop_id', coopId).maybeSingle();
-    if (!line) return err(404, 'Entry not found in your society');
-    const { data: entry } = await db.from('coop_journal_entries').select('id, entry_number, entry_date, description, entry_type, created_by').eq('id', line.journal_entry_id).eq('coop_id', coopId).maybeSingle();
-    if (!entry) return err(404, 'Entry not found in your society');
+  if (type === 'journal_entry' || type === 'resolved_entry') {
+    // journal_entry: id is the journal LINE that was matched (an entry can touch the bank account twice).
+    // resolved_entry: id is the journal ENTRY the person posted to explain a bank line that matched nothing (the "journal this line"
+    //   action) - those lines have no match type at all, only the entry that resolved them.
+    let entryId = id;
+    if (type === 'journal_entry') {
+      const { data: line } = await db.from('coop_journal_entry_lines').select('id, journal_entry_id').eq('id', id).eq('coop_id', coopId).maybeSingle();
+      if (!line) return err(404, 'Entry not found in your society');
+      entryId = line.journal_entry_id;
+    }
+    const { data: entry } = await db.from('coop_journal_entries').select('id, entry_number, entry_date, description, entry_type, created_by').eq('id', entryId).eq('coop_id', coopId).maybeSingle();
+    if (!entry) return err(404, type === 'resolved_entry' ? 'The entry that explained this bank line no longer exists (it may have been deleted)' : 'Entry not found in your society');
     const lines = await fetchAllRows(() => db.from('coop_journal_entry_lines').select('account_id, line_type, amount').eq('journal_entry_id', entry.id).order('id'));
     const accounts = await fetchAllRows(() => db.from('coop_chart_of_accounts').select('id, account_code, account_name').eq('coop_id', coopId).order('id'));
     const byId = new Map(accounts.map(a => [a.id, a]));
     return ok({
-      type: 'journal_entry', entry_number: entry.entry_number, date: entry.entry_date, description: entry.description, entry_type: entry.entry_type, created_by: entry.created_by,
+      type: 'journal_entry', explained_by_you: type === 'resolved_entry', entry_number: entry.entry_number, date: entry.entry_date, description: entry.description, entry_type: entry.entry_type, created_by: entry.created_by,
       lines: lines.map(l => ({ account_code: (byId.get(l.account_id) || {}).account_code, account_name: (byId.get(l.account_id) || {}).account_name, side: String(l.line_type).toLowerCase() === 'debit' ? 'Dr' : 'Cr', amount_kobo: Number(l.amount) })),
     });
   }
@@ -117,5 +128,5 @@ exports.handler = async (event) => {
     });
   }
 
-  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement, journal_entry, group`);
+  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement, journal_entry, resolved_entry, group`);
 };
