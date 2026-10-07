@@ -4866,6 +4866,11 @@ async function renderReconciliation() {
   const bankAccounts = (accountingAccounts || []).filter(a => a.sub_type === 'bank_cash');
 
   el.innerHTML = `
+    <div class="card" id="flw-bank-card">
+      <div class="card-title">Flutterwave &amp; your bank account</div>
+      <div class="card-sub">The real bank account Flutterwave pays into, what moved in and out of it, and whether every Flutterwave settlement actually reached your bank statement.</div>
+      <div id="flw-bank-body"><div class="no-data">Loading…</div></div>
+    </div>
     ${hasPortalAction('reconciliation', 'create') ? `
     <div class="card">
       <div class="card-title">Upload bank statement</div>
@@ -4891,6 +4896,7 @@ async function renderReconciliation() {
     </div>
     <div id="recon-detail-card"></div>
   `;
+  await loadFlwBankMonitor();
   await loadReconciliationHistory();
 }
 
@@ -5089,6 +5095,21 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
         </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('loans')">View in Loans →</button>
       `;
+    } else if (data.type === 'flutterwave_settlement') {
+      document.getElementById('rs-body').innerHTML = `
+        <div style="font-size:13px;line-height:1.8">
+          <div><b>Source:</b> ${flwEsc(data.source)}</div>
+          <div><b>Reference:</b> ${flwEsc(data.settlement_ref)}</div>
+          <div><b>Date:</b> ${fmtDate(data.date)}</div>
+          <div><b>Cleared from Flutterwave:</b> ${flwKobo(data.amount_kobo)}</div>
+          ${data.fees_kobo ? `<div><b>Fee deducted:</b> ${flwKobo(data.fees_kobo)}</div>` : ''}
+          <div><b>Reached your bank:</b> ${flwKobo(data.paid_to_bank_kobo)}</div>
+          <div><b>Matched to the payments below:</b> ${flwEsc((data.match_status || '').replace(/_/g, ' ').toLowerCase())}${data.variance_kobo ? ` (variance ${flwKobo(data.variance_kobo)})` : ''}</div>
+        </div>
+        ${data.payments && data.payments.length ? `<div style="margin-top:12px;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted)">Member payments this paid out (${data.payments.length})</div>
+          <div style="max-height:200px;overflow:auto;font-size:12.5px">${data.payments.map(p => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line)"><span>${flwEsc(p.counterparty_name || '—')} · ${flwEsc(p.purpose || '')}</span><span>${flwKobo(p.amount_kobo)}</span></div>`).join('')}</div>` : ''}
+        <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('accounting')">View the Flutterwave ledger →</button>
+      `;
     }
   } catch (e) {
     document.getElementById('rs-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
@@ -5126,9 +5147,10 @@ function handleReconFileSelect(event) {
       });
       const data = await res.json();
       if (!res.ok) { errEl.textContent = data.error || 'Failed to reconcile.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
-      statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.`;
+      statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.${data.flutterwave ? ` Flutterwave: ${data.flutterwave.matched} deposit(s) matched${data.flutterwave.not_on_statement ? `, ${data.flutterwave.not_on_statement} NOT found on this statement` : ''}.` : ''}`;
       document.getElementById('recon-file-input').value = '';
       await loadReconciliationHistory();
+      await loadFlwBankMonitor();
       await viewReconciliationBatch(data.batch_id);
     } catch (err) {
       errEl.textContent = 'Error processing file: ' + err.message; errEl.style.display = 'block'; statusEl.textContent = '';
@@ -5158,6 +5180,54 @@ function parseReconCsv(text) {
     lines.push({ date, amount_kobo: Math.round(amountNaira * 100), description, direction });
   }
   return lines;
+}
+
+// ── Flutterwave & the bank account ───────────────────────────────────────────────────────────────
+let flwBank = { from: '', to: '', account: '' };
+const FLW_STMT = { CONFIRMED: ['On bank statement', 'green'], MISSING_FROM_STATEMENT: ['MISSING from statement', 'red'], NOT_ON_A_STATEMENT_YET: ['No statement yet', 'muted'] };
+async function loadFlwBankMonitor() {
+  const body = document.getElementById('flw-bank-body'); if (!body) return;
+  const p = new URLSearchParams(); if (flwBank.from) p.set('from', flwBank.from); if (flwBank.to) p.set('to', flwBank.to); if (flwBank.account) p.set('account_code', flwBank.account);
+  try {
+    const res = await fetch(`${API}/coop-portal-flutterwave-bank-monitor?${p}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const d = await res.json();
+    if (!res.ok) { body.innerHTML = `<div class="no-data">${flwEsc(d.error || 'Could not load')}</div>`; return; }
+    renderFlwBankMonitor(d);
+  } catch (e) { body.innerHTML = `<div class="no-data">Could not load: ${flwEsc(e.message)} <button class="btn btn-ghost btn-sm" onclick="loadFlwBankMonitor()">Retry</button></div>`; }
+}
+function renderFlwBankMonitor(d) {
+  const body = document.getElementById('flw-bank-body'); if (!body) return;
+  const a = d.account, b = a.bank, m = d.movement;
+  // name the real bank in the upload dropdown too, so it is obvious which statement belongs where
+  const sel = document.getElementById('recon-bank-account');
+  if (sel) [...sel.options].forEach(o => { const hit = a.options.find(x => o.textContent.startsWith(x.code + ' — ')); if (hit) o.textContent = hit.label; });
+  const tile = (label, value, sub, tone) => `<div style="flex:1;min-width:140px;background:var(--ink);border-radius:10px;padding:11px 13px"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:18px;font-weight:700;margin-top:3px;${tone ? `color:${tone}` : ''}">${value}</div>${sub ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}</div>`;
+  const ident = a.is_flutterwave_settlement_account
+    ? `<div style="border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:13px"><span class="pill pill-green">Flutterwave settlement account</span>
+        <div style="margin-top:6px"><b>${b && b.configured ? flwEsc(b.bank_name) : 'Bank details not on file'}</b>${b && b.account_number ? ` · account <b>${flwEsc(b.account_number)}</b>` : ''}${b && b.account_name ? ` · ${flwEsc(b.account_name)}` : ''}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">In your books this is <b>${flwEsc(a.code)} — ${flwEsc(a.name || 'not found')}</b>. Flutterwave pays your members' collections into this bank account.</div></div>`
+    : `<div style="border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:13px"><b>${flwEsc(a.code)} — ${flwEsc(a.name || 'not found')}</b> <span style="color:var(--muted)">(not the account Flutterwave pays into)</span></div>`;
+  const controls = `<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+    <div class="field" style="margin:0"><label>Bank account</label><select onchange="flwBank.account=this.value;loadFlwBankMonitor()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">${a.options.map(o => `<option value="${flwEsc(o.code)}" ${o.code === a.code ? 'selected' : ''}>${flwEsc(o.label)}</option>`).join('')}</select></div>
+    <div class="field" style="margin:0"><label>From</label><input type="date" value="${flwEsc(d.from)}" onchange="flwBank.from=this.value;loadFlwBankMonitor()"></div>
+    <div class="field" style="margin:0"><label>To</label><input type="date" value="${flwEsc(d.to)}" onchange="flwBank.to=this.value;loadFlwBankMonitor()"></div></div>`;
+  const tiles = m ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      ${tile('Opening balance', flwKobo(m.opening_kobo), fmtDate(d.from))}
+      ${tile('Money in', flwKobo(m.inflow_kobo), a.is_flutterwave_settlement_account ? `Flutterwave ${flwKobo(m.inflow_flutterwave_settlements_kobo)}${m.inflow_zillion_payouts_kobo ? ` · Zillion payouts ${flwKobo(m.inflow_zillion_payouts_kobo)}` : ''} · other ${flwKobo(m.inflow_other_kobo)}` : '', 'var(--green-lt)')}
+      ${tile('Money out', flwKobo(m.outflow_kobo), '')}
+      ${tile('Closing balance (books)', flwKobo(m.closing_kobo), fmtDate(d.to))}</div>` : `<div class="no-data">Balances are not available for this account.</div>`;
+  const checks = `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Checks ${d.all_ok ? '<span class="pill pill-green">all clear</span>' : '<span class="pill pill-red">needs attention</span>'}</div>
+    ${d.checks.map(c => `<div style="font-size:13px;padding:3px 0;display:flex;gap:8px"><span style="width:16px;font-weight:700;color:${c.ok === true ? 'var(--green-lt)' : c.ok === false ? 'var(--red)' : 'var(--muted)'}">${c.ok === true ? '✓' : c.ok === false ? '✗' : '?'}</span><span>${flwEsc(c.label)}${c.detail ? `<div style="color:${c.ok === false ? 'var(--red)' : 'var(--muted)'};font-size:12px">${flwEsc(c.detail)}</div>` : ''}</span></div>`).join('')}</div>`;
+  const inflows = d.flutterwave_inflows.length ? `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0">Flutterwave money paid into this account</div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>From</th><th>Reference</th><th style="text-align:right">Reached bank</th><th>Booked to</th><th>Bank statement</th></tr></thead><tbody>${d.flutterwave_inflows.map(r => {
+      const st = FLW_STMT[r.statement_status] || [r.statement_status, 'muted'];
+      return `<tr><td style="white-space:nowrap">${fmtDate(r.date)}</td><td>${flwEsc(r.source)}</td><td style="font-size:11.5px;word-break:break-all">${flwEsc(r.reference)}</td>
+        <td style="text-align:right;white-space:nowrap">${flwKobo(r.bank_amount_kobo)}${r.fees_kobo ? `<div style="font-size:11px;color:var(--muted)">fee ${flwKobo(r.fees_kobo)}</div>` : ''}</td>
+        <td>${r.booked_to_selected_account ? flwEsc(r.booked_to_account) : `<span class="pill pill-red">${flwEsc(r.booked_to_account || 'no entry')}</span>`}</td>
+        <td><span class="pill pill-${st[1]}">${st[0]}</span></td></tr>`; }).join('')}</tbody></table></div>` : '';
+  const unexplained = d.unexplained_deposits.length ? `<div style="margin-top:12px;border:1px solid var(--red);border-radius:10px;padding:10px 14px;font-size:13px"><b>Deposits that look like Flutterwave money but match nothing recorded</b>${d.unexplained_deposits.map(u => `<div style="font-size:12.5px;margin-top:3px">${fmtDate(u.date)} · ${flwKobo(u.amount_kobo)} · ${flwEsc(u.description)}</div>`).join('')}</div>` : '';
+  const ls = d.last_statement ? `<div style="margin-top:12px;font-size:12.5px;color:var(--muted)">Latest statement on file: <b>${flwEsc(d.last_statement.filename || 'upload')}</b>, covering ${fmtDate(d.last_statement.covers_from)} – ${fmtDate(d.last_statement.covers_to)}.${d.last_statement.statement_closing_kobo != null ? ` Statement closing balance ${flwKobo(d.last_statement.statement_closing_kobo)} vs your books ${d.last_statement.books_balance_at_that_date_kobo != null ? flwKobo(d.last_statement.books_balance_at_that_date_kobo) : '—'}${d.last_statement.difference_kobo ? ` (difference ${flwKobo(d.last_statement.difference_kobo)})` : ' — they agree'}.` : ''}</div>` : '';
+  body.innerHTML = ident + controls + tiles + checks + inflows + unexplained + ls;
 }
 
 // ── Flutterwave ledger ─────────────────────────────────────────────────────────────────────────
@@ -5207,6 +5277,7 @@ function renderFlutterwaveLedger() {
   <div style="font-size:13px;margin-bottom:14px;padding:10px 14px;border:1px solid var(--line);border-radius:10px">
     <b>Settlement account</b> — Flutterwave pays out to <b>${flwEsc(sa.bank_name || '—')}</b>${sa.account_number ? ` · ${flwEsc(sa.account_number)}` : ''}${sa.bank_code ? ` (bank ${flwEsc(sa.bank_code)})` : ''}.
     Recorded in your books as ${settleSelect}${!sa.books_account_selected ? ` <span class="pill pill-amber">default — confirm it</span>` : ''}
+    <div style="margin-top:6px"><a href="#" onclick="switchView('reconciliation');return false" style="font-size:12.5px">Check it against your bank statement →</a></div>
   </div>`;
 
   const checks = `<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Matching &amp; integrity ${r.all_ok ? '<span class="pill pill-green">all clear</span>' : '<span class="pill pill-red">needs attention</span>'}</div>

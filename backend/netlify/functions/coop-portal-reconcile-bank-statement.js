@@ -27,6 +27,7 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { fetchReconcilableRecords, matchStatementLines } = require('../../lib/coopBankReconciliation');
+const { describeSettlementAccount, isSettlementAccount, bankNameFor, maskAccount } = require('../../lib/coopBankAccountInfo');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -71,19 +72,26 @@ exports.handler = async (event) => {
 
   if (!body.bank_account_id) return err(400, 'bank_account_id is required');
   const { data: bankAccount } = await db.from('coop_chart_of_accounts')
-    .select('id, account_name, sub_type, active').eq('id', body.bank_account_id).eq('coop_id', coopId).maybeSingle();
+    .select('id, account_code, account_name, sub_type, active').eq('id', body.bank_account_id).eq('coop_id', coopId).maybeSingle();
   if (!bankAccount || !bankAccount.active) return err(400, 'That account was not found in your chart of accounts');
   if (bankAccount.sub_type !== 'bank_cash') return err(400, `"${bankAccount.account_name}" is not classified as Bank & Cash — reclassify it in Chart of Accounts first, or pick a different account`);
 
-  const candidates = await fetchReconcilableRecords(db, coopId);
+  // Is this statement for the account Flutterwave settles into? If so, Flutterwave settlements and Zillion payouts are expected on it
+  // (and are matched), otherwise they are none of this statement's business.
+  const { data: soc } = await db.from('coop_societies').select('settlement_account_code, settlement_account_number, settlement_bank_code, settlement_account_name').eq('coop_id', coopId).maybeSingle();
+  const isFlwAccount = isSettlementAccount(soc, bankAccount.account_code);
+  const dates = statementLines.map(l => String(l.date).slice(0, 10)).sort();
+  const candidates = await fetchReconcilableRecords(db, coopId, { flutterwave: isFlwAccount ? { from: dates[0], to: dates[dates.length - 1] } : null });
   const { matchedLines, unmatchedLines, unmatchedRecords } = matchStatementLines(statementLines, candidates);
+  const flwBank = describeSettlementAccount(soc);
 
   const { data: batch, error: batchErr } = await db.from('coop_bank_reconciliation_batches').insert({
     coop_id: coopId,
     uploaded_by: resolved.society.merchant_id,
     filename: body.filename || null,
     bank_account_id: bankAccount.id,
-    bank_name: bankAccount.account_name,
+    // the account as the person will recognise it in the history: the books account AND, for the Flutterwave settlement account, the real bank
+    bank_name: isFlwAccount && flwBank.configured ? `${bankAccount.account_name} — ${flwBank.bank_name} ${maskAccount(flwBank.account_number)}` : bankAccount.account_name,
     opening_balance_kobo: openingBalanceKobo,
     closing_balance_kobo: closingBalanceKobo,
     total_lines: statementLines.length,
@@ -115,5 +123,11 @@ exports.handler = async (event) => {
     unmatched_record_count: unmatchedRecords.length,
     unmatched_lines: unmatchedLines,
     unmatched_records: unmatchedRecords,
+    // what this means for Flutterwave money
+    bank_account: { id: bankAccount.id, code: bankAccount.account_code, name: bankAccount.account_name, is_flutterwave_settlement_account: isFlwAccount, ...(isFlwAccount ? flwBank : {}) },
+    flutterwave: isFlwAccount ? {
+      matched: matchedLines.filter(l => l.matched_type === 'flutterwave_settlement').length,
+      not_on_statement: unmatchedRecords.filter(r => r.type === 'flutterwave_settlement').length,
+    } : null,
   });
 };

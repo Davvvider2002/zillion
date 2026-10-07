@@ -18,6 +18,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
+const { fetchAllRows }         = require('../../lib/coopPaginate');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -76,5 +77,20 @@ exports.handler = async (event) => {
     });
   }
 
-  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment`);
+  if (type === 'flutterwave_settlement') {
+    const { data: row } = await db.from('coop_flutterwave_ledger')
+      .select('id, amount_kobo, fees_kobo, occurred_at, flw_settlement_id, purpose, match_status, expected_kobo, variance_kobo, settlement_account_number, account_matches, journal_entry_id')
+      .eq('id', id).eq('coop_id', coopId).eq('entry_type', 'SETTLEMENT').maybeSingle();
+    if (!row) return err(404, 'Flutterwave settlement not found in your society');
+    const covered = await fetchAllRows(() => db.from('coop_flutterwave_ledger')
+      .select('amount_kobo, purpose, counterparty_name, flw_tx_ref, occurred_at').eq('coop_id', coopId).eq('entry_type', 'PAYMENT').eq('settled_in', row.flw_settlement_id).order('occurred_at').order('id'));
+    return ok({
+      type: 'flutterwave_settlement', source: row.purpose === 'zillion_payout' ? 'Zillion payout' : 'Flutterwave settlement', settlement_ref: row.flw_settlement_id,
+      date: row.occurred_at, amount_kobo: row.amount_kobo, fees_kobo: row.fees_kobo || 0, paid_to_bank_kobo: row.amount_kobo - (row.fees_kobo || 0),
+      match_status: row.match_status, expected_kobo: row.expected_kobo, variance_kobo: row.variance_kobo, destination_account: row.settlement_account_number, account_matches: row.account_matches,
+      journal_entry_id: row.journal_entry_id, payments: covered,
+    });
+  }
+
+  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement`);
 };
