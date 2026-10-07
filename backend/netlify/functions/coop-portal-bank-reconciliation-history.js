@@ -15,6 +15,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
+const { fetchAllRows, chunk } = require('../../lib/coopPaginate');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -54,6 +55,12 @@ exports.handler = async (event) => {
   const { data: lines } = await db.from('coop_bank_statement_lines')
     .select('id, statement_date, description, amount_kobo, matched_type, matched_id, match_status, direction, resolved_journal_entry_id')
     .eq('batch_id', batchId).order('statement_date');
+  // a line matched to SEVERAL records (a person's decision, see lib/coopBankGroupMatch.js): say which
+  const groupLineIds = (lines || []).filter(l => l.matched_type === 'group').map(l => l.id);
+  const groupParts = [];
+  for (const ids of chunk(groupLineIds)) groupParts.push(...await fetchAllRows(() => db.from('coop_bank_statement_line_matches')
+    .select('statement_line_id, component_type, component_id, amount_kobo, record_date, description, matched_by, matched_at').in('statement_line_id', ids).order('id')));
+  const linesOut = (lines || []).map(l => l.matched_type === 'group' ? { ...l, group_components: groupParts.filter(p => p.statement_line_id === l.id) } : l);
   const { data: unmatchedRecords } = await db.from('coop_reconciliation_unmatched_records')
     .select('record_type, record_id, record_date, amount_kobo, description')
     .eq('batch_id', batchId).order('record_date');
@@ -71,7 +78,7 @@ exports.handler = async (event) => {
   const closingBalanceDifferenceKobo = batch.closing_balance_kobo != null ? (batch.closing_balance_kobo - computedClosingBalanceKobo) : null;
 
   return ok({
-    batch, lines: lines || [], unmatched_records: unmatchedRecords || [],
+    batch, lines: linesOut, unmatched_records: unmatchedRecords || [],
     summary: {
       opening_balance_kobo: openingBalanceKobo,
       total_credits_kobo: totalCreditsKobo,

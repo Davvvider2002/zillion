@@ -77,6 +77,17 @@ exports.handler = async (event) => {
     });
   }
 
+  if (type === 'group') {   // id is the STATEMENT line that was matched to several records
+    const { data: line } = await db.from('coop_bank_statement_lines').select('id, amount_kobo, statement_date, description, direction, matched_type').eq('id', id).eq('coop_id', coopId).maybeSingle();
+    if (!line || line.matched_type !== 'group') return err(404, 'Group match not found in your society');
+    const parts = await fetchAllRows(() => db.from('coop_bank_statement_line_matches').select('component_type, component_id, amount_kobo, record_date, description, matched_by, matched_at').eq('statement_line_id', line.id).order('record_date').order('id'));
+    return ok({
+      type: 'group', line_id: line.id, amount_kobo: line.amount_kobo, date: line.statement_date, description: line.description, direction: line.direction,
+      matched_by: parts[0] ? parts[0].matched_by : null, matched_at: parts[0] ? parts[0].matched_at : null,
+      components: parts.map(p => ({ type: p.component_type, id: p.component_id, amount_kobo: p.amount_kobo, date: p.record_date, description: p.description })),
+    });
+  }
+
   if (type === 'journal_entry') {   // id is the journal LINE that was matched (an entry can touch the bank account twice)
     const { data: line } = await db.from('coop_journal_entry_lines').select('id, journal_entry_id').eq('id', id).eq('coop_id', coopId).maybeSingle();
     if (!line) return err(404, 'Entry not found in your society');
@@ -106,5 +117,5 @@ exports.handler = async (event) => {
     });
   }
 
-  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement, journal_entry`);
+  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement, journal_entry, group`);
 };

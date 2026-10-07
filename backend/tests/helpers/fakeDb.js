@@ -24,9 +24,9 @@ function makeDb(tables, opts = {}) {
   const get = (r, c) => c.split('.').reduce((o, k) => (o == null ? o : o[k]), r);
   const db = { tables, raceOnce: false, failNextInsertOn: null, queryCount: 0, from(t) {
     db.queryCount++;
-    const f = []; let lo = null, hi = null, single = false, ins = null, patch = null, del = false, selAfter = false, ord = [], lim = null, selCols = null, ups = null;
+    const f = []; let lo = null, hi = null, single = false, ins = null, patch = null, del = false, selAfter = false, ord = [], lim = null, selCols = null, ups = null, wantCount = false, headOnly = false;
     const q = {
-      select(cols) { if (patch) selAfter = true; if (typeof cols === 'string') selCols = cols; return q; },
+      select(cols, o) { if (patch) selAfter = true; if (typeof cols === 'string') selCols = cols; if (o && o.count) wantCount = true; if (o && o.head) headOnly = true; return q; },
       order(c, o) { ord.push([c, !(o && o.ascending === false)]); return q; }, limit(n) { lim = n; return q; },
       eq(c, v) { f.push(r => get(r, c) === v); return q; }, neq(c, v) { f.push(r => get(r, c) !== v); return q; },
       gte(c, v) { f.push(r => get(r, c) != null && String(get(r, c)) >= String(v)); return q; },
@@ -64,6 +64,8 @@ function makeDb(tables, opts = {}) {
         if (del && db.failDeleteOn === t) return res({ data: null, error: { code: 'XX000', message: 'simulated delete failure' } });
         if (del) { const keep = tables[t].filter(r => !f.every(fn => fn(r))); tables[t].length = 0; tables[t].push(...keep); return res({ data: null, error: null }); }
         let rows = tables[t].filter(r => f.every(fn => fn(r)));
+        const totalMatching = rows.length;
+        if (wantCount && headOnly) return res({ data: null, count: totalMatching, error: null });
         if (ord.length) rows = [...rows].sort((a, b) => { for (const [c, asc] of ord) { const x = a[c], y = b[c]; const d = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x).localeCompare(String(y)); if (d) return d * (asc ? 1 : -1); } return 0; });
         if (lim !== null) rows = rows.slice(0, lim); else if (lo !== null) rows = rows.slice(lo, hi + 1);
         else if (!single) rows = rows.slice(0, 1000);
@@ -73,7 +75,7 @@ function makeDb(tables, opts = {}) {
           rows = rows.map(r => Object.fromEntries(keys.filter(k => k in r).map(k => [k, r[k]])));
         }
         if (single && rows.length > 1) return res({ data: null, error: { code: 'PGRST116', message: 'multiple rows returned' } });
-        return res({ data: single ? (rows[0] || null) : rows, error: null });
+        return res({ data: single ? (rows[0] || null) : rows, ...(wantCount ? { count: totalMatching } : {}), error: null });
       } };
     return q; } };
   return db;

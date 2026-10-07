@@ -435,6 +435,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-bank-statement-group-match"
+  to   = "/.netlify/functions/coop-portal-bank-statement-group-match"
+  status = 200
+
+[[redirects]]
   from = "/coop-agent"
   to   = "/coop-agent/index.html"
   status = 200

@@ -129,6 +129,7 @@
 /api/v1/admin-coop-flutterwave-ledger  /.netlify/functions/admin-coop-flutterwave-ledger  200
 /api/v1/admin-coop-flutterwave-payouts  /.netlify/functions/admin-coop-flutterwave-payouts  200
 /api/v1/coop-portal-flutterwave-bank-monitor  /.netlify/functions/coop-portal-flutterwave-bank-monitor  200
+/api/v1/coop-portal-bank-statement-group-match  /.netlify/functions/coop-portal-bank-statement-group-match  200
 /coop-agent           /coop-agent/index.html          200
 /coop-agent/          /coop-agent/index.html          200
 /coop-agent-apply           /coop-agent-apply/index.html          200
