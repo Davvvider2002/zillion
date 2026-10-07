@@ -28,6 +28,7 @@ const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coo
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { fetchReconcilableRecords, matchStatementLines } = require('../../lib/coopBankReconciliation');
 const { describeSettlementAccount, isSettlementAccount, bankNameFor, maskAccount } = require('../../lib/coopBankAccountInfo');
+const { accountingIsReady } = require('../../lib/coopAccountingHelpers');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -81,7 +82,11 @@ exports.handler = async (event) => {
   const { data: soc } = await db.from('coop_societies').select('settlement_account_code, settlement_account_number, settlement_bank_code, settlement_account_name').eq('coop_id', coopId).maybeSingle();
   const isFlwAccount = isSettlementAccount(soc, bankAccount.account_code);
   const dates = statementLines.map(l => String(l.date).slice(0, 10)).sort();
-  const candidates = await fetchReconcilableRecords(db, coopId, { flutterwave: isFlwAccount ? { from: dates[0], to: dates[dates.length - 1] } : null });
+  // With accounting set up, EVERYTHING the books recorded on this bank account is a candidate - deposits, cash banked, expenses, transfers -
+  // not only loans and Flutterwave. Without it there are no books to compare with, so behaviour is as it always was.
+  const booksReady = await accountingIsReady(db, coopId);
+  const window = { from: dates[0], to: dates[dates.length - 1] };
+  const candidates = await fetchReconcilableRecords(db, coopId, { flutterwave: isFlwAccount ? window : null, books: booksReady ? { accountCode: bankAccount.account_code, ...window } : null });
   const { matchedLines, unmatchedLines, unmatchedRecords } = matchStatementLines(statementLines, candidates);
   const flwBank = describeSettlementAccount(soc);
 
@@ -125,6 +130,10 @@ exports.handler = async (event) => {
     unmatched_records: unmatchedRecords,
     // what this means for Flutterwave money
     bank_account: { id: bankAccount.id, code: bankAccount.account_code, name: bankAccount.account_name, is_flutterwave_settlement_account: isFlwAccount, ...(isFlwAccount ? flwBank : {}) },
+    books: booksReady ? {
+      matched: matchedLines.filter(l => l.matched_type === 'journal_entry').length,
+      not_on_statement: unmatchedRecords.filter(r => r.type === 'journal_entry').length,
+    } : null,
     flutterwave: isFlwAccount ? {
       matched: matchedLines.filter(l => l.matched_type === 'flutterwave_settlement').length,
       not_on_statement: unmatchedRecords.filter(r => r.type === 'flutterwave_settlement').length,

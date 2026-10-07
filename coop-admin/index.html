@@ -5095,6 +5095,18 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
         </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('loans')">View in Loans →</button>
       `;
+    } else if (data.type === 'journal_entry') {
+      document.getElementById('rs-body').innerHTML = `
+        <div style="font-size:13px;line-height:1.8">
+          <div><b>Source:</b> Entry #${flwEsc(data.entry_number)} in your books</div>
+          <div><b>Date:</b> ${fmtDate(data.date)}</div>
+          <div><b>Description:</b> ${flwEsc(data.description || '—')}</div>
+          <div><b>Recorded by:</b> ${flwEsc(data.created_by || '—')}</div>
+        </div>
+        <div style="margin-top:12px;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted)">The entry</div>
+        <div style="font-size:12.5px">${data.lines.map(l => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line)"><span><b>${l.side}</b> ${flwEsc(l.account_code)} ${flwEsc(l.account_name)}</span><span>${flwKobo(l.amount_kobo)}</span></div>`).join('')}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('accounting')">View in Accounting →</button>
+      `;
     } else if (data.type === 'flutterwave_settlement') {
       document.getElementById('rs-body').innerHTML = `
         <div style="font-size:13px;line-height:1.8">
@@ -5147,7 +5159,7 @@ function handleReconFileSelect(event) {
       });
       const data = await res.json();
       if (!res.ok) { errEl.textContent = data.error || 'Failed to reconcile.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
-      statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.${data.flutterwave ? ` Flutterwave: ${data.flutterwave.matched} deposit(s) matched${data.flutterwave.not_on_statement ? `, ${data.flutterwave.not_on_statement} NOT found on this statement` : ''}.` : ''}`;
+      statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.${data.flutterwave ? ` Flutterwave: ${data.flutterwave.matched} deposit(s) matched${data.flutterwave.not_on_statement ? `, ${data.flutterwave.not_on_statement} NOT found on this statement` : ''}.` : ''}${data.books ? ` Your books: ${data.books.matched} entr${data.books.matched === 1 ? 'y' : 'ies'} matched${data.books.not_on_statement ? `, ${data.books.not_on_statement} recorded but NOT on this statement` : ''}.` : ''}`;
       document.getElementById('recon-file-input').value = '';
       await loadReconciliationHistory();
       await loadFlwBankMonitor();

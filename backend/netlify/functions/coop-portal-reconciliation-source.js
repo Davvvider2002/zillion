@@ -77,6 +77,20 @@ exports.handler = async (event) => {
     });
   }
 
+  if (type === 'journal_entry') {   // id is the journal LINE that was matched (an entry can touch the bank account twice)
+    const { data: line } = await db.from('coop_journal_entry_lines').select('id, journal_entry_id').eq('id', id).eq('coop_id', coopId).maybeSingle();
+    if (!line) return err(404, 'Entry not found in your society');
+    const { data: entry } = await db.from('coop_journal_entries').select('id, entry_number, entry_date, description, entry_type, created_by').eq('id', line.journal_entry_id).eq('coop_id', coopId).maybeSingle();
+    if (!entry) return err(404, 'Entry not found in your society');
+    const lines = await fetchAllRows(() => db.from('coop_journal_entry_lines').select('account_id, line_type, amount').eq('journal_entry_id', entry.id).order('id'));
+    const accounts = await fetchAllRows(() => db.from('coop_chart_of_accounts').select('id, account_code, account_name').eq('coop_id', coopId).order('id'));
+    const byId = new Map(accounts.map(a => [a.id, a]));
+    return ok({
+      type: 'journal_entry', entry_number: entry.entry_number, date: entry.entry_date, description: entry.description, entry_type: entry.entry_type, created_by: entry.created_by,
+      lines: lines.map(l => ({ account_code: (byId.get(l.account_id) || {}).account_code, account_name: (byId.get(l.account_id) || {}).account_name, side: String(l.line_type).toLowerCase() === 'debit' ? 'Dr' : 'Cr', amount_kobo: Number(l.amount) })),
+    });
+  }
+
   if (type === 'flutterwave_settlement') {
     const { data: row } = await db.from('coop_flutterwave_ledger')
       .select('id, amount_kobo, fees_kobo, occurred_at, flw_settlement_id, purpose, match_status, expected_kobo, variance_kobo, settlement_account_number, account_matches, journal_entry_id')
@@ -92,5 +106,5 @@ exports.handler = async (event) => {
     });
   }
 
-  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement`);
+  return err(400, `Unknown type "${type}". Use: loan_disbursement, loan_repayment, flutterwave_settlement, journal_entry`);
 };

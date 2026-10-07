@@ -35,6 +35,7 @@ const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coo
 const { hasAddon }             = require('../../lib/coopEntitlements');
 const { linesAreBalanced }     = require('../../lib/coopAccounting');
 const { auditLog }             = require('../../lib/auditLog');
+const { statementDirectionFor } = require('../../lib/coopBankAccountInfo');
 const { recordDuesAccrual }    = require('../../lib/coopDuesAccounting');
 
 exports.handler = async (event) => {
@@ -148,8 +149,14 @@ exports.handler = async (event) => {
       // left, a "debit" on the statement). This is the standard
       // asset-account polarity, just the opposite direction from how
       // banks describe their own statements.
-      const bankLine = resolvedLines.find(l => l.accountCode === '1010');
-      const direction = bankLine ? (bankLine.lineType === 'debit' ? 'credit' : 'debit') : null;
+      // The bank account the STATEMENT is for - not always 1010: a society with several bank accounts reconciles each against its own.
+      const { data: batch } = await db.from('coop_bank_reconciliation_batches').select('bank_account_id').eq('id', reconLine.batch_id).maybeSingle();
+      let statementAccountCode = '1010';
+      if (batch && batch.bank_account_id) {
+        const { data: acct } = await db.from('coop_chart_of_accounts').select('account_code').eq('id', batch.bank_account_id).maybeSingle();
+        if (acct) statementAccountCode = acct.account_code;
+      }
+      const direction = statementDirectionFor(resolvedLines, statementAccountCode);
 
       await db.from('coop_bank_statement_lines').update({
         match_status: 'matched',
