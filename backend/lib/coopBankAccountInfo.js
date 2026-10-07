@@ -43,4 +43,14 @@ function bankAccountLabel(society, account) {
   return `${base} · Flutterwave settlement account${d.configured ? ` (${d.bank_name} ${d.account_number_masked})` : ' (bank details not on file)'}`;
 }
 
-module.exports = { BANK_NAMES, DEFAULT_SETTLEMENT_CODE, bankNameFor, maskAccount, describeSettlementAccount, settlementAccountCode, isSettlementAccount, bankAccountLabel };
+/**
+ * Which way a statement line points, given the entry posted to explain it. An asset account's DEBIT is money arriving (a "credit" on
+ * the bank's own statement); a CREDIT to it is money leaving (a "debit" on the statement) - the opposite words, same thing.
+ * `bankAccountCode` is the account the STATEMENT belongs to; null if the entry does not touch it.
+ */
+function statementDirectionFor(lines, bankAccountCode) {
+  const l = (lines || []).find(x => x.accountCode === bankAccountCode);
+  return l ? (l.lineType === 'debit' ? 'credit' : 'debit') : null;
+}
+
+module.exports = { statementDirectionFor, BANK_NAMES, DEFAULT_SETTLEMENT_CODE, bankNameFor, maskAccount, describeSettlementAccount, settlementAccountCode, isSettlementAccount, bankAccountLabel };

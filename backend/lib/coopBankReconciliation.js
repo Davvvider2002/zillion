@@ -27,6 +27,13 @@
 const { fetchAllRows } = require('./coopPaginate');
 
 const DATE_TOLERANCE_DAYS = 3;
+const shiftDay = (d, n) => new Date(new Date(String(d).slice(0, 10) + 'T00:00:00Z').getTime() + n * 86400000).toISOString().slice(0, 10);
+
+// Words too generic to say anything about WHICH transaction a bank line is
+const GENERIC_WORDS = new Set(['PAYMENT', 'TRANSFER', 'FROM', 'LOAN', 'BANK', 'CREDIT', 'DEBIT', 'INWARD', 'OUTWARD', 'CHARGE', 'CHARGES', 'FEES', 'NAIRA', 'SAVINGS', 'DEPOSIT', 'SOCIETY', 'ACCOUNT', 'ENTRY']);
+const words = s => new Set(String(s || '').toUpperCase().split(/[^A-Z0-9]+/).filter(w => w.length >= 4 && !GENERIC_WORDS.has(w)));
+/** How many meaningful words the bank's description shares with ours - a tie-breaker between candidates of the same amount, never a match on its own. */
+function sharedWords(a, b) { const A = words(a); let n = 0; for (const w of words(b)) if (A.has(w)) n++; return n; }
 
 function daysBetween(a, b) {
   return Math.abs((new Date(a) - new Date(b)) / 86400000);
@@ -37,7 +44,7 @@ function daysBetween(a, b) {
  * @param {string} coopId
  * @returns {Promise<Array<{type, id, amountKobo, date, description}>>}
  */
-async function fetchReconcilableRecords(db, coopId, { flutterwave = null } = {}) {
+async function fetchReconcilableRecords(db, coopId, { flutterwave = null, books = null } = {}) {
   const records = [];
 
   const loans = await fetchAllRows(() => db.from('coop_loans')
@@ -62,8 +69,39 @@ async function fetchReconcilableRecords(db, coopId, { flutterwave = null } = {})
     });
   }
 
+  const loanRecords = records.slice();
   if (flutterwave) records.push(...await fetchFlutterwaveCandidates(db, coopId, flutterwave));
+  if (books) records.push(...await fetchBookCandidates(db, coopId, books, loanRecords));
   return records;
+}
+
+/**
+ * EVERYTHING the books record on this bank account in the statement's window - deposits, cash banked, expenses paid, transfers,
+ * anything - so a statement line is not called "unexplained" just because it was not a loan or a Flutterwave settlement.
+ * Only offered when accounting is set up for the society. Two kinds of entry are deliberately NOT offered, because something else
+ * already represents them and offering both would leave a phantom "not on the statement" behind:
+ *   - entries the Flutterwave ledger booked (linked by id, so exact): Flutterwave candidates stand for them;
+ *   - an entry that duplicates a loan record (same amount, same direction, within the date tolerance): the loan record stands for it.
+ * Each candidate is one journal LINE (an entry can touch the account twice), identified by that line's id.
+ */
+async function fetchBookCandidates(db, coopId, { accountCode, from, to }, loanCandidates = []) {
+  if (!db || typeof db.rpc !== 'function') return [];
+  const { data, error } = await db.rpc('coop_account_movements', { p_coop_id: coopId, p_account_code: accountCode, p_from: shiftDay(from, -(DATE_TOLERANCE_DAYS + 1)), p_to: shiftDay(to, DATE_TOLERANCE_DAYS + 1) });
+  if (error) { console.error('[coopBankReconciliation] book movements unavailable, matching loans and Flutterwave only:', error.message); return []; }
+  const reportUntil = shiftDay(to, -DATE_TOLERANCE_DAYS);
+  const remaining = (data || []).filter(r => !r.flw_linked && Number(r.amount_kobo) > 0).map(r => {
+    const date = String(r.entry_date).slice(0, 10);
+    return { type: 'journal_entry', id: r.line_id, entryId: r.entry_id, entryNumber: r.entry_number, amountKobo: Number(r.amount_kobo), date,
+      direction: r.line_type === 'debit' ? 'credit' : 'debit',           // money INTO an asset account is a "credit" on the bank's statement
+      description: `#${r.entry_number} ${r.description || ''}`.trim(), reportable: date >= from && date <= reportUntil };
+  });
+  for (const loan of loanCandidates) {
+    const direction = loan.type === 'loan_repayment' ? 'credit' : 'debit';
+    let best = -1, bestDiff = Infinity;
+    remaining.forEach((c, i) => { const diff = daysBetween(c.date, loan.date); if (c.amountKobo === loan.amountKobo && c.direction === direction && diff <= DATE_TOLERANCE_DAYS && diff < bestDiff) { best = i; bestDiff = diff; } });
+    if (best >= 0) remaining.splice(best, 1);
+  }
+  return remaining;
 }
 
 /**
@@ -72,7 +110,7 @@ async function fetchReconcilableRecords(db, coopId, { flutterwave = null } = {})
  * should definitely be on it (dated within the statement, and early enough that the bank has had time to credit it).
  */
 async function fetchFlutterwaveCandidates(db, coopId, { from, to }) {
-  const shift = (d, n) => new Date(new Date(d + 'T00:00:00Z').getTime() + n * 86400000).toISOString().slice(0, 10);
+  const shift = shiftDay;
   const rows = await fetchAllRows(() => db.from('coop_flutterwave_ledger')
     .select('id, amount_kobo, fees_kobo, occurred_at, flw_settlement_id, purpose')
     .eq('coop_id', coopId).eq('entry_type', 'SETTLEMENT').eq('direction', 'OUT').eq('live_mode', true)
@@ -100,15 +138,19 @@ function matchStatementLines(statementLines, candidates) {
 
   for (const line of statementLines) {
     let best = null;
-    let bestDiff = Infinity;
+    let bestScore = Infinity;
     for (const c of candidates) {
       const key = `${c.type}:${c.id}`;
       if (usedCandidateKeys.has(key)) continue; // each record matches at most one statement line
       if (c.amountKobo !== line.amountKobo) continue;
       if (c.direction && line.direction !== c.direction) continue;   // a settlement is money IN: it can never explain money OUT of the same amount
-      let diff = daysBetween(line.date, c.date);
-      if (c.ref && line.description && String(line.description).toUpperCase().includes(String(c.ref).toUpperCase())) diff = -1;   // the bank quoted our reference: that is the one
-      if ((diff <= DATE_TOLERANCE_DAYS) && diff < bestDiff) { best = c; bestDiff = diff; }
+      const days = daysBetween(line.date, c.date);
+      const refHit = !!(c.ref && line.description && String(line.description).toUpperCase().includes(String(c.ref).toUpperCase()));   // the bank quoted our reference: that is the one
+      if (!refHit && days > DATE_TOLERANCE_DAYS) continue;            // exact amount AND close in time are both required (a reference may stretch the time)
+      // closest date wins; each meaningful word the bank's description shares with ours is worth a day (up to three) when choosing BETWEEN
+      // same-amount candidates; a reference beats everything. None of this can make a match: amount, direction and the 3-day window gate first.
+      const score = days - (refHit ? 100 : 0) - Math.min(sharedWords(line.description, c.description), 3);
+      if (score < bestScore) { best = c; bestScore = score; }
     }
     if (best) {
       usedCandidateKeys.add(`${best.type}:${best.id}`);
@@ -128,4 +170,4 @@ function matchStatementLines(statementLines, candidates) {
   return { matchedLines, unmatchedLines, unmatchedRecords };
 }
 
-module.exports = { fetchReconcilableRecords, fetchFlutterwaveCandidates, matchStatementLines, DATE_TOLERANCE_DAYS };
+module.exports = { fetchReconcilableRecords, fetchFlutterwaveCandidates, fetchBookCandidates, sharedWords, matchStatementLines, DATE_TOLERANCE_DAYS };

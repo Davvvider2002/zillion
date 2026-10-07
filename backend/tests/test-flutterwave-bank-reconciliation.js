@@ -264,7 +264,7 @@ const row = (id, o = {}) => ({ id, coop_id: 'C1', direction: 'OUT', entry_type: 
 
   // ═══ 10. GUARDS ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
   const lib = fs.readFileSync(path.join(LIB, 'coopBankReconciliation.js'), 'utf8'), reconSrc = fs.readFileSync(path.join(FN, 'coop-portal-reconcile-bank-statement.js'), 'utf8');
-  ok('guard: Flutterwave deposits are only ever candidates when the statement is for the settlement account', /isFlwAccount \? \{ from: dates\[0\]/.test(reconSrc) && /flutterwave: isFlwAccount/.test(reconSrc));
+  ok('guard: Flutterwave deposits are only ever candidates when the statement is for the settlement account', /flutterwave: isFlwAccount \? window : null/.test(reconSrc) && /flutterwave: isFlwAccount/.test(reconSrc));
   ok('guard: a candidate with a direction must agree with the statement line\'s direction', /if \(c\.direction && line\.direction !== c\.direction\) continue/.test(lib));
 })().catch(e => { console.log('FAIL - threw: ' + e.stack); bad++; process.exitCode = 1; });
 

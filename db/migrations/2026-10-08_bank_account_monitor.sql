@@ -31,3 +31,23 @@ LANGUAGE sql STABLE SET search_path = public AS $$
 $$;
 REVOKE ALL ON FUNCTION coop_bank_statement_coverage(text, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION coop_bank_statement_coverage(text, uuid) TO service_role;
+
+-- Every movement the BOOKS record on one bank account in a window - what a bank statement for that account should show.
+-- One row per journal line on the account (an entry can touch it twice). The opening-balance entry is not a bank movement and is left
+-- out. flw_linked marks entries the Flutterwave ledger already represents (settlements, payouts), so reconciliation does not offer
+-- them twice. Returned as ONE jsonb array (a set-returning function would be cut off at the API's 1,000-row cap), itself capped.
+CREATE OR REPLACE FUNCTION coop_account_movements(p_coop_id text, p_account_code text, p_from date, p_to date) RETURNS jsonb
+LANGUAGE sql STABLE SET search_path = public AS $$
+  SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.entry_date, t.line_id), '[]'::jsonb) FROM (
+    SELECT l.id AS line_id, e.id AS entry_id, e.entry_number, e.entry_date, e.description, e.entry_type, e.created_by, lower(l.line_type) AS line_type,
+           l.base_amount::bigint AS amount_kobo,
+           EXISTS (SELECT 1 FROM coop_flutterwave_ledger f WHERE f.journal_entry_id = e.id) AS flw_linked
+    FROM coop_journal_entry_lines l
+    JOIN coop_journal_entries e ON e.id = l.journal_entry_id
+    JOIN coop_chart_of_accounts a ON a.id = l.account_id
+    WHERE l.coop_id = p_coop_id AND a.account_code = p_account_code AND e.entry_type <> 'opening_balance' AND e.entry_date BETWEEN p_from AND p_to
+    ORDER BY e.entry_date, l.id
+    LIMIT 20000) t
+$$;
+REVOKE ALL ON FUNCTION coop_account_movements(text, text, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION coop_account_movements(text, text, date, date) TO service_role;
