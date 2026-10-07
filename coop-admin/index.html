@@ -1104,6 +1104,19 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- MATCH ONE BANK LINE TO SEVERAL ENTRIES -->
+<div class="modal-overlay" id="modal-group-match">
+  <div class="modal-box" style="max-width:640px;width:100%;max-height:90vh;overflow:auto">
+    <div class="modal-title">Match this bank line to several entries</div>
+    <div id="gm-body"><div class="card-sub">Loading…</div></div>
+    <div id="gm-error" style="display:none;color:#FF8A8A;font-size:13px;margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-group-match')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" id="gm-confirm" onclick="confirmGroupMatch()" disabled>Confirm match</button>
+    </div>
+  </div>
+</div>
+
 <!-- OPENING BALANCE WIZARD MODAL -->
 <div class="modal-overlay" id="modal-opening-balance">
   <div class="modal-box" style="max-width:520px">
@@ -4956,12 +4969,14 @@ async function viewReconciliationBatch(batchId) {
           <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>${data.lines.map(l => `
             <tr style="cursor:pointer" onclick="${l.match_status === 'matched'
-              ? `openReconciliationSourceModal('${l.matched_type}','${l.matched_id}')`
+              ? (l.matched_type === 'group' ? `openReconciliationSourceModal('group','${l.id}')` : `openReconciliationSourceModal('${l.matched_type}','${l.matched_id}')`)
               : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},'${(l.description || '').replace(/'/g, "\\'")}','${l.id}','${data.batch.id}')`}">
               <td>${fmtDate(l.statement_date)}</td>
               <td>${l.description || '—'}</td>
               <td>${fmtNaira(l.amount_kobo)}</td>
-              <td>${l.match_status === 'matched' ? '<span class="pill pill-green">Matched</span>' : '<span class="pill pill-red">Unmatched — click to journal</span>'}</td>
+              <td>${l.match_status === 'matched'
+                ? (l.matched_type === 'group' ? `<span class="pill pill-green">Matched · ${(l.group_components || []).length} entries</span>` : '<span class="pill pill-green">Matched</span>')
+                : `<span class="pill pill-red">Unmatched — click to journal</span>${hasPortalAction('reconciliation', 'create') ? `<div style="margin-top:4px"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openGroupMatch('${l.id}')">Match to several entries…</button></div>` : ''}`}</td>
             </tr>
           `).join('') || '<tr><td colspan="4" class="no-data">No lines.</td></tr>'}</tbody>
         </table></div>
@@ -5061,6 +5076,70 @@ async function openSuggestedJournalEntry(date, amountKobo, description, lineId, 
   updateJournalBalance();
 }
 
+// ── Matching one bank line to several entries ─────────────────────────────────────────────────
+let groupMatch = null;
+async function openGroupMatch(lineId) {
+  groupMatch = { lineId, data: null, chosen: new Set() };
+  document.getElementById('gm-body').innerHTML = '<div class="card-sub">Loading…</div>';
+  document.getElementById('gm-error').style.display = 'none';
+  document.getElementById('gm-confirm').disabled = true;
+  openModal('modal-group-match');
+  try {
+    const res = await fetch(`${API}/coop-portal-bank-statement-group-match?statement_line_id=${lineId}`, { headers: { Authorization: 'Bearer ' + portalToken } });
+    const d = await res.json();
+    if (!res.ok) { document.getElementById('gm-body').innerHTML = `<div class="card-sub">${flwEsc(d.error || 'Could not load')}</div>`; return; }
+    groupMatch.data = d; renderGroupMatch();
+  } catch (e) { document.getElementById('gm-body').innerHTML = `<div class="card-sub">Network error: ${flwEsc(e.message)}</div>`; }
+}
+const gmKey = c => `${c.type}:${c.id}`;
+function renderGroupMatch() {
+  const gm = groupMatch, d = gm && gm.data; if (!d) return;
+  const picked = d.candidates.filter(c => gm.chosen.has(gmKey(c)));
+  const total = picked.reduce((t, c) => t + c.amount_kobo, 0), diff = d.line.amount_kobo - total, exact = picked.length > 0 && diff === 0;
+  const dir = d.line.direction === 'credit' ? 'money IN' : 'money OUT';
+  const sugg = d.suggestions.length ? `<div style="margin:10px 0"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">These add up exactly</div>${d.suggestions.map((s, i) => {
+      const parts = s.map(x => d.candidates.find(c => gmKey(c) === gmKey(x))).filter(Boolean);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-bottom:4px;font-size:12.5px"><span>${parts.length} entr${parts.length === 1 ? 'y' : 'ies'}: ${parts.map(p => flwEsc((p.description || p.type).slice(0, 28))).join(' + ')}</span><button class="btn btn-ghost btn-sm" onclick="useGroupSuggestion(${i})">Use</button></div>`; }).join('')}</div>` : '';
+  document.getElementById('gm-body').innerHTML = `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px"><b>Bank line:</b> ${fmtDate(d.line.date)} · <b>${flwKobo(d.line.amount_kobo)}</b> (${dir}) · ${flwEsc(d.line.description || '—')}${d.bank_account ? `<div style="color:var(--muted);font-size:12px">${flwEsc(d.bank_account.code)} — ${flwEsc(d.bank_account.name)}</div>` : ''}</div>
+    ${sugg}
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin:10px 0 4px">Choose the entries this bank line is made up of</div>
+    <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px">${d.candidates.length ? d.candidates.map(c => `<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer;text-transform:none;letter-spacing:normal"><input type="checkbox" ${gm.chosen.has(gmKey(c)) ? 'checked' : ''} onchange="toggleGroupComponent('${c.type}','${c.id}')" style="margin-top:2px"><span style="flex:1">${fmtDate(c.date)} · ${flwEsc(c.description || c.type.replace(/_/g, ' '))}</span><span style="white-space:nowrap">${flwKobo(c.amount_kobo)}</span></label>`).join('') : '<div class="no-data">No other entries in the books that could be part of this bank line.</div>'}</div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:13px"><span>Selected: <b>${picked.length}</b> entr${picked.length === 1 ? 'y' : 'ies'} = <b>${flwKobo(total)}</b></span>
+      <span style="font-weight:700;color:${exact ? '#00C896' : (picked.length ? 'var(--amber)' : 'var(--muted)')}">${exact ? '✓ Adds up exactly' : (picked.length ? `${diff > 0 ? 'Still short by' : 'Over by'} ${flwKobo(Math.abs(diff))}` : `Need ${flwKobo(d.line.amount_kobo)}`)}</span></div>`;
+  document.getElementById('gm-confirm').disabled = !exact;
+}
+function toggleGroupComponent(type, id) { const k = `${type}:${id}`; if (groupMatch.chosen.has(k)) groupMatch.chosen.delete(k); else groupMatch.chosen.add(k); renderGroupMatch(); }
+function useGroupSuggestion(i) { groupMatch.chosen = new Set(groupMatch.data.suggestions[i].map(gmKey)); renderGroupMatch(); }
+async function confirmGroupMatch() {
+  const gm = groupMatch; if (!gm) return;
+  const errEl = document.getElementById('gm-error'), btn = document.getElementById('gm-confirm'); errEl.style.display = 'none'; btn.disabled = true;
+  try {
+    const components = gm.data.candidates.filter(c => gm.chosen.has(gmKey(c))).map(c => ({ type: c.type, id: c.id }));
+    const res = await fetch(`${API}/coop-portal-bank-statement-group-match`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: JSON.stringify({ action: 'confirm', statement_line_id: gm.lineId, components }) });
+    const d = await res.json();
+    if (!res.ok) { errEl.textContent = d.error || 'That did not work.'; errEl.style.display = 'block'; btn.disabled = false; return; }
+    closeModal('modal-group-match'); notify(`Matched to ${d.components.length} entr${d.components.length === 1 ? 'y' : 'ies'}`);
+    await reloadReconciliationAfterGroupChange();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; btn.disabled = false; }
+}
+async function undoGroupMatch(lineId) {
+  if (!confirm('Undo this match? The bank line goes back to unmatched.')) return;
+  try {
+    const res = await fetch(`${API}/coop-portal-bank-statement-group-match`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: JSON.stringify({ action: 'unmatch', statement_line_id: lineId }) });
+    const d = await res.json();
+    if (!res.ok) { notify(d.error || 'Could not undo the match', true); return; }
+    closeModal('modal-reconciliation-source'); notify('Match undone');
+    await reloadReconciliationAfterGroupChange();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+}
+async function reloadReconciliationAfterGroupChange() {
+  await loadReconciliationHistory();
+  const sel = document.querySelector('#recon-detail-card [onclick^="downloadReconciliationStatement"]');
+  const m = sel && sel.getAttribute('onclick').match(/'([0-9a-f-]{36})'/);
+  if (m) await viewReconciliationBatch(m[1]);
+}
+
 async function openReconciliationSourceModal(matchedType, matchedId) {
   document.getElementById('rs-body').innerHTML = '<div class="card-sub">Loading…</div>';
   openModal('modal-reconciliation-source');
@@ -5094,6 +5173,15 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
           ${data.interest_portion_kobo != null ? `<div><b>Interest portion:</b> ${fmtNaira(data.interest_portion_kobo)}</div>` : ''}
         </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeModal('modal-reconciliation-source');switchView('loans')">View in Loans →</button>
+      `;
+    } else if (data.type === 'group') {
+      document.getElementById('rs-body').innerHTML = `
+        <div style="font-size:13px;line-height:1.8">
+          <div><b>Bank line:</b> ${fmtDate(data.date)} · ${flwKobo(data.amount_kobo)} · ${flwEsc(data.description || '—')}</div>
+          <div><b>Matched to ${data.components.length} entries</b> that add up to exactly this amount, confirmed by ${flwEsc(data.matched_by || 'a user')}${data.matched_at ? ` on ${fmtDate(data.matched_at)}` : ''}.</div>
+        </div>
+        <div style="margin-top:10px;max-height:240px;overflow:auto;font-size:12.5px">${data.components.map(c => `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--line)"><span>${fmtDate(c.date)} · ${flwEsc(c.description || c.type.replace(/_/g, ' '))}</span><span style="white-space:nowrap">${flwKobo(c.amount_kobo)}</span></div>`).join('')}</div>
+        ${hasPortalAction('reconciliation', 'create') ? `<button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="undoGroupMatch('${data.line_id}')">Undo this match</button>` : ''}
       `;
     } else if (data.type === 'journal_entry') {
       document.getElementById('rs-body').innerHTML = `
