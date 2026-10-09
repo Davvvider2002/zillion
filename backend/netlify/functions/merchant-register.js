@@ -6,6 +6,7 @@
  * Body: { phone, business_name, business_type, location, owner_name, device_id }
  */
 'use strict';
+const { cleanText } = require('../../lib/cleanText');
 const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
@@ -40,7 +41,10 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body); }
   catch { return { statusCode:400, body:JSON.stringify({error:'Invalid JSON'}) }; }
 
-  const { phone, business_name, business_type, location, owner_name, device_id, password } = body;
+  const { phone, business_type, device_id, password } = body;
+  const business_name = cleanText(body.business_name, 120);
+  const location      = cleanText(body.location, 160);
+  const owner_name    = cleanText(body.owner_name, 100);
   if (!phone)         return { statusCode:400, body:JSON.stringify({error:'phone required'}) };
   if (!business_name) return { statusCode:400, body:JSON.stringify({error:'business_name required'}) };
   if (!owner_name)    return { statusCode:400, body:JSON.stringify({error:'owner_name required'}) };

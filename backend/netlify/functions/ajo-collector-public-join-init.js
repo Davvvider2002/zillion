@@ -33,6 +33,7 @@
  */
 'use strict';
 
+const { cleanText } = require('../../lib/cleanText');
 const { getServiceClient } = require('../../lib/supabase');
 const { limitByIp, limitByKey, tooManyRequests } = require('../../lib/publicRateLimit');
 const { calculateFees } = require('../../lib/coopFees');
@@ -55,7 +56,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const name  = (body.name || '').trim();
+  const name  = cleanText(body.name, 100);
   const rawPhone = (body.phone || '').trim();
   const email = (body.email || '').trim() || null;
   const returnUrl = (body.return_url || '').trim();

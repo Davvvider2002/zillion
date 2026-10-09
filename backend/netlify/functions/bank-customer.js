@@ -59,6 +59,9 @@ exports.handler = async (event) => {
 
   const balanceKobo = (coins || []).reduce((s, c) => s + (c.amount || 0), 0);
 
+  // The device hash is interpolated into a PostgREST filter below, so it must be plain hex/alphanumeric.
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(d.device_hash || ''))) return err(400, 'Invalid customer record.');
+
   // Get settled transaction count
   const { count: txCount } = await db.from('transactions')
     .select('*', { count: 'exact', head: true })

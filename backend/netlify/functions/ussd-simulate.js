@@ -50,6 +50,16 @@ exports.handler = async (event) => {
   const ok  = b     => ({ statusCode: 200, headers: hdr, body: JSON.stringify(b) });
   const err = (c,m) => ({ statusCode: c,   headers: hdr, body: JSON.stringify({ error: m }) });
 
+  // DEMO/TEST ONLY and it mints real coins, so it is OFF unless ALLOW_USSD_SIM=true is set on that site's environment
+  // (set it on staging only). A deployed production site answers as if the route did not exist.
+  if (process.env.ALLOW_USSD_SIM !== 'true') return err(404, 'Not found');
+  {
+    const { getServiceClient: _gsc } = require('../../lib/supabase');
+    const { limitByIp, tooManyRequests } = require('../../lib/publicRateLimit');
+    const rl = await limitByIp(_gsc(), event, 'ussd-simulate', { windowMinutes: 15, maxAttempts: 10, lockoutMinutes: 60 });
+    if (!rl.allowed) return tooManyRequests(rl.retryAfterSeconds, 'attempts');
+  }
+
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: hdr, body: '' };
   if (event.httpMethod !== 'POST') return err(405, 'POST only');
 
@@ -66,7 +76,8 @@ exports.handler = async (event) => {
   let simPin;
   try { simPin = getSimPin(); }
   catch (e) { return err(500, e.message); }
-  if (String(pin) !== String(simPin))
+  const _pinA = Buffer.from(String(pin)), _pinB = Buffer.from(String(simPin));
+  if (_pinA.length !== _pinB.length || !require('crypto').timingSafeEqual(_pinA, _pinB))
     return err(401, 'Incorrect PIN');
 
   const amountNaira = parseInt(amount_naira, 10);

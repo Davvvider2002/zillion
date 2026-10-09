@@ -6,7 +6,7 @@
  *   x-bank-api-key: <key>
  *   authorization: Bearer <key>
  *   x-api-key: <key>
- *   ?bank_key=<key>  (testing only)
+ *   (The ?bank_key= query-string form was removed: URLs end up in logs and browser history.)
  */
 'use strict';
 
@@ -34,7 +34,6 @@ function verifyBankAuth(event) {
     h['x-bank-api-key']  ||
     (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader) ||
     h['x-api-key']       ||
-    (event.queryStringParameters || {})['bank_key'] ||
     '';
 
   const provided = rawProvided.trim();
