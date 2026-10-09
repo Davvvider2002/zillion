@@ -25,6 +25,7 @@
  */
 'use strict';
 
+const { cleanText } = require('../../lib/cleanText');
 const { createHmac } = require('crypto');
 const { getServiceClient } = require('../../lib/supabase');
 const { resolveOrCreateZillionId } = require('../../lib/zillionId');
@@ -77,7 +78,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const name         = (body.society_name || '').trim();
+  const name         = cleanText(body.society_name, 120);
   const rawPhone       = (body.phone || '').trim();
   const ownerName        = (body.owner_name || '').trim();
   const email               = (body.email || '').trim().toLowerCase();

@@ -2963,6 +2963,12 @@ tbody tr:last-child td{border-bottom:none;}
 </div>
 
 <script>
+function jsAttr(v){return escHtml(JSON.stringify(String(v==null?'':v)));}
+
+/* Escapes text before it is placed into innerHTML. Added by the security hardening pass: member, society and agent
+   names come from public forms, so they must never be treated as markup. */
+function escHtml(v){return String(v==null?'':v).replace(/[&<>"'`]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];});}
+
 
 'use strict';
 // ── Core globals (declared once) ─────────────────────────────────────────────
@@ -3348,7 +3354,7 @@ async function loadOverview() {
     (merchs.merchants||[]).slice(0,3).forEach(m => acts.push({ts:m.registered_at,icon:'🛒',cls:'act-ok',title:m.business_name+' registered',detail:m.location||''}));
     acts.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
     document.getElementById('activity-feed').innerHTML = acts.slice(0,8).map(a =>
-      `<div class="activity-item"><div class="activity-dot ${a.cls}">${a.icon}</div><div style="flex:1"><div class="activity-title">${a.title}</div><div class="activity-detail">${a.detail}</div></div><div class="activity-time">${relTime(a.ts)}</div></div>`
+      `<div class="activity-item"><div class="activity-dot ${a.cls}">${a.icon}</div><div style="flex:1"><div class="activity-title">${escHtml(a.title)}</div><div class="activity-detail">${escHtml(a.detail)}</div></div><div class="activity-time">${relTime(a.ts)}</div></div>`
     ).join('') || '<div class="no-data">No activity yet</div>';
 
   } catch(e) { notify('Overview: ' + e.message, true); }
@@ -3494,8 +3500,8 @@ function renderCoopCards(coops) {
   }
   grid.innerHTML = coops.map(c => `
     <div class="user-card" style="cursor:pointer" onclick="openCoopDetail('${c.coop_id}')">
-      <div style="font-size:15px;font-weight:700;margin-bottom:4px">🌾 ${c.name}</div>
-      <div style="font-size:12px;color:var(--gr);margin-bottom:8px">${c.location || 'No location set'}</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">🌾 ${escHtml(c.name)}</div>
+      <div style="font-size:12px;color:var(--gr);margin-bottom:8px">${escHtml(c.location || 'No location set')}</div>
       <div style="font-size:13px;color:var(--g);font-weight:600">${c.member_count} member${c.member_count!==1?'s':''}</div>
       <div style="font-size:11px;color:var(--gr);margin-top:4px">${c.coop_id}</div>
     </div>
@@ -3531,7 +3537,7 @@ async function submitCreateCoop() {
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to create.'; errEl.style.display = 'block'; return; }
     closeCreateCoopModal();
-    notify(`Cooperative "${data.cooperative.name}" created`);
+    notify(`Cooperative "${escHtml(data.cooperative.name)}" created`);
     loadCooperatives();
   } catch(e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
   finally { btn.disabled = false; btn.textContent = 'Create'; }
@@ -3576,7 +3582,7 @@ async function refreshCoopDetail() {
 
     tbody.innerHTML = data.members.map(m => `
       <tr>
-        <td>${m.member_name || '—'}</td>
+        <td>${escHtml(m.member_name || '—')}</td>
         <td>${m.member_phone || '—'}</td>
         <td>${fmt(m.total_kobo)}</td>
         <td>—</td>
@@ -3831,7 +3837,7 @@ async function loadEcosystemFinance() {
         ${r.stale_unsettled.length ? `
           <div style="background:rgba(231,76,60,.12);border:1px solid #e74c3c;border-radius:8px;padding:10px 12px;font-size:12.5px">
             <strong>${r.stale_unsettled.length} payment(s)</strong> unsettled for more than 5 days — worth investigating:
-            ${r.stale_unsettled.map(s => `<div style="margin-top:4px">${s.society_name || s.coop_id}: ${fmtN(s.amount_kobo)}, ${s.days_unsettled}d unsettled</div>`).join('')}
+            ${r.stale_unsettled.map(s => `<div style="margin-top:4px">${escHtml(s.society_name || s.coop_id)}: ${fmtN(s.amount_kobo)}, ${s.days_unsettled}d unsettled</div>`).join('')}
           </div>` : '<div style="color:var(--g);font-size:12.5px">✓ No stale unsettled payments</div>'}
       `;
     }
@@ -3848,12 +3854,12 @@ async function loadEcosystemFinance() {
       <details style="margin-top:14px"><summary style="cursor:pointer;font-size:12.5px;color:var(--tx2)">Per-society breakdown</summary>
         <div class="table-wrap" style="margin-top:10px"><table>
           <thead><tr><th>Society</th><th>Plan</th><th>Total paid</th><th>Payments</th></tr></thead>
-          <tbody>${finance.societies.map(s => `<tr><td>${s.name}</td><td>${s.plan||'—'}</td><td>${fmtN(s.total_paid_kobo)}</td><td>${s.payment_count}</td></tr>`).join('') || '<tr><td colspan="4" class="no-data">No data</td></tr>'}</tbody>
+          <tbody>${finance.societies.map(s => `<tr><td>${escHtml(s.name)}</td><td>${s.plan||'—'}</td><td>${fmtN(s.total_paid_kobo)}</td><td>${s.payment_count}</td></tr>`).join('') || '<tr><td colspan="4" class="no-data">No data</td></tr>'}</tbody>
         </table></div>
       </details>
     `;
   } catch (e) {
-    el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    el.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -3883,7 +3889,7 @@ async function loadAjoOverview() {
       ${typeRows || '<div class="no-data">No groups yet.</div>'}
     `;
   } catch (e) {
-    el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    el.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -3919,7 +3925,7 @@ async function loadAjoFeeConfig() {
       </tr>`).join('');
     historyBody.innerHTML = rows || '<tr><td colspan="5" class="no-data">No rate has been set yet.</td></tr>';
   } catch (e) {
-    currentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    currentEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -3974,7 +3980,7 @@ async function loadAjoSchemeFeeOverride() {
         <div class="metric"><div class="mlabel">Payout Override</div><div class="mvalue">${fmtRate(data.current.payout)}</div></div>
       </div>`;
   } catch (e) {
-    currentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    currentEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -4044,26 +4050,26 @@ async function loadCoopAgentApplications() {
       <div style="background:var(--grl);border:1px solid var(--grb);border-radius:10px;padding:16px;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">
           <div>
-            <div style="font-weight:700;font-size:15px">${a.name}</div>
-            <div style="font-size:12.5px;color:var(--tx3)">${a.phone} &middot; ${a.email}</div>
+            <div style="font-weight:700;font-size:15px">${escHtml(a.name)}</div>
+            <div style="font-size:12.5px;color:var(--tx3)">${escHtml(a.phone)} &middot; ${escHtml(a.email)}</div>
           </div>
           <div style="font-size:11px;color:var(--tx3)">Applied ${new Date(a.submitted_at).toLocaleDateString()}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;font-size:12.5px">
-          <div><b>Address:</b> ${a.address || '—'}</div>
+          <div><b>Address:</b> ${escHtml(a.address || '—')}</div>
           <div><b>Office location:</b> ${a.office_location || '—'}</div>
           <div><b>Staff count:</b> ${a.staff_count ?? '—'}</div>
         </div>
         <div style="margin-top:8px;font-size:12.5px"><b>Qualifications:</b> ${a.qualifications || '—'}</div>
         <div style="margin-top:6px;font-size:12.5px"><b>SaaS/software sales experience:</b> ${a.saas_experience || '—'}</div>
         <div style="display:flex;gap:8px;margin-top:14px">
-          <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="approveCoopAgentApplication('${a.id}','${a.name.replace(/'/g, "&apos;")}')">Approve</button>
-          <button class="rbtn" onclick="rejectCoopAgentApplication('${a.id}','${a.name.replace(/'/g, "&apos;")}')">Reject</button>
+          <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="approveCoopAgentApplication('${a.id}',${jsAttr(a.name)})">Approve</button>
+          <button class="rbtn" onclick="rejectCoopAgentApplication('${a.id}',${jsAttr(a.name)})">Reject</button>
         </div>
       </div>
     `).join('');
   } catch (e) {
-    listEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -4139,7 +4145,7 @@ async function loadCoopAgentPipeline() {
     document.getElementById('pipeline-per-agent-body').innerHTML = (data.per_agent || []).length
       ? data.per_agent.map(a => `
         <tr>
-          <td>${a.agent_name}</td><td>${a.prospects_total}</td><td>${a.hot}</td><td>${a.qualified}</td><td>${a.onboarded}</td>
+          <td>${escHtml(a.agent_name)}</td><td>${a.prospects_total}</td><td>${a.hot}</td><td>${a.qualified}</td><td>${a.onboarded}</td>
           <td>${a.members_represented.toLocaleString()}</td><td>${a.meetings_this_month}</td>
           <td>${a.pending_followups > 0 ? `<span class="badge b-warn">${a.pending_followups}</span>` : '0'}</td>
         </tr>`).join('')
@@ -4147,7 +4153,7 @@ async function loadCoopAgentPipeline() {
 
     document.getElementById('pipeline-followup-body').innerHTML = (data.needs_follow_up || []).length
       ? data.needs_follow_up.map(f => `
-        <tr><td>${f.cooperative_name}</td><td>${f.agent_name}</td><td>${f.lead_status}</td><td>${new Date(f.next_meeting_date).toLocaleDateString()}</td></tr>`).join('')
+        <tr><td>${f.cooperative_name}</td><td>${escHtml(f.agent_name)}</td><td>${f.lead_status}</td><td>${new Date(f.next_meeting_date).toLocaleDateString()}</td></tr>`).join('')
       : '<tr><td colspan="4" class="no-data">Nothing overdue.</td></tr>';
 
     document.getElementById('pipeline-prospects-body').innerHTML = (data.prospects || []).length
@@ -4159,7 +4165,7 @@ async function loadCoopAgentPipeline() {
         </tr>`).join('')
       : '<tr><td colspan="6" class="no-data">No prospects yet.</td></tr>';
   } catch (e) {
-    document.getElementById('pipeline-summary').innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    document.getElementById('pipeline-summary').innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -4216,7 +4222,7 @@ async function loadCoopAgents() {
     const byId = new Map((data.agents || []).map(a => [a.id, a]));
     const rows = (data.agents || []).map(a => {
       const societiesList = (a.referred_societies || []).length
-        ? (a.referred_societies || []).map(g => `${g.society_name}${g.within_commission_window ? '' : ' <span style="color:var(--tx3)">(cap reached)</span>'}`).join('<br>')
+        ? (a.referred_societies || []).map(g => `${escHtml(g.society_name)}${g.within_commission_window ? '' : ' <span style="color:var(--tx3)">(cap reached)</span>'}`).join('<br>')
         : '<span class="no-data">No societies referred yet</span>';
       // Hierarchy: either "sub-agent of X" (with the override rate they pay up) or "N sub-agent(s)" for a
       // parent, or nothing for a plain top-level agent with no relationships either way.
@@ -4226,7 +4232,7 @@ async function loadCoopAgents() {
         : (a.sub_agent_count > 0 ? `<span style="font-size:12px">${a.sub_agent_count} sub-agent${a.sub_agent_count === 1 ? '' : 's'}${a.tier2_override_accrued_kobo > 0 ? `<br>+${fmtNaira(a.tier2_override_accrued_kobo)} in overrides` : ''}</span>` : '<span class="no-data">—</span>');
       return `
       <tr>
-        <td style="white-space:nowrap;vertical-align:top"><div style="font-weight:700">${a.name || '(no name on file)'}</div><div style="font-family:monospace;font-size:11px;color:var(--tx3)">${a.referral_code}</div></td>
+        <td style="white-space:nowrap;vertical-align:top"><div style="font-weight:700">${escHtml(a.name || '(no name on file)')}</div><div style="font-family:monospace;font-size:11px;color:var(--tx3)">${a.referral_code}</div></td>
         <td style="white-space:nowrap"><span style="font-weight:700">${(a.commission_rate_bps / 100).toFixed(1)}%</span> <button class="rbtn" style="padding:2px 8px;font-size:11px" onclick="editCoopAgentRate('${a.id}','${a.referral_code}',${a.commission_rate_bps})">Edit</button></td>
         <td style="vertical-align:top">${hierarchyHtml}<br><button class="rbtn" style="padding:2px 8px;font-size:11px;margin-top:4px" onclick="editCoopAgentParent('${a.id}','${a.referral_code}','${a.parent_agent_id || ''}')">${a.parent_agent_id ? 'Change/clear parent' : 'Set parent'}</button></td>
         <td style="font-size:12.5px">${societiesList}</td>
@@ -4243,7 +4249,7 @@ async function loadCoopAgents() {
     }).join('');
     body.innerHTML = rows || '<tr><td colspan="10" class="no-data">No agents yet — add the first one above.</td></tr>';
   } catch (e) {
-    body.innerHTML = `<tr><td colspan="10" class="no-data">Network error: ${e.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="no-data">Network error: ${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -4372,7 +4378,7 @@ async function loadAjoCollectorsAdmin() {
     renderAjoCollectorCompliance(data.collectors || []);
     renderAjoDisbursements(data.pending_disbursements || []);
   } catch (e) {
-    const msg = `<tr><td colspan="6" class="no-data">Network error: ${e.message}</td></tr>`;
+    const msg = `<tr><td colspan="6" class="no-data">Network error: ${escHtml(e.message)}</td></tr>`;
     pvBody.innerHTML = msg; compBody.innerHTML = msg; disbBody.innerHTML = msg;
   }
 }
@@ -4383,9 +4389,9 @@ function renderAjoPendingVerifications(list) {
   const body = document.getElementById('ajo-pending-verifications-body');
   body.innerHTML = list.length ? list.map(c => `
     <tr>
-      <td>${c.escrow_account_name || c.phone_normalized || '—'}</td>
+      <td>${escHtml(c.escrow_account_name || c.phone_normalized || '—')}</td>
       <td>${new Date(c.created_at).toLocaleDateString()}</td>
-      <td><button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="openVerifyEscrowModal('${c.id}','${(c.escrow_account_name || c.phone_normalized || 'this collector').replace(/'/g,"&apos;")}')">Review</button></td>
+      <td><button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="openVerifyEscrowModal('${c.id}',${jsAttr((c.escrow_account_name || c.phone_normalized || 'this collector'))})">Review</button></td>
     </tr>`).join('') : '<tr><td colspan="3" class="no-data">Nothing pending.</td></tr>';
 }
 
@@ -4396,9 +4402,9 @@ function renderAjoCollectorCompliance(list) {
   const fmtCommission = c => c.commission_type === 'percentage' ? `${(c.commission_value / 100).toFixed(1)}%` : fmtNaira(c.commission_value);
   body.innerHTML = list.length ? list.map(c => `
     <tr>
-      <td>${c.phone_normalized || c.zillion_id}</td>
+      <td>${escHtml(c.phone_normalized || c.zillion_id)}</td>
       <td><span class="badge ${c.delisted_at ? 'b-err' : statusPill(c.escrow_status)}">${c.delisted_at ? 'DELISTED' : c.escrow_status}</span></td>
-      <td>${fmtCommission(c)} <button class="rbtn" style="padding:2px 8px;font-size:11px" onclick="editAjoCollectorCommission('${c.id}','${(c.phone_normalized || c.zillion_id).replace(/'/g,"&apos;")}','${c.commission_type}',${c.commission_value})">Edit</button></td>
+      <td>${fmtCommission(c)} <button class="rbtn" style="padding:2px 8px;font-size:11px" onclick="editAjoCollectorCommission('${c.id}',${jsAttr((c.phone_normalized || c.zillion_id))},'${c.commission_type}',${c.commission_value})">Edit</button></td>
       <td>${c.compliance_score}/100</td>
       <td>${standing(c.compliance_score)}</td>
       <td>${c.delisted_at ? `<span style="font-size:11.5px;color:var(--tx3)">${c.delisted_reason || ''}</span>` : ''}</td>
@@ -4442,7 +4448,7 @@ function renderAjoDisbursements(list) {
       <td>${fmtNaira(d.intended_amount_kobo)}</td>
       <td>${d.confirmed_amount_kobo != null ? fmtNaira(d.confirmed_amount_kobo) : '—'}</td>
       <td><span class="badge b-warn">${d.status}</span></td>
-      <td><button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="openConfirmDisbursementModal('${d.id}','${d.reference}')">Confirm</button></td>
+      <td><button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="openConfirmDisbursementModal('${d.id}',${jsAttr(d.reference)})">Confirm</button></td>
     </tr>`).join('') : '<tr><td colspan="6" class="no-data">No disbursements awaiting confirmation.</td></tr>';
 }
 
@@ -4497,7 +4503,7 @@ async function submitVerifyEscrow(action) {
 function openInitiateDisbursementModal() {
   const activeCollectors = (ajoCollectorsOverviewCache?.collectors || []).filter(c => c.escrow_status === 'ACTIVE' && !c.delisted_at);
   document.getElementById('id-collector').innerHTML = activeCollectors.length
-    ? activeCollectors.map(c => `<option value="${c.id}">${c.phone_normalized || c.zillion_id}</option>`).join('')
+    ? activeCollectors.map(c => `<option value="${c.id}">${escHtml(c.phone_normalized || c.zillion_id)}</option>`).join('')
     : '<option value="">No active collectors available</option>';
   document.getElementById('id-amount').value = '';
   document.getElementById('id-reason').value = '';
@@ -4644,7 +4650,7 @@ async function loadCoopAnalytics() {
     const data = await res.json();
     if (!res.ok) { contentEl.innerHTML = `<div class="no-data">${data.error || 'Failed to load'}</div>`; return; }
     renderCoopAnalytics(data);
-  } catch (e) { contentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`; }
+  } catch (e) { contentEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`; }
 }
 
 function renderCoopAnalytics(d) {
@@ -4656,7 +4662,7 @@ function renderCoopAnalytics(d) {
   const occupationRows = Object.entries(d.members_by_occupation || {}).sort((a,b) => b[1]-a[1])
     .map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
   const loanRows = (d.loan_patterns_by_occupation || []).sort((a,b) => b.loan_count-a.loan_count)
-    .map(p => `<tr><td>${p.occupation}</td><td>${p.loan_count}</td><td>${fmtNaira(p.average_principal_kobo)}</td><td>${p.completion_rate_percent}%</td></tr>`).join('');
+    .map(p => `<tr><td>${escHtml(p.occupation)}</td><td>${p.loan_count}</td><td>${fmtNaira(p.average_principal_kobo)}</td><td>${p.completion_rate_percent}%</td></tr>`).join('');
 
   contentEl.innerHTML = `
     <div style="display:flex;gap:24px;margin-bottom:20px;flex-wrap:wrap">
@@ -4777,7 +4783,7 @@ async function loadAdminSocietyBackups() {
     `).join('') || '<tr><td colspan="6" class="no-data">No backups for this society yet.</td></tr>';
   } catch (e) {
     notify('Backups: ' + e.message, true);
-    body.innerHTML = `<tr><td colspan="6" class="no-data">${e.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="no-data">${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -4934,7 +4940,7 @@ async function loadKycAdmin() {
 
     tbody.innerHTML = (data.invoices || []).map(i => `
       <tr>
-        <td>${i.society_name} <span style="color:var(--tx2,#999);font-size:11px">${i.coop_id}</span></td>
+        <td>${escHtml(i.society_name)} <span style="color:var(--tx2,#999);font-size:11px">${i.coop_id}</span></td>
         <td>${i.period_start.slice(0, 7)}</td>
         <td>${i.verification_count}</td>
         <td>₦${(i.total_kobo / 100).toLocaleString()}</td>
@@ -4979,13 +4985,13 @@ function renderArchiveTable(societies) {
   if (!societies.length) { tbody.innerHTML = '<tr><td colspan="5" class="no-data">Nothing archived — trials that end with no payment land here automatically.</td></tr>'; return; }
   tbody.innerHTML = societies.map(s => `
     <tr>
-      <td style="font-weight:600">${s.name}</td>
-      <td>${s.owner_name || '—'}</td>
+      <td style="font-weight:600">${escHtml(s.name)}</td>
+      <td>${escHtml(s.owner_name || '—')}</td>
       <td style="color:var(--tx3);font-size:12.5px">${s.archive_reason || '—'}</td>
       <td>${s.archived_at ? new Date(s.archived_at).toLocaleDateString() : '—'}</td>
       <td>
-        <button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="restoreArchivedSociety('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}')">Restore</button>
-        <button class="rbtn" style="background:#fde8e8;color:#e74c3c" onclick="openDeleteSocietyModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}')">Delete</button>
+        <button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="restoreArchivedSociety('${s.coop_id}',${jsAttr(s.name)})">Restore</button>
+        <button class="rbtn" style="background:#fde8e8;color:#e74c3c" onclick="openDeleteSocietyModal('${s.coop_id}',${jsAttr(s.name)})">Delete</button>
       </td>
     </tr>
   `).join('');
@@ -5083,18 +5089,18 @@ function renderCoopThriftTable(societies) {
   const planLabel = p => p ? p.charAt(0).toUpperCase() + p.slice(1) : '—';
   tbody.innerHTML = societies.map(s => `
     <tr>
-      <td style="font-weight:600">${s.name}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
+      <td style="font-weight:600">${escHtml(s.name)}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
       <td><span style="color:${statusColor(s.status)};font-weight:600">${s.status}</span></td>
       <td>
         <span style="font-weight:700">${planLabel(s.subscription_plan)}</span>${s.subscription_cycle ? `<div style="font-size:10.5px;color:var(--tx3)">${s.subscription_cycle}</div>` : ''}
-        <div><button class="rbtn" style="margin-top:4px" onclick="openChangePlanModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}','${s.subscription_plan||''}','${s.subscription_cycle||'monthly'}')">${s.subscription_plan ? 'Change' : 'Set'} plan</button></div>
+        <div><button class="rbtn" style="margin-top:4px" onclick="openChangePlanModal('${s.coop_id}',${jsAttr(s.name)},'${s.subscription_plan||''}','${s.subscription_cycle||'monthly'}')">${s.subscription_plan ? 'Change' : 'Set'} plan</button></div>
       </td>
       <td>
         <span style="color:${subColor(s.subscription_status)};font-weight:600">${subLabel(s.subscription_status)}</span>
         ${s.never_expires ? '<div style="font-size:10px;color:var(--g);font-weight:600">♾ Never expires</div>' : ''}
         ${s.subscription_status === 'pending_verification' && s.subscription_paid_until ? `<div><button class="rbtn" style="background:var(--gl);color:var(--g);margin-top:4px" onclick="activateSubscription('${s.coop_id}')">Activate</button></div>` : ''}
         <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
-          <button class="rbtn" onclick="openExtendSubscriptionModal('${s.coop_id}','${s.name.replace(/'/g,"&apos;")}')">Extend</button>
+          <button class="rbtn" onclick="openExtendSubscriptionModal('${s.coop_id}',${jsAttr(s.name)})">Extend</button>
           <button class="rbtn" onclick="toggleNeverExpires('${s.coop_id}',${!s.never_expires})">${s.never_expires ? 'Unset never-expire' : 'Set never-expire'}</button>
         </div>
       </td>
@@ -5172,13 +5178,13 @@ async function loadAddonModulesAdmin() {
     if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${data.error || 'Failed to load'}</td></tr>`; return; }
     tbody.innerHTML = (data.addons || []).map(a => `
       <tr>
-        <td style="font-weight:600">${a.name}</td>
+        <td style="font-weight:600">${escHtml(a.name)}</td>
         <td>${a.price_kobo > 0 ? '₦' + (a.price_kobo/100).toLocaleString() : '<span style="color:var(--tx3)">Not set</span>'}</td>
         <td><span style="color:${a.active ? 'var(--g)' : 'var(--tx3)'};font-weight:600">${a.active ? 'Active' : 'Inactive'}</span></td>
         <td><button class="rbtn" onclick='openEditAddonModal(${JSON.stringify(a).replace(/'/g, "&apos;")})'>Edit</button></td>
       </tr>
     `).join('') || '<tr><td colspan="4" class="no-data">No add-on modules yet.</td></tr>';
-  } catch (e) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${e.message}</td></tr>`; }
+  } catch (e) { tbody.innerHTML = `<tr><td colspan="4" class="no-data">${escHtml(e.message)}</td></tr>`; }
 }
 
 let editingAddonKey = null;
@@ -5273,7 +5279,7 @@ async function loadAddonModulesForCreateModal() {
       ? csAddonModules.map(a => `
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer">
             <input type="checkbox" class="cs-addon-checkbox" value="${a.key}" data-price="${a.price_kobo}" onchange="updateCreateSocietyTotal()">
-            ${a.name} — &#8358;${(a.price_kobo/100).toLocaleString()}/mo
+            ${escHtml(a.name)} — &#8358;${(a.price_kobo/100).toLocaleString()}/mo
           </label>`).join('')
       : '<div style="font-size:12px;color:var(--tx3)">No add-ons currently available.</div>';
   } catch (e) { document.getElementById('cs-addons-list').innerHTML = ''; }
@@ -5336,7 +5342,7 @@ async function submitCreateSociety() {
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Failed to create society.'; errEl.style.display = 'block'; return; }
     closeCreateSocietyModal();
-    notify(data.message || `${body.name} created`);
+    notify(data.message || `${escHtml(body.name)} created`);
     loadCoopThriftSocieties();
     if (data.society?.coop_id) openSocietyDetail(data.society.coop_id);
   } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
@@ -5421,8 +5427,8 @@ function renderCtMembers(members) {
   if (!members.length) { tbody.innerHTML = '<tr><td colspan="4" class="no-data">No members yet.</td></tr>'; return; }
   tbody.innerHTML = members.map(m => `
     <tr>
-      <td style="font-weight:600">${m.name}</td>
-      <td>${m.phone_normalized}</td>
+      <td style="font-weight:600">${escHtml(m.name)}</td>
+      <td>${escHtml(m.phone_normalized)}</td>
       <td><span style="color:${m.status === 'ACTIVE' ? 'var(--g)' : 'var(--tx3)'};font-weight:600">${m.status}</span></td>
       <td>${m.activated_at ? new Date(m.activated_at).toLocaleDateString() : '—'}</td>
     </tr>
@@ -5434,12 +5440,12 @@ function renderCtSavings(plans) {
   if (!plans.length) { tbody.innerHTML = '<tr><td colspan="6" class="no-data">No savings plans yet.</td></tr>'; return; }
   tbody.innerHTML = plans.map(p => `
     <tr>
-      <td style="font-weight:600">${p.coop_members?.name || '—'}</td>
+      <td style="font-weight:600">${escHtml(p.coop_members?.name || '—')}</td>
       <td>${fmtNaira(p.target_amount_kobo)}</td>
       <td>${fmtNaira(p.saved_kobo)}</td>
       <td>${p.progress_pct}%</td>
       <td style="font-size:11px">${p.flutterwave_account_number ? p.flutterwave_account_number + ' (' + (p.flutterwave_bank_name || '') + ')' : '<span style="color:var(--tx3)">Not set up</span>'}</td>
-      <td><button class="rbtn" onclick="openRecordPaymentModal('savings','${p.id}','${(p.coop_members?.name || 'Member').replace(/'/g,"\\'")}\\'s savings')">Record Payment</button></td>
+      <td><button class="rbtn" onclick="openRecordPaymentModal('savings','${p.id}',${jsAttr(((p.coop_members?.name || 'Member'))+"'s savings")})">Record Payment</button></td>
     </tr>
   `).join('');
 }
@@ -5455,15 +5461,15 @@ function renderCtLoans(loans) {
     } else if (l.status === 'APPROVED') {
       actions = `<button class="rbtn" style="background:var(--gl);color:var(--g)" onclick="loanAction('${l.id}','disburse')">Disburse</button>`;
     } else if (['DISBURSED', 'REPAYING'].includes(l.status)) {
-      actions = `<button class="rbtn" onclick="openRecordPaymentModal('loan','${l.id}','${(l.borrower?.name || 'Member').replace(/'/g,"\\'")}\\'s loan repayment')">Record Repayment</button>`;
+      actions = `<button class="rbtn" onclick="openRecordPaymentModal('loan','${l.id}',${jsAttr(((l.borrower?.name || 'Member'))+"'s loan repayment")})">Record Repayment</button>`;
     }
     return `
     <tr>
-      <td style="font-weight:600">${l.borrower?.name || '—'}</td>
+      <td style="font-weight:600">${escHtml(l.borrower?.name || '—')}</td>
       <td>${fmtNaira(l.principal_kobo)}</td>
       <td><span style="color:${statusColor(l.status)};font-weight:600">${l.status.replace(/_/g, ' ')}</span></td>
       <td>${l.repayment ? fmtNaira(l.repayment.outstanding_kobo) : '—'}</td>
-      <td>${(l.guarantors || []).map(g => `${g.coop_members?.name || '—'}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</td>
+      <td>${(l.guarantors || []).map(g => `${escHtml(g.coop_members?.name || '—')}${g.status === 'PENDING' ? ' (pending)' : g.status === 'DECLINED' ? ' (declined)' : ''}`).join(', ') || '—'}</td>
       <td>${actions}</td>
     </tr>`;
   }).join('');
@@ -5524,10 +5530,10 @@ function renderCtDues(society, members) {
   if (!withDues.length) { tbody.innerHTML = '<tr><td colspan="4" class="no-data">Configure dues first to see member status.</td></tr>'; return; }
   tbody.innerHTML = withDues.map(m => `
     <tr>
-      <td style="font-weight:600">${m.name}</td>
+      <td style="font-weight:600">${escHtml(m.name)}</td>
       <td style="color:${m.dues.owing_kobo > 0 ? '#e74c3c' : 'var(--g)'};font-weight:600">${fmtNaira(m.dues.owing_kobo)}</td>
       <td>${fmtNaira(m.dues.total_paid_kobo)}</td>
-      <td>${m.dues.owing_kobo > 0 ? `<button class="rbtn" onclick="openRecordPaymentModal('dues','${m.id}','${m.name.replace(/'/g,"\\'")}\\'s dues')">Record Payment</button>` : '—'}</td>
+      <td>${m.dues.owing_kobo > 0 ? `<button class="rbtn" onclick="openRecordPaymentModal('dues','${m.id}',${jsAttr((m.name)+"'s dues")})">Record Payment</button>` : '—'}</td>
     </tr>
   `).join('');
 }
@@ -5537,8 +5543,8 @@ function renderCtNotifications(notifications) {
   if (!notifications.length) { tbody.innerHTML = '<tr><td colspan="3" class="no-data">No notifications sent yet.</td></tr>'; return; }
   tbody.innerHTML = notifications.map(n => `
     <tr>
-      <td style="font-weight:600">${n.title}</td>
-      <td>${n.target_type === 'broadcast' ? 'Everyone' : (n.target_member?.name || 'One member')}</td>
+      <td style="font-weight:600">${escHtml(n.title)}</td>
+      <td>${n.target_type === 'broadcast' ? 'Everyone' : escHtml(n.target_member?.name || 'One member')}</td>
       <td>${new Date(n.created_at).toLocaleString()}</td>
     </tr>
   `).join('');
@@ -5636,8 +5642,8 @@ async function submitBulkImport() {
     document.getElementById('bi-results-body').innerHTML = data.results.map(r => `
       <tr>
         <td>${r.line}</td>
-        <td>${r.phone || '—'}</td>
-        <td>${r.name || '—'}</td>
+        <td>${escHtml(r.phone || '—')}</td>
+        <td>${escHtml(r.name || '—')}</td>
         <td style="color:${statusColor(r.status)};font-weight:600">${r.status === 'failed' ? (r.error || 'failed') : r.status.replace(/_/g,' ')}</td>
       </tr>
     `).join('');
@@ -5655,7 +5661,7 @@ async function submitBulkImport() {
 function openCreateSavingsPlanModal() {
   const sel = document.getElementById('csp-member');
   const members = (ctCurrentDetail?.members || []).filter(m => m.status === 'ACTIVE');
-  sel.innerHTML = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${m.name} (${m.phone_normalized})</option>`).join('');
+  sel.innerHTML = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${escHtml(m.name)} (${escHtml(m.phone_normalized)})</option>`).join('');
   document.getElementById('csp-target').value = '';
   document.getElementById('csp-monthly').value = '';
   document.getElementById('csp-duration').value = '12';
@@ -5721,7 +5727,7 @@ async function submitConfigureDues() {
 function openSendNotificationModal() {
   const sel = document.getElementById('sn-member');
   const members = (ctCurrentDetail?.members || []).filter(m => m.status === 'ACTIVE');
-  sel.innerHTML = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  sel.innerHTML = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
   document.getElementById('sn-target-type').value = 'broadcast';
   document.getElementById('sn-member-row').style.display = 'none';
   document.getElementById('sn-title').value = '';
@@ -5771,7 +5777,7 @@ function openProvisionSettlementModal() {
 async function loadBankListIntoSelect() {
   const selectEl = document.getElementById('ps-bank-code');
   if (ctBankListCache) {
-    selectEl.innerHTML = '<option value="">Select a bank…</option>' + ctBankListCache.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+    selectEl.innerHTML = '<option value="">Select a bank…</option>' + ctBankListCache.map(b => `<option value="${b.code}">${escHtml(b.name)}</option>`).join('');
     return;
   }
   try {
@@ -5779,7 +5785,7 @@ async function loadBankListIntoSelect() {
     const data = await res.json();
     if (!res.ok || !data.banks) { selectEl.innerHTML = '<option value="">Could not load bank list</option>'; return; }
     ctBankListCache = data.banks;
-    selectEl.innerHTML = '<option value="">Select a bank…</option>' + data.banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+    selectEl.innerHTML = '<option value="">Select a bank…</option>' + data.banks.map(b => `<option value="${b.code}">${escHtml(b.name)}</option>`).join('');
   } catch (e) {
     selectEl.innerHTML = '<option value="">Could not load bank list</option>';
   }
@@ -5886,14 +5892,14 @@ async function searchZillionIdentity() {
 
     merchantEl.innerHTML = data.roles.merchant.length
       ? data.roles.merchant.map(m => `<div style="padding:10px 0;border-bottom:1px solid var(--b,#eee)">
-          <div style="font-weight:700">${m.business_name} (${m.merchant_id})</div>
-          <div style="font-size:12px;color:var(--gr)">Owner: ${m.owner_name} · Status: ${m.status} · Registered ${new Date(m.registered_at).toLocaleDateString()}</div>
+          <div style="font-weight:700">${escHtml(m.business_name)} (${m.merchant_id})</div>
+          <div style="font-size:12px;color:var(--gr)">Owner: ${escHtml(m.owner_name)} · Status: ${m.status} · Registered ${new Date(m.registered_at).toLocaleDateString()}</div>
         </div>`).join('')
       : '<div class="no-data">No merchant linked to this identity</div>';
 
     agentEl.innerHTML = data.roles.agent.length
       ? data.roles.agent.map(a => `<div style="padding:10px 0;border-bottom:1px solid var(--b,#eee)">
-          <div style="font-weight:700">${a.name} (${a.agent_id})</div>
+          <div style="font-weight:700">${escHtml(a.name)} (${a.agent_id})</div>
           <div style="font-size:12px;color:var(--gr)">Bank: ${a.mfb_name || a.mfb_id || '—'} · Status: ${a.status} · Onboarded ${new Date(a.onboarded_at).toLocaleDateString()}</div>
         </div>`).join('')
       : '<div class="no-data">No agent linked to this identity</div>';
@@ -5910,13 +5916,13 @@ function renderMerchantCards(merchants) {
     return `<div class="ucard">
       <div class="ucard-top merchant">
         <div class="uavatar merchant">${ini}</div>
-        <div><div class="ucard-name">${m.business_name}</div><div class="ucard-id">${m.merchant_id}</div></div>
+        <div><div class="ucard-name">${escHtml(m.business_name)}</div><div class="ucard-id">${m.merchant_id}</div></div>
       </div>
       <div class="ucard-body">
-        <div class="ustat-row"><span class="ustat-key">Owner</span><span class="ustat-val">${m.owner_name||'—'}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Owner</span><span class="ustat-val">${escHtml(m.owner_name||'—')}</span></div>
         <div class="ustat-row"><span class="ustat-key">Type</span><span class="ustat-val">${icons[m.business_type]||'🛒'} ${m.business_type||'—'}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Location</span><span class="ustat-val" style="font-size:11px">${m.location||'—'}</span></div>
-        <div class="ustat-row"><span class="ustat-key">Phone</span><span class="ustat-val" style="font-size:11px">${m.phone||'—'}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Location</span><span class="ustat-val" style="font-size:11px">${escHtml(m.location||'—')}</span></div>
+        <div class="ustat-row"><span class="ustat-key">Phone</span><span class="ustat-val" style="font-size:11px">${escHtml(m.phone||'—')}</span></div>
         <div class="ustat-row"><span class="ustat-key">Payments</span><span class="ustat-val green">${m.total_payments||0}</span></div>
         <div class="ustat-row"><span class="ustat-key">Volume</span><span class="ustat-val green">${fmt(m.total_received_kobo||0)}</span></div>
         <div class="ustat-row"><span class="ustat-key">Status</span><span class="badge ${m.status==='ACTIVE'?'b-ok':m.status==='SUSPENDED'?'b-err':'b-warn'}">${m.status}</span></div>
@@ -5926,7 +5932,7 @@ function renderMerchantCards(merchants) {
             style="flex:1;padding:7px;background:${m.status==='ACTIVE'?'var(--rl)':'var(--gl)'};color:${m.status==='ACTIVE'?'var(--r)':'var(--g)'};border:1px solid currentColor;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">
             ${m.status==='ACTIVE'?'Suspend':'Activate'}
           </button>
-          <button onclick="alert('${m.merchant_id}\\n${(m.owner_name||'').replace(/'/g,'')}')"
+          <button onclick="alert(${jsAttr(m.merchant_id + '\n' + (m.owner_name||''))})"
             style="flex:1;padding:7px;background:var(--pul);color:var(--pu);border:1px solid var(--pum);border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer">
             Details
           </button>
@@ -5939,11 +5945,11 @@ function renderMerchantTable(merchants) {
   document.getElementById('merchant-table-body').innerHTML = merchants.length
     ? merchants.map((m) => { const mIdx = allMerchantsData.indexOf(m); return `<tr onclick="openAdmDetail('merchant',${mIdx})" style="cursor:pointer" title="Click for full details">
         <td style="font-family:monospace;font-size:10px">${m.merchant_id}</td>
-        <td style="font-weight:600">${m.owner_name||'—'}</td>
-        <td style="font-weight:600;color:var(--pu)">${m.business_name}</td>
+        <td style="font-weight:600">${escHtml(m.owner_name||'—')}</td>
+        <td style="font-weight:600;color:var(--pu)">${escHtml(m.business_name)}</td>
         <td style="font-size:11px">${m.business_type||'—'}</td>
-        <td style="font-size:11px">${m.location||'—'}</td>
-        <td style="font-size:11px">${m.phone||'—'}</td>
+        <td style="font-size:11px">${escHtml(m.location||'—')}</td>
+        <td style="font-size:11px">${escHtml(m.phone||'—')}</td>
         <td style="font-size:11px">${fmtDate(m.registered_at)}</td>
         <td style="text-align:center;font-weight:bold">${m.total_payments||0}</td>
         <td style="font-weight:bold;color:var(--g)">${fmt(m.total_received_kobo||0)}</td>
@@ -5985,7 +5991,7 @@ async function loadAgents() {
       return `<div class="ucard">
         <div class="ucard-top agent">
           <div class="uavatar agent">${ini}</div>
-          <div><div class="ucard-name">${a.name}</div><div class="ucard-id agent-id">${a.agent_id}</div></div>
+          <div><div class="ucard-name">${escHtml(a.name)}</div><div class="ucard-id agent-id">${a.agent_id}</div></div>
         </div>
         <div class="ucard-body">
           <div class="ustat-row"><span class="ustat-key">Location</span><span class="ustat-val">${a.location_name||'—'}</span></div>
@@ -5994,12 +6000,12 @@ async function loadAgents() {
           <div class="ustat-row"><span class="ustat-key">Redeemed</span><span class="ustat-val">${a.coins_redeemed||0}</span></div>
           <div class="ustat-row"><span class="ustat-key">Status</span><span class="badge ${a.status==='ACTIVE'?'b-ok':'b-warn'}">${a.status}</span></div>
           <div class="ustat-row"><span class="ustat-key">Last Login</span><span class="ustat-val" style="font-size:11px">${relTime(a.last_activity)||'Never'}</span></div>
-          <button onclick="quickToken('${a.agent_id}','${a.name}')" style="width:100%;margin-top:10px;padding:8px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer">🔐 Generate Token</button>
+          <button onclick="quickToken('${a.agent_id}',${jsAttr(a.name)})" style="width:100%;margin-top:10px;padding:8px;background:var(--gl);color:var(--g);border:1px solid var(--gm);border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer">🔐 Generate Token</button>
         </div>
       </div>`;
     }).join('') || '<div class="no-data">No agents found</div>';
     document.getElementById('agent-table-body').innerHTML = allAgentsData.map((a,i) => `<tr onclick="openAdmDetail('agent',${i})" style="cursor:pointer" title="Click for full details">
-      <td style="font-weight:bold">${a.agent_id}</td><td>${a.name}</td>
+      <td style="font-weight:bold">${a.agent_id}</td><td>${escHtml(a.name)}</td>
       <td style="font-size:11px">${a.location_name||'—'}</td>
       <td style="font-weight:bold;color:${(a.float_balance_kobo||0)<200000?'var(--r)':'var(--g)'}">${fmt(a.float_balance_kobo||0)}</td>
       <td>${a.coins_issued||0}</td><td>${a.coins_redeemed||0}</td>
@@ -6087,7 +6093,7 @@ function populateAgentTokenDropdown() {
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">Select agent...</option>' +
-    (allAgentsData || []).map(a => `<option value="${a.agent_id}">${a.agent_id} — ${a.name}</option>`).join('');
+    (allAgentsData || []).map(a => `<option value="${a.agent_id}">${a.agent_id} — ${escHtml(a.name)}</option>`).join('');
   if (current) sel.value = current;
 }
 
@@ -6147,7 +6153,7 @@ async function submitAddAgent() {
       return;
     }
     closeAddAgentModal();
-    notify(`Agent ${data.agent.agent_id} (${data.agent.name}) created — linked to ${data.agent.mfb_name}. Generating token...`);
+    notify(`Agent ${data.agent.agent_id} (${escHtml(data.agent.name)}) created — linked to ${data.agent.mfb_name}. Generating token...`);
     loadAgents();
     quickToken(data.agent.agent_id, data.agent.name);
   } catch (e) {
@@ -6299,7 +6305,7 @@ async function loadStatutoryRates() {
       const displayValue = meta.unit === 'naira' ? (c.config_value_numeric / 100) : c.config_value_numeric;
       return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd)">
-          <div style="flex:1"><div style="font-size:13px;font-weight:600">${meta.label}</div></div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600">${escHtml(meta.label)}</div></div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="number" id="cfg-${c.config_key}" value="${displayValue}" style="width:120px;padding:7px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--d1);color:var(--tx)">
             <button class="rbtn" onclick="submitUpdateStatutoryConfig('${c.config_key}', '${meta.unit}')">Save</button>
@@ -6319,7 +6325,7 @@ async function loadStatutoryRates() {
           </tr>`).join('')}</tbody>
       </table>`;
   } catch (e) {
-    configEl.innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
+    configEl.innerHTML = `<div class="card-sub">Network error: ${escHtml(e.message)}</div>`;
     bandsEl.innerHTML = '';
   }
 }
@@ -6410,7 +6416,7 @@ async function lookupCoin() {
         <tr><td style="font-weight:bold">Status</td><td><span class="badge ${statusBadge(d.status)}">${d.status||'UNKNOWN'}</span></td></tr>
         <tr><td style="font-weight:bold">Amount</td><td>${d.amount?fmt(d.amount):'—'}</td></tr>
         <tr><td style="font-weight:bold">Expired</td><td>${d.expired?'⚠️ Yes':'✅ No'}</td></tr>
-        <tr><td style="font-weight:bold">Reason</td><td>${d.reason||'—'}</td></tr>
+        <tr><td style="font-weight:bold">Reason</td><td>${escHtml(d.reason||'—')}</td></tr>
       </tbody>
     </table></div>`;
   } catch(e) { el.innerHTML = '<div style="color:var(--r)">Error: '+e.message+'</div>'; }
@@ -7342,18 +7348,18 @@ async function loadAdminUsers() {
             : '<span class="badge b-err">' + u.status + '</span>';
       const pwWarn = u.must_change_password ? ' <span class="badge b-warn">PW RESET</span>' : '';
       html += `<tr>
-        <td style="font-family:monospace;font-size:12px;font-weight:700">${u.username}</td>
-        <td>${u.full_name}</td>
+        <td style="font-family:monospace;font-size:12px;font-weight:700">${escHtml(u.username)}</td>
+        <td>${escHtml(u.full_name)}</td>
         <td><span style="padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700;background:${roleColor}22;color:${roleColor}">${u.role}</span></td>
         <td>${statusBadge}${pwWarn}</td>
         <td style="font-size:12px;color:var(--gr)">${lastLogin}</td>
         <td>${totpBadge}</td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button onclick="doAdminUserAction('reset_password','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--am);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Reset PW</button>
-            ${u.status==='LOCKED'?`<button onclick="doAdminUserAction('unlock','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--g);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Unlock</button>`:''}
-            ${u.status==='ACTIVE'?`<button onclick="doAdminUserAction('suspend','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--r);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Suspend</button>`:''}
-            ${u.status==='SUSPENDED'?`<button onclick="doAdminUserAction('unlock','${u.user_id}','${u.username}')" style="padding:3px 8px;background:var(--g);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Reinstate</button>`:''}
+            <button onclick="doAdminUserAction('reset_password','${u.user_id}',${jsAttr(u.username)})" style="padding:3px 8px;background:var(--am);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Reset PW</button>
+            ${u.status==='LOCKED'?`<button onclick="doAdminUserAction('unlock','${u.user_id}',${jsAttr(u.username)})" style="padding:3px 8px;background:var(--g);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Unlock</button>`:''}
+            ${u.status==='ACTIVE'?`<button onclick="doAdminUserAction('suspend','${u.user_id}',${jsAttr(u.username)})" style="padding:3px 8px;background:var(--r);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Suspend</button>`:''}
+            ${u.status==='SUSPENDED'?`<button onclick="doAdminUserAction('unlock','${u.user_id}',${jsAttr(u.username)})" style="padding:3px 8px;background:var(--g);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">Reinstate</button>`:''}
           </div>
         </td>
       </tr>`;
@@ -7483,7 +7489,7 @@ async function loadAuditLog() {
       const rc   = e.result==='SUCCESS'?'b-ok':e.result==='FAILURE'?'b-err':'b-warn';
       html += `<tr>
         <td style="font-size:11px;white-space:nowrap">${fmtDate(e.logged_at)}</td>
-        <td style="font-family:monospace;font-size:12px">${e.username||'—'}</td>
+        <td style="font-family:monospace;font-size:12px">${escHtml(e.username||'—')}</td>
         <td><span style="font-size:10px;font-weight:700;color:${USER_ROLE_COLORS[e.role]||'#6B7280'}">${e.role||'—'}</span></td>
         <td style="font-size:12px;font-weight:600">${e.action}</td>
         <td style="font-size:11px;color:var(--gr)">${(e.resource_type||'')+(e.resource_id?' / '+e.resource_id.slice(0,12):'')}</td>
