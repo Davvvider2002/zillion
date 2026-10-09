@@ -125,6 +125,7 @@ a{color:inherit;text-decoration:none}
 .addons-head p{color:var(--muted);font-size:14.5px}
 .addons-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;max-width:900px;margin:0 auto}
 .addon-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+.addon-icon{width:44px;height:44px;border-radius:12px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px}
 .addon-card h3{font-family:'Fraunces',serif;font-size:16px;font-weight:700;margin-bottom:6px}
 .addon-card p{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:14px}
 .addon-card .price{font-size:14px;font-weight:700;color:var(--amber)}
@@ -516,10 +517,39 @@ function renderSignupAddonsModal() {
   document.getElementById('su-addons-list').innerHTML = signupAddons.map(a => `
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer;color:var(--muted)">
         <input type="checkbox" class="su-addon-checkbox" value="${a.key}" data-price="${a.price_kobo}" onchange="updateSignupTotal()" style="margin-top:2px">
-        <span><span style="color:var(--cream)">${a.name}</span> — ${fmtNaira(a.price_kobo/100)}/mo<br><span style="font-size:11.5px">${a.description || ''}</span></span>
+        <span><span style="color:var(--cream)">${addonIcon(a.key, a.name)} ${escHtml(a.name)}</span> — ${fmtNaira(a.price_kobo/100)}/mo<br><span style="font-size:11.5px">${escHtml(addonDescription(a.key, a.description))}</span></span>
       </label>`).join('');
   updateSignupTotal();
 }
+
+// Escapes text before it goes into innerHTML (module names and descriptions come from the database).
+function escHtml(v){return String(v==null?'':v).replace(/[&<>"'`]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];});}
+
+// One icon per add-on module: known keys first, then a keyword match on the name, then a neutral default.
+const ADDON_ICONS = { accounting: '📒', bank_reconciliation: '🏦', surplus_dividends: '💰', investment: '📈', payroll: '👥', hr_payroll: '👥' };
+function addonIcon(key, name) {
+  if (ADDON_ICONS[key]) return ADDON_ICONS[key];
+  const n = String(name || key || '').toLowerCase();
+  if (/account|ledger|book/.test(n)) return '📒';
+  if (/bank|reconcil/.test(n)) return '🏦';
+  if (/dividend|surplus|benefit/.test(n)) return '💰';
+  if (/invest/.test(n)) return '📈';
+  if (/payroll|hr\b|staff|salary/.test(n)) return '👥';
+  if (/sms|whatsapp|message|notif/.test(n)) return '💬';
+  if (/ajo|thrift|collect/.test(n)) return '🪙';
+  if (/loan|credit/.test(n)) return '🤝';
+  if (/report|analytic/.test(n)) return '📊';
+  return '🧩';
+}
+// Shown when the database has no description for a module (Investment had none). Keyed by the module's key.
+const ADDON_FALLBACK_DESCRIPTIONS = {
+  investment: 'Launch fixed-return or pooled investment products for your members. Track units sold, capital raised and every investor, and pay out returns with a full record.',
+  accounting: 'Chart of accounts, general ledger, cashbook, journal entries, trial balance and financial statements.',
+  bank_reconciliation: 'Upload your bank statement and automatically cross-check it against your recorded entries to catch discrepancies.',
+  payroll: 'Employee salary deduction into savings and loan repayment, with automatic reconciliation.',
+  surplus_dividends: 'Annual surplus calculation, reserve allocation and dividend or patronage distribution to members, with board and AGM approval.'
+};
+function addonDescription(key, desc) { return (desc && String(desc).trim()) || ADDON_FALLBACK_DESCRIPTIONS[key] || ''; }
 
 function renderPublicAddonsSection() {
   const section = document.getElementById('addon-modules-section');
@@ -527,8 +557,9 @@ function renderPublicAddonsSection() {
   section.style.display = '';
   document.getElementById('addons-grid-public').innerHTML = signupAddons.map(a => `
     <div class="addon-card">
-      <h3>${a.name}</h3>
-      <p>${a.description || ''}</p>
+      <div class="addon-icon" aria-hidden="true">${addonIcon(a.key, a.name)}</div>
+      <h3>${escHtml(a.name)}</h3>
+      <p>${escHtml(addonDescription(a.key, a.description))}</p>
       <div class="price">${fmtNaira(a.price_kobo/100)}/mo</div>
     </div>`).join('');
 }
