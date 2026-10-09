@@ -14,6 +14,7 @@
  */
 'use strict';
 
+const { cleanText } = require('./cleanText');
 const { createHmac } = require('crypto');
 const { resolveOrCreateZillionId } = require('./zillionId');
 const { computeWalletDeviceHash }  = require('./crypto');
@@ -35,6 +36,7 @@ function normalisePhone(raw) {
  * @returns {Promise<{ok: boolean, status: 'created'|'already_existed'|'error', member?, error?, phone?}>}
  */
 async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode }) {
+  name = cleanText(name, 100);
   if (!rawPhone) return { ok: false, status: 'error', error: 'phone is required' };
   if (openingBalanceKobo < 0) return { ok: false, status: 'error', error: 'opening balance cannot be negative' };
 

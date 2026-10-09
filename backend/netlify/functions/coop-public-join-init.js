@@ -30,6 +30,7 @@
  */
 'use strict';
 
+const { cleanText } = require('../../lib/cleanText');
 const { getServiceClient } = require('../../lib/supabase');
 const { activateMember, normalisePhone } = require('../../lib/coopActivateMember');
 const { validateOptionalPostcode } = require('../../lib/ngPostcode');
@@ -50,7 +51,7 @@ exports.handler = async (event) => {
   catch { return err(400, 'Invalid JSON'); }
 
   const coopId = (body.coop_id || '').trim();
-  const name   = (body.name || '').trim();
+  const name   = cleanText(body.name, 100);
   const phone  = (body.phone || '').trim();
   const email  = (body.email || '').trim() || null;
   const returnUrl = (body.return_url || '').trim();

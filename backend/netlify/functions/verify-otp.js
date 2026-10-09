@@ -158,7 +158,15 @@ exports.handler = async (event) => {
   }
 
   // Increment attempts
-  await db.from('otp_requests').update({ attempts: record.attempts + 1 }).eq('id', record.id);
+  // Atomic: only succeeds if nobody else bumped the counter since we read it. Parallel guesses used to all read the same
+  // count and slip past the 5-attempt cap; now all but one of them are refused.
+  const { data: bumped } = await db.from('otp_requests')
+    .update({ attempts: record.attempts + 1 })
+    .eq('id', record.id).eq('attempts', record.attempts)
+    .select('id');
+  if (!bumped || bumped.length === 0) {
+    return err(429, 'Too many simultaneous attempts. Please wait a moment and try again.');
+  }
 
   // Constant-time compare
   let match = false;

@@ -17,6 +17,7 @@
  */
 'use strict';
 
+const { cleanText } = require('../../lib/cleanText');
 const { getServiceClient } = require('../../lib/supabase');
 const { limitByIp, tooManyRequests } = require('../../lib/publicRateLimit');
 
@@ -38,10 +39,10 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const name = (body.name || '').trim();
+  const name = cleanText(body.name, 100);
   const rawPhone = (body.phone || '').trim();
   const email = (body.email || '').trim();
-  const address = (body.address || '').trim() || null;
+  const address = cleanText(body.address, 200) || null;
   const officeLocation = (body.office_location || '').trim() || null;
   const staffCount = Number.isInteger(body.staff_count) ? body.staff_count : (body.staff_count ? parseInt(body.staff_count, 10) : null);
   const qualifications = (body.qualifications || '').trim() || null;

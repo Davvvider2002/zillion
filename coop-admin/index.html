@@ -1133,6 +1133,12 @@ tr:last-child td{border-bottom:none}
 <div class="toast" id="toast"></div>
 
 <script>
+function jsAttr(v){return escHtml(JSON.stringify(String(v==null?'':v)));}
+
+/* Escapes text before it is placed into innerHTML. Added by the security hardening pass: member, society and agent
+   names come from public forms, so they must never be treated as markup. */
+function escHtml(v){return String(v==null?'':v).replace(/[&<>"'`]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];});}
+
 const API = '/api/v1';
 let portalToken = localStorage.getItem('coop_portal_token') || '';
 let portalData = null;
@@ -1425,7 +1431,7 @@ async function renderDashboard() {
       <div class="table-wrap"><table>
         <thead><tr><th>Name</th><th>Phone</th><th>Joined</th></tr></thead>
         <tbody>${d.members.slice(0, 5).map(m => `
-          <tr><td>${m.name || '—'}</td><td>${m.phone_normalized}</td><td>${fmtDate(m.activated_at)}</td></tr>
+          <tr><td>${escHtml(m.name || '—')}</td><td>${escHtml(m.phone_normalized)}</td><td>${fmtDate(m.activated_at)}</td></tr>
         `).join('') || '<tr><td colspan="3" class="no-data">No members yet</td></tr>'}</tbody>
       </table></div>
     </div>
@@ -1535,8 +1541,8 @@ function renderMembers() {
         <tbody>${d.members.map(m => `
           <tr>
             <td style="font-family:monospace;color:var(--amber)">${m.member_number || '—'}</td>
-            <td>${m.name || '—'}</td>
-            <td>${m.phone_normalized}</td>
+            <td>${escHtml(m.name || '—')}</td>
+            <td>${escHtml(m.phone_normalized)}</td>
             <td>${fmtDate(m.activated_at)}</td>
             <td>${m.dues ? fmtNaira(m.dues.owing_kobo) : '<span class="pill pill-muted">No dues set</span>'}</td>
             <td>${fmtNaira(m.share_capital_kobo || 0)}</td>
@@ -1545,9 +1551,9 @@ function renderMembers() {
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 ${hasPortalAction('members', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>` : ''}
-                ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}','${(m.name || m.phone_normalized || '').replace(/'/g, "\\'")}')">Record share</button>` : ''}
+                ${hasPortalAction('members', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSharePaymentModal('${m.id}',${jsAttr((m.name || m.phone_normalized || ''))})">Record share</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="sendMemberLoanStatement('${m.id}', this)">Send statement</button>
-                ${hasPortalAction('members', 'edit') && m.kyc_status !== 'VERIFIED' ? `<button class="btn btn-ghost btn-sm" onclick="openVerifyNinModal('${m.id}','${(m.name || '').replace(/'/g, "\\'")}',${!!m.nin_encrypted})">${m.nin_encrypted ? 'Review NIN' : 'Verify NIN'}</button>` : ''}
+                ${hasPortalAction('members', 'edit') && m.kyc_status !== 'VERIFIED' ? `<button class="btn btn-ghost btn-sm" onclick="openVerifyNinModal('${m.id}',${jsAttr((m.name || ''))},${!!m.nin_encrypted})">${m.nin_encrypted ? 'Review NIN' : 'Verify NIN'}</button>` : ''}
               </div>
             </td>
           </tr>
@@ -1628,12 +1634,12 @@ async function submitVerifyNin() {
       banner.textContent = data.message;
       banner.style.display = 'block';
     } else if (data.matched) {
-      resultEl.innerHTML = `<span class="pill pill-green">Verified</span> ${data.message} (charged ${fmtNaira(data.charged_kobo)})`;
+      resultEl.innerHTML = `<span class="pill pill-green">Verified</span> ${escHtml(data.message)} (charged ${fmtNaira(data.charged_kobo)})`;
       resultEl.style.display = 'block';
       notify('NIN verified.');
       refreshAndRender();
     } else {
-      resultEl.innerHTML = `<span class="pill pill-red">No match</span> ${data.message} (charged ${fmtNaira(data.charged_kobo)})`;
+      resultEl.innerHTML = `<span class="pill pill-red">No match</span> ${escHtml(data.message)} (charged ${fmtNaira(data.charged_kobo)})`;
       resultEl.style.display = 'block';
     }
   } catch (e) {
@@ -1785,11 +1791,11 @@ function renderSavings() {
         <thead><tr><th>Member</th><th>Target</th><th>Saved</th><th>Progress</th><th></th></tr></thead>
         <tbody>${d.savings_plans.map(p => `
           <tr>
-            <td>${p.coop_members?.name || p.coop_members?.phone_normalized || '—'}</td>
+            <td>${escHtml(p.coop_members?.name || p.coop_members?.phone_normalized || '—')}</td>
             <td>${fmtNaira(p.target_amount_kobo)}</td>
             <td>${fmtNaira(p.saved_kobo)}</td>
             <td>${p.progress_pct}%</td>
-            <td>${hasPortalAction('savings', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSavingsPaymentModal('${p.id}','${(p.coop_members?.name || p.coop_members?.phone_normalized || '').replace(/'/g,"\\'")}')">Record payment</button>` : ''}</td>
+            <td>${hasPortalAction('savings', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openSavingsPaymentModal('${p.id}',${jsAttr((p.coop_members?.name || p.coop_members?.phone_normalized || ''))})">Record payment</button>` : ''}</td>
           </tr>
         `).join('') || '<tr><td colspan="5" class="no-data">No savings plans yet.</td></tr>'}</tbody>
       </table></div>
@@ -1875,7 +1881,7 @@ async function submitSharePayment() {
 
 async function openNewSavingsPlanModal() {
   const sel = document.getElementById('nsp-member-id');
-  sel.innerHTML = portalData.members.filter(m => m.status === 'ACTIVE').map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('') || '<option value="">No active members yet</option>';
+  sel.innerHTML = portalData.members.filter(m => m.status === 'ACTIVE').map(m => `<option value="${m.id}">${escHtml(m.name || m.phone_normalized)}</option>`).join('') || '<option value="">No active members yet</option>';
   document.getElementById('nsp-target').value = '';
   document.getElementById('nsp-monthly').value = '';
   document.getElementById('nsp-duration').value = '';
@@ -1891,7 +1897,7 @@ async function openNewSavingsPlanModal() {
   const pkgSel = document.getElementById('nsp-package-id');
   const activePackages = savingsPackagesCache.filter(p => p.active);
   pkgSel.innerHTML = '<option value="">No package — no interest</option>' +
-    activePackages.map(p => `<option value="${p.id}">${p.name} (${p.monthly_interest_rate_percent}%/mo)</option>`).join('');
+    activePackages.map(p => `<option value="${p.id}">${escHtml(p.name)} (${p.monthly_interest_rate_percent}%/mo)</option>`).join('');
 
   openModal('modal-new-savings-plan');
 }
@@ -1971,14 +1977,14 @@ function renderLoans() {
         <thead><tr><th>Borrower</th><th>Amount</th><th>Guarantor</th><th>Status</th><th>Outstanding</th><th></th></tr></thead>
         <tbody>${d.loans.map(l => `
           <tr>
-            <td>${l.borrower?.name || l.borrower?.phone_normalized || '—'}</td>
+            <td>${escHtml(l.borrower?.name || l.borrower?.phone_normalized || '—')}</td>
             <td>${l.interest_kobo > 0 ? `${fmtNaira(l.principal_kobo)} <span style="color:var(--amber);font-size:12px">+${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)</span>` : fmtNaira(l.principal_kobo)}</td>
             <td>${(l.guarantors || []).map(g => {
               const name = g.is_external ? `${g.external_name} (external)` : (g.coop_members?.name || '—');
               const statusLabel = g.status === 'PENDING' ? ' — pending' : g.status === 'DECLINED' ? ' — declined' : '';
               const btnStyle = 'border:1px solid var(--grb);background:#fff;border-radius:6px;padding:1px 6px;font-size:10.5px;cursor:pointer;margin-left:3px';
               const overrideBtns = g.status === 'PENDING' && hasPortalAction('loans', 'edit')
-                ? ` <button style="${btnStyle}" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','APPROVED')">✓</button><button style="${btnStyle}" onclick="guarantorOverride('${g.id}','${name.replace(/'/g, "&apos;")}','DECLINED')">✗</button>`
+                ? ` <button style="${btnStyle}" onclick="guarantorOverride('${g.id}',${jsAttr(name)},'APPROVED')">✓</button><button style="${btnStyle}" onclick="guarantorOverride('${g.id}',${jsAttr(name)},'DECLINED')">✗</button>`
                 : '';
               return `<div style="white-space:nowrap">${name}${statusLabel}${overrideBtns}</div>`;
             }).join('') || '—'}</td>
@@ -2021,7 +2027,7 @@ async function viewLoanOverride(loanId) {
     if (!res.ok) { alert(data.error || 'Unable to load override details.'); return; }
     const checkLabels = { dues_owing: 'outstanding dues', max_amount_exceeded: 'amount over the package limit' };
     const lines = data.overrides.map(o =>
-      `${new Date(o.created_at).toLocaleDateString()} — bypassed: ${o.bypassed_checks.map(c => checkLabels[c] || c).join(', ')}\nReason: ${o.reason}\nApproved by: ${o.approved_by}`
+      `${new Date(o.created_at).toLocaleDateString()} — bypassed: ${o.bypassed_checks.map(c => checkLabels[c] || c).join(', ')}\nReason: ${escHtml(o.reason)}\nApproved by: ${o.approved_by}`
     ).join('\n\n');
     if (confirm(`${lines}\n\nOpen the supporting document?`)) window.open(data.document_url, '_blank');
   } catch (e) {
@@ -2042,7 +2048,7 @@ async function renderLoanHistoryReport(el) {
       const res = await fetch(`${API}/coop-portal-loan-history-report`, { headers: { Authorization: 'Bearer ' + portalToken } });
       loanHistoryData = await res.json();
     } catch (e) {
-      el.innerHTML = `<div class="card"><div class="card-title">Loan History</div><div class="card-sub">Failed to load: ${e.message}</div></div>`;
+      el.innerHTML = `<div class="card"><div class="card-title">Loan History</div><div class="card-sub">Failed to load: ${escHtml(e.message)}</div></div>`;
       return;
     }
   }
@@ -2059,11 +2065,11 @@ async function renderLoanHistoryReport(el) {
       <div class="card-sub">Full loan and repayment trail, member by member.</div>
       ${members.length ? members.map(m => `
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
-          <div style="font-weight:700;font-size:14px;margin-bottom:8px">${m.member_name} <span style="font-weight:400;color:var(--muted);font-size:12px">(${m.phone_normalized})</span></div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px">${escHtml(m.member_name)} <span style="font-weight:400;color:var(--muted);font-size:12px">(${escHtml(m.phone_normalized)})</span></div>
           ${m.loans.map(l => `
             <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <span>${fmtNaira(l.principal_kobo)}${l.interest_kobo > 0 ? ` +${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)` : ''} · ${l.repayment_months}mo${l.guarantor_name ? ` · guarantor: ${l.guarantor_name}` : ''}</span>
+                <span>${fmtNaira(l.principal_kobo)}${l.interest_kobo > 0 ? ` +${l.interest_rate_percent}% (${fmtNaira(l.total_repayable_kobo)} total)` : ''} · ${l.repayment_months}mo${l.guarantor_name ? ` · guarantor: ${escHtml(l.guarantor_name)}` : ''}</span>
                 ${loanStatusPill(l.status)}
               </div>
               <div style="font-size:12px;color:var(--muted)">
@@ -2194,14 +2200,14 @@ function renderDues() {
 
   const rows = withDues.map(m => {
     const yearData = (m.dues.by_year || []).find(y => y.year === selectedDuesYear);
-    if (!yearData) return `<tr><td>${m.name || m.phone_normalized}</td><td colspan="3" style="color:var(--muted)">Not yet a member in ${selectedDuesYear}</td><td></td></tr>`;
+    if (!yearData) return `<tr><td>${escHtml(m.name || m.phone_normalized)}</td><td colspan="3" style="color:var(--muted)">Not yet a member in ${selectedDuesYear}</td><td></td></tr>`;
     return `
       <tr>
-        <td>${m.name || m.phone_normalized}</td>
+        <td>${escHtml(m.name || m.phone_normalized)}</td>
         <td>${fmtNaira(yearData.accrued_kobo)}</td>
         <td>${fmtNaira(yearData.paid_kobo)}</td>
         <td>${yearData.owing_kobo > 0 ? `<span class="pill pill-amber">${fmtNaira(yearData.owing_kobo)}</span>` : `<span class="pill pill-green">Clear</span>`}</td>
-        <td>${hasPortalAction('dues', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openDuesPaymentModal('${m.id}','${(m.name || m.phone_normalized).replace(/'/g,"\\'")}')">Record payment</button>` : ''}</td>
+        <td>${hasPortalAction('dues', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openDuesPaymentModal('${m.id}',${jsAttr((m.name || m.phone_normalized))})">Record payment</button>` : ''}</td>
       </tr>`;
   }).join('');
 
@@ -2305,7 +2311,7 @@ async function openCreateLoanModal() {
 
   const members = (portalData.members || []).filter(m => m.status === 'ACTIVE');
   document.getElementById('cl-member').innerHTML = '<option value="">Select a member...</option>'
-    + members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+    + members.map(m => `<option value="${m.id}">${escHtml(m.name || m.phone_normalized)}</option>`).join('');
 
   try {
     const res = await fetch(`${API}/coop-portal-loan-packages`, { headers: { Authorization: 'Bearer ' + portalToken } });
@@ -2314,7 +2320,7 @@ async function openCreateLoanModal() {
     const pkgRow = document.getElementById('cl-package-row');
     if (packages.length) {
       pkgRow.style.display = '';
-      document.getElementById('cl-package').innerHTML = '<option value="">Select a package...</option>' + packages.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      document.getElementById('cl-package').innerHTML = '<option value="">Select a package...</option>' + packages.map(p => `<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
     } else {
       pkgRow.style.display = 'none';
     }
@@ -2322,7 +2328,7 @@ async function openCreateLoanModal() {
 
   const requiredCount = portalData.society?.required_guarantor_count || 1;
   document.getElementById('cl-guarantors-label').textContent = `Guarantor${requiredCount === 1 ? '' : 's'} (${requiredCount} required)`;
-  const memberOptionsHtml = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  const memberOptionsHtml = '<option value="">Select a member...</option>' + members.map(m => `<option value="${m.id}">${escHtml(m.name || m.phone_normalized)}</option>`).join('');
   document.getElementById('cl-guarantors').innerHTML = Array.from({ length: requiredCount }, (_, i) => `
     <div class="cl-guarantor-slot" style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
       <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -2481,7 +2487,7 @@ async function loadLoanPackages() {
     listEl.innerHTML = loanPackagesCache.length ? loanPackagesCache.map(p => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
         <div>
-          <div style="font-size:13px;font-weight:600">${p.name} ${p.active ? '' : '<span class="pill pill-muted" style="margin-left:6px">Inactive</span>'}</div>
+          <div style="font-size:13px;font-weight:600">${escHtml(p.name)} ${p.active ? '' : '<span class="pill pill-muted" style="margin-left:6px">Inactive</span>'}</div>
           <div style="font-size:11px;color:var(--muted)">${p.calculation_type === 'flat_max' ? `Up to ${fmtNaira(p.flat_max_kobo)} for everyone` : `${p.multiplier_value}x member's total savings`} · ${p.default_repayment_months}mo</div>
         </div>
         <div style="display:flex;gap:6px">
@@ -2491,7 +2497,7 @@ async function loadLoanPackages() {
       </div>
     `).join('') : '<div class="no-data">No packages yet — add one below.</div>';
   } catch (e) {
-    listEl.innerHTML = `<div class="no-data">Failed to load: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="no-data">Failed to load: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -2612,7 +2618,7 @@ async function loadSavingsPackages() {
     listEl.innerHTML = savingsPackagesCache.length ? savingsPackagesCache.map(p => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
         <div>
-          <div style="font-size:13px;font-weight:600">${p.name} ${p.active ? '' : '<span class="pill pill-muted" style="margin-left:6px">Inactive</span>'}</div>
+          <div style="font-size:13px;font-weight:600">${escHtml(p.name)} ${p.active ? '' : '<span class="pill pill-muted" style="margin-left:6px">Inactive</span>'}</div>
           <div style="font-size:11px;color:var(--muted)">${p.monthly_interest_rate_percent}%/mo${p.min_balance_kobo ? ` · min ${fmtNaira(p.min_balance_kobo)}` : ''}</div>
         </div>
         <div style="display:flex;gap:6px">
@@ -3005,8 +3011,8 @@ async function renderAddons() {
       ${purchased.length ? purchased.map(a => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
           <div>
-            <div style="font-weight:600;font-size:14px">${a.coop_addon_modules?.name || a.addon_key}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.coop_addon_modules?.description || ''}</div>
+            <div style="font-weight:600;font-size:14px">${escHtml(a.coop_addon_modules?.name || a.addon_key)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.coop_addon_modules?.description || '')}</div>
           </div>
           <span class="pill pill-amber">Launching soon</span>
         </div>
@@ -3019,8 +3025,8 @@ async function renderAddons() {
       ${addable.map(a => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
           <div>
-            <div style="font-weight:600;font-size:14px">${a.name}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.description || ''} — ${fmtNaira(a.price_kobo)}/mo</div>
+            <div style="font-weight:600;font-size:14px">${escHtml(a.name)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.description || '')} — ${fmtNaira(a.price_kobo)}/mo</div>
           </div>
           ${hasPortalAction('addons', 'create') ? `<button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>` : ''}
         </div>
@@ -3077,9 +3083,9 @@ async function renderHrPayroll() {
     window._hrEmployees = data.employees || [];
     const rows = window._hrEmployees.map(e => `
       <tr>
-        <td>${e.name}</td>
+        <td>${escHtml(e.name)}</td>
         <td>${e.job_title || '—'}</td>
-        <td>${e.member_name ? `<span class="pill pill-green">${e.member_name}</span>` : '<span class="pill pill-muted">Not a member</span>'}</td>
+        <td>${e.member_name ? `<span class="pill pill-green">${escHtml(e.member_name)}</span>` : '<span class="pill pill-muted">Not a member</span>'}</td>
         <td>${fmtNaira(e.gross_kobo)}</td>
         <td><span class="pill ${e.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${e.status}</span></td>
         <td>
@@ -3115,7 +3121,7 @@ async function renderHrPayroll() {
     `;
     loadPayrollRunsList();
   } catch (e) {
-    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -3169,7 +3175,7 @@ async function renderStaffLoanReport(el) {
       </div>
     `;
   } catch (e) {
-    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -3190,7 +3196,7 @@ function openStaffLoanHistoryModal(loan) {
           <tbody>${rows || '<tr><td colspan="3" class="no-data">No deductions recorded yet.</td></tr>'}</tbody>
         </table></div>
         <div style="display:flex;gap:8px;margin-top:16px">
-          <button class="btn btn-ghost" style="flex:1" onclick="printSection('staff-loan-history-box', '${loan.employee_name.replace(/'/g, "\\'")} — Staff Loan History')">🖨️ Print / Download</button>
+          <button class="btn btn-ghost" style="flex:1" onclick="printSection('staff-loan-history-box', ${jsAttr(loan.employee_name + ' — Staff Loan History')})">🖨️ Print / Download</button>
           <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('modal-staff-loan-history-dynamic').remove()">Close</button>
         </div>
       </div>
@@ -3218,7 +3224,7 @@ async function loadPayrollRunsList() {
       <tbody>${rows || '<tr><td colspan="3" class="no-data">No payroll runs yet.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
-    listEl.innerHTML = `<div class="card-sub">Failed to load: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="card-sub">Failed to load: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -3316,9 +3322,9 @@ async function openPayrollBreakdownModal(payrollRunId) {
         <td style="font-weight:700">${fmtNaira(l.net_pay_kobo)}</td>
         <td class="no-print">
           <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="downloadPayslip('${l.employee_id}','${(l.employee_name||'').replace(/'/g,"\\'")}')">Payslip</button>
-            <button class="btn btn-ghost btn-sm" onclick="emailPayslip('${l.employee_id}','${(l.employee_name||'').replace(/'/g,"\\'")}')">Email</button>
-            ${l.employee_phone ? `<button class="btn btn-ghost btn-sm" onclick="whatsappPayslip('${l.employee_id}','${(l.employee_name||'').replace(/'/g,"\\'")}','${l.employee_phone}')">WhatsApp</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="downloadPayslip('${l.employee_id}',${jsAttr((l.employee_name||''))})">Payslip</button>
+            <button class="btn btn-ghost btn-sm" onclick="emailPayslip('${l.employee_id}',${jsAttr((l.employee_name||''))})">Email</button>
+            ${l.employee_phone ? `<button class="btn btn-ghost btn-sm" onclick="whatsappPayslip('${l.employee_id}',${jsAttr((l.employee_name||''))},'${l.employee_phone}')">WhatsApp</button>` : ''}
           </div>
         </td>
       </tr>`).join('');
@@ -3328,7 +3334,7 @@ async function openPayrollBreakdownModal(payrollRunId) {
       <tbody>${rows || '<tr><td colspan="10" class="no-data">No line items.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
-    document.getElementById('pb-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
+    document.getElementById('pb-body').innerHTML = `<div class="card-sub">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -3443,7 +3449,7 @@ function updateSalaryPreview(prefix) {
         </div>
       `;
     } catch (e) {
-      previewEl.innerHTML = `<div class="card-sub" style="color:#FF8A8A">Network error: ${e.message}</div>`;
+      previewEl.innerHTML = `<div class="card-sub" style="color:#FF8A8A">Network error: ${escHtml(e.message)}</div>`;
     }
   }, 400);
 }
@@ -3630,7 +3636,7 @@ async function renderInvestment() {
     window._investmentProducts = data.products || [];
     const rows = window._investmentProducts.map(p => `
       <tr>
-        <td>${p.name}</td>
+        <td>${escHtml(p.name)}</td>
         <td>${p.product_type === 'general' ? 'Pooled' : 'Individual'}</td>
         <td>${p.return_type === 'fixed' ? `Fixed (${p.fixed_return_rate_percent}%)` : 'Variable'}</td>
         <td>${fmtNaira(p.unit_price_kobo)}/unit</td>
@@ -3657,7 +3663,7 @@ async function renderInvestment() {
       </div>
     `;
   } catch (e) {
-    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -3735,7 +3741,7 @@ async function submitAddInvestmentProduct() {
 function openRecordInvestmentModal(productId) {
   document.getElementById('ri-product-id').value = productId;
   document.getElementById('ri-member-select').innerHTML = (portalData.members || [])
-    .map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+    .map(m => `<option value="${m.id}">${escHtml(m.name || m.phone_normalized)}</option>`).join('');
   document.getElementById('ri-units').value = '';
   document.getElementById('ri-error').style.display = 'none';
   openModal('modal-record-investment');
@@ -3782,7 +3788,7 @@ async function openViewInvestorsModal(productId) {
     };
     const rows = (data.investments || []).map(inv => `
       <tr>
-        <td>${inv.member_name}</td>
+        <td>${escHtml(inv.member_name)}</td>
         <td>${inv.units_purchased}</td>
         <td>${fmtNaira(inv.principal_kobo)}</td>
         <td>${fmtNaira(inv.total_accrued_kobo)}</td>
@@ -3796,7 +3802,7 @@ async function openViewInvestorsModal(productId) {
       <tbody>${rows || '<tr><td colspan="7" class="no-data">No investors yet.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
-    document.getElementById('vi-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
+    document.getElementById('vi-body').innerHTML = `<div class="card-sub">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -3881,8 +3887,8 @@ async function renderUsers() {
     window._portalUsers = data.users || [];
     const rows = window._portalUsers.map(u => `
       <tr>
-        <td>${u.name}</td>
-        <td>${u.phone}</td>
+        <td>${escHtml(u.name)}</td>
+        <td>${escHtml(u.phone)}</td>
         <td>${u.permissions.length ? u.permissions.map(p => `<span class="pill pill-muted" style="margin:2px">${describePermissionPill(p)}</span>`).join('') : '<span class="pill pill-muted">No access granted</span>'}</td>
         <td><span class="pill ${u.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${u.status}</span></td>
         <td>
@@ -3905,7 +3911,7 @@ async function renderUsers() {
       </div>
     `;
   } catch (e) {
-    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${e.message}</div></div>`;
+    el.innerHTML = `<div class="card"><div class="card-sub">Network error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -4150,7 +4156,7 @@ async function loadKycInvoices() {
       <tbody>${rows}</tbody>
     </table></div>`;
   } catch (e) {
-    el.innerHTML = `<div class="no-data">${e.message}</div>`;
+    el.innerHTML = `<div class="no-data">${escHtml(e.message)}</div>`;
   }
 }
 
@@ -4227,7 +4233,7 @@ async function renderBackups() {
       </tr>
     `).join('') || '<tr><td colspan="5" class="no-data">No backups yet.</td></tr>';
   } catch (e) {
-    document.getElementById('backup-list-body').innerHTML = `<tr><td colspan="5" class="no-data">${e.message}</td></tr>`;
+    document.getElementById('backup-list-body').innerHTML = `<tr><td colspan="5" class="no-data">${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -4347,7 +4353,7 @@ async function submitBackupPreview() {
 async function submitBackupApply() {
   const errEl = document.getElementById('bk-restore-apply-error'); errEl.style.display = 'none';
   const confirm = document.getElementById('bk-restore-confirm-input').value;
-  const expected = `RESTORE ${portalData.society.name}`;
+  const expected = `RESTORE ${escHtml(portalData.society.name)}`;
   if (confirm !== expected) { errEl.textContent = `Type exactly: ${expected}`; errEl.style.display = 'block'; return; }
   const btn = document.getElementById('bk-restore-apply-btn'); btn.disabled = true; btn.textContent = 'Restoring…';
   try {
@@ -4395,8 +4401,8 @@ function renderNotifications() {
         <thead><tr><th>Title</th><th>To</th><th>Sent</th></tr></thead>
         <tbody>${d.notifications.map(n => `
           <tr>
-            <td>${n.title}</td>
-            <td>${n.target_type === 'individual' ? (n.target_member?.name || 'One member') : '<span class="pill pill-muted">Everyone</span>'}</td>
+            <td>${escHtml(n.title)}</td>
+            <td>${n.target_type === 'individual' ? escHtml(n.target_member?.name || 'One member') : '<span class="pill pill-muted">Everyone</span>'}</td>
             <td>${fmtDate(n.created_at)}</td>
           </tr>
         `).join('') || '<tr><td colspan="3" class="no-data">No notifications sent yet.</td></tr>'}</tbody>
@@ -4412,7 +4418,7 @@ function openNotifyModal() {
   document.getElementById('nt-body').value = '';
   document.getElementById('nt-error').style.display = 'none';
   const sel = document.getElementById('nt-member-id');
-  sel.innerHTML = portalData.members.map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+  sel.innerHTML = portalData.members.map(m => `<option value="${m.id}">${escHtml(m.name || m.phone_normalized)}</option>`).join('');
   openModal('modal-notify');
 }
 
@@ -4563,14 +4569,14 @@ async function loadFinancialYears() {
             <td>${y.closing_entry_id ? '<span class="pill pill-green">Closed</span>' : '<span class="pill pill-muted">Computed only</span>'}</td>
             <td style="display:flex;gap:6px">
               <button class="btn btn-ghost btn-sm" onclick="openAllocationEditor('${y.id}')">Allocate</button>
-              ${y.closing_entry_id && hasPortalAction('surplus', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="reopenFinancialYear('${y.id}','${y.year_label.replace(/'/g, "\\'")}')">Reopen</button>` : ''}
+              ${y.closing_entry_id && hasPortalAction('surplus', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="reopenFinancialYear('${y.id}',${jsAttr(y.year_label)})">Reopen</button>` : ''}
             </td>
           </tr>
         `).join('')}</tbody>
       </table></div>
     ` : '<div class="no-data">No financial years closed yet.</div>';
   } catch (e) {
-    listEl.innerHTML = `<div class="no-data">Failed to load: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="no-data">Failed to load: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -4630,7 +4636,7 @@ async function openAllocationEditor(financialYearId) {
     if (!res.ok) { detailEl.innerHTML = `<div class="card"><div class="no-data">${data.error}</div></div>`; return; }
     renderAllocationEditor(data);
   } catch (e) {
-    detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${e.message}</div></div>`;
+    detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -4762,13 +4768,13 @@ function renderDividendResults(run, entitlements) {
       <thead><tr><th>Member</th><th>Savings</th><th>Dues</th><th>Loan interest*</th><th>Share capital</th><th>Entitlement</th>${isApproved ? '<th>Payout</th>' : ''}</tr></thead>
       <tbody>${entitlements.map(e => `
         <tr>
-          <td>${e.coop_members?.name || e.coop_members?.phone_normalized || '—'}</td>
+          <td>${escHtml(e.coop_members?.name || e.coop_members?.phone_normalized || '—')}</td>
           <td>${fmtNaira(e.patronage_savings_kobo)}</td>
           <td>${fmtNaira(e.patronage_dues_kobo)}</td>
           <td>${fmtNaira(e.patronage_loan_interest_kobo)}</td>
           <td>${fmtNaira(e.share_capital_kobo)}</td>
           <td style="font-weight:700">${fmtNaira(e.entitlement_kobo)}</td>
-          ${isApproved && hasPortalAction('surplus', 'create') ? `<td><button class="btn btn-ghost btn-sm" onclick="openDividendPayoutModal('${e.id}','${(e.coop_members?.name || 'Member').replace(/'/g, "\\'")}',${e.entitlement_kobo})">Record payout</button></td>` : (isApproved ? '<td></td>' : '')}
+          ${isApproved && hasPortalAction('surplus', 'create') ? `<td><button class="btn btn-ghost btn-sm" onclick="openDividendPayoutModal('${e.id}',${jsAttr((e.coop_members?.name || 'Member'))},${e.entitlement_kobo})">Record payout</button></td>` : (isApproved ? '<td></td>' : '')}
         </tr>
       `).join('') || `<tr><td colspan="${isApproved ? 7 : 6}" class="no-data">No entitlements yet.</td></tr>`}</tbody>
     </table></div>
@@ -4891,7 +4897,7 @@ async function renderReconciliation() {
       <div class="field"><label>Which bank account is this statement for?</label>
         <select id="recon-bank-account" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
           <option value="">— select —</option>
-          ${bankAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${a.account_name}</option>`).join('')}
+          ${bankAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${escHtml(a.account_name)}</option>`).join('')}
         </select>
         ${!bankAccounts.length ? `<div style="font-size:11px;color:var(--amber);margin-top:4px">No accounts are grouped as Bank &amp; Cash yet — <a href="#" onclick="switchView('accounting');return false" style="color:var(--amber)">add or reclassify one in Chart of Accounts</a> first.</div>` : ''}
       </div>
@@ -4925,7 +4931,7 @@ async function loadReconciliationHistory() {
         <tbody>${batches.map(b => `
           <tr>
             <td>${fmtDate(b.uploaded_at)}</td>
-            <td>${b.bank_name || '—'}</td>
+            <td>${escHtml(b.bank_name || '—')}</td>
             <td>${b.filename || '—'}</td>
             <td>${b.total_lines}</td>
             <td>${b.matched_lines} / ${b.total_lines}</td>
@@ -4935,7 +4941,7 @@ async function loadReconciliationHistory() {
       </table></div>
     ` : '<div class="no-data">No reconciliations uploaded yet.</div>';
   } catch (e) {
-    listEl.innerHTML = `<div class="no-data">Failed to load: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="no-data">Failed to load: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -4970,7 +4976,7 @@ async function viewReconciliationBatch(batchId) {
     if (!res.ok) { detailEl.innerHTML = `<div class="card"><div class="no-data">${data.error}</div></div>`; return; }
     detailEl.innerHTML = `
       <div class="card">
-        <div class="card-title">Reconciliation detail — ${data.batch.bank_name || 'Bank'} — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}
+        <div class="card-title">Reconciliation detail — ${escHtml(data.batch.bank_name || 'Bank')} — ${data.batch.filename || fmtDate(data.batch.uploaded_at)}
           <button class="btn btn-ghost btn-sm" onclick="downloadReconciliationStatement('${batchId}')" id="recon-pdf-btn">📄 Download statement (PDF)</button>
         </div>
         <div class="card-sub">${data.batch.matched_lines} of ${data.batch.total_lines} statement lines matched.</div>
@@ -4992,9 +4998,9 @@ async function viewReconciliationBatch(batchId) {
           <tbody>${data.lines.map(l => `
             <tr style="cursor:pointer" onclick="${l.match_status === 'matched'
               ? reconMatchedClick(l)
-              : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},'${(l.description || '').replace(/'/g, "\\'")}','${l.id}','${data.batch.id}')`}">
+              : `openSuggestedJournalEntry('${l.statement_date}',${l.amount_kobo},${jsAttr(l.description || '')},'${l.id}','${data.batch.id}')`}">
               <td>${fmtDate(l.statement_date)}</td>
-              <td>${l.description || '—'}</td>
+              <td>${escHtml(l.description || '—')}</td>
               <td>${fmtNaira(l.amount_kobo)}</td>
               <td>${l.match_status === 'matched'
                 ? reconMatchedPill(l)
@@ -5011,7 +5017,7 @@ async function viewReconciliationBatch(batchId) {
               <tr>
                 <td>${fmtDate(r.record_date)}</td>
                 <td style="text-transform:capitalize">${r.record_type.replace(/_/g, ' ')}</td>
-                <td>${r.description || '—'}</td>
+                <td>${escHtml(r.description || '—')}</td>
                 <td>${fmtNaira(r.amount_kobo)}</td>
               </tr>
             `).join('')}</tbody>
@@ -5020,7 +5026,7 @@ async function viewReconciliationBatch(batchId) {
       </div>
     `;
   } catch (e) {
-    detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${e.message}</div></div>`;
+    detailEl.innerHTML = `<div class="card"><div class="no-data">Network error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -5077,7 +5083,7 @@ async function openSuggestedJournalEntry(date, amountKobo, description, lineId, 
 
   const suggestion = computeJournalSuggestion(description);
   document.getElementById('je-suggestion-banner')?.remove();
-  const bannerHtml = `<div id="je-suggestion-banner" style="background:rgba(232,147,12,.12);border:1px solid var(--amber);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--amber)">⚠️ Suggested from the bank line's description — review and adjust before posting. ${suggestion.note}</div>`;
+  const bannerHtml = `<div id="je-suggestion-banner" style="background:rgba(232,147,12,.12);border:1px solid var(--amber);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--amber)">⚠️ Suggested from the bank line's description — review and adjust before posting. ${escHtml(suggestion.note)}</div>`;
   document.getElementById('je-lines').insertAdjacentHTML('beforebegin', bannerHtml);
 
   const debitAccount = accountingAccounts.find(a => a.account_code === suggestion.debitCode);
@@ -5174,7 +5180,7 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
       document.getElementById('rs-body').innerHTML = `
         <div style="font-size:13px;line-height:1.8">
           <div><b>Source:</b> Loan disbursement</div>
-          <div><b>Member:</b> ${data.member_name}</div>
+          <div><b>Member:</b> ${escHtml(data.member_name)}</div>
           <div><b>Principal:</b> ${fmtNaira(data.principal_kobo)}</div>
           <div><b>Disbursed:</b> ${fmtDate(data.date)}</div>
           <div><b>Status:</b> ${data.status}</div>
@@ -5187,7 +5193,7 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
       document.getElementById('rs-body').innerHTML = `
         <div style="font-size:13px;line-height:1.8">
           <div><b>Source:</b> Loan repayment</div>
-          <div><b>Member:</b> ${data.member_name}</div>
+          <div><b>Member:</b> ${escHtml(data.member_name)}</div>
           <div><b>Amount:</b> ${fmtNaira(data.amount_kobo)}</div>
           <div><b>Recorded:</b> ${fmtDate(data.date)}</div>
           <div><b>Method:</b> ${(data.source || '').replace(/_/g, ' ')}</div>
@@ -5234,7 +5240,7 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
       `;
     }
   } catch (e) {
-    document.getElementById('rs-body').innerHTML = `<div class="card-sub">Network error: ${e.message}</div>`;
+    document.getElementById('rs-body').innerHTML = `<div class="card-sub">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -5445,7 +5451,7 @@ async function changeFlwSettlementAccount(sel) {
     const res = await fetch(`${API}/coop-portal-flutterwave-ledger`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: JSON.stringify({ action: 'set_settlement_account', account_code: sel.value }) });
     const data = await res.json();
     if (!res.ok) { notify(data.error || 'Could not change the settlement account', true); loadFlutterwaveLedger(); return; }
-    notify(`Settlements will now be booked to ${data.account_code} — ${data.account_name}`);
+    notify(`Settlements will now be booked to ${data.account_code} — ${escHtml(data.account_name)}`);
     loadFlutterwaveLedger();
   } catch (e) { notify('Network error: ' + e.message, true); }
 }
@@ -5543,7 +5549,7 @@ function renderAccountingContentBase() {
             </optgroup>
           </select>
           <select id="ledger-account-select" onchange="loadFinancialReport()" style="display:none;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:13px">
-            ${accountingAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${a.account_name}</option>`).join('')}
+            ${accountingAccounts.map(a => `<option value="${a.id}">${a.account_code} — ${escHtml(a.account_name)}</option>`).join('')}
           </select>
           <button class="btn btn-ghost btn-sm" onclick="printSection('accounting-report-card', document.getElementById('report-type-select').selectedOptions[0].textContent)">🖨️ Print / Download</button>
         </div>
@@ -5576,7 +5582,7 @@ function renderAccountingContentBase() {
       <div class="table-wrap"><table>
         <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Currency</th></tr></thead>
         <tbody>${accountingAccounts.map(a => `
-          <tr><td>${a.account_code}</td><td>${a.account_name}${a.is_system ? ' <span class="pill pill-muted">system</span>' : ''}</td><td>${a.account_type}</td><td>${a.currency}</td></tr>
+          <tr><td>${a.account_code}</td><td>${escHtml(a.account_name)}${a.is_system ? ' <span class="pill pill-muted">system</span>' : ''}</td><td>${a.account_type}</td><td>${a.currency}</td></tr>
         `).join('') || '<tr><td colspan="4" class="no-data">No accounts yet.</td></tr>'}</tbody>
       </table></div>
     </div>
@@ -5592,8 +5598,8 @@ function renderAccountingContentBase() {
         <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Lines</th><th></th></tr></thead>
         <tbody>${accountingEntries.map(e => `
           <tr>
-            <td>${e.entry_number}</td><td>${e.entry_date}</td><td>${e.description}${e.entry_type === 'opening_balance' ? ' <span class="pill pill-amber">opening</span>' : ''}</td>
-            <td>${(e.coop_journal_entry_lines || []).map(l => `${l.coop_chart_of_accounts?.account_name || '—'}: ${l.line_type === 'debit' ? 'Dr' : 'Cr'} ${fmtNaira(l.base_amount)}`).join('; ')}</td>
+            <td>${e.entry_number}</td><td>${e.entry_date}</td><td>${escHtml(e.description)}${e.entry_type === 'opening_balance' ? ' <span class="pill pill-amber">opening</span>' : ''}</td>
+            <td>${(e.coop_journal_entry_lines || []).map(l => `${escHtml(l.coop_chart_of_accounts?.account_name || '—')}: ${l.line_type === 'debit' ? 'Dr' : 'Cr'} ${fmtNaira(l.base_amount)}`).join('; ')}</td>
             <td>${e.entry_type === 'manual' ? `
               <div style="display:flex;gap:6px">
                 ${hasPortalAction('accounting', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="openEditJournalEntryModal('${e.id}')">Edit</button>` : ''}
@@ -5624,7 +5630,7 @@ function updateAccountSubTypeOptions() {
   const type = document.getElementById('na-type').value;
   const options = accountingSubTypes[type] || [];
   document.getElementById('na-subtype').innerHTML =
-    '<option value="">— none —</option>' + options.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+    '<option value="">— none —</option>' + options.map(s => `<option value="${s.key}">${escHtml(s.label)}</option>`).join('');
 }
 
 async function submitNewAccount() {
@@ -5666,7 +5672,7 @@ async function submitNewAccount() {
 }
 
 function accountOptionsHtml() {
-  return accountingAccounts.map(a => `<option value="${a.id}" data-currency="${a.currency}">${a.account_code} — ${a.account_name} (${a.currency})</option>`).join('');
+  return accountingAccounts.map(a => `<option value="${a.id}" data-currency="${a.currency}">${a.account_code} — ${escHtml(a.account_name)} (${a.currency})</option>`).join('');
 }
 
 function openNewJournalEntryModal() {
@@ -5838,7 +5844,7 @@ let journalVoucherHasInvestmentAddon = false;
 
 async function openJournalVoucherModal() {
   document.getElementById('jv-member').innerHTML = '<option value="">Select a member…</option>'
-    + (portalData.members || []).map(m => `<option value="${m.id}">${m.name || m.phone_normalized}</option>`).join('');
+    + (portalData.members || []).map(m => `<option value="${m.id}">${escHtml(m.name || m.phone_normalized)}</option>`).join('');
   document.getElementById('jv-total').value = '';
   document.getElementById('jv-source').value = 'bank_transfer_manual';
   document.getElementById('jv-reference').value = '';
@@ -5851,7 +5857,7 @@ async function openJournalVoucherModal() {
   if (!accountingAccounts) await fetchChartOfAccounts();
   const bankCashAccounts = (accountingAccounts || []).filter(a => a.sub_type === 'bank_cash');
   document.getElementById('jv-debit-account').innerHTML = '<option value="">Default (based on source, above)</option>'
-    + bankCashAccounts.map(a => `<option value="${a.id}">${a.account_name} (${a.account_code})</option>`).join('');
+    + bankCashAccounts.map(a => `<option value="${a.id}">${escHtml(a.account_name)} (${a.account_code})</option>`).join('');
 
   openModal('modal-journal-voucher');
 
@@ -5889,7 +5895,7 @@ function journalVoucherLegTargetOptions(type, memberId) {
   if (type === 'investment') {
     if (!journalVoucherHasInvestmentAddon) return '<option value="">Investment is not enabled for this society</option>';
     if (!journalVoucherInvestmentProducts.length) return '<option value="">No active investment products</option>';
-    return journalVoucherInvestmentProducts.map(p => `<option value="${p.id}" data-unit-price="${p.unit_price_kobo}">${p.name} — ${fmtNaira(p.unit_price_kobo)}/unit</option>`).join('');
+    return journalVoucherInvestmentProducts.map(p => `<option value="${p.id}" data-unit-price="${p.unit_price_kobo}">${escHtml(p.name)} — ${fmtNaira(p.unit_price_kobo)}/unit</option>`).join('');
   }
   return '';
 }
@@ -5999,7 +6005,7 @@ function openOpeningBalanceModal() {
   const nonSystem = accountingAccounts.filter(a => !a.is_system);
   document.getElementById('ob-accounts-list').innerHTML = nonSystem.map(a => `
     <div style="display:grid;grid-template-columns:2fr 1fr ${a.currency !== baseCurrency ? '80px' : ''};gap:6px;margin-bottom:8px;align-items:center">
-      <div style="font-size:12.5px">${a.account_code} — ${a.account_name} <span style="color:var(--muted)">(${a.currency})</span></div>
+      <div style="font-size:12.5px">${a.account_code} — ${escHtml(a.account_name)} <span style="color:var(--muted)">(${a.currency})</span></div>
       <input type="number" placeholder="Amount" data-account-id="${a.id}" class="ob-amount" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">
       ${a.currency !== baseCurrency ? `<input type="number" placeholder="Rate" step="0.0001" data-account-id="${a.id}" class="ob-rate" style="padding:9px;border-radius:6px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:12.5px">` : ''}
     </div>
@@ -6095,14 +6101,14 @@ async function loadFinancialReport() {
       contentEl.insertAdjacentHTML('afterbegin', '<div class="drill-hint">Click any row to see what makes up its balance — down to the individual entries.</div>');
     }
   } catch (e) {
-    contentEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    contentEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
 function renderLedger(data) {
   // Reached through the dropdown: root a fresh trail at this account.
   drillBaseLabel = '';
-  drillTrail = [{ kind: 'ledger', label: `${data.account.account_code} ${data.account.account_name}`, data }];
+  drillTrail = [{ kind: 'ledger', label: `${data.account.account_code} ${escHtml(data.account.account_name)}`, data }];
   renderDrillLevel();
 }
 
@@ -6112,7 +6118,7 @@ function renderTrialBalance(data) {
     <div class="table-wrap"><table>
       <thead><tr><th>Code</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
       <tbody>${data.accounts.filter(a => a.total_debit || a.total_credit).map(a => `
-        <tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_code}</td><td>${a.account_name}</td>
+        <tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_code}</td><td>${escHtml(a.account_name)}</td>
         <td>${a.total_debit ? fmtNaira(a.total_debit) : ''}</td><td>${a.total_credit ? fmtNaira(a.total_credit) : ''}</td></tr>
       `).join('') || '<tr><td colspan="4" class="no-data">No activity yet.</td></tr>'}</tbody>
       <tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td colspan="2">Total</td><td>${fmtNaira(data.total_debit)}</td><td>${fmtNaira(data.total_credit)}</td></tr></tfoot>
@@ -6128,9 +6134,9 @@ function renderIncomeExpenditure(data) {
       <thead><tr><th>Account</th><th>Amount</th></tr></thead>
       <tbody>
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Income</td></tr>
-        ${data.income.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.income.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${escHtml(a.account_name)}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Expense</td></tr>
-        ${data.expense.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.expense.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${escHtml(a.account_name)}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
       </tbody>
     </table></div>
     <div style="margin-top:10px;font-weight:700;color:${data.net >= 0 ? 'var(--green-lt)' : '#e74c3c'}">Net ${data.net >= 0 ? 'surplus' : 'deficit'}: ${fmtNaira(Math.abs(data.net))}</div>
@@ -6143,12 +6149,12 @@ function renderBalanceSheet(data) {
     <div class="table-wrap"><table>
       <tbody>
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Assets</td></tr>
-        ${data.assets.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.assets.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${escHtml(a.account_name)}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
         <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Assets</td><td>${fmtNaira(data.total_assets)}</td></tr>
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Liabilities</td></tr>
-        ${data.liabilities.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
+        ${data.liabilities.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${escHtml(a.account_name)}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('') || '<tr><td colspan="2" class="no-data">None</td></tr>'}
         <tr style="font-weight:700"><td colspan="2" style="padding-top:12px">Equity</td></tr>
-        ${data.equity.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${a.account_name}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('')}
+        ${data.equity.filter(a => a.balance).map(a => `<tr class="drill-row" onclick="drillToAccount('${a.id}')"><td>${escHtml(a.account_name)}</td><td>${fmtNaira(a.balance)}</td></tr>`).join('')}
         <tr><td>Net income (this period)</td><td>${fmtNaira(data.net_income)}</td></tr>
         <tr style="font-weight:700;border-top:1px solid var(--line)"><td>Total Liabilities + Equity</td><td>${fmtNaira(data.total_liabilities + data.total_equity)}</td></tr>
       </tbody>
@@ -6199,7 +6205,7 @@ async function drillToAccount(accountId) {
     const res = await fetch(`${API}/coop-portal-financial-reports?report=ledger&account_id=${encodeURIComponent(accountId)}${drillPeriodQS}`, { headers: { Authorization: 'Bearer ' + portalToken } });
     const data = await res.json();
     if (!res.ok) { contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">${drillEsc(data.error || 'Failed to load')}</div>`; return; }
-    drillTrail.push({ kind: 'ledger', label: `${data.account.account_code} ${data.account.account_name}`, data });
+    drillTrail.push({ kind: 'ledger', label: `${data.account.account_code} ${escHtml(data.account.account_name)}`, data });
     renderDrillLevel();
   } catch (e) {
     contentEl.innerHTML = drillCrumbsHtml() + `<div class="no-data">Network error: ${drillEsc(e.message)}</div>`;

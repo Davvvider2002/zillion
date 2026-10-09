@@ -199,6 +199,12 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
 <div class="toast" id="toast"></div>
 
 <script>
+function jsAttr(v){return escHtml(JSON.stringify(String(v==null?'':v)));}
+
+/* Escapes text before it is placed into innerHTML. Added by the security hardening pass: member, society and agent
+   names come from public forms, so they must never be treated as markup. */
+function escHtml(v){return String(v==null?'':v).replace(/[&<>"'`]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];});}
+
 const API = '/.netlify/functions';
 let adminToken = localStorage.getItem('ajo_admin_token') || '';
 let pendingPhone = '';
@@ -326,7 +332,7 @@ async function loadSchemes() {
 
     const rows = (data.schemes || []).map(s => `
       <tr>
-        <td><a href="#" onclick="openSchemeDetail('${s.id}');return false" style="color:var(--amber);font-weight:700;text-decoration:none">${s.name}</a></td>
+        <td><a href="#" onclick="openSchemeDetail('${s.id}');return false" style="color:var(--amber);font-weight:700;text-decoration:none">${escHtml(s.name)}</a></td>
         <td style="text-transform:capitalize">${s.scheme_type.replace(/_/g, ' ')}</td>
         <td>${fmtNaira(s.contribution_amount_kobo)} / ${s.frequency}</td>
         <td style="text-transform:capitalize">${s.payout_order.replace(/_/g, ' ')}</td>
@@ -335,8 +341,8 @@ async function loadSchemes() {
         <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
         <td>
           <button class="btn btn-ghost btn-sm" onclick="openSchemeDetail('${s.id}')">View details</button>
-          <button class="btn btn-ghost btn-sm" onclick="copyJoinLink('${s.id}','${s.name.replace(/'/g, "\\'")}')">Copy join link</button>
-          ${s.status === 'ACTIVE' ? `<button class="btn btn-ghost btn-sm" onclick="processAjoCycle('${s.id}','${s.name.replace(/'/g, "\\'")}','${s.payout_order}')">Process cycle</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="copyJoinLink('${s.id}',${jsAttr(s.name)})">Copy join link</button>
+          ${s.status === 'ACTIVE' ? `<button class="btn btn-ghost btn-sm" onclick="processAjoCycle('${s.id}',${jsAttr(s.name)},'${s.payout_order}')">Process cycle</button>` : ''}
         </td>
       </tr>`).join('');
 
@@ -345,7 +351,7 @@ async function loadSchemes() {
       <tbody>${rows || '<tr><td colspan="8" class="no-data">No groups yet — create your first one above.</td></tr>'}</tbody>
     </table></div>`;
   } catch (e) {
-    el.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    el.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -398,7 +404,7 @@ function ajoRenderCollectorSummary(collector, schemeId) {
   const needsSetup = collector.status === 'PENDING_ESCROW' && !collector.delisted_at;
   return `
     <div>
-      <div style="font-weight:700">${collector.phone_normalized || 'You'} (as group admin, you collect for this group)</div>
+      <div style="font-weight:700">${escHtml(collector.phone_normalized || 'You')} (as group admin, you collect for this group)</div>
       <div style="font-size:12px;color:${escrowColor};margin-top:2px">${escrowLabel}${collector.status === 'ACTIVE' && collector.compliance_score != null ? ` · Score ${collector.compliance_score}/100` : ''}</div>
       ${needsSetup ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">Complete your escrow setup above before you can start collecting cash for this group.</div>` : ''}
     </div>`;
@@ -451,7 +457,7 @@ async function loadCollectorProfile() {
     document.getElementById('collector-history-card').style.display = profile ? '' : 'none';
     document.getElementById('collector-disbursements-card').style.display = profile ? '' : 'none';
   } catch (e) {
-    card.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    card.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -539,7 +545,7 @@ async function loadCollectorHistory() {
         <td>${eventLabel(e.event_type)}</td>
         <td style="color:${e.score_delta < 0 ? 'var(--red)' : (e.score_delta > 0 ? 'var(--green-lt)' : 'var(--muted)')}">${e.score_delta > 0 ? '+' : ''}${e.score_delta}</td>
         <td>${e.score_after}</td>
-        <td style="font-size:12px;color:var(--muted)">${e.notes || ''}</td>
+        <td style="font-size:12px;color:var(--muted)">${escHtml(e.notes || '')}</td>
       </tr>`).join('');
     compBody.innerHTML = compRows || '<tr><td colspan="5" class="no-data">No events yet — a clean record so far.</td></tr>';
 
@@ -553,7 +559,7 @@ async function loadCollectorHistory() {
       </tr>`).join('');
     disbBody.innerHTML = disbRows || '<tr><td colspan="5" class="no-data">No disbursements recorded yet.</td></tr>';
   } catch (e) {
-    const msg = `<tr><td colspan="5" class="no-data">Network error: ${e.message}</td></tr>`;
+    const msg = `<tr><td colspan="5" class="no-data">Network error: ${escHtml(e.message)}</td></tr>`;
     compBody.innerHTML = msg; disbBody.innerHTML = msg;
   }
 }
@@ -604,7 +610,7 @@ async function openSchemeDetail(schemeId) {
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div style="font-weight:700">Members (${(data.members || []).length})</div>
-        <button class="btn btn-primary btn-sm" onclick="openSchemeJoinLinkModal('${schemeId}','${s.name.replace(/'/g, "\\'")}')">Get join link</button>
+        <button class="btn btn-primary btn-sm" onclick="openSchemeJoinLinkModal('${schemeId}',${jsAttr(s.name)})">Get join link</button>
       </div>
       <div class="table-wrap" style="margin-bottom:18px"><table>
         <thead><tr><th>Position</th><th>Zillion ID</th><th>Status</th><th>Joined</th></tr></thead>
@@ -617,7 +623,7 @@ async function openSchemeDetail(schemeId) {
       </table></div>
     `;
   } catch (e) {
-    document.getElementById('sd-body').innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    document.getElementById('sd-body').innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 

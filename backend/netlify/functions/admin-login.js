@@ -77,7 +77,7 @@ function verifyLegacySessionToken(token, jwtSecret) {
   try {
     const [ts, nonce, sig] = token.split(':');
     const exp = createHmac('sha256', jwtSecret).update(`${ts}:${nonce}`).digest('hex').slice(0,16);
-    if (sig !== exp) return false;
+    if (typeof sig !== 'string' || sig.length !== exp.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return false;
     if (Date.now() - parseInt(ts) > 5 * 60 * 1000) return false;
     return true;
   } catch { return false; }
@@ -219,8 +219,10 @@ exports.handler = async (event) => {
   // failure always comes back as a readable JSON error instead.
   try {
 
-  const ip          = event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown';
-  const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.JWT_SECRET;
+  // Netlify's own header: a caller cannot forge it (x-forwarded-for can be set by the client).
+  const ip          = event.headers['x-nf-client-connection-ip'] || (event.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  // No fallback to JWT_SECRET: the secret that signs every token must never also be a login password.
+  const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
   const JWT_SECRET   = process.env.JWT_SECRET;
   const TOTP_SECRET  = process.env.ADMIN_TOTP_SECRET;
 
@@ -241,18 +243,28 @@ exports.handler = async (event) => {
       return err(403, 'Legacy admin login has been disabled. Use username + password + authenticator code.');
     }
 
-    // A-STEP-1: Secret check (only step — no TOTP for legacy path)
-    if (body.admin_secret !== ADMIN_SECRET) {
-      // Debug: log lengths to Netlify function log (never log actual secret values)
-      const envLen = (ADMIN_SECRET||'').length;
-      const gotLen = (body.admin_secret||'').length;
-      console.log('[admin-login] legacy fail — ADMIN_SECRET env length:', envLen, '| received length:', gotLen, '| match:', body.admin_secret === ADMIN_SECRET);
-      const hint = envLen === 0
-        ? 'ADMIN_SECRET env var is not set in Netlify. Check Site → Environment Variables.'
-        : gotLen !== envLen
-          ? 'Length mismatch — check for extra spaces or characters.'
-          : 'Same length but content differs — check exact value in Netlify env vars.';
-      return err(401, 'Invalid admin secret. Hint: ' + hint);
+    // A-STEP-1: Secret check (only step — no TOTP for legacy path).
+    // Hardened: rate limited per source address (fails open if the limiter's database is down, so this path keeps its
+    // resilience), constant-time comparison, refuses to work when ADMIN_SECRET is unset or weak, and never tells the
+    // caller anything about the real secret (the old failure message revealed whether it was set and its length).
+    try {
+      const rlA = await checkRateLimit(getDb(), `admin-login-legacy:${ip}`, { windowMinutes: 15, maxAttempts: 5, lockoutMinutes: 30 });
+      if (!rlA.allowed) {
+        return err(429, `Too many attempts. Try again in ${Math.ceil((rlA.retryAfterSeconds||1800)/60)} minute(s).`);
+      }
+    } catch (rlErr) {
+      console.error('[admin-login] legacy rate limiter unavailable, continuing:', rlErr.message);
+    }
+    if (ADMIN_SECRET.length < 16) {
+      console.error('[admin-login] legacy login refused: ADMIN_SECRET is unset or shorter than 16 characters');
+      return err(401, 'Invalid credentials.');
+    }
+    const providedA = Buffer.from(String(body.admin_secret));
+    const expectedA = Buffer.from(ADMIN_SECRET);
+    const secretOk  = providedA.length === expectedA.length && crypto.timingSafeEqual(providedA, expectedA);
+    if (!secretOk) {
+      console.warn('[admin-login] legacy login failed from', ip);
+      return err(401, 'Invalid credentials.');
     }
 
     // Issue JWT directly — TOTP not required for legacy secret path.

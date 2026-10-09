@@ -52,7 +52,16 @@ exports.handler = async (event) => {
 
   const healthy = missing.length === 0 && db_ok;
 
-  const payload = {
+  // Public callers (uptime monitors, anyone on the internet) get the verdict only. Names of missing settings, database
+  // error text and provider details are reconnaissance material, so they need an admin token.
+  let isAdmin = false;
+  try {
+    const { verifyJWT } = require('../../lib/validators');
+    const a = verifyJWT(event.headers.authorization || event.headers.Authorization || '');
+    isAdmin = !!(a.valid && a.payload && a.payload.role && !['merchant', 'coop_staff', 'agent', 'device'].includes(a.payload.role));
+  } catch { isAdmin = false; }
+
+  const payload = isAdmin ? {
     status:          healthy ? 'ok' : 'degraded',
     version:         'v0.1',
     timestamp:       new Date().toISOString(),
@@ -62,7 +71,11 @@ exports.handler = async (event) => {
     db_error,
     kms_configured,
     sms_provider:    process.env.SMS_PROVIDER || 'NOT SET',
+  } : {
+    status:    healthy ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
   };
+  if (!healthy) console.error('[health] degraded:', JSON.stringify({ missing, db_ok, db_error }));
 
   return {
     statusCode: healthy ? 200 : 503,

@@ -27,6 +27,7 @@
  */
 'use strict';
 
+const { cleanText } = require('../../lib/cleanText');
 const { createHmac } = require('crypto');
 const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
@@ -79,7 +80,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return err(400, 'Invalid JSON'); }
 
-  const name         = (body.name || '').trim();
+  const name         = cleanText(body.name, 120);
   const rawPhone       = (body.phone || '').trim();
   const ownerName        = (body.owner_name || '').trim();
   const location           = (body.location || '').trim();

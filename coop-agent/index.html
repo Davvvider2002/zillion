@@ -341,6 +341,12 @@ td{padding:12px 8px;border-bottom:1px solid var(--line)}
 <div class="toast" id="toast"></div>
 
 <script>
+function jsAttr(v){return escHtml(JSON.stringify(String(v==null?'':v)));}
+
+/* Escapes text before it is placed into innerHTML. Added by the security hardening pass: member, society and agent
+   names come from public forms, so they must never be treated as markup. */
+function escHtml(v){return String(v==null?'':v).replace(/[&<>"'`]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];});}
+
 const API = '/.netlify/functions';
 let agentToken = localStorage.getItem('coop_agent_token') || '';
 let pendingPhone = '';
@@ -477,13 +483,13 @@ async function loadDashboard() {
     profileCard.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px">
         <div>
-          <div style="font-size:19px;font-weight:700">${a.name}</div>
+          <div style="font-size:19px;font-weight:700">${escHtml(a.name)}</div>
           <div style="font-size:13px;color:var(--muted);margin-top:2px">Referral code: <b style="color:var(--cream);font-family:monospace">${a.referral_code}</b></div>
         </div>
         <span class="pill ${a.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${a.status}</span>
       </div>
       <div style="font-size:13px;color:var(--muted);margin-top:10px">Your commission rate: <b style="color:var(--cream)">${rateText}</b> of each referred society's subscription payment</div>
-      ${a.parent ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Recruited by: ${a.parent.name} (${a.parent.referral_code})</div>` : ''}
+      ${a.parent ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Recruited by: ${escHtml(a.parent.name)} (${a.parent.referral_code})</div>` : ''}
     `;
 
     document.getElementById('em-accrued').textContent = fmtNaira(data.earnings.total_accrued_kobo);
@@ -499,7 +505,7 @@ async function loadDashboard() {
     } else {
       const rows = data.clients.map(c => `
         <tr>
-          <td>${c.name}</td>
+          <td>${escHtml(c.name)}</td>
           <td>${subscriptionPill(c)}</td>
           <td>${c.subscription_plan || '—'}</td>
           <td>${fmtDate(c.referred_at)}</td>
@@ -515,7 +521,7 @@ async function loadDashboard() {
     if (data.sub_agents && data.sub_agents.length) {
       const subRows = data.sub_agents.map(s => `
         <tr>
-          <td>${s.name}</td>
+          <td>${escHtml(s.name)}</td>
           <td style="font-family:monospace">${s.referral_code}</td>
           <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-green' : 'pill-muted'}">${s.status}</span></td>
         </tr>`).join('');
@@ -526,7 +532,7 @@ async function loadDashboard() {
       document.getElementById('subagents-card').style.display = '';
     }
   } catch (e) {
-    profileCard.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    profileCard.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -573,7 +579,7 @@ async function loadProspects() {
         <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-weight:700;font-size:15px">${p.cooperative_name}</div>
-            <div style="font-size:12px;color:var(--muted)">${p.location || ''}${p.location && p.state ? ', ' : ''}${p.state || ''}</div>
+            <div style="font-size:12px;color:var(--muted)">${escHtml(p.location || '')}${p.location && p.state ? ', ' : ''}${p.state || ''}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             ${p.lead_grade ? `<span class="pill pill-amber">Grade ${p.lead_grade}</span>` : ''}
@@ -588,7 +594,7 @@ async function loadProspects() {
       </div>
     `).join('');
   } catch (e) {
-    listEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -787,7 +793,7 @@ async function openHistoryModal(prospectId) {
       </div>
     `).join('');
   } catch (e) {
-    listEl.innerHTML = `<div class="no-data">Network error: ${e.message}</div>`;
+    listEl.innerHTML = `<div class="no-data">Network error: ${escHtml(e.message)}</div>`;
   }
 }
 
