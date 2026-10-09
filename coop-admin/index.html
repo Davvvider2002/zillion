@@ -2988,6 +2988,15 @@ async function submitDuesPayment() {
 // ── ADD-ONS ───────────────────────────────────────────────────────────
 let availableAddonsCache = null;
 // Icon for each add-on module. Known keys first, then a keyword match on the name, then a neutral default.
+// Shown when the database has no description for a module (Investment had none). Keyed by the module's key.
+const ADDON_FALLBACK_DESCRIPTIONS = {
+  investment: 'Launch fixed-return or pooled investment products for your members. Track units sold, capital raised and every investor, and pay out returns with a full record.',
+  accounting: 'Chart of accounts, general ledger, cashbook, journal entries, trial balance and financial statements.',
+  bank_reconciliation: 'Upload your bank statement and automatically cross-check it against your recorded entries to catch discrepancies.',
+  payroll: 'Employee salary deduction into savings and loan repayment, with automatic reconciliation.',
+  surplus_dividends: 'Annual surplus calculation, reserve allocation and dividend or patronage distribution to members, with board and AGM approval.'
+};
+function addonDescription(key, desc) { return (desc && String(desc).trim()) || ADDON_FALLBACK_DESCRIPTIONS[key] || ''; }
 const ADDON_ICONS = { accounting: '📒', bank_reconciliation: '🏦', surplus_dividends: '💰', investment: '📈', payroll: '👥', hr_payroll: '👥' };
 function addonIcon(key, name) {
   if (ADDON_ICONS[key]) return ADDON_ICONS[key];
@@ -3034,7 +3043,7 @@ async function renderAddons() {
             ${addonIconTile(a.addon_key, a.coop_addon_modules?.name)}
             <div style="min-width:0">
               <div style="font-weight:600;font-size:14px">${escHtml(a.coop_addon_modules?.name || a.addon_key)}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.coop_addon_modules?.description || '')}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(addonDescription(a.addon_key, a.coop_addon_modules?.description))}</div>
             </div>
           </div>
           <span class="pill pill-amber" style="flex:0 0 auto">Launching soon</span>
@@ -3051,7 +3060,7 @@ async function renderAddons() {
             ${addonIconTile(a.key, a.name)}
             <div style="min-width:0">
               <div style="font-weight:600;font-size:14px">${escHtml(a.name)}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.description || '')} — ${fmtNaira(a.price_kobo)}/mo</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(addonDescription(a.key, a.description))} — ${fmtNaira(a.price_kobo)}/mo</div>
             </div>
           </div>
           ${hasPortalAction('addons', 'create') ? `<button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>` : ''}
