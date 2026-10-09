@@ -65,7 +65,7 @@ stub('@supabase/supabase-js', { createClient: () => currentDb });
     const file = path.join(ROOT, p, 'index.html');
     if (!fs.existsSync(file)) continue;
     const SKIP = /textContent|navigator\.share|shareText|confirm\(|alert\(|prompt\(|toast|\.title\s*=|fetch\(|console\.|encodeURI|\.value\s*=|document\.title|\.download|href=`|location\.|new File\(/;
-    const RAW = /\$\{(?![^}]*(?:escHtml|jsAttr|esc\(|flwEsc|poEsc|drillEsc))[^}]*\.(?:name|full_name|member_name|business_name|owner_name|narration|description|email|address|username)\b[^}]*\}/;
+    const RAW = /\$\{(?![^}]*(?:escHtml|jsAttr|esc\(|flwEsc|poEsc|drillEsc|addonIconTile))[^}]*\.(?:name|full_name|member_name|business_name|owner_name|narration|description|email|address|username)\b[^}]*\}/;
     const hits = fs.readFileSync(file, 'utf8').split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => RAW.test(l) && !SKIP.test(l));
     ok(p + ': no raw text field is interpolated into HTML (' + (hits.length ? 'e.g. line ' + hits[0][0] : 'clean') + ')', hits.length === 0);
   }

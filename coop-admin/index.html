@@ -2987,6 +2987,26 @@ async function submitDuesPayment() {
 
 // ── ADD-ONS ───────────────────────────────────────────────────────────
 let availableAddonsCache = null;
+// Icon for each add-on module. Known keys first, then a keyword match on the name, then a neutral default.
+const ADDON_ICONS = { accounting: '📒', bank_reconciliation: '🏦', surplus_dividends: '💰', investment: '📈', payroll: '👥', hr_payroll: '👥' };
+function addonIcon(key, name) {
+  if (ADDON_ICONS[key]) return ADDON_ICONS[key];
+  const n = String(name || key || '').toLowerCase();
+  if (/account|ledger|book/.test(n)) return '📒';
+  if (/bank|reconcil/.test(n)) return '🏦';
+  if (/dividend|surplus/.test(n)) return '💰';
+  if (/invest/.test(n)) return '📈';
+  if (/payroll|hr\b|staff|salary/.test(n)) return '👥';
+  if (/sms|whatsapp|message|notif/.test(n)) return '💬';
+  if (/ajo|thrift|collect/.test(n)) return '🪙';
+  if (/loan|credit/.test(n)) return '🤝';
+  if (/report|analytic/.test(n)) return '📊';
+  return '🧩';
+}
+function addonIconTile(key, name) {
+  return `<div aria-hidden="true" style="flex:0 0 auto;width:42px;height:42px;border-radius:12px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.28);display:flex;align-items:center;justify-content:center;font-size:21px">${addonIcon(key, name)}</div>`;
+}
+
 async function renderAddons() {
   const d = portalData;
   const el = document.getElementById('view-addons');
@@ -3009,12 +3029,15 @@ async function renderAddons() {
       <div class="card-title">Your add-ons</div>
       <div class="card-sub">Modules included with your subscription.</div>
       ${purchased.length ? purchased.map(a => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
-          <div>
-            <div style="font-weight:600;font-size:14px">${escHtml(a.coop_addon_modules?.name || a.addon_key)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.coop_addon_modules?.description || '')}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
+          <div style="display:flex;align-items:center;gap:14px;min-width:0">
+            ${addonIconTile(a.addon_key, a.coop_addon_modules?.name)}
+            <div style="min-width:0">
+              <div style="font-weight:600;font-size:14px">${escHtml(a.coop_addon_modules?.name || a.addon_key)}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.coop_addon_modules?.description || '')}</div>
+            </div>
           </div>
-          <span class="pill pill-amber">Launching soon</span>
+          <span class="pill pill-amber" style="flex:0 0 auto">Launching soon</span>
         </div>
       `).join('') : `<div class="no-data">No add-on modules on your current plan.</div>`}
     </div>
@@ -3023,10 +3046,13 @@ async function renderAddons() {
       <div class="card-title">Add a module</div>
       <div class="card-sub">Didn't select these at signup? Add them anytime — the extra cost is added to your total.</div>
       ${addable.map(a => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
-          <div>
-            <div style="font-weight:600;font-size:14px">${escHtml(a.name)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.description || '')} — ${fmtNaira(a.price_kobo)}/mo</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid rgba(247,243,236,.06)">
+          <div style="display:flex;align-items:center;gap:14px;min-width:0">
+            ${addonIconTile(a.key, a.name)}
+            <div style="min-width:0">
+              <div style="font-weight:600;font-size:14px">${escHtml(a.name)}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(a.description || '')} — ${fmtNaira(a.price_kobo)}/mo</div>
+            </div>
           </div>
           ${hasPortalAction('addons', 'create') ? `<button class="btn btn-primary btn-sm" onclick="addAddonNow('${a.key}')">Add</button>` : ''}
         </div>
@@ -3623,6 +3649,27 @@ async function processPayrollRun(payrollRunId) {
 }
 
 // ── INVESTMENT ────────────────────────────────────────────────────────
+// One plain-English sentence describing a product from its own terms, so each row explains itself without anyone having to
+// open it. Built only from fields the product already has.
+function investmentSummaryLine(p) {
+  const unit = fmtNaira(p.unit_price_kobo);
+  const tenure = `${p.tenure_months} month${p.tenure_months === 1 ? '' : 's'}`;
+  const who = p.product_type === 'general'
+    ? `Members pool money into ${p.total_units ? p.total_units.toLocaleString() + ' units' : 'one venture'} at ${unit} each.`
+    : `Each member invests on their own, ${unit} per unit.`;
+  let ret;
+  if (p.return_type === 'fixed') {
+    const rate = Number(p.fixed_return_rate_percent) || 0;
+    ret = `Pays a fixed ${rate}% over ${tenure}, so ${unit} grows to ${fmtNaira(Math.round((p.unit_price_kobo || 0) * (1 + rate / 100)))} per unit.`;
+  } else {
+    ret = `Returns follow the venture's recorded performance over ${tenure} and can be a loss.`;
+  }
+  const pen = Number(p.early_withdrawal_penalty_percent) || 0;
+  const raised = p.product_type === 'general' && p.total_units
+    ? ` ${(p.units_sold || 0).toLocaleString()} of ${p.total_units.toLocaleString()} units taken.` : '';
+  return `${who} ${ret}${pen ? ` Early withdrawal costs ${pen}%.` : ''}${raised}`;
+}
+
 async function renderInvestment() {
   const el = document.getElementById('view-investment');
   el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
@@ -3634,6 +3681,18 @@ async function renderInvestment() {
       return;
     }
     window._investmentProducts = data.products || [];
+    const prods = window._investmentProducts;
+    const activeProds = prods.filter(p => p.active);
+    const unitsSoldTotal = prods.reduce((n, p) => n + (p.units_sold || 0), 0);
+    const raisedKobo = prods.reduce((n, p) => n + (p.units_sold || 0) * (p.unit_price_kobo || 0), 0);
+    const fixedCount = activeProds.filter(p => p.return_type === 'fixed').length;
+    const summaryStrip = `
+      <div class="metrics-row">
+        <div class="metric-card"><div class="val">${activeProds.length}</div><div class="lbl">Active products</div></div>
+        <div class="metric-card"><div class="val">${unitsSoldTotal.toLocaleString()}</div><div class="lbl">Units sold</div></div>
+        <div class="metric-card"><div class="val">${fmtNaira(raisedKobo)}</div><div class="lbl">Capital raised</div></div>
+        <div class="metric-card"><div class="val">${fixedCount} / ${activeProds.length - fixedCount}</div><div class="lbl">Fixed / variable (active)</div></div>
+      </div>`;
     const rows = window._investmentProducts.map(p => `
       <tr>
         <td>${escHtml(p.name)}</td>
@@ -3648,9 +3707,11 @@ async function renderInvestment() {
           <button class="btn btn-ghost btn-sm" onclick="openViewInvestorsModal('${p.id}')">Investors</button>
           ${p.return_type === 'variable' && hasPortalAction('investment', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openRecordPerformanceModal('${p.id}')">Record performance</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>
+      <tr><td colspan="8" style="padding-top:0;font-size:12px;color:var(--muted);line-height:1.5">${escHtml(investmentSummaryLine(p))}</td></tr>`).join('');
 
     el.innerHTML = `
+      ${summaryStrip}
       <div class="card">
         <div class="card-title">Investment products
           ${hasPortalAction('investment', 'create') ? `<button class="btn btn-primary btn-sm" onclick="openAddInvestmentProductModal()">+ New product</button>` : ''}
