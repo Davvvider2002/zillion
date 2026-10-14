@@ -22,6 +22,7 @@
 'use strict';
 
 const { createHmac, timingSafeEqual } = require('crypto');
+const { findMerchantByPhone } = require('../../lib/merchantLookup');
 const { getServiceClient } = require('../../lib/supabase');
 
 function mustEnv(name) {
@@ -96,9 +97,9 @@ exports.handler = async (event) => {
 
   await db.from('otp_requests').update({ used: true }).eq('id', record.id);
 
-  const merchantId = 'MERCH-' + phone.replace(/\D/g, '').slice(-8);
-  const { data: merchant } = await db.from('merchants').select('merchant_id').eq('merchant_id', merchantId).maybeSingle();
+  const merchant = await findMerchantByPhone(db, phone, 'merchant_id, phone');
   if (!merchant) return err(404, 'No account found for this phone number.');
+  const merchantId = merchant.merchant_id;
 
   // Same hashing scheme as merchant-login.js, so the new password
   // works immediately on the very next normal login.
