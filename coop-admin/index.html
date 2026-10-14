@@ -367,6 +367,21 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-import-chart">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-title">Import chart of accounts</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">
+      Upload an Excel (.xlsx/.xls) or CSV file with a heading row: <code>Code</code>, <code>Name</code>, <code>Type</code> (Asset, Liability, Equity, Income or Expense). Optional: <code>Sub-type</code> (e.g. Bank &amp; Cash), <code>Opening Balance</code> and <code>Side</code> (Debit/Credit). You see exactly what will be created before anything is saved. Codes you already have are never overwritten.
+      <a href="#" onclick="downloadChartTemplate();return false" style="color:var(--amber)">Download a template</a>
+    </div>
+    <div class="field"><label>File</label><input type="file" id="ci-file" accept=".csv,.xlsx,.xls" onchange="previewChartImport()"></div>
+    <div id="ci-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
+    <div id="ci-preview" style="display:none;max-height:300px;overflow-y:auto;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="commitChartImport()" id="ci-btn" disabled>Import accounts</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('modal-import-chart')">Close</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-import-payroll">
   <div class="modal-box" style="max-width:520px">
     <div class="modal-title">Import employees</div>
@@ -3287,6 +3302,71 @@ function readCsvOrExcelFile(file) {
   });
 }
 
+// ── Chart of accounts: import from Excel ────────────────────────────────────────────────────────
+let chartImportRows = null;
+function openChartImportModal() {
+  chartImportRows = null;
+  document.getElementById('ci-file').value = ''; document.getElementById('ci-error').style.display = 'none';
+  document.getElementById('ci-preview').style.display = 'none'; document.getElementById('ci-btn').disabled = true;
+  openModal('modal-import-chart');
+}
+function downloadChartTemplate() {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Code', 'Name', 'Type', 'Sub-type', 'Opening Balance', 'Side'],
+    ['1015', 'GTBank Current Account', 'Asset', 'Bank & Cash', 250000, 'Debit'],
+    ['2200', 'Building Fund Payable', 'Liability', 'Current Liabilities', 50000, 'Credit'],
+    ['4300', 'Hall Rental Income', 'Income', 'Indirect / Other Income', '', ''],
+    ['5300', 'Generator Fuel', 'Expense', 'Indirect / Operating Expenses', '', ''],
+  ]), 'Chart of accounts');
+  XLSX.writeFile(wb, 'chart-of-accounts-template.xlsx');
+}
+async function readSheetRows(file) {
+  const wb = /\.csv$/i.test(file.name) ? XLSX.read(await file.text(), { type: 'string' }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+}
+async function callChartImport(commit) {
+  const res = await fetch(`${API}/coop-portal-chart-of-accounts-import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+    body: JSON.stringify({ rows: chartImportRows, commit }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Import failed');
+  return data;
+}
+async function previewChartImport() {
+  const f = document.getElementById('ci-file').files[0];
+  const errEl = document.getElementById('ci-error'), pv = document.getElementById('ci-preview'), btn = document.getElementById('ci-btn');
+  errEl.style.display = 'none'; pv.style.display = 'none'; btn.disabled = true; chartImportRows = null;
+  if (!f) return;
+  try {
+    chartImportRows = await readSheetRows(f);
+    const d = await callChartImport(false);
+    const t = d.totals || {};
+    pv.innerHTML = `
+      <div style="margin-bottom:8px"><b>${d.rows.length}</b> account(s) ready to create${t.with_opening ? `, ${t.with_opening} with opening balances (debits ${fmtNaira(t.debits_kobo)} · credits ${fmtNaira(t.credits_kobo)}${t.difference_kobo ? ` · the ${fmtNaira(Math.abs(t.difference_kobo))} difference goes to Opening Balance Equity` : ''})` : ''}.</div>
+      <table style="width:100%"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Opening</th></tr></thead><tbody>
+      ${d.rows.slice(0, 200).map(r => `<tr><td>${escHtml(r.account_code)}</td><td>${escHtml(r.account_name)}</td><td>${r.account_type}${r.sub_type ? ' · ' + escHtml(r.sub_type) : ''}</td><td>${r.opening_kobo ? fmtNaira(r.opening_kobo) + ' ' + r.side : ''}</td></tr>`).join('')}
+      </tbody></table>
+      ${d.rows.length > 200 ? `<div style="color:var(--muted)">…and ${d.rows.length - 200} more</div>` : ''}
+      ${d.errors.length ? `<div style="margin-top:10px;color:#FF8A8A"><b>${d.errors.length} row(s) will be skipped:</b><ul style="margin:4px 0 0 18px">${d.errors.slice(0, 50).map(e => `<li>Row ${e.row}${e.code ? ' (' + escHtml(e.code) + ')' : ''}: ${escHtml(e.message)}</li>`).join('')}</ul></div>` : ''}`;
+    pv.style.display = 'block';
+    btn.disabled = !d.rows.length;
+  } catch (e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+async function commitChartImport() {
+  const btn = document.getElementById('ci-btn'), errEl = document.getElementById('ci-error'), pv = document.getElementById('ci-preview');
+  if (!chartImportRows) return;
+  btn.disabled = true; btn.textContent = 'Importing…'; errEl.style.display = 'none';
+  try {
+    const d = await callChartImport(true);
+    pv.innerHTML = `<div style="color:var(--green,#6FCF97)"><b>${d.created_count}</b> account(s) created.${d.opening_entry_id ? ' Opening balances posted.' : ''}</div>${d.opening_note ? `<div style="color:var(--amber)">${escHtml(d.opening_note)}</div>` : ''}${d.skipped.length ? `<div style="color:#FF8A8A;margin-top:6px">${d.skipped.length} skipped: ${d.skipped.slice(0, 30).map(e => `row ${e.row} (${escHtml(e.message)})`).join('; ')}</div>` : ''}`;
+    chartImportRows = null;
+    await fetchChartOfAccounts(); renderAccountingContent();
+  } catch (e) { errEl.textContent = e.message; errEl.style.display = 'block'; btn.disabled = false; }
+  btn.textContent = 'Import accounts';
+}
+
 function openImportPayrollModal() {
   document.getElementById('pi-file').value = '';
   document.getElementById('pi-error').style.display = 'none';
@@ -4963,7 +5043,7 @@ async function renderReconciliation() {
     ${hasPortalAction('reconciliation', 'create') ? `
     <div class="card">
       <div class="card-title">Upload bank statement</div>
-      <div class="card-sub">CSV with four columns: Date (YYYY-MM-DD), Amount (in Naira, e.g. 30000), Description, Type (credit or debit). First row is treated as a header and skipped.</div>
+      <div class="card-sub">Pick the bank account, then upload the statement exactly as your bank gave it: PDF, Excel or CSV. The opening and closing balances are read from the statement itself and checked against every line, so there is nothing to type.</div>
       <div class="field"><label>Which bank account is this statement for?</label>
         <select id="recon-bank-account" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px">
           <option value="">— select —</option>
@@ -4971,13 +5051,10 @@ async function renderReconciliation() {
         </select>
         ${!bankAccounts.length ? `<div style="font-size:11px;color:var(--amber);margin-top:4px">No accounts are grouped as Bank &amp; Cash yet — <a href="#" onclick="switchView('accounting');return false" style="color:var(--amber)">add or reclassify one in Chart of Accounts</a> first.</div>` : ''}
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="field"><label>Opening balance on statement (₦)</label><input type="number" id="recon-opening-balance" placeholder="0" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></div>
-        <div class="field"><label>Closing balance on statement (₦)</label><input type="number" id="recon-closing-balance" placeholder="0" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font-size:14px"></div>
-      </div>
-      <input type="file" id="recon-file-input" accept=".csv" style="margin:10px 0" onchange="handleReconFileSelect(event)">
+      <input type="file" id="recon-file-input" accept=".pdf,.xlsx,.xls,.csv" style="margin:10px 0" onchange="handleReconFileSelect(event)">
       <div id="recon-upload-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:10px"></div>
       <div id="recon-upload-status" style="font-size:13px;color:var(--muted)"></div>
+      <div id="recon-preview"></div>
     </div>` : ''}
     <div class="card">
       <div class="card-title">Past reconciliations</div>
@@ -5314,70 +5391,95 @@ async function openReconciliationSourceModal(matchedType, matchedId) {
   }
 }
 
-function handleReconFileSelect(event) {
+let reconPending = null;   // the parsed statement waiting for the person to confirm it
+const reconKobo = k => (k < 0 ? '-' : '') + '₦' + (Math.abs(k) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const reconFail = (msg) => { const e = document.getElementById('recon-upload-error'); e.textContent = msg; e.style.display = 'block'; document.getElementById('recon-upload-status').textContent = ''; };
+
+async function handleReconFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
   const errEl = document.getElementById('recon-upload-error');
   const statusEl = document.getElementById('recon-upload-status');
-  errEl.style.display = 'none';
-  statusEl.textContent = 'Reading file...';
-
+  errEl.style.display = 'none'; document.getElementById('recon-preview').innerHTML = ''; reconPending = null;
   const bankAccountId = document.getElementById('recon-bank-account').value;
-  const openingNaira = parseFloat(document.getElementById('recon-opening-balance').value);
-  const closingNaira = parseFloat(document.getElementById('recon-closing-balance').value);
-  if (!bankAccountId) { errEl.textContent = 'Select which bank account this statement is for first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
-  if (!Number.isFinite(openingNaira) || !Number.isFinite(closingNaira)) { errEl.textContent = 'Enter the opening and closing balance shown on the statement first.'; errEl.style.display = 'block'; event.target.value = ''; return; }
-
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const lines = parseReconCsv(e.target.result);
-      if (!lines.length) { errEl.textContent = 'No valid rows found in this file.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
-      const badLine = lines.find(l => !l.direction);
-      if (badLine) { errEl.textContent = `Every row needs a Type column (credit/debit) — missing or unrecognized on: ${JSON.stringify(badLine)}`; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
-      statusEl.textContent = `Uploading and matching ${lines.length} lines...`;
-      const res = await fetch(`${API}/coop-portal-reconcile-bank-statement`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
-        body: JSON.stringify({
-          filename: file.name, lines, bank_account_id: bankAccountId,
-          opening_balance_kobo: Math.round(openingNaira * 100), closing_balance_kobo: Math.round(closingNaira * 100),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { errEl.textContent = data.error || 'Failed to reconcile.'; errEl.style.display = 'block'; statusEl.textContent = ''; return; }
-      statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.${data.flutterwave ? ` Flutterwave: ${data.flutterwave.matched} deposit(s) matched${data.flutterwave.not_on_statement ? `, ${data.flutterwave.not_on_statement} NOT found on this statement` : ''}.` : ''}${data.books ? ` Your books: ${data.books.matched} entr${data.books.matched === 1 ? 'y' : 'ies'} matched${data.books.not_on_statement ? `, ${data.books.not_on_statement} recorded but NOT on this statement` : ''}.` : ''}`;
-      document.getElementById('recon-file-input').value = '';
-      await loadReconciliationHistory();
-      await loadFlwBankMonitor();
-      await viewReconciliationBatch(data.batch_id);
-    } catch (err) {
-      errEl.textContent = 'Error processing file: ' + err.message; errEl.style.display = 'block'; statusEl.textContent = '';
+  if (!bankAccountId) { reconFail('Select which bank account this statement is for first.'); event.target.value = ''; return; }
+  statusEl.textContent = 'Reading the statement...';
+  try {
+    let payload;
+    if (/\.pdf$/i.test(file.name)) {
+      if (file.size > 4 * 1024 * 1024) throw new Error('This PDF is larger than 4 MB. Download a shorter period, or use the Excel / CSV version.');
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      payload = { kind: 'pdf', data_base64: btoa(bin) };
+    } else {
+      const wb = /\.csv$/i.test(file.name) ? XLSX.read(await file.text(), { type: 'string', cellDates: false }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '', dateNF: 'yyyy-mm-dd' });
+      payload = { kind: 'rows', rows };
     }
-  };
-  reader.readAsText(file);
+    const res = await fetch(`${API}/coop-portal-bank-statement-parse`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({ ...payload, bank_account_id: bankAccountId, filename: file.name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not read that statement.');
+    reconPending = { filename: file.name, bankAccountId, statement: data.statement, books: data.books };
+    statusEl.textContent = '';
+    renderReconPreview(data);
+  } catch (err) { reconFail(err.message); event.target.value = ''; }
 }
 
-// Deliberately simple, documented format (Date, Amount, Description, Type)
-// rather than trying to auto-detect arbitrary bank export formats, which
-// vary wildly and would be fragile to guess at. Type is forgiving of the
-// common real-world variants a bank statement might actually use.
-const RECON_CREDIT_ALIASES = ['credit', 'cr', 'in', 'deposit'];
-const RECON_DEBIT_ALIASES = ['debit', 'dr', 'out', 'withdrawal'];
-function parseReconCsv(text) {
-  const rows = text.split(/\r?\n/).filter(r => r.trim());
-  const lines = [];
-  for (let i = 1; i < rows.length; i++) { // skip header row
-    const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-    if (cols.length < 2) continue;
-    const date = cols[0];
-    const amountNaira = parseFloat(cols[1]);
-    const description = cols[2] || '';
-    const typeRaw = (cols[3] || '').toLowerCase();
-    const direction = RECON_CREDIT_ALIASES.includes(typeRaw) ? 'credit' : RECON_DEBIT_ALIASES.includes(typeRaw) ? 'debit' : null;
-    if (!date || !Number.isFinite(amountNaira) || amountNaira <= 0) continue;
-    lines.push({ date, amount_kobo: Math.round(amountNaira * 100), description, direction });
-  }
-  return lines;
+function renderReconPreview(d) {
+  const st = d.statement, bk = d.books, ig = st.integrity;
+  const box = document.getElementById('recon-preview');
+  const diff = bk && bk.difference_kobo;
+  const problems = (ig.problems || []).map(p => `<li>${p.date ? escHtml(p.date) + ' · ' : ''}${escHtml((p.description || '').slice(0, 60))} ${escHtml(p.issue)}</li>`).join('');
+  box.innerHTML = `
+    <div style="margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px">
+      <div style="font-weight:600;margin-bottom:2px">${escHtml(st.meta.account_name || 'Statement')}${st.meta.account_number ? ' · ' + escHtml(st.meta.account_number) : ''}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${escHtml(st.meta.period_from || '')} to ${escHtml(st.meta.period_to || '')} · ${st.lines.length} transactions · reconciling against <b>${escHtml(d.bank_account.code)} — ${escHtml(d.bank_account.name)}</b></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
+        <div><div style="font-size:11px;color:var(--muted)">Opening balance (statement)</div><div style="font-weight:600">${st.opening_balance_kobo == null ? '—' : reconKobo(st.opening_balance_kobo)}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Closing balance (statement)</div><div style="font-weight:600">${st.closing_balance_kobo == null ? '—' : reconKobo(st.closing_balance_kobo)}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Your books on ${escHtml(bk ? bk.as_of : '')}</div><div style="font-weight:600">${bk ? reconKobo(bk.balance_kobo) : '—'}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Difference to explain</div><div style="font-weight:600;color:${diff ? 'var(--amber)' : 'var(--green, #6FCF97)'}">${diff == null ? '—' : reconKobo(diff)}</div></div>
+      </div>
+      <div style="font-size:13px;margin-bottom:8px;color:${ig.ok ? 'var(--green, #6FCF97)' : '#FF8A8A'}">${ig.ok ? '✓ The statement checks out: every running balance follows from the one before, and the lines add up to the totals the bank prints.' : '⚠ This file does not add up. Something may have been misread, so it cannot be imported until it is checked.'}</div>
+      ${problems ? `<ul style="font-size:12px;color:#FF8A8A;margin:0 0 8px 18px">${problems}</ul>` : ''}
+      ${(st.warnings || []).map(w => `<div style="font-size:12px;color:var(--amber);margin-bottom:4px">${escHtml(w)}</div>`).join('')}
+      ${st.opening_balance_kobo == null || st.closing_balance_kobo == null ? '<div style="font-size:12px;color:#FF8A8A">No opening or closing balance could be found in this file.</div>' : ''}
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn btn-primary" id="recon-confirm-btn" onclick="confirmReconImport()" ${(!ig.ok || st.opening_balance_kobo == null || st.closing_balance_kobo == null) ? 'disabled' : ''}>Reconcile ${st.lines.length} lines</button>
+        <button class="btn btn-ghost" onclick="cancelReconImport()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function cancelReconImport() { reconPending = null; document.getElementById('recon-preview').innerHTML = ''; document.getElementById('recon-file-input').value = ''; }
+
+async function confirmReconImport() {
+  if (!reconPending) return;
+  const { filename, bankAccountId, statement: st } = reconPending;
+  const btn = document.getElementById('recon-confirm-btn'); btn.disabled = true;
+  const statusEl = document.getElementById('recon-upload-status');
+  statusEl.textContent = `Matching ${st.lines.length} lines...`;
+  try {
+    const res = await fetch(`${API}/coop-portal-reconcile-bank-statement`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken },
+      body: JSON.stringify({
+        filename, bank_account_id: bankAccountId,
+        lines: st.lines.map(l => ({ date: l.date, amount_kobo: l.amount_kobo, description: l.description, direction: l.direction })),
+        opening_balance_kobo: st.opening_balance_kobo, closing_balance_kobo: st.closing_balance_kobo,
+        balances_source: 'statement', statement_account_number: st.meta.account_number || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { btn.disabled = false; reconFail(data.error || 'Failed to reconcile.'); return; }
+    statusEl.textContent = `Done — ${data.matched_count} of ${data.total_lines} lines matched automatically.${data.flutterwave ? ` Flutterwave: ${data.flutterwave.matched} deposit(s) matched${data.flutterwave.not_on_statement ? `, ${data.flutterwave.not_on_statement} NOT found on this statement` : ''}.` : ''}${data.books ? ` Your books: ${data.books.matched} entr${data.books.matched === 1 ? 'y' : 'ies'} matched${data.books.not_on_statement ? `, ${data.books.not_on_statement} recorded but NOT on this statement` : ''}.` : ''}`;
+    cancelReconImport();
+    await loadReconciliationHistory();
+    await loadFlwBankMonitor();
+    await viewReconciliationBatch(data.batch_id);
+  } catch (err) { btn.disabled = false; reconFail('Error processing file: ' + err.message); }
 }
 
 // ── Flutterwave & the bank account ───────────────────────────────────────────────────────────────
@@ -5646,7 +5748,7 @@ function renderAccountingContentBase() {
     </div>
     <div class="card">
       <div class="card-title">Chart of accounts
-        ${hasPortalAction('accounting', 'create') ? `<button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button>` : ''}
+        ${hasPortalAction('accounting', 'create') ? `<span style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="openChartImportModal()">⬆ Import from Excel</button><button class="btn btn-ghost btn-sm" onclick="openNewAccountModal()">＋ New account</button></span>` : ''}
       </div>
       <div class="card-sub">Base currency: ${baseCurrency}. Accounts in another currency show their own totals converted at the rate you enter per transaction.</div>
       <div class="table-wrap"><table>

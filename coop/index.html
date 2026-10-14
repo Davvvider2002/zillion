@@ -579,7 +579,9 @@ function updateSignupTotal() {
   document.getElementById('su-total-display').textContent = `Total after trial: ${fmtNaira(total)}/${currentCycle === 'yearly' ? 'year' : 'month'}`;
 }
 
+let bundleCode = null;   // set only when the visitor arrived on an admin-issued bundle link
 function openSignupModal(planKey) {
+  bundleCode = null;
   selectedPlan = planKey;
   const tier = TIERS.find(t => t.key === planKey);
   const price = currentCycle === 'yearly' ? tier.yearly : tier.monthly;
@@ -618,9 +620,10 @@ async function submitSignup() {
     email: document.getElementById('su-email').value.trim(),
     password: document.getElementById('su-password').value,
     location: document.getElementById('su-location').value.trim(),
-    plan: selectedPlan,
-    cycle: currentCycle,
-    addon_keys: Array.from(document.querySelectorAll('.su-addon-checkbox:checked')).map(cb => cb.value),
+    plan: bundleCode ? undefined : selectedPlan,
+    cycle: bundleCode ? undefined : currentCycle,
+    bundle_code: bundleCode || undefined,
+    addon_keys: bundleCode ? [] : Array.from(document.querySelectorAll('.su-addon-checkbox:checked')).map(cb => cb.value),
     terms_accepted: document.getElementById('su-terms-accept').checked,
     primary_industry: document.getElementById('su-industry').value || undefined,
     financial_year_start_month: parseInt(document.getElementById('su-fy-month').value),
@@ -742,6 +745,23 @@ async function checkForCheckoutReturn() {
     document.getElementById('signup-pending-actions').style.display = '';
     document.getElementById('signup-paynow-btn').style.display = 'none';
   }
+}
+
+// A bundle (Micro / Starter) is never listed on this page. It opens only from the single-use link Zillion issues: /coop/?bundle=CODE
+async function checkForBundleLink() {
+  const code = new URLSearchParams(location.search).get('bundle');
+  if (!code) return;
+  try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
+  try {
+    const res = await fetch(`${API}/public-coop-bundle-info?code=${encodeURIComponent(code)}`);
+    const info = await res.json();
+    if (!res.ok) { alert(info.error || 'This sign-up link is not valid.'); return; }
+    openSignupModal('launch');          // sets up the modal, then switch it to the bundle
+    bundleCode = code; selectedPlan = info.tier;
+    document.getElementById('signup-plan-summary').textContent = `${info.label} (${info.members} members) — 14 days free, then ${fmtNaira(info.yearly_kobo / 100)} per year. Includes ${info.modules.join(', ')}.`;
+    document.getElementById('su-addons-section').style.display = 'none';
+    document.getElementById('signup-paynow-btn').style.display = '';
+  } catch (e) { alert('Could not check this link. Please try again.'); }
 }
 
 async function checkForResumeLink() {
@@ -871,6 +891,7 @@ fetchAddonModules();
 renderFaq();
 checkForCheckoutReturn();
 checkForResumeLink();
+checkForBundleLink();
 </script>
 </body>
 </html>

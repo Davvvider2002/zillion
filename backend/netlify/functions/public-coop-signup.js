@@ -47,7 +47,8 @@ function normalisePhone(raw) {
   return '+234' + digits;
 }
 
-const VALID_PLANS = ['launch', 'growth', 'scale'];
+const VALID_PLANS = ['launch', 'growth', 'scale'];   // bundle plans are deliberately NOT here: they only come through an admin-issued link (bundle_code)
+const { BUNDLE_CYCLE, addonKeysFor, lookupLink, claimLink, releaseLink } = require('../../lib/coopBundles');
 const VALID_CYCLES = ['monthly', 'yearly'];
 // Controlled list rather than free text, so analytics can actually
 // aggregate by category instead of fragmenting into endless variants
@@ -84,9 +85,16 @@ exports.handler = async (event) => {
   const email               = (body.email || '').trim().toLowerCase();
   const password              = (body.password || '').trim();
   const location                = (body.location || '').trim();
-  const plan                       = VALID_PLANS.includes(body.plan) ? body.plan : null;
-  const cycle                         = VALID_CYCLES.includes(body.cycle) ? body.cycle : null;
-  const addonKeys                        = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
+  let plan                       = VALID_PLANS.includes(body.plan) ? body.plan : null;
+  let cycle                         = VALID_CYCLES.includes(body.cycle) ? body.cycle : null;
+  let addonKeys                        = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
+  // A bundle sign-up is decided entirely by the link Zillion Admin issued: plan, cycle and modules come from it, never from the form.
+  let bundleLink = null;
+  if (body.bundle_code) {
+    const found = await lookupLink(getServiceClient(), String(body.bundle_code));
+    if (!found.ok) return err(400, found.error);
+    bundleLink = found.link; plan = found.link.tier; cycle = BUNDLE_CYCLE; addonKeys = addonKeysFor(plan, []);
+  }
   const primaryIndustry = VALID_INDUSTRIES.includes(body.primary_industry) ? body.primary_industry : null;
   const fyStartMonth = Number.isInteger(body.financial_year_start_month) && body.financial_year_start_month >= 1 && body.financial_year_start_month <= 12
     ? body.financial_year_start_month : 1; // defaults to January, matching the column's own DB default
@@ -124,6 +132,10 @@ exports.handler = async (event) => {
   const pricing = await computeSubscriptionTotal(db, { tier: plan, cycle, addonKeys });
   if (!pricing.ok) return err(400, pricing.error);
 
+  // One link, one society: claim it now (atomically) so two people cannot both use it. Released again if the sign-up then fails.
+  if (bundleLink && !(await claimLink(db, bundleLink.id, null))) return err(400, 'This sign-up link has already been used.');
+  const releaseBundle = async () => { if (bundleLink) await releaseLink(db, bundleLink.id); };
+
   let zillionId = null;
   try { zillionId = await resolveOrCreateZillionId(db, phone, 'merchant'); }
   catch (e) { console.warn('[public-coop-signup] zillion identity link failed (non-fatal):', e.message); }
@@ -145,7 +157,7 @@ exports.handler = async (event) => {
     zil_balance_kobo:                 0,
     zillion_id:                         zillionId,
   });
-  if (merchantErr) return err(500, `Failed to create account: ${merchantErr.message}`);
+  if (merchantErr) { await releaseBundle(); return err(500, `Failed to create account: ${merchantErr.message}`); }
 
   const { data: society, error: societyErr } = await db.from('coop_societies').insert({
     merchant_id:              merchantId,
@@ -160,13 +172,14 @@ exports.handler = async (event) => {
     subscription_plan:                 plan,
     subscription_cycle:                   cycle,
     subscription_email:                      email,
-    signup_source:                                 'self_service',
+    signup_source:                                 bundleLink ? 'bundle_link' : 'self_service',
     status:                                           'TRIAL', // usable immediately, matching how admin-created trial societies already work
     trial_ends_at:                                       new Date(Date.now() + 14*24*60*60*1000).toISOString(),
   }).select().single();
 
   if (societyErr) {
     await db.from('merchants').delete().eq('merchant_id', merchantId);
+    await releaseBundle();
     if (isNameKeyViolation(societyErr)) return err(409, nameTakenMessage(name));   // lost a race with an identical sign-up
     return err(500, `Failed to register society: ${societyErr.message}`);
   }
@@ -190,10 +203,14 @@ exports.handler = async (event) => {
   // has no referring agent, the normal case for most signups. Commission itself isn't credited here (there's
   // no payment yet, just a trial) — it's credited when the society's subscription actually gets paid, see
   // coopAgentCommission.js.
+  if (bundleLink) await db.from('coop_bundle_links').update({ used_by_coop_id: society.coop_id }).eq('id', bundleLink.id);
   const referralCode = (body.referral_code || '').trim();
-  if (referralCode) {
-    const { data: agent } = await db.from('coop_agents')
-      .select('id').eq('referral_code', referralCode).eq('status', 'ACTIVE').maybeSingle();
+  if (referralCode || (bundleLink && bundleLink.agent_id)) {
+    // a bundle link issued for an agent credits that agent, whatever the form says
+    const agentQuery = bundleLink && bundleLink.agent_id
+      ? db.from('coop_agents').select('id').eq('id', bundleLink.agent_id).eq('status', 'ACTIVE').maybeSingle()
+      : db.from('coop_agents').select('id').eq('referral_code', referralCode).eq('status', 'ACTIVE').maybeSingle();
+    const { data: agent } = await agentQuery;
     if (agent) {
       await db.from('coop_referral_attributions').insert({ agent_id: agent.id, coop_id: society.coop_id })
         .then(({ error }) => { if (error) console.error('[public-coop-signup] Referral attribution failed (non-fatal, society still created):', error.message); });
