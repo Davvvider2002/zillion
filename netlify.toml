@@ -11,7 +11,7 @@
 
 [functions]
   node_bundler          = "esbuild"
-  external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms", "pdfkit", "pdfjs-dist"]
+  external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms", "pdfkit"]
 
 # Runs automatically every 4 hours. Checks coin-ledger drift and other signals (writes alerts), and runs the
 # operational and accounting passes: subscription grace/trial handling, dues accrual, monthly statements, late-loan
