@@ -90,7 +90,7 @@ exports.handler = async (event) => {
   const { matchedLines, unmatchedLines, unmatchedRecords } = matchStatementLines(statementLines, candidates);
   const flwBank = describeSettlementAccount(soc);
 
-  const { data: batch, error: batchErr } = await db.from('coop_bank_reconciliation_batches').insert({
+  const batchRow = {
     coop_id: coopId,
     uploaded_by: resolved.society.merchant_id,
     filename: body.filename || null,
@@ -103,7 +103,13 @@ exports.handler = async (event) => {
     statement_account_number: body.statement_account_number ? String(body.statement_account_number).replace(/\D/g, '').slice(0, 20) || null : null,
     total_lines: statementLines.length,
     matched_lines: matchedLines.length,
-  }).select().single();
+  };
+  let { data: batch, error: batchErr } = await db.from('coop_bank_reconciliation_batches').insert(batchRow).select().single();
+  if (batchErr && /balances_source|statement_account_number/.test(batchErr.message || '')) {
+    // the 2026-10-14 migration has not been applied to this database yet: save without the two provenance columns rather than fail
+    const { balances_source, statement_account_number, ...legacyRow } = batchRow;
+    ({ data: batch, error: batchErr } = await db.from('coop_bank_reconciliation_batches').insert(legacyRow).select().single());
+  }
   if (batchErr || !batch) return err(500, `Failed to save reconciliation batch: ${batchErr?.message}`);
 
   const allLines = [...matchedLines, ...unmatchedLines];
