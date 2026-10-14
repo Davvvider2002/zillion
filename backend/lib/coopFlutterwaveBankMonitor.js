@@ -22,6 +22,7 @@
 const { fetchAllRows, chunk } = require('./coopPaginate');
 const { describeSettlementAccount, settlementAccountCode, isSettlementAccount, bankAccountLabel } = require('./coopBankAccountInfo');
 const { DATE_TOLERANCE_DAYS } = require('./coopBankReconciliation');
+const { isLiveMode, STALE_HELD_DAYS } = require('./coopFlutterwaveLedger');
 
 const STATEMENT_STALE_DAYS = 35;
 const LOOKS_LIKE_FLUTTERWAVE = /FLW|FLUTTERWAVE|RAVE\b|ZILLION/i;
@@ -40,7 +41,7 @@ async function rpc(db, fn, args) {
 async function buildBankMonitor(db, coopId, { from, to, accountCode, now = new Date() } = {}) {
   const toDay = to || day(now), fromDay = from || addDays(toDay, -90);
 
-  const { data: society } = await db.from('coop_societies').select('coop_id, name, settlement_account_code, settlement_account_number, settlement_bank_code, settlement_account_name').eq('coop_id', coopId).maybeSingle();
+  const { data: society } = await db.from('coop_societies').select('coop_id, name, flutterwave_subaccount_id, settlement_account_code, settlement_account_number, settlement_bank_code, settlement_account_name').eq('coop_id', coopId).maybeSingle();
   const coa = await fetchAllRows(() => db.from('coop_chart_of_accounts').select('id, account_code, account_name, account_type, sub_type, active').eq('coop_id', coopId).order('id'));
   const byId = new Map(coa.map(a => [a.id, a]));
   const bankAccounts = coa.filter(a => a.sub_type === 'bank_cash' && a.active !== false);
@@ -78,6 +79,31 @@ async function buildBankMonitor(db, coopId, { from, to, accountCode, now = new D
     });
   }
 
+  // 2b. the whole remittance chain, not just the last hop: what members paid through Flutterwave, what it kept as fees, what has reached
+  //     the bank, and what Flutterwave is still holding. Test-mode money is kept apart: Flutterwave never settles it, so it can never reach a bank.
+  const payments = await fetchAllRows(() => db.from('coop_flutterwave_ledger')
+    .select('id, amount_kobo, gross_kobo, fees_kobo, live_mode, settled_in, channel, occurred_at')
+    .eq('coop_id', coopId).eq('entry_type', 'PAYMENT')
+    .gte('occurred_at', fromDay + 'T00:00:00Z').lte('occurred_at', toDay + 'T23:59:59Z').order('occurred_at').order('id'));
+  const livePay = payments.filter(r => r.live_mode), testPay = payments.filter(r => !r.live_mode);
+  const sum = (rows, f) => rows.reduce((t, r) => t + (Number(f(r)) || 0), 0);
+  const heldRows = livePay.filter(r => !r.settled_in && r.channel !== 'virtual_account');
+  const owedRows = livePay.filter(r => !r.settled_in && r.channel === 'virtual_account');
+  const clearing = await rpc(db, 'coop_clearing_totals', { p_coop_id: coopId });
+  const testSettlementRows = isFlw ? await fetchAllRows(() => db.from('coop_flutterwave_ledger').select('id, amount_kobo, journal_entry_id, occurred_at')
+    .eq('coop_id', coopId).eq('entry_type', 'SETTLEMENT').eq('direction', 'OUT').eq('live_mode', false)
+    .gte('occurred_at', fromDay + 'T00:00:00Z').lte('occurred_at', toDay + 'T23:59:59Z').order('id')) : [];
+  const pipeline = {
+    live_key: isLiveMode(), has_subaccount: !!(society && society.flutterwave_subaccount_id),
+    collected_kobo: sum(livePay, r => r.gross_kobo != null ? r.gross_kobo : r.amount_kobo), credited_to_society_kobo: sum(livePay, r => r.amount_kobo),
+    fees_kobo: sum(livePay, r => r.fees_kobo), payments_count: livePay.length,
+    held_kobo: sum(heldRows, r => r.amount_kobo), held_count: heldRows.length,
+    oldest_held_days: heldRows.length ? Math.floor((now - new Date(heldRows.reduce((m, r) => (r.occurred_at < m ? r.occurred_at : m), heldRows[0].occurred_at))) / 86400000) : 0,
+    owed_by_zillion_kobo: sum(owedRows, r => r.amount_kobo), owed_by_zillion_count: owedRows.length,
+    clearing_balance_kobo: clearing ? clearing.debit_kobo - clearing.credit_kobo : null,
+    test_payments_count: testPay.length, test_payments_kobo: sum(testPay, r => r.amount_kobo), test_settlements_kobo: sum(testSettlementRows, r => r.amount_kobo),
+  };
+
   // 3. which statements exist, and which Flutterwave deposits are on them
   const coverage = account ? (await rpc(db, 'coop_bank_statement_coverage', { p_coop_id: coopId, p_bank_account_id: account.id })) || [] : [];
   const batchIds = coverage.map(b => b.batch_id);
@@ -100,9 +126,10 @@ async function buildBankMonitor(db, coopId, { from, to, accountCode, now = new D
   const inBooks = flwInflows.filter(r => r.booked_to_selected_account && r.booked_on && r.booked_on >= fromDay && r.booked_on <= toDay);
   const settlementsKobo = inBooks.filter(r => r.source === 'Flutterwave settlement').reduce((t, r) => t + r.bank_amount_kobo, 0);
   const payoutsKobo = inBooks.filter(r => r.source === 'Zillion payout').reduce((t, r) => t + r.bank_amount_kobo, 0);
+  const testSettledKobo = Math.min(pipeline.test_settlements_kobo, gl ? gl.inflow_kobo - settlementsKobo - payoutsKobo : 0);
   const movement = gl ? {
     opening_kobo: gl.opening_kobo, inflow_kobo: gl.inflow_kobo, outflow_kobo: gl.outflow_kobo, closing_kobo: gl.closing_kobo,
-    inflow_flutterwave_settlements_kobo: settlementsKobo, inflow_zillion_payouts_kobo: payoutsKobo, inflow_other_kobo: Math.max(0, gl.inflow_kobo - settlementsKobo - payoutsKobo),
+    inflow_flutterwave_settlements_kobo: settlementsKobo, inflow_zillion_payouts_kobo: payoutsKobo, inflow_test_settlements_kobo: Math.max(0, testSettledKobo), inflow_other_kobo: Math.max(0, gl.inflow_kobo - settlementsKobo - payoutsKobo - Math.max(0, testSettledKobo)),
   } : null;
 
   // 5. the latest statement against the books
@@ -136,8 +163,20 @@ async function buildBankMonitor(db, coopId, { from, to, accountCode, now = new D
     ok: !newestCovered ? null : (now - new Date(newestCovered + 'T00:00:00Z')) / 86400000 <= STATEMENT_STALE_DAYS,
     detail: !newestCovered ? 'No statement has been uploaded for this account' : (now - new Date(newestCovered + 'T00:00:00Z')) / 86400000 > STATEMENT_STALE_DAYS ? `The newest statement on file ends ${newestCovered}` : null });
 
+  if (isFlw) {
+    checks.push({ key: 'flutterwave_live', label: 'Flutterwave is in live mode, so its payments can settle to the bank',
+      ok: pipeline.live_key ? true : (pipeline.test_payments_count || pipeline.test_settlements_kobo ? false : null),
+      detail: pipeline.live_key ? null : `Flutterwave is running in TEST mode. Test payments are recorded (${pipeline.test_payments_count} in this period, ${naira(pipeline.test_payments_kobo)}) but Flutterwave never settles them, so none of it can reach the bank. Real settlements only appear once live keys are in use.` });
+    checks.push({ key: 'subaccount', label: 'This society has a Flutterwave sub-account to receive settlements', ok: pipeline.has_subaccount,
+      detail: pipeline.has_subaccount ? null : 'No Flutterwave sub-account is set up, so settlements cannot be fetched or matched. Provision the settlement account first.' });
+    checks.push({ key: 'not_held_too_long', label: `No live payment held by Flutterwave for more than ${STALE_HELD_DAYS} days`, ok: pipeline.oldest_held_days <= STALE_HELD_DAYS,
+      detail: pipeline.oldest_held_days > STALE_HELD_DAYS ? `${pipeline.held_count} payment(s) worth ${naira(pipeline.held_kobo)} have not been settled (oldest ${pipeline.oldest_held_days} days). Use "Fetch settlements now"; if they still do not appear, check the settlement in your Flutterwave dashboard.` : null });
+  }
+  if (movement) checks.push({ key: 'bank_not_negative', label: 'The bank balance in your books is not negative', ok: movement.closing_kobo >= 0,
+    detail: movement.closing_kobo < 0 ? `Your books show ${naira(movement.closing_kobo)} in this account. Money has gone out that was never recorded as coming in: ${pipeline.held_kobo ? `${naira(pipeline.held_kobo)} of member payments is still held by Flutterwave (not yet settled), and ` : ''}check that the opening balance was set and that deposits made straight to the bank were recorded.` : null });
+
   return {
-    society: { coop_id: coopId, name: society && society.name }, from: fromDay, to: toDay, account: identification, movement,
+    society: { coop_id: coopId, name: society && society.name }, from: fromDay, to: toDay, account: identification, movement, pipeline,
     flutterwave_inflows: flwInflows, unexplained_deposits: suspects.map(s => ({ date: s.statement_date, amount_kobo: s.amount_kobo, description: s.description })),
     last_statement: lastStatement, statements: coverage.map(b => ({ batch_id: b.batch_id, filename: b.filename, uploaded_at: b.uploaded_at, covers_from: b.from_date, covers_to: b.to_date, lines: b.lines })),
     checks, all_ok: checks.every(c => c.ok !== false),

@@ -5523,6 +5523,20 @@ async function loadFlwBankMonitor() {
     renderFlwBankMonitor(d);
   } catch (e) { body.innerHTML = `<div class="no-data">Could not load: ${flwEsc(e.message)} <button class="btn btn-ghost btn-sm" onclick="loadFlwBankMonitor()">Retry</button></div>`; }
 }
+async function syncFlwFromMonitor(btn) {
+  const label = btn.textContent; btn.disabled = true; btn.textContent = 'Fetching…';
+  try {
+    const res = await fetch(`${API}/coop-portal-flutterwave-ledger`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: JSON.stringify({ action: 'sync_settlements' }) });
+    const data = await res.json();
+    if (!res.ok) notify(data.error || 'Could not fetch settlements', true);
+    else if (data.skipped) notify(`Nothing fetched: ${data.skipped}`, true);
+    else if (data.errors && data.errors.length) notify(`Finished with problems: ${data.errors[0]}`, true);
+    else notify(`Flutterwave checked: ${data.fetched} settlement(s) found, ${data.recorded} new one(s) booked${data.variances ? `, ${data.variances} not matching` : ''}`);
+    await loadFlwBankMonitor();
+  } catch (e) { notify('Network error: ' + e.message, true); }
+  btn.disabled = false; btn.textContent = label;
+}
+
 function renderFlwBankMonitor(d) {
   const body = document.getElementById('flw-bank-body'); if (!body) return;
   const a = d.account, b = a.bank, m = d.movement;
@@ -5541,9 +5555,21 @@ function renderFlwBankMonitor(d) {
     <div class="field" style="margin:0"><label>To</label><input type="date" value="${flwEsc(d.to)}" onchange="flwBank.to=this.value;loadFlwBankMonitor()"></div></div>`;
   const tiles = m ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${tile('Opening balance', flwKobo(m.opening_kobo), fmtDate(d.from))}
-      ${tile('Money in', flwKobo(m.inflow_kobo), a.is_flutterwave_settlement_account ? `Flutterwave ${flwKobo(m.inflow_flutterwave_settlements_kobo)}${m.inflow_zillion_payouts_kobo ? ` · Zillion payouts ${flwKobo(m.inflow_zillion_payouts_kobo)}` : ''} · other ${flwKobo(m.inflow_other_kobo)}` : '', 'var(--green-lt)')}
+      ${tile('Money in', flwKobo(m.inflow_kobo), a.is_flutterwave_settlement_account ? `Flutterwave ${flwKobo(m.inflow_flutterwave_settlements_kobo)}${m.inflow_zillion_payouts_kobo ? ` · Zillion payouts ${flwKobo(m.inflow_zillion_payouts_kobo)}` : ''} ${m.inflow_test_settlements_kobo ? ` · test settlements ${flwKobo(m.inflow_test_settlements_kobo)}` : ''} · other ${flwKobo(m.inflow_other_kobo)}` : '', 'var(--green-lt)')}
       ${tile('Money out', flwKobo(m.outflow_kobo), '')}
       ${tile('Closing balance (books)', flwKobo(m.closing_kobo), fmtDate(d.to))}</div>` : `<div class="no-data">Balances are not available for this account.</div>`;
+  const pl = d.pipeline;
+  const pipeline = (pl && a.is_flutterwave_settlement_account) ? `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Your Flutterwave remittances, ${fmtDate(d.from)} to ${fmtDate(d.to)}</div>
+        ${hasPortalAction('accounting', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="syncFlwFromMonitor(this)">⟳ Fetch settlements now</button>` : ''}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${tile('Collected from members', flwKobo(pl.collected_kobo), `${pl.payments_count} live payment(s)`)}
+        ${tile('Flutterwave fees', flwKobo(pl.fees_kobo), 'kept by Flutterwave')}
+        ${tile('Reached your bank', flwKobo(m ? m.inflow_flutterwave_settlements_kobo + m.inflow_zillion_payouts_kobo : 0), 'settlements booked to this account', 'var(--green-lt)')}
+        ${tile('Still with Flutterwave', flwKobo(pl.held_kobo), `${pl.held_count} payment(s) awaiting settlement${pl.oldest_held_days ? ` · oldest ${pl.oldest_held_days}d` : ''}`, pl.held_kobo ? 'var(--amber)' : '')}
+        ${pl.owed_by_zillion_count ? tile('Owed by Zillion', flwKobo(pl.owed_by_zillion_kobo), `${pl.owed_by_zillion_count} bank transfer(s) paid out to you by Zillion`, 'var(--amber)') : ''}
+        ${pl.test_payments_count || pl.test_settlements_kobo ? tile('Test-mode money', flwKobo(pl.test_payments_kobo), `${pl.test_payments_count} test payment(s)${pl.test_settlements_kobo ? ` · test settlements ${flwKobo(pl.test_settlements_kobo)}` : ''} · never reaches a real bank`, 'var(--muted)') : ''}
+      </div></div>` : '';
   const checks = `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Checks ${d.all_ok ? '<span class="pill pill-green">all clear</span>' : '<span class="pill pill-red">needs attention</span>'}</div>
     ${d.checks.map(c => `<div style="font-size:13px;padding:3px 0;display:flex;gap:8px"><span style="width:16px;font-weight:700;color:${c.ok === true ? 'var(--green-lt)' : c.ok === false ? 'var(--red)' : 'var(--muted)'}">${c.ok === true ? '✓' : c.ok === false ? '✗' : '?'}</span><span>${flwEsc(c.label)}${c.detail ? `<div style="color:${c.ok === false ? 'var(--red)' : 'var(--muted)'};font-size:12px">${flwEsc(c.detail)}</div>` : ''}</span></div>`).join('')}</div>`;
   const inflows = d.flutterwave_inflows.length ? `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0">Flutterwave money paid into this account</div>
@@ -5555,7 +5581,7 @@ function renderFlwBankMonitor(d) {
         <td><span class="pill pill-${st[1]}">${st[0]}</span></td></tr>`; }).join('')}</tbody></table></div>` : '';
   const unexplained = d.unexplained_deposits.length ? `<div style="margin-top:12px;border:1px solid var(--red);border-radius:10px;padding:10px 14px;font-size:13px"><b>Deposits that look like Flutterwave money but match nothing recorded</b>${d.unexplained_deposits.map(u => `<div style="font-size:12.5px;margin-top:3px">${fmtDate(u.date)} · ${flwKobo(u.amount_kobo)} · ${flwEsc(u.description)}</div>`).join('')}</div>` : '';
   const ls = d.last_statement ? `<div style="margin-top:12px;font-size:12.5px;color:var(--muted)">Latest statement on file: <b>${flwEsc(d.last_statement.filename || 'upload')}</b>, covering ${fmtDate(d.last_statement.covers_from)} – ${fmtDate(d.last_statement.covers_to)}.${d.last_statement.statement_closing_kobo != null ? ` Statement closing balance ${flwKobo(d.last_statement.statement_closing_kobo)} vs your books ${d.last_statement.books_balance_at_that_date_kobo != null ? flwKobo(d.last_statement.books_balance_at_that_date_kobo) : '—'}${d.last_statement.difference_kobo ? ` (difference ${flwKobo(d.last_statement.difference_kobo)})` : ' — they agree'}.` : ''}</div>` : '';
-  body.innerHTML = ident + controls + tiles + checks + inflows + unexplained + ls;
+  body.innerHTML = ident + controls + pipeline + tiles + checks + inflows + unexplained + ls;
 }
 
 // ── Flutterwave ledger ─────────────────────────────────────────────────────────────────────────
