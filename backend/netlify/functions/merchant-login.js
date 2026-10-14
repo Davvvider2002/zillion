@@ -9,6 +9,7 @@
 'use strict';
 
 const { createHmac } = require('crypto');
+const { findMerchantByPhone } = require('../../lib/merchantLookup');
 const { getServiceClient } = require('../../lib/supabase');
 
 // FIX: previously fell back to a hardcoded, guessable secret when the
@@ -53,17 +54,14 @@ exports.handler = async (event) => {
     : phone.startsWith('0') ? '+234' + phone.slice(1)
     : '+234' + phone;
 
-  const merchantId = 'MERCH-' + normalised.replace(/\D/g,'').slice(-8);
 
   try {
   const db = getServiceClient();
 
   // Look up merchant record
-  const { data: merchant, error } = await db
-    .from('merchants')
-    .select('merchant_id, phone, business_name, owner_name, location, password_hash')
-    .eq('merchant_id', merchantId)
-    .single();
+  // By phone first, so an admin whose number was changed by staff signs in with the new one (the id never changes); the old number is refused.
+  const merchant = await findMerchantByPhone(db, normalised, 'merchant_id, phone, business_name, owner_name, location, password_hash');
+  const error = null;
 
   if (error || !merchant) {
     // Not a merchant/owner account - check whether this is a staff
@@ -115,8 +113,8 @@ exports.handler = async (event) => {
     // Save their chosen password
     const newHash = createHmac('sha256', mustEnv('JWT_SECRET'))
       .update(password).digest('hex');
-    await db.from('merchants').update({ password_hash: newHash }).eq('merchant_id', merchantId);
-    console.log(`[merchant-login] ✅ Legacy account ${merchantId} — password set on first login`);
+    await db.from('merchants').update({ password_hash: newHash }).eq('merchant_id', merchant.merchant_id);
+    console.log(`[merchant-login] ✅ Legacy account ${merchant.merchant_id} — password set on first login`);
     // Fall through to issue token below
   } else {
 

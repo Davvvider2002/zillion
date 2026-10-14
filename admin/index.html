@@ -1612,6 +1612,26 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- Change society admin mobile modal -->
+<div id="change-phone-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:420px;width:100%">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="ph-society-name">—</div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:6px">Current admin mobile: <b id="ph-old">—</b></div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:16px">From the moment you save, only the new number can sign in. The old number is refused. Use this only after you have confirmed the request with the society.</div>
+    <label class="field-label">New mobile number</label>
+    <input class="field-input" type="tel" id="ph-new" placeholder="08012345678" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Reason (kept in the audit log)</label>
+    <input class="field-input" type="text" id="ph-reason" placeholder="e.g. Lost SIM, new treasurer" maxlength="300" style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <label class="field-label">Set a new password (optional)</label>
+    <input class="field-input" type="text" id="ph-password" autocomplete="off" placeholder="Leave empty. The new admin can use Forgot password." style="margin-bottom:12px;width:100%;box-sizing:border-box">
+    <div id="ph-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeChangePhoneModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitChangePhone()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Change number</button>
+    </div>
+  </div>
+</div>
+
 <!-- Create Society modal -->
 <div id="create-society-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border-radius:14px;padding:24px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto">
@@ -5144,7 +5164,8 @@ function renderCoopThriftTable(societies) {
   const planLabel = p => p ? ({ micro_bundle: 'Micro Bundle', starter_bundle: 'Starter Bundle' }[p] || p.charAt(0).toUpperCase() + p.slice(1)) : '—';
   tbody.innerHTML = societies.map(s => `
     <tr>
-      <td style="font-weight:600">${escHtml(s.name)}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
+      <td style="font-weight:600">${escHtml(s.name)}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}
+        <div style="font-size:11px;color:var(--tx3);font-weight:400">Admin: ${escHtml(s.phone || '—')} <button class="rbtn" style="margin-left:4px" onclick="openChangePhoneModal('${s.coop_id}',${jsAttr(s.name)},${jsAttr(s.phone || '')})">Change mobile</button></div></td>
       <td><span style="color:${statusColor(s.status)};font-weight:600">${s.status}</span></td>
       <td>
         <span style="font-weight:700">${planLabel(s.subscription_plan)}</span>${s.subscription_cycle ? `<div style="font-size:10.5px;color:var(--tx3)">${s.subscription_cycle}</div>` : ''}
@@ -5305,6 +5326,35 @@ async function submitChangePlan() {
     closeChangePlanModal();
     notify(data.message || 'Plan updated');
     loadCoopThriftSocieties();
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
+}
+
+let phCoopId = null, phOld = '';
+function openChangePhoneModal(coopId, name, oldPhone) {
+  phCoopId = coopId; phOld = oldPhone || '';
+  document.getElementById('ph-society-name').textContent = name;
+  document.getElementById('ph-old').textContent = oldPhone || 'none on file';
+  ['ph-new', 'ph-reason', 'ph-password'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ph-error').style.display = 'none';
+  document.getElementById('change-phone-modal').style.display = 'flex';
+}
+function closeChangePhoneModal() { document.getElementById('change-phone-modal').style.display = 'none'; }
+async function submitChangePhone() {
+  const errEl = document.getElementById('ph-error'); errEl.style.display = 'none';
+  const newPhone = document.getElementById('ph-new').value.trim();
+  const reason = document.getElementById('ph-reason').value.trim();
+  const pw = document.getElementById('ph-password').value;
+  if (!newPhone) { errEl.textContent = 'Enter the new mobile number.'; errEl.style.display = 'block'; return; }
+  if (reason.length < 5) { errEl.textContent = 'Please give a short reason.'; errEl.style.display = 'block'; return; }
+  if (!confirm('Change the admin number from ' + (phOld || 'none') + ' to ' + newPhone + '? The old number will stop working immediately.')) return;
+  try {
+    const res = await fetch(`${API}/admin-change-coop-admin-phone`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+      body: JSON.stringify({ coop_id: phCoopId, new_phone: newPhone, reason, new_password: pw || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Failed to change the number.'; errEl.style.display = 'block'; return; }
+    closeChangePhoneModal(); notify(data.message || 'Number changed'); loadCoopThriftSocieties();
   } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
 
