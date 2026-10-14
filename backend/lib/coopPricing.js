@@ -15,6 +15,8 @@
  */
 'use strict';
 
+const { isBundleTier, isIncludedInBundle, BUNDLE_CYCLE } = require('./coopBundles');
+
 const YEARLY_DISCOUNT = 0.85; // 15% off monthly × 12, same convention as the base tier catalog
 
 function addonPriceForCycle(addonMonthlyKobo, cycle) {
@@ -28,6 +30,7 @@ function addonPriceForCycle(addonMonthlyKobo, cycle) {
  * @returns {Promise<{ok:true, totalKobo:number, tierKobo:number, addons:Array<{key,name,priceKobo}>} | {ok:false, error:string}>}
  */
 async function computeSubscriptionTotal(db, { tier, cycle, addonKeys = [] }) {
+  if (isBundleTier(tier) && cycle !== BUNDLE_CYCLE) return { ok: false, error: 'The bundle plans are yearly only' };
   const { data: tierRow } = await db.from('coop_subscription_plan_catalog')
     .select('amount_kobo').eq('tier', tier).eq('cycle', cycle).maybeSingle();
   if (!tierRow) return { ok: false, error: `No catalog entry for ${tier}/${cycle}` };
@@ -44,7 +47,8 @@ async function computeSubscriptionTotal(db, { tier, cycle, addonKeys = [] }) {
     if (inactive.length) return { ok: false, error: `Add-on(s) not currently available: ${inactive.map(a => a.name).join(', ')}` };
   }
 
-  const addons = addonModules.map(a => ({ key: a.key, name: a.name, priceKobo: addonPriceForCycle(a.price_kobo, cycle) }));
+  // a bundle already includes its three modules: they are listed, but cost nothing extra
+  const addons = addonModules.map(a => ({ key: a.key, name: a.name, priceKobo: isIncludedInBundle(tier, a.key) ? 0 : addonPriceForCycle(a.price_kobo, cycle) }));
   const addonsTotalKobo = addons.reduce((s, a) => s + a.priceKobo, 0);
 
   return { ok: true, totalKobo: tierRow.amount_kobo + addonsTotalKobo, tierKobo: tierRow.amount_kobo, addons };

@@ -539,7 +539,7 @@ tbody tr:last-child td{border-bottom:none;}
         <span class="si">🏦</span> Thrift &amp; Loan
       </button>
       <button class="snav-item" id="nav-coopagents"
-              onclick="showSec('coopagents',this);loadCoopAgents();loadCoopAgentApplications();renderCoopAgentLink();loadCoopAgentPipeline()">
+              onclick="showSec('coopagents',this);loadCoopAgents();loadCoopAgentApplications();renderCoopAgentLink();loadCoopAgentPipeline();loadBundleLinks()">
         <span class="si">🧑‍🤝‍🧑</span> Coop Agents
       </button>
       <button class="snav-item" id="nav-backups"
@@ -1253,6 +1253,21 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Bundle sign-up links (Micro &amp; Starter)
+      <button class="rbtn" onclick="loadBundleLinks()">&#x21BB;</button>
+    </div>
+    <div class="card-sub">The Micro Bundle (1-50 members, ₦100,000/year) and Starter Bundle (51-100 members, ₦180,000/year) include the core modules, Accounting &amp; Finance, Bank Reconciliation and Shares &amp; Dividends. They are not on the public page: when an agent asks for one, create a link here and send it. Each link signs up one society, works for 30 days, and gives the society the normal 14-day trial.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <div><label class="field-label">Bundle</label><select id="bl-tier" class="field-input"><option value="micro_bundle">Micro (1-50 members)</option><option value="starter_bundle">Starter (51-100 members)</option></select></div>
+      <div><label class="field-label">Agent referral code (optional)</label><input id="bl-agent" class="field-input" placeholder="credits this agent" style="width:190px"></div>
+      <div style="flex:1;min-width:160px"><label class="field-label">Note (optional)</label><input id="bl-note" class="field-input" maxlength="200" placeholder="e.g. Ikeja market women, requested by Ada" style="width:100%;box-sizing:border-box"></div>
+      <button class="rbtn" style="background:var(--g);color:#fff;font-weight:700" onclick="createBundleLink()">Create link</button>
+    </div>
+    <div id="bl-new" style="display:none;background:var(--grl);border:1px solid var(--grb);border-radius:8px;padding:10px 12px;font-size:12.5px;word-break:break-all;margin-bottom:12px"></div>
+    <div id="bl-list"><div class="no-data">Loading...</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
     <div class="card-title">Pending Agent Applications
       <button class="rbtn" onclick="loadCoopAgentApplications()">&#x21BB;</button>
     </div>
@@ -1523,6 +1538,8 @@ tbody tr:last-child td{border-bottom:none;}
       <option value="launch">Launch</option>
       <option value="growth">Growth</option>
       <option value="scale">Scale</option>
+      <option value="micro_bundle">Micro Bundle (1-50 members, ₦100,000/yr)</option>
+      <option value="starter_bundle">Starter Bundle (51-100 members, ₦180,000/yr)</option>
     </select>
     <div id="rs-error" style="color:#e74c3c;font-size:13px;margin-bottom:12px;display:none"></div>
     <div style="display:flex;gap:10px">
@@ -1575,6 +1592,8 @@ tbody tr:last-child td{border-bottom:none;}
       <option value="launch">Launch</option>
       <option value="growth">Growth</option>
       <option value="scale">Scale</option>
+      <option value="micro_bundle">Micro Bundle (1-50 members, ₦100,000/yr)</option>
+      <option value="starter_bundle">Starter Bundle (51-100 members, ₦180,000/yr)</option>
     </select>
     <label class="field-label">Billing cycle</label>
     <select id="cp-cycle" class="field-input" style="margin-bottom:12px;width:100%;box-sizing:border-box">
@@ -1647,6 +1666,8 @@ tbody tr:last-child td{border-bottom:none;}
         <option value="launch">Launch</option>
         <option value="growth">Growth</option>
         <option value="scale">Scale</option>
+        <option value="micro_bundle">Micro Bundle (1-50 members, ₦100,000/yr)</option>
+        <option value="starter_bundle">Starter Bundle (51-100 members, ₦180,000/yr)</option>
       </select>
       <div id="cs-plan-details" style="display:none">
         <label class="field-label">Billing cycle</label>
@@ -4211,6 +4232,40 @@ async function submitClassifyProspect() {
   }
 }
 
+// ── Bundle sign-up links ─────────────────────────────────────────────────────────────────────────
+async function loadBundleLinks() {
+  const el = document.getElementById('bl-list'); if (!el) return;
+  try {
+    const res = await fetch(`${API}/admin-coop-bundle-links`, { headers: { Authorization: 'Bearer ' + adminToken } });
+    const d = await res.json();
+    if (!res.ok) { el.innerHTML = `<div class="no-data">${escHtml(d.error || 'Unable to load')}</div>`; return; }
+    el.innerHTML = (d.links || []).length ? `<div class="table-wrap"><table><thead><tr><th>Created</th><th>Bundle</th><th>Agent</th><th>Note</th><th>Status</th><th></th></tr></thead><tbody>${d.links.map(l => `
+      <tr><td>${new Date(l.created_at).toLocaleDateString()}</td><td>${escHtml(l.tier_label)}</td><td>${l.agent ? escHtml(l.agent.name || '') + ' (' + escHtml(l.agent.referral_code) + ')' : '—'}</td><td>${escHtml(l.note || '')}</td>
+      <td>${l.status === 'used' ? 'Used by ' + escHtml(l.society || 'a society') : l.status === 'open' ? 'Open until ' + new Date(l.expires_at).toLocaleDateString() : escHtml(l.status)}</td>
+      <td>${l.url ? `<button class="rbtn" onclick="copyBundleLink(${jsAttr(l.url)})">Copy link</button> <button class="rbtn" onclick="revokeBundleLink('${l.id}')">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="no-data">No bundle links yet.</div>';
+  } catch (e) { el.innerHTML = '<div class="no-data">Unable to load</div>'; }
+}
+async function createBundleLink() {
+  const res = await fetch(`${API}/admin-coop-bundle-links`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+    body: JSON.stringify({ action: 'create', tier: document.getElementById('bl-tier').value, agent_referral_code: document.getElementById('bl-agent').value.trim(), note: document.getElementById('bl-note').value.trim() }),
+  });
+  const d = await res.json();
+  if (!res.ok) { notify(d.error || 'Could not create the link', true); return; }
+  const box = document.getElementById('bl-new');
+  box.style.display = ''; box.textContent = d.url;
+  copyBundleLink(d.url);
+  document.getElementById('bl-note').value = ''; document.getElementById('bl-agent').value = '';
+  loadBundleLinks();
+}
+function copyBundleLink(url) { try { navigator.clipboard.writeText(url); notify('Link copied'); } catch (e) { notify(url); } }
+async function revokeBundleLink(id) {
+  if (!confirm('Cancel this link? Nobody will be able to use it.')) return;
+  const res = await fetch(`${API}/admin-coop-bundle-links`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ action: 'revoke', id }) });
+  const d = await res.json(); if (!res.ok) notify(d.error || 'Could not cancel', true); else notify('Link cancelled');
+  loadBundleLinks();
+}
+
 async function loadCoopAgents() {
   const body = document.getElementById('coop-agents-table-body');
   body.innerHTML = '<tr><td colspan="10" class="no-data">Loading...</td></tr>';
@@ -5086,7 +5141,7 @@ function renderCoopThriftTable(societies) {
   const statusColor = s => ({ TRIAL: 'var(--am)', ACTIVE: 'var(--g)', SUSPENDED: '#e74c3c' }[s] || 'var(--tx2)');
   const subColor = s => ({ trial: 'var(--g)', trial_expired: '#e74c3c', pending_verification: 'var(--am)', active: 'var(--g)', suspended: '#e74c3c' }[s] || 'var(--tx3)');
   const subLabel = s => ({ trial: 'Trial', trial_expired: 'Trial ended', pending_verification: 'Pending', active: 'Active', suspended: 'Suspended' }[s] || s || '—');
-  const planLabel = p => p ? p.charAt(0).toUpperCase() + p.slice(1) : '—';
+  const planLabel = p => p ? ({ micro_bundle: 'Micro Bundle', starter_bundle: 'Starter Bundle' }[p] || p.charAt(0).toUpperCase() + p.slice(1)) : '—';
   tbody.innerHTML = societies.map(s => `
     <tr>
       <td style="font-weight:600">${escHtml(s.name)}${s.signup_source === 'self_service' ? ' <span style="font-size:10px;color:var(--tx3);font-weight:400">(self-signup)</span>' : ''}</td>
@@ -5237,7 +5292,7 @@ async function submitChangePlan() {
   const body = {
     coop_id: cpCurrentCoopId,
     plan: document.getElementById('cp-plan').value,
-    cycle: document.getElementById('cp-cycle').value,
+    cycle: isBundlePlan(document.getElementById('cp-plan').value) ? 'yearly' : document.getElementById('cp-cycle').value,
     email: document.getElementById('cp-email').value.trim(),
   };
   try {
@@ -5267,7 +5322,8 @@ function openCreateSocietyModal() {
 }
 function closeCreateSocietyModal() { document.getElementById('create-society-modal').style.display = 'none'; }
 
-const CS_TIER_PRICES = { launch: { monthly: 990000, yearly: 10098000 }, growth: { monthly: 2490000, yearly: 25398000 }, scale: { monthly: 4990000, yearly: 50898000 } };
+const CS_TIER_PRICES = { launch: { monthly: 990000, yearly: 10098000 }, growth: { monthly: 2490000, yearly: 25398000 }, scale: { monthly: 4990000, yearly: 50898000 }, micro_bundle: { yearly: 10000000 }, starter_bundle: { yearly: 18000000 } };
+const isBundlePlan = p => p === 'micro_bundle' || p === 'starter_bundle';
 let csAddonModules = [];
 
 async function loadAddonModulesForCreateModal() {
@@ -5293,9 +5349,9 @@ function updateCreateSocietyTotal() {
   const plan = document.getElementById('cs-plan').value;
   const totalEl = document.getElementById('cs-total-display');
   if (!plan) { totalEl.textContent = ''; return; }
-  const cycle = document.getElementById('cs-cycle').value;
+  const cycle = isBundlePlan(plan) ? 'yearly' : document.getElementById('cs-cycle').value;
   let total = CS_TIER_PRICES[plan][cycle];
-  document.querySelectorAll('.cs-addon-checkbox:checked').forEach(cb => {
+  if (!isBundlePlan(plan)) document.querySelectorAll('.cs-addon-checkbox:checked').forEach(cb => {
     const monthlyPrice = parseInt(cb.dataset.price);
     total += cycle === 'yearly' ? Math.round(monthlyPrice * 12 * 0.85) : monthlyPrice;
   });
@@ -5327,7 +5383,7 @@ async function submitCreateSociety() {
   };
   if (plan) {
     body.plan = plan;
-    body.cycle = document.getElementById('cs-cycle').value;
+    body.cycle = isBundlePlan(body.plan) ? 'yearly' : document.getElementById('cs-cycle').value;
     body.email = document.getElementById('cs-email').value.trim();
     body.addon_keys = Array.from(document.querySelectorAll('.cs-addon-checkbox:checked')).map(cb => cb.value);
   }

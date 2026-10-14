@@ -99,6 +99,8 @@ exports.handler = async (event) => {
     bank_name: isFlwAccount && flwBank.configured ? `${bankAccount.account_name} — ${flwBank.bank_name} ${maskAccount(flwBank.account_number)}` : bankAccount.account_name,
     opening_balance_kobo: openingBalanceKobo,
     closing_balance_kobo: closingBalanceKobo,
+    balances_source: body.balances_source === 'statement' ? 'statement' : (openingBalanceKobo != null || closingBalanceKobo != null ? 'manual' : null),
+    statement_account_number: body.statement_account_number ? String(body.statement_account_number).replace(/\D/g, '').slice(0, 20) || null : null,
     total_lines: statementLines.length,
     matched_lines: matchedLines.length,
   }).select().single();
