@@ -36,7 +36,8 @@ const { auditLog }               = require('../../lib/auditLog');
 const { computeSubscriptionTotal } = require('../../lib/coopPricing');
 const { findNameConflict, isNameKeyViolation } = require('../../lib/coopSocietyName');
 
-const VALID_PLANS = ['launch', 'growth', 'scale'];
+const { BUNDLE_TIERS, BUNDLE_CYCLE, isBundleTier, addonKeysFor } = require('../../lib/coopBundles');
+const VALID_PLANS = ['launch', 'growth', 'scale', ...Object.keys(BUNDLE_TIERS)];
 const VALID_CYCLES = ['monthly', 'yearly'];
 // Same controlled lists as public-coop-signup.js - kept local rather
 // than imported since these are small, static lists and this file
@@ -91,15 +92,16 @@ exports.handler = async (event) => {
   const openingBankBalance         = Number.isInteger(body.opening_bank_balance_kobo) ? body.opening_bank_balance_kobo : 0;
   const plan                          = body.plan ? (VALID_PLANS.includes(body.plan) ? body.plan : 'INVALID') : null;
   const cycle                            = body.cycle ? (VALID_CYCLES.includes(body.cycle) ? body.cycle : 'INVALID') : null;
-  const addonKeys                           = Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : [];
+  const addonKeys                           = addonKeysFor(plan, Array.isArray(body.addon_keys) ? body.addon_keys.filter(k => typeof k === 'string') : []);
   const primaryIndustry = VALID_INDUSTRIES.includes(body.primary_industry) ? body.primary_industry : null;
   const fyStartMonth = Number.isInteger(body.financial_year_start_month) && body.financial_year_start_month >= 1 && body.financial_year_start_month <= 12
     ? body.financial_year_start_month : 1;
   const country = VALID_COUNTRIES.includes(body.country) ? body.country : 'Nigeria';
   const baseCurrency = VALID_CURRENCIES.includes(body.base_currency) ? body.base_currency : 'NGN';
 
-  if (plan === 'INVALID')  return err(400, 'plan must be one of: launch, growth, scale');
+  if (plan === 'INVALID')  return err(400, 'plan must be one of: ' + VALID_PLANS.join(', '));
   if (cycle === 'INVALID')  return err(400, 'cycle must be one of: monthly, yearly');
+  if (isBundleTier(plan) && cycle !== BUNDLE_CYCLE) return err(400, 'The bundle plans are yearly only');
   if ((plan && !cycle) || (cycle && !plan)) return err(400, 'plan and cycle must be provided together');
 
   if (!name)      return err(400, 'name is required');

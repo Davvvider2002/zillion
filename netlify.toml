@@ -11,7 +11,7 @@
 
 [functions]
   node_bundler          = "esbuild"
-  external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms", "pdfkit"]
+  external_node_modules = ["@supabase/supabase-js", "@aws-sdk/client-kms", "pdfkit", "pdfjs-dist"]
 
 # Runs automatically every 4 hours. Checks coin-ledger drift and other signals (writes alerts), and runs the
 # operational and accounting passes: subscription grace/trial handling, dues accrual, monthly statements, late-loan
@@ -1383,4 +1383,24 @@
 [[redirects]]
   from = "/api/v1/coop-member-activity"
   to   = "/.netlify/functions/coop-member-activity"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-bank-statement-parse"
+  to   = "/.netlify/functions/coop-portal-bank-statement-parse"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/coop-portal-chart-of-accounts-import"
+  to   = "/.netlify/functions/coop-portal-chart-of-accounts-import"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-coop-bundle-links"
+  to   = "/.netlify/functions/admin-coop-bundle-links"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/public-coop-bundle-info"
+  to   = "/.netlify/functions/public-coop-bundle-info"
   status = 200

@@ -21,7 +21,8 @@ const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
 const { computeSubscriptionTotal, invalidateSubscriptionForRepricing } = require('../../lib/coopPricing');
 
-const VALID_PLANS = ['launch', 'growth', 'scale'];
+const { BUNDLE_TIERS, BUNDLE_CYCLE, isBundleTier, addonKeysFor } = require('../../lib/coopBundles');
+const VALID_PLANS = ['launch', 'growth', 'scale', ...Object.keys(BUNDLE_TIERS)];
 const VALID_CYCLES = ['monthly', 'yearly'];
 
 exports.handler = async (event) => {
@@ -45,7 +46,8 @@ exports.handler = async (event) => {
   const cycle  = body.cycle;
   const emailOverride = (body.email || '').trim().toLowerCase();
   if (!coopId) return err(400, 'coop_id is required');
-  if (!VALID_PLANS.includes(plan)) return err(400, 'plan must be one of: launch, growth, scale');
+  if (!VALID_PLANS.includes(plan)) return err(400, 'plan must be one of: ' + VALID_PLANS.join(', '));
+  if (isBundleTier(plan) && cycle !== BUNDLE_CYCLE) return err(400, 'The bundle plans are yearly only');
   if (!VALID_CYCLES.includes(cycle)) return err(400, 'cycle must be one of: monthly, yearly');
 
   const db = getServiceClient();
@@ -63,7 +65,12 @@ exports.handler = async (event) => {
   }
 
   const { data: addonRows } = await db.from('coop_society_addons').select('addon_key').eq('coop_id', coopId);
-  const addonKeys = (addonRows || []).map(r => r.addon_key);
+  const addonKeys = addonKeysFor(plan, (addonRows || []).map(r => r.addon_key));
+  if (isBundleTier(plan)) {   // moving onto a bundle grants its three modules
+    const have = new Set((addonRows || []).map(r => r.addon_key));
+    const missing = addonKeys.filter(k => !have.has(k));
+    if (missing.length) await db.from('coop_society_addons').insert(missing.map(k => ({ coop_id: coopId, addon_key: k })));
+  }
   const pricing = await computeSubscriptionTotal(db, { tier: plan, cycle, addonKeys });
   if (!pricing.ok) return err(400, pricing.error);
 

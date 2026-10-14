@@ -76,7 +76,7 @@ exports.handler = async (event) => {
     if (!coopId) return err(400, 'coop_id is required');
     if (!['restore', 'delete'].includes(action)) return err(400, "action must be 'restore' or 'delete'");
 
-    const VALID_PLANS = ['launch', 'growth', 'scale'];
+    const VALID_PLANS = ['launch', 'growth', 'scale', 'micro_bundle', 'starter_bundle'];
     const VALID_EXTEND_DAYS = [7, 14];
     if (action === 'restore') {
       const extendDays = Number(body.extend_days);
