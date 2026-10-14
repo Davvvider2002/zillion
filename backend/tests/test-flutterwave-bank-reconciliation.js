@@ -262,6 +262,56 @@ const row = (id, o = {}) => ({ id, coop_id: 'C1', direction: 'OUT', entry_type: 
   rep = await mon();
   ok('end to end: the monitor now shows the payout as CONFIRMED on the bank statement', rep.flutterwave_inflows[0].statement_status === 'CONFIRMED' && chk(rep, 'on_statement').ok === true && chk(rep, 'booked_to_account').ok === true);
 
+  // ═══ 9. THE WHOLE REMITTANCE CHAIN, AND WHERE IT IS STUCK ═══════════════════════════════════════════════════════════════
+  {
+    const pay = (id, o = {}) => STATE.db.tables.coop_flutterwave_ledger.push({ id, coop_id: 'C1', entry_type: 'PAYMENT', direction: 'IN', amount_kobo: 100000, gross_kobo: 101500, fees_kobo: 1500, live_mode: true, channel: 'checkout', settled_in: null, occurred_at: '2026-10-10T08:00:00Z', ...o });
+    const prevKey = process.env.FLW_V3_SECRET_KEY;
+    try {
+      // a society still on TEST keys: payments recorded, never settled, nothing reaches the bank
+      process.env.FLW_V3_SECRET_KEY = 'FLWSECK_TEST-abc';
+      fresh(); STATE.db.tables.coop_societies[0].settlement_account_code = '1010'; STATE.db.tables.coop_societies[0].flutterwave_subaccount_id = 'SUB';
+      pay('T1', { live_mode: false }); pay('T2', { live_mode: false, amount_kobo: 50000, gross_kobo: 50000, fees_kobo: 0 });
+      let rep9 = await buildBankMonitor(STATE.db, 'C1', { from: '2026-10-01', to: '2026-10-20', now: NOW });
+      ok('chain: test-mode payments are counted apart and never presented as money that can reach the bank', rep9.pipeline.test_payments_count === 2 && rep9.pipeline.test_payments_kobo === 150000 && rep9.pipeline.payments_count === 0 && rep9.pipeline.collected_kobo === 0);
+      const live = rep9.checks.find(c => c.key === 'flutterwave_live');
+      ok('chain: the dashboard says plainly that test mode is why nothing reaches the bank', live && live.ok === false && /TEST mode/.test(live.detail) && /never settles/.test(live.detail));
+
+      // live society: collected, some settled, some held, one bank transfer owed by Zillion
+      process.env.FLW_V3_SECRET_KEY = 'FLWSECK-live';
+      fresh(); STATE.db.tables.coop_societies[0].settlement_account_code = '1010'; STATE.db.tables.coop_societies[0].flutterwave_subaccount_id = 'SUB';
+      pay('L1', { settled_in: 'ST-1' }); pay('L2'); pay('L3', { occurred_at: '2026-10-01T08:00:00Z' }); pay('V1', { channel: 'virtual_account', amount_kobo: 70000, gross_kobo: 70000, fees_kobo: 0 });
+      addSettlement('S1', { amount: 100000, date: '2026-10-12' });
+      rep9 = await buildBankMonitor(STATE.db, 'C1', { from: '2026-10-01', to: '2026-10-20', now: NOW });
+      const pl = rep9.pipeline;
+      ok('chain: collected = what members paid, fees = what Flutterwave kept, per live payment', pl.payments_count === 4 && pl.collected_kobo === 3 * 101500 + 70000 && pl.fees_kobo === 4500);
+      ok('chain: still-with-Flutterwave counts unsettled checkout payments only, and the oldest is aged', pl.held_count === 2 && pl.held_kobo === 200000 && pl.oldest_held_days === 19);
+      ok('chain: a bank transfer paid out by Zillion is shown as owed by Zillion, not as held by Flutterwave', pl.owed_by_zillion_count === 1 && pl.owed_by_zillion_kobo === 70000);
+      ok('chain: live mode and a sub-account are recognised', pl.live_key === true && pl.has_subaccount === true && rep9.checks.find(c => c.key === 'flutterwave_live').ok === true && rep9.checks.find(c => c.key === 'subaccount').ok === true);
+      const stale = rep9.checks.find(c => c.key === 'not_held_too_long');
+      ok('chain: a payment held for more than 5 days raises the alarm and says what to do', stale.ok === false && /Fetch settlements now/.test(stale.detail));
+      ok('chain: money that reached the bank is separate from money still held', rep9.movement.inflow_flutterwave_settlements_kobo === 100000);
+
+      // no sub-account: settlements can never be fetched
+      STATE.db.tables.coop_societies[0].flutterwave_subaccount_id = null;
+      rep9 = await buildBankMonitor(STATE.db, 'C1', { from: '2026-10-01', to: '2026-10-20', now: NOW });
+      ok('chain: a missing Flutterwave sub-account is called out', rep9.checks.find(c => c.key === 'subaccount').ok === false);
+
+      // test-mode settlement sitting in the bank account is labelled, not passed off as "other" income
+      fresh(); STATE.db.tables.coop_societies[0].settlement_account_code = '1010';
+      addSettlement('TS1', { amount: 155005, date: '2026-10-05' }); STATE.db.tables.coop_flutterwave_ledger.find(x => x.id === 'TS1' || x.flw_settlement_id === 'ST-TS1').live_mode = false;
+      rep9 = await buildBankMonitor(STATE.db, 'C1', { from: '2026-10-01', to: '2026-10-20', now: NOW });
+      ok('chain: a test-mode settlement booked to the bank is labelled as test, not counted as "other" money in', rep9.movement.inflow_test_settlements_kobo === 155005 && rep9.movement.inflow_other_kobo === 0);
+
+      // a negative bank balance is explained, not just displayed
+      fresh(); STATE.db.tables.coop_societies[0].settlement_account_code = '1010';
+      STATE.db.tables.coop_journal_entries.push({ id: 'JX', coop_id: 'C1', entry_number: 1, entry_date: '2026-10-05', entry_type: 'manual' });
+      STATE.db.tables.coop_journal_entry_lines.push({ id: 'jlx', journal_entry_id: 'JX', coop_id: 'C1', account_id: 'a1010', line_type: 'credit', amount: 1000000 });
+      rep9 = await buildBankMonitor(STATE.db, 'C1', { from: '2026-10-01', to: '2026-10-20', now: NOW });
+      const neg = rep9.checks.find(c => c.key === 'bank_not_negative');
+      ok('chain: a negative bank balance in the books fails a check that explains the likely causes', neg.ok === false && /opening balance/.test(neg.detail) && rep9.movement.closing_kobo === -1000000);
+    } finally { if (prevKey === undefined) delete process.env.FLW_V3_SECRET_KEY; else process.env.FLW_V3_SECRET_KEY = prevKey; }
+  }
+
   // ═══ 10. GUARDS ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
   const lib = fs.readFileSync(path.join(LIB, 'coopBankReconciliation.js'), 'utf8'), reconSrc = fs.readFileSync(path.join(FN, 'coop-portal-reconcile-bank-statement.js'), 'utf8');
   ok('guard: Flutterwave deposits are only ever candidates when the statement is for the settlement account', /flutterwave: isFlwAccount \? window : null/.test(reconSrc) && /flutterwave: isFlwAccount/.test(reconSrc));
