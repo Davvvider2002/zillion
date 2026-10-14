@@ -380,42 +380,27 @@ function nearestColumn(cell, anchors) {
   return bestD <= 45 ? best : null;
 }
 
-// ── reading the PDF itself ──────────────────────────────────────────────────────────────────────────────────────────────────
+// ── the PDF's text, as the browser read it ───────────────────────────────────────────────────────────────────────────────────
+// The browser extracts the positioned text (pdf.js, loaded on the page) and sends only that. The server never opens the PDF file itself,
+// so a malicious or enormous PDF cannot reach a PDF engine here, and no PDF library has to be deployed with the functions.
 
-const MAX_PDF_BYTES = 4 * 1024 * 1024; // the function request body limit is ~6 MB once base64 encoded
-const MAX_PDF_PAGES = 250;
+const MAX_PAGES = 250;
+const MAX_ITEMS = 250000;
 
-/** Text items (with positions) for every page of a PDF. */
-async function extractPdfPages(buffer) {
-  if (!buffer || !buffer.length) throw new StatementParseError('The PDF is empty.');
-  if (buffer.length > MAX_PDF_BYTES) throw new StatementParseError('This PDF is larger than 4 MB. Export a shorter period, or use the Excel / CSV version.');
-  if (buffer.slice(0, 5).toString('latin1') !== '%PDF-') throw new StatementParseError('That file is not a PDF.');
-  const log = console.log; const warn = console.warn;
-  let pdfjs;
-  try { console.log = () => {}; console.warn = () => {}; pdfjs = require('pdfjs-dist/legacy/build/pdf.js'); } finally { console.log = log; console.warn = warn; }
-  let doc;
-  try {
-    console.log = () => {}; console.warn = () => {};
-    // isEvalSupported:false closes the font-evaluation hole in older pdf.js releases; a statement never needs it.
-    doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), isEvalSupported: false, useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
-  } catch (e) {
-    if (/password/i.test(String(e && e.message))) throw new StatementParseError('This PDF is password protected. Remove the password (or download an unprotected copy) and try again.');
-    throw new StatementParseError('This PDF could not be read. Try downloading it from your bank again, or use the Excel / CSV version.');
-  } finally { console.log = log; console.warn = warn; }
-  if (doc.numPages > MAX_PDF_PAGES) throw new StatementParseError(`This PDF has ${doc.numPages} pages. Export a shorter period (the limit is ${MAX_PDF_PAGES} pages).`);
-  const pages = [];
-  for (let n = 1; n <= doc.numPages; n++) {
-    const page = await doc.getPage(n);
-    const tc = await page.getTextContent();
-    pages.push({ items: tc.items.map(i => ({ str: i.str, x: i.transform[4], y: i.transform[5], w: i.width })) });
-  }
-  try { await doc.destroy(); } catch (e) { /* nothing to do */ }
-  return pages;
+/** Validate and normalise what the browser sent: [{ items: [{ str, x, y, w }] }]. Anything else is refused. */
+function normalisePdfPages(pages) {
+  if (!Array.isArray(pages) || !pages.length) throw new StatementParseError('The PDF has no pages.');
+  if (pages.length > MAX_PAGES) throw new StatementParseError(`This PDF has ${pages.length} pages. Export a shorter period (the limit is ${MAX_PAGES} pages).`);
+  let total = 0;
+  return pages.map(pg => {
+    const items = Array.isArray(pg && pg.items) ? pg.items : [];
+    total += items.length;
+    if (total > MAX_ITEMS) throw new StatementParseError('This PDF is too large to read. Export a shorter period, or use the Excel / CSV version.');
+    return { items: items.filter(i => i && typeof i.str === 'string' && Number.isFinite(i.x) && Number.isFinite(i.y)).map(i => ({ str: i.str.slice(0, 300), x: i.x, y: i.y, w: Number.isFinite(i.w) ? i.w : 0 })) };
+  });
 }
-
-async function parsePdfBuffer(buffer) { return parsePdfPages(await extractPdfPages(buffer)); }
 
 module.exports = {
   StatementParseError, parseDate, parseMoneyToKobo, looksLikeAmount, metaFromText,
-  assemble, parseTableRows, rowsOfPage, parsePdfPages, extractPdfPages, parsePdfBuffer,
+  assemble, parseTableRows, rowsOfPage, parsePdfPages, normalisePdfPages,
 };

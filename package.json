@@ -16,7 +16,6 @@
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1072.0",
     "@supabase/supabase-js": "^2.39.0",
-    "pdfjs-dist": "^3.11.174",
     "pdfkit": "^0.20.1",
     "qrcode": "^1.5.3",
     "tweetnacl": "^1.0.3",
@@ -24,5 +23,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^3.11.174"
   }
 }

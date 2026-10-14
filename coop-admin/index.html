@@ -5395,6 +5395,37 @@ let reconPending = null;   // the parsed statement waiting for the person to con
 const reconKobo = k => (k < 0 ? '-' : '') + '₦' + (Math.abs(k) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const reconFail = (msg) => { const e = document.getElementById('recon-upload-error'); e.textContent = msg; e.style.display = 'block'; document.getElementById('recon-upload-status').textContent = ''; };
 
+// The PDF is read here, in the browser (pdf.js from cdnjs, loaded only when a PDF is chosen); only its text and positions go to the server.
+let pdfJsLoading = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfJsLoading) pdfJsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; resolve(window.pdfjsLib); };
+    s.onerror = () => { pdfJsLoading = null; reject(new Error('Could not load the PDF reader. Check your connection, or use the Excel / CSV version of the statement.')); };
+    document.head.appendChild(s);
+  });
+  return pdfJsLoading;
+}
+async function readPdfText(file) {
+  if (file.size > 15 * 1024 * 1024) throw new Error('This PDF is larger than 15 MB. Download a shorter period, or use the Excel / CSV version.');
+  const lib = await loadPdfJs();
+  let doc;
+  try { doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise; }
+  catch (e) {
+    if (e && e.name === 'PasswordException') throw new Error('This PDF is password protected. Remove the password (or download an unprotected copy) and try again.');
+    throw new Error('This PDF could not be read. Try downloading it from your bank again, or use the Excel / CSV version.');
+  }
+  if (doc.numPages > 250) throw new Error(`This PDF has ${doc.numPages} pages. Download a shorter period (the limit is 250 pages).`);
+  const pages = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const tc = await (await doc.getPage(n)).getTextContent();
+    pages.push({ items: tc.items.filter(i => i.str && i.str.trim()).map(i => ({ str: i.str, x: Math.round(i.transform[4] * 100) / 100, y: Math.round(i.transform[5] * 100) / 100, w: Math.round(i.width * 100) / 100 })) });
+  }
+  return pages;
+}
+
 async function handleReconFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -5407,10 +5438,7 @@ async function handleReconFileSelect(event) {
   try {
     let payload;
     if (/\.pdf$/i.test(file.name)) {
-      if (file.size > 4 * 1024 * 1024) throw new Error('This PDF is larger than 4 MB. Download a shorter period, or use the Excel / CSV version.');
-      const buf = new Uint8Array(await file.arrayBuffer());
-      let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-      payload = { kind: 'pdf', data_base64: btoa(bin) };
+      payload = { kind: 'pdf', pages: await readPdfText(file) };
     } else {
       const wb = /\.csv$/i.test(file.name) ? XLSX.read(await file.text(), { type: 'string', cellDates: false }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '', dateNF: 'yyyy-mm-dd' });
