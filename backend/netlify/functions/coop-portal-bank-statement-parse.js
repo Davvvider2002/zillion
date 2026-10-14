@@ -8,7 +8,7 @@
  * proves itself (running balance, bank totals), and what the books say the selected bank account should hold on the statement's last day.
  * Nothing is written. The person picks the bank account from a list; nobody types a balance.
  *
- * Body: { bank_account_id, filename, kind: 'pdf' | 'rows', data_base64?  (pdf), rows?: [[cell,...],...] (excel/csv) }
+ * Body: { bank_account_id, filename, kind: 'pdf' | 'rows', pages?  (pdf: the text the browser read, [{items:[{str,x,y,w}]}]), rows?: [[cell,...],...] (excel/csv) }
  */
 'use strict';
 
@@ -52,9 +52,7 @@ exports.handler = async (event) => {
   let parsed;
   try {
     if (body.kind === 'pdf') {
-      const b64 = String(body.data_base64 || '');
-      if (!b64) return err(400, 'No file received');
-      parsed = await parser.parsePdfBuffer(Buffer.from(b64, 'base64'));
+      parsed = parser.parsePdfPages(parser.normalisePdfPages(body.pages));
     } else if (body.kind === 'rows') {
       if (!Array.isArray(body.rows)) return err(400, 'No rows received');
       if (body.rows.length > MAX_ROWS) return err(400, `The file has more than ${MAX_ROWS} rows. Export a shorter period.`);

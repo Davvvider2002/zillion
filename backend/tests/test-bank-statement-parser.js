@@ -7,6 +7,7 @@
 'use strict';
 const fs = require('fs'); const path = require('path');
 const P = require('../lib/bankStatementParser');
+const { extractPdfPages } = require('./helpers/pdfText');
 let bad = 0; const ok = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + ' - ' + n); if (!c) { bad++; process.exitCode = 1; } };
 const throws = async (f) => { try { await f(); return null; } catch (e) { return e; } };
 
@@ -25,7 +26,8 @@ const throws = async (f) => { try { await f(); return null; } catch (e) { return
 
   // the real PDF
   const pdf = fs.readFileSync(path.join(__dirname, 'fixtures', 'sample-bank-statement-2025.pdf'));
-  const r = await P.parsePdfBuffer(pdf);
+  const pages = await extractPdfPages(pdf);
+  const r = P.parsePdfPages(P.normalisePdfPages(JSON.parse(JSON.stringify(pages))));   // through JSON, as it travels from the browser
   ok('pdf: 759 transactions', r.lines.length === 759);
   ok('pdf: opening balance 1,790,000.00 read from the statement', r.opening_balance_kobo === 179000000);
   ok('pdf: closing balance 9,985,874.34 read from the statement', r.closing_balance_kobo === 998587434);
@@ -37,9 +39,10 @@ const throws = async (f) => { try { await f(); return null; } catch (e) { return
   ok('pdf: period read', r.meta.period_from === '2025-01-01' && r.meta.period_to === '2025-12-31');
   ok('pdf: balances_source is statement', r.balances_source === 'statement');
   ok('pdf: wrapped narrations rejoined (no line has a bare amount in its description)', r.lines.every(l => !/\b\d{1,3}(,\d{3})+\.\d{2}\b/.test(l.description)));
-  ok('pdf: not a PDF is refused', (await throws(() => P.parsePdfBuffer(Buffer.from('hello world')))) instanceof P.StatementParseError);
-  ok('pdf: corrupt PDF is refused with a clear error', (await throws(() => P.parsePdfBuffer(Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.from('garbage')])))) instanceof P.StatementParseError);
-  ok('pdf: no text (scan) is refused', (await throws(() => P.parsePdfPages([{ items: [] }]))) instanceof P.StatementParseError);
+  ok('pdf: junk pages refused', (await throws(() => P.normalisePdfPages('x'))) instanceof P.StatementParseError && (await throws(() => P.normalisePdfPages([]))) instanceof P.StatementParseError);
+  ok('pdf: oversized upload refused', (await throws(() => P.normalisePdfPages(new Array(251).fill({ items: [] })))) instanceof P.StatementParseError);
+  ok('pdf: hostile items are dropped, not trusted', P.normalisePdfPages([{ items: [{ str: 5, x: 1, y: 1 }, { str: 'ok', x: 'a', y: 1 }, null, { str: 'fine', x: 1, y: 2, w: 3 }] }])[0].items.length === 1);
+  ok('pdf: no text (scan) is refused', (await throws(() => P.parsePdfPages(P.normalisePdfPages([{ items: [] }])))) instanceof P.StatementParseError);
 
   // Excel / CSV rows
   const hdr = ['Date', 'Narration', 'Debit', 'Credit', 'Balance'];
