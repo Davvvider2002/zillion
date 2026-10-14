@@ -771,6 +771,21 @@ function triggerPWAInstall() {
 <!-- ═══════════════════════════════════════════════════════════════
      SCREEN 2 — PHONE VERIFICATION
 ══════════════════════════════════════════════════════════════ -->
+<div id="screen-accounts" class="screen hidden">
+  <div class="sb"></div>
+  <div class="hdr">
+    <div style="width:40px"></div>
+    <div class="hdr-title">Choose account</div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="ob-body">
+    <div class="ob-title">Who is signing in?</div>
+    <div class="ob-sub">Each person signs in with their own PIN. Nobody can see another person's account on this computer.</div>
+    <div id="accounts-list" style="margin:14px 0"></div>
+    <button class="btn btn-primary" onclick="webUseAnotherNumber()">Sign in with another phone number</button>
+  </div>
+</div>
+
 <div id="screen-phone" class="screen hidden">
   <div class="sb"></div>
   <div class="hdr">
@@ -2332,9 +2347,78 @@ function triggerPWAInstall() {
 
 // -- Constants -------------------------------------------------
 const API    = '/.netlify/functions';
-const DB_KEY     = 'zillion_pwa_v1';
-const DEVICE_KEY  = 'zillion_device_id';   // permanent — never cleared by updates
-const HISTORY_KEY = 'zillion_history_v1';  // separate — survives state wipe
+// Storage keys. In the mobile app (and an installed PWA) these are fixed: one account that the app remembers, unlocked with its PIN.
+// In a normal browser tab they are namespaced per account (see "Multiple logins on the web" below), so several members can sign in
+// one after another on the same computer, each with their own PIN, vault and history, and none able to see another's.
+const BASE_KEYS = { db: 'zillion_pwa_v1', device: 'zillion_device_id', history: 'zillion_history_v1', lock: 'zillion_locked',
+                    pin: 'zillion_pin_attempts', ajo: 'zillion_ajo_offline_queue', devkey: 'zillion-device-key' };
+let DB_KEY       = BASE_KEYS.db;
+let DEVICE_KEY   = BASE_KEYS.device;    // permanent per account — never cleared by updates
+let HISTORY_KEY  = BASE_KEYS.history;   // separate — survives state wipe
+let LOCK_KEY     = BASE_KEYS.lock;
+let PIN_ATTEMPTS_KEY = BASE_KEYS.pin;
+let AJO_OFFLINE_QUEUE_KEY = BASE_KEYS.ajo;
+let DEVICE_KEY_STORE = BASE_KEYS.devkey;
+
+// ── Multiple logins on the web ──────────────────────────────────────────────────────────────────────────────────────
+// The app on a phone remembers one account and its PIN. A browser is different: a society's office computer, a cyber cafe or an agent's
+// laptop is used by many members. So in a browser each account keeps its own storage, the account in use is remembered per TAB
+// (closing the tab signs out), logging out returns to the account list, and an idle tab locks itself.
+const WEB_ACCOUNTS_KEY = 'zillion_web_accounts';   // [{ phone, lastUsed }] - which accounts have signed in on this browser
+const WEB_ACTIVE_KEY   = 'zillion_web_active';     // sessionStorage: the account THIS tab is using
+const WEB_IDLE_MS      = 10 * 60 * 1000;
+const phoneDigits = p => String(p == null ? '' : p).replace(/\D/g, '');
+function isAppContext() {
+  try { if (window.ZillionNative && ZillionNative.isNativeApp && ZillionNative.isNativeApp()) return true; } catch (e) {}
+  try { return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; } catch (e) { return false; }
+}
+const multiLoginMode = () => !isAppContext();
+function webAccounts() { try { const a = JSON.parse(localStorage.getItem(WEB_ACCOUNTS_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => x && x.phone) : []; } catch (e) { return []; } }
+function saveWebAccounts(list) { try { localStorage.setItem(WEB_ACCOUNTS_KEY, JSON.stringify(list)); } catch (e) {} }
+function accountKeys(digits) { const sfx = '::' + (digits || 'pending'); return { db: BASE_KEYS.db + sfx, device: BASE_KEYS.device + sfx, history: BASE_KEYS.history + sfx, lock: BASE_KEYS.lock + sfx, pin: BASE_KEYS.pin + sfx, ajo: BASE_KEYS.ajo + sfx, devkey: BASE_KEYS.devkey + sfx }; }
+/** Point every storage key at one account (or at a throwaway "pending" slot before anyone has signed in). */
+function applyAccountStorage(phone) {
+  const k = accountKeys(phoneDigits(phone));
+  DB_KEY = k.db; DEVICE_KEY = k.device; HISTORY_KEY = k.history; LOCK_KEY = k.lock; PIN_ATTEMPTS_KEY = k.pin; AJO_OFFLINE_QUEUE_KEY = k.ajo; DEVICE_KEY_STORE = k.devkey;
+}
+function webActivate(phone) {
+  const d = phoneDigits(phone); if (!d) return;
+  try { sessionStorage.setItem(WEB_ACTIVE_KEY, d); } catch (e) {}
+  applyAccountStorage(d);
+  const list = webAccounts().filter(a => phoneDigits(a.phone) !== d);
+  list.unshift({ phone: d, lastUsed: new Date().toISOString() });
+  saveWebAccounts(list.slice(0, 20));
+}
+function webForgetAccount(phone) {
+  const d = phoneDigits(phone); const k = accountKeys(d);
+  Object.values(k).forEach(key => { try { localStorage.removeItem(key); } catch (e) {} });
+  saveWebAccounts(webAccounts().filter(a => phoneDigits(a.phone) !== d));
+}
+/** Accounts saved before multi-login lived under the plain keys. Move them under their own phone so nothing is lost or shared. */
+function webMigrateLegacy() {
+  try {
+    const raw = localStorage.getItem(BASE_KEYS.db); if (!raw) return;
+    const u = (JSON.parse(raw) || {}).user; const d = phoneDigits(u && u.phone);
+    if (d.length >= 10) {
+      const k = accountKeys(d);
+      if (!localStorage.getItem(k.db)) {
+        localStorage.setItem(k.db, raw);
+        [['history', 'history'], ['device', 'device'], ['lock', 'lock'], ['pin', 'pin'], ['ajo', 'ajo']].forEach(([from, to]) => { const v = localStorage.getItem(BASE_KEYS[from]); if (v != null) localStorage.setItem(k[to], v); });
+        if (!webAccounts().some(a => phoneDigits(a.phone) === d)) saveWebAccounts([...webAccounts(), { phone: d, lastUsed: new Date().toISOString() }]);
+        localStorage.setItem(k.lock, '1');   // a migrated account is asked for its PIN, like any other
+      }
+    }
+    [BASE_KEYS.db, BASE_KEYS.history, BASE_KEYS.device, BASE_KEYS.lock, BASE_KEYS.pin, BASE_KEYS.ajo].forEach(key => { try { localStorage.removeItem(key); } catch (e) {} });
+  } catch (e) { console.warn('[wallet] legacy account migration skipped:', e.message); }
+}
+/** Called once at start-up in a browser. Returns true when the account list should be shown. */
+function webBootInit() {
+  webMigrateLegacy();
+  let active = null; try { active = sessionStorage.getItem(WEB_ACTIVE_KEY); } catch (e) {}
+  if (active) { applyAccountStorage(active); return false; }       // this tab was already signed in (a reload)
+  applyAccountStorage(null);
+  return webAccounts().length > 0;
+}
 
 // ── Permanent device ID — generated ONCE, never changes ─────────────────────
 function getOrCreateDeviceId() {
@@ -3453,7 +3537,7 @@ function openModal(id) { const el = document.getElementById(id); if (el) el.styl
 // holds a handful of small pending records at once, not the vault's
 // full coin set, so the added complexity of IndexedDB isn't earned
 // here.
-const AJO_OFFLINE_QUEUE_KEY = 'zillion_ajo_offline_queue';
+// (AJO_OFFLINE_QUEUE_KEY is declared with the other storage keys at the top: it is per account on the web)
 
 function ajoOfflineQueueLoad() {
   try { return JSON.parse(localStorage.getItem(AJO_OFFLINE_QUEUE_KEY) || '[]'); }
@@ -3934,7 +4018,7 @@ async function processPinComplete() {
     const enteredHash = await hashPin(pinBuffer);
     if (enteredHash === STATE.settings.pinHash) {
       unlockAttempts = 0;
-      localStorage.removeItem('zillion_locked');
+      localStorage.removeItem(LOCK_KEY);
       pinBuffer = '';
       checkAndShowProductChooser(() => {
         goTo('screen-home');
@@ -3976,6 +4060,13 @@ function selectRole(role) {
 }
 async function completeOnboarding() {
   const phone = STATE._verifiedPhone || '+234000000000';
+  if (multiLoginMode()) {
+    // Switch to THIS phone's own storage before anything is read or written. If the person who just signed in is not who was last using
+    // this tab, nothing of the previous account (coins, history, settings other than the PIN just created) may carry over.
+    let prev = null; try { prev = sessionStorage.getItem(WEB_ACTIVE_KEY); } catch (e) {}
+    if (prev !== phoneDigits(phone)) { const pinHash = STATE.settings && STATE.settings.pinHash; webResetState(); STATE.settings.pinHash = pinHash; STATE._verifiedPhone = phone; }
+    webActivate(phone);
+  }
   const deviceId = getOrCreateDeviceId(); // permanent — same across re-registrations
   let agentId=null, agentToken=null;
   if (selectedRole === 'agent') {
@@ -4039,9 +4130,69 @@ async function completeOnboarding() {
   });
 }
 
+// -- Multiple logins on the web ----------------------------------
+function maskPhoneDigits(d) { d = phoneDigits(d); return d.length >= 4 ? '••••••' + d.slice(-4) : d; }
+function openAccountChooser() {
+  renderAccountChooser();
+  if (STATE.screen !== 'screen-accounts') goTo('screen-accounts');
+}
+function renderAccountChooser() {
+  const el = document.getElementById('accounts-list'); if (!el) return;
+  const list = webAccounts();
+  el.innerHTML = list.length ? list.map(a => `
+    <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--bd, #2a3a30);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div style="flex:1;cursor:pointer" onclick="chooseWebAccount('${phoneDigits(a.phone)}')">
+        <div style="font-weight:700;font-size:15px">📱 ${maskPhoneDigits(a.phone)}</div>
+        <div style="font-size:12px;opacity:.7">Last used ${a.lastUsed ? new Date(a.lastUsed).toLocaleString() : ''}</div>
+      </div>
+      <button class="btn btn-outline" style="padding:7px 12px;font-size:12px" onclick="chooseWebAccount('${phoneDigits(a.phone)}')">Sign in</button>
+      <button class="btn btn-outline" style="padding:7px 10px;font-size:12px" title="Remove from this computer" onclick="webRemoveAccount('${phoneDigits(a.phone)}')">✕</button>
+    </div>`).join('') : '<div style="opacity:.7;font-size:13px">No accounts have signed in on this computer yet.</div>';
+}
+function webResetState() {
+  STATE.user = null; STATE.vault = []; STATE.history = []; STATE.pin = null; STATE.pinConfirm = null; STATE.lastSync = null;
+  STATE.settings = { biometric: true, txpin: false, autosync: true };
+  STATE._verifiedPhone = null; STATE._verifiedToken = '';
+}
+function chooseWebAccount(phone) {
+  webResetState();
+  webActivate(phone);
+  if (!load() || !STATE.user) { toast('That account could not be opened on this computer. Sign in with the phone number again.', true); webForgetAccount(phone); renderAccountChooser(); return; }
+  localStorage.setItem(LOCK_KEY, '1');   // always ask for this account's PIN
+  tryRestoreSession();
+}
+function webUseAnotherNumber() {
+  webResetState();
+  try { sessionStorage.removeItem(WEB_ACTIVE_KEY); } catch (e) {}
+  applyAccountStorage(null);
+  STATE.pinState = 'create';
+  goTo('screen-phone');
+}
+function webRemoveAccount(phone) {
+  if (!confirm('Remove ' + maskPhoneDigits(phone) + ' from this computer? Their balance stays safe on their account and comes back when they sign in again with their phone number.')) return;
+  webForgetAccount(phone);
+  renderAccountChooser();
+}
+/** Sign the current person out of this tab and return to the account list, with nothing of theirs left in memory or on screen. */
+function webSignOutToChooser() {
+  try { localStorage.setItem(LOCK_KEY, '1'); } catch (e) {}
+  try { sessionStorage.removeItem(WEB_ACTIVE_KEY); } catch (e) {}
+  if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
+  location.reload();     // a fresh page: no previous person's data left in memory or in the DOM
+}
+// An unattended browser tab locks itself, so a member who walks away does not leave their account open for the next person.
+(function webIdleLock() {
+  let last = Date.now();
+  ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev => window.addEventListener(ev, () => { last = Date.now(); }, { passive: true }));
+  setInterval(() => {
+    if (!multiLoginMode() || !STATE.user) return;
+    if (Date.now() - last > WEB_IDLE_MS) { try { save(); } catch (e) {} webSignOutToChooser(); }
+  }, 30000);
+})();
+
 // -- Session restore --------------------------------------------
 function routeAfterSessionLoad() {
-  const locked = localStorage.getItem('zillion_locked') === '1';
+  const locked = localStorage.getItem(LOCK_KEY) === '1';
   if (!locked) return false;
   if (STATE.settings && STATE.settings.pinHash) {
     STATE.pinState = 'unlock';
@@ -4058,7 +4209,7 @@ function routeAfterSessionLoad() {
   }
   // Locked flag set but no pinHash exists on this device — predates
   // this fix, nothing to safely check an unlock attempt against.
-  localStorage.removeItem('zillion_locked');
+  localStorage.removeItem(LOCK_KEY);
   return false;
 }
 function tryRestoreSession() {
@@ -4073,6 +4224,7 @@ function tryRestoreSession() {
     });
     return;
   } else {
+    if (multiLoginMode() && webAccounts().length) { openAccountChooser(); return; }
     toast('No account found — please set up a new account', true);
     goTo('screen-phone'); // take them to phone entry, not just a toast
   }
@@ -6007,14 +6159,19 @@ function forceSync() {
   trySync();
 }
 function logout() {
+  if (multiLoginMode()) {
+    if (!confirm('Log out? Your account stays saved on this computer behind your PIN, and someone else can sign in next.')) return;
+    try { save(); } catch (e) {}
+    webSignOutToChooser(); return;
+  }
   if (!confirm('Log out? Your vault data stays on this device.')) return;
-  localStorage.setItem('zillion_locked', '1');
+  localStorage.setItem(LOCK_KEY, '1');
   STATE.user=null; STATE.pin=null;
   if (window.ZillionNative && ZillionNative.notifyLoggedOut) ZillionNative.notifyLoggedOut();
   goTo('screen-splash');
 }
 function forgotPin() {
-  localStorage.removeItem('zillion_locked');
+  localStorage.removeItem(LOCK_KEY);
   unlockAttempts = 0;
   STATE.pinState = 'create';
   document.getElementById('pin-title').textContent = 'Create 6-digit PIN';
@@ -6094,7 +6251,7 @@ async function manualWalletRecover() {
   try {
     const token  = STATE.user?.token || STATE.user?.agentToken || '';
     const phone  = STATE.user?.phone || STATE.user?.phone_number || '';
-    const devId  = STATE.user?.deviceId || STATE.user?.device_id || localStorage.getItem('zillion_device_id') || '';
+    const devId  = STATE.user?.deviceId || STATE.user?.device_id || localStorage.getItem(DEVICE_KEY) || '';
     if (!token || !phone) {
       if (status) status.textContent = 'Please log in first';
       return;
@@ -7233,7 +7390,9 @@ window.addEventListener('DOMContentLoaded', () => {
   checkShareTarget();
   updateConnBadge(navigator.onLine);
   if (!navigator.onLine) updateSyncStatus('Offline - changes saved locally');
-  if (load() && STATE.user) {
+  // In a browser, several people may use this computer: start at the account list unless this very tab is already signed in.
+  const showAccountChooser = multiLoginMode() && webBootInit();
+  if (!showAccountChooser && load() && STATE.user) {
     if (routeAfterSessionLoad()) {
       // Unlock screen shown instead — skip auto-restoring home.
     } else {
@@ -7251,6 +7410,7 @@ window.addEventListener('DOMContentLoaded', () => {
     coopCheckForCheckoutReturn();
     }
   } else {
+    if (showAccountChooser) openAccountChooser();
     // Check claim param - store for after onboarding
     const params = new URLSearchParams(location.search);
     if (params.get('claim')) {
@@ -7591,7 +7751,7 @@ function validateCoinBundle(coins) {
 // Private key stored in IndexedDB (never leaves device).
 // Public key sent to /api/v1/register-device for offline coin verification.
 
-const DEVICE_KEY_STORE = 'zillion-device-key';
+// (DEVICE_KEY_STORE is declared with the other storage keys at the top)
 
 async function getOrCreateDeviceKeyPair() {
   // Try IndexedDB first
@@ -7724,7 +7884,7 @@ function assertBalance(action) {
 var _claimPinValue = '';
 var _claimPinClaimId = '';
 var _claimPinBundle = null;
-var PIN_ATTEMPTS_KEY = 'zillion_pin_attempts';
+// (PIN_ATTEMPTS_KEY is declared with the other storage keys at the top)
 
 // Derive a 16-hex-char verifier from PIN + bundleId (offline)
 async function derivePinVerifier(pin, bundleId) {
