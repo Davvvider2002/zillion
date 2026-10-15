@@ -305,7 +305,7 @@ function detectHeader(row) {
   return null;
 }
 
-function parsePdfPages(pages) {
+function parseLinePdf(pages) {
   if (!Array.isArray(pages) || !pages.length) throw new StatementParseError('The PDF has no pages.');
   const allRows = pages.map(p => rowsOfPage(p.items || []));
   const textFound = allRows.some(r => r.length);
@@ -368,6 +368,137 @@ function parsePdfPages(pages) {
     cur = null;
   }
   return assemble({ meta, opening, footer, lines });
+}
+
+
+// ── statements laid out as tall cells (GTBank style) ──────────────────────────────────────────────────────────────────────────
+// Some banks print each transaction as one tall table cell: the date is split over two lines ("03-Sep-" above "2026"), the narration wraps
+// over up to eight lines, and the reference, dates and amounts sit in the vertical middle of the cell. There is no single text line that
+// holds a whole transaction, so the line reader above finds nothing. This reader works from the column positions instead: every amount in
+// the Balance column marks one transaction, the date, amounts and reference are taken from beside it, and narration lines are shared out
+// between neighbouring transactions at the biggest vertical gap (the cell padding). The balance chain check then proves it read correctly.
+
+const money = s => /^\(?[-+]?[\d,]*\.\d{1,2}\)?$/.test(s) && parseMoneyToKobo(s) !== null;
+const clean = s => String(s).replace(/[­‐-―]/g, '-').trim();
+
+function blockHeader(items) {
+  const find = re => items.filter(i => re.test(i.s));
+  for (const d of find(/^debit$/i)) {
+    const near = it => it.filter(i => Math.abs(i.y - d.y) <= 3);
+    const cr = near(find(/^credit$/i))[0], bal = near(find(/^balance$/i))[0];
+    if (!cr || !bal) continue;
+    const band = items.filter(i => i.y <= d.y + 4 && i.y >= d.y - 14);
+    const ref = band.find(i => /^reference/i.test(i.s)), val = band.find(i => /^value/i.test(i.s));
+    const desc = near(items.filter(i => /^(remarks?|narration|description|details|particulars)$/i.test(i.s)))[0];
+    const date = band.filter(i => /^(trans|date|txn|posting)/i.test(i.s)).sort((a, b) => a.x - b.x)[0];
+    if (!desc || !date) continue;
+    return { y: d.y, debit: d, credit: cr, balance: bal, ref, value: val, desc, dateX: date.x };
+  }
+  return null;
+}
+
+function parseBlockPdf(pages) {
+  const lines = []; let hdr = null; let n = 0;
+  const headRows = [];
+  pages.forEach((pg, pi) => {
+    const all = (pg.items || []).filter(i => i.str && i.str.trim()).map(i => ({ s: clean(i.str), x: i.x, y: i.y, xr: i.x + (i.w || 0) }));
+    const h = blockHeader(all) || (pi > 0 ? hdr && { ...hdr, y: Infinity } : null);
+    if (!h) return;
+    if (blockHeader(all)) hdr = h;
+    const H = hdr;
+    if (pi === 0) headRows.push(...rowsOfPage(pg.items || []).filter(r => r.y > H.y).map(r => r.cells.map(c => c.s).join(' ')));
+    const top = blockHeader(all) ? H.y - 12 : Infinity;        // the second heading line ("Date") sits just under the first
+    const PAGE = /^page\b.*\d+\s*of\s*\d+/i;
+    const body = all.filter(i => i.y < top && !PAGE.test(i.s) && !/^(date|trans|value)$/i.test(i.s));
+    const dcol = H.debit.xr, ccol = H.credit.xr, bcol = H.balance.xr;
+    const amountItems = body.filter(i => i.x >= H.dateX && i.xr <= bcol + 25 && money(i.s));
+    const colOf = i => { const d = [['debit', dcol], ['credit', ccol], ['balance', bcol]].map(([k, x]) => [k, Math.abs(i.xr - x)]).sort((a, b) => a[1] - b[1])[0]; return d[1] <= 25 ? d[0] : null; };
+    const rows = [];
+    for (const it of amountItems.filter(i => colOf(i)).sort((a, b) => b.y - a.y)) {
+      let r = rows.find(r => Math.abs(r.y - it.y) <= 3);
+      if (!r) { r = { y: it.y }; rows.push(r); }
+      r[colOf(it)] = it;
+    }
+    const anchors = rows.filter(r => r.balance || r.debit || r.credit).sort((a, b) => b.y - a.y);
+    if (!anchors.length) return;
+    // Narration lines (the Remarks column), top to bottom. A cell's text is centred on the row that holds the amounts, so a transaction owns
+    // as many lines below its amounts as it has above them. That symmetry is what splits the lines between two neighbouring transactions.
+    const rem = body.filter(i => i.x >= H.desc.x - 3).sort((a, b) => b.y - a.y || a.x - b.x);
+    const rlines = [];
+    for (const it of rem) { const l = rlines.find(l => Math.abs(l.y - it.y) <= 2); if (l) l.t.push(it); else rlines.push({ y: it.y, t: [it] }); }
+    rlines.forEach(l => { l.s = l.t.sort((a, b) => a.x - b.x).map(i => i.s).join(' '); });
+    const owner = new Map();
+    const SLACK = 2.5, MAXGAP = 12;
+    let pool = rlines.slice();                      // lines not yet owned, top to bottom
+    anchors.forEach((a, i) => {
+      // lines above this row that were not taken by the transaction before: they are this transaction's top half
+      const above = pool.filter(l => l.y > a.y + SLACK);
+      let ext = 0, prev = a.y;
+      for (let k = above.length - 1; k >= 0; k--) { if (prev - above[k].y > MAXGAP && prev !== a.y) break; if (above[k].y - prev > MAXGAP) break; owner.set(above[k], i); ext = Math.max(ext, above[k].y - a.y); prev = above[k].y; }
+      pool = pool.filter(l => !owner.has(l));
+      for (const l of pool) if (Math.abs(l.y - a.y) <= SLACK) owner.set(l, i);          // on the amounts row itself
+      pool = pool.filter(l => !owner.has(l));
+      const nextY = i + 1 < anchors.length ? anchors[i + 1].y : -Infinity;
+      for (const l of pool) {                                                           // the bottom half mirrors the top half
+        if (l.y >= a.y - SLACK || l.y <= nextY + SLACK) continue;
+        if (a.y - l.y <= ext + SLACK) owner.set(l, i);
+      }
+      pool = pool.filter(l => !owner.has(l));
+    });
+    const yearOf = hdrRows => null;
+    anchors.forEach((a, i) => {
+      const near = f => body.filter(it => Math.abs(it.y - a.y) <= 14 && f(it)).sort((x, y) => y.y - x.y).map(it => it.s);
+      const dateTxt = near(it => it.x >= H.dateX - 3 && it.xr < (H.ref ? H.ref.x : H.dateX + 50) - 2).join(' ');
+      const vTxt = H.value ? near(it => it.x >= H.value.x - 3 && it.xr < H.debit.xr - 40).join(' ') : '';
+      const toDate = t => { const m = t.match(/(\d{1,2})\W*([A-Za-z]{3,9})\W*(\d{4}|\d{2})?\b/); const y = (t.match(/\b((?:19|20)\d{2})\b/) || [])[1]; return m && y ? parseDate(`${m[1]}-${m[2]}-${y}`) : null; };
+      const description = rlines.filter(l => owner.get(l) === i).sort((x, y) => y.y - x.y).map(l => l.s).join(' ').replace(/\s+/g, ' ').trim();
+      const rec = { date: toDate(dateTxt), valueDate: toDate(vTxt), description, n: ++n, pg: pi };
+      if (a.debit) rec.debit = Math.abs(parseMoneyToKobo(a.debit.s));
+      if (a.credit) rec.credit = Math.abs(parseMoneyToKobo(a.credit.s));
+      if (a.balance) rec.balance = parseMoneyToKobo(a.balance.s);
+      if (rec.date) lines.push(rec);
+    });
+  });
+  // A row that straddles a page break is drawn at the foot of one page and again at the head of the next. Drop the second copy
+  // (same date, amounts and running balance as the last rows of the page before), keeping the fuller narration.
+  const keyOf = l => [l.date, l.debit || 0, l.credit || 0, l.balance == null ? '' : l.balance].join('|');
+  for (let pi = 1; pi < pages.length; pi++) {
+    const mine = lines.filter(l => l.pg === pi), before = lines.filter(l => l.pg < pi);
+    for (let k = Math.min(4, mine.length, before.length); k >= 1; k--) {
+      const head = mine.slice(0, k), tail = before.slice(-k);
+      if (head.every((l, j) => keyOf(l) === keyOf(tail[j]))) {
+        head.forEach((l, j) => { if ((l.description || '').length > (tail[j].description || '').length) tail[j].description = l.description; lines.splice(lines.indexOf(l), 1); });
+        break;
+      }
+    }
+  }
+  lines.forEach((l, i) => { l.n = i + 1; });
+  if (!lines.length) throw new StatementParseError('No transactions were found in this file. Check it is the statement itself and not a summary page.');
+  // statement facts printed above the table: account, period, opening and closing balances, totals
+  const text = headRows.join('\n');
+  const meta = metaFromText(text);
+  const named = headRows.find(r => !/statement|print date|account|period|branch|debit|credit|address|currency|balance/i.test(r) && /[A-Za-z]{3}/.test(r));
+  if (named && !meta.account_name) meta.account_name = named.trim();
+  const mp = text.match(/period\s*:?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})\W+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i);
+  const longDate = t => { const m = t.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/); return m ? parseDate(`${m[2]}-${m[1]}-${m[3]}`) : null; };
+  if (mp) { meta.period_from = longDate(mp[1]); meta.period_to = longDate(mp[2]); }
+  const grab = re => { const m = text.match(re); return m ? parseMoneyToKobo(m[1]) : null; };
+  const opening = grab(/opening\s+balance\s*:?\s*([\d,]+\.\d{2})/i);
+  const footer = { debits: grab(/total\s+debit\s*:?\s*([\d,]+\.\d{2})/i), credits: grab(/total\s+credit\s*:?\s*([\d,]+\.\d{2})/i), closing: grab(/closing\s+balance\s*:?\s*([\d,]+\.\d{2})/i) };
+  Object.keys(footer).forEach(k => { if (footer[k] == null) delete footer[k]; });
+  return assemble({ meta, opening, footer, lines });
+}
+
+/** Try the line reader first (one transaction per text line), then the tall-cell reader. Keep whichever result proves itself. */
+function parsePdfPages(pages) {
+  let first = null, firstErr = null;
+  try { first = parseLinePdf(pages); } catch (e) { if (!(e instanceof StatementParseError)) throw e; firstErr = e; }
+  if (first && first.integrity && first.integrity.ok) return first;
+  let second = null;
+  try { second = parseBlockPdf(pages); } catch (e) { if (!(e instanceof StatementParseError)) throw e; }
+  if (second && (!first || (second.integrity && second.integrity.ok))) return second;
+  if (first) return first;
+  throw firstErr;
 }
 
 function nearestColumn(cell, anchors) {
