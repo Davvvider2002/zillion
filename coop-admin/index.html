@@ -3322,7 +3322,7 @@ function downloadChartTemplate() {
   XLSX.writeFile(wb, 'chart-of-accounts-template.xlsx');
 }
 async function readSheetRows(file) {
-  const wb = /\.csv$/i.test(file.name) ? XLSX.read(await file.text(), { type: 'string' }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const wb = await readWorkbookFile(file);
   return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
 }
 async function callChartImport(commit) {
@@ -5426,6 +5426,16 @@ async function readPdfText(file) {
   return pages;
 }
 
+/** A spreadsheet saved from Excel as "Web Page" is only a small HTML wrapper: the rows sit in a separate folder that was not uploaded. Say so plainly. */
+async function readWorkbookFile(file, opts) {
+  if (/\.csv$/i.test(file.name)) return XLSX.read(await file.text(), { type: 'string', cellDates: false });
+  const buf = await file.arrayBuffer();
+  const head = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf.slice(0, 4000))).toLowerCase();
+  if (head.includes('<html') && head.includes('excel workbook frameset')) {
+    throw new Error('This file was saved from Excel as a "Web Page", so the statement rows are not inside it. Open it in Excel, choose Save As, pick "Excel Workbook (.xlsx)" or "CSV", and upload that file instead.');
+  }
+  return XLSX.read(buf, { type: 'array' });
+}
 async function handleReconFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -5440,7 +5450,7 @@ async function handleReconFileSelect(event) {
     if (/\.pdf$/i.test(file.name)) {
       payload = { kind: 'pdf', pages: await readPdfText(file) };
     } else {
-      const wb = /\.csv$/i.test(file.name) ? XLSX.read(await file.text(), { type: 'string', cellDates: false }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const wb = await readWorkbookFile(file);
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '', dateNF: 'yyyy-mm-dd' });
       payload = { kind: 'rows', rows };
     }
