@@ -57,7 +57,7 @@ exports.handler = async (event) => {
       if (q.coop_id) query = query.eq('coop_id', cleanText(q.coop_id, 60));
       const digitsOnly = M.digits(term);
       const safe = term.replace(/[%,()]/g, ' ').trim();
-      query = digitsOnly.length >= 4 && digitsOnly.length === term.replace(/\s/g, '').length
+      query = digitsOnly.length >= 4 && /^[+\d\s()-]+$/.test(term)
         ? query.ilike('phone_normalized', `%${digitsOnly.slice(-10)}%`)
         : query.or(`name.ilike.%${safe}%,member_number.ilike.%${safe}%`);
       const { data: rows, error } = await query;
