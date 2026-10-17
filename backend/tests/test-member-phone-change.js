@@ -216,6 +216,8 @@ async function toSubmitted(db, memberId, newPhone = NEW, code = '123456') {
 
   r = await AG({ action: 'members', q: 'ada' }); ok('search by name', r.s === 200 && r.b.members.length === 2 && r.b.members[0].society);
   r = await AG({ action: 'members', q: '08022222222' }); ok('search by number', r.b.members.length === 1 && r.b.members[0].id === 'm2');
+  r = await AG({ action: 'members', q: '+2348022222222' }); ok('search by number with the plus sign and country code', r.b.members.length === 1 && r.b.members[0].id === 'm2');
+  r = await AG({ action: 'members', q: '0802 222 2222' }); ok('search by number with spaces', r.b.members.length === 1 && r.b.members[0].id === 'm2');
   r = await AG({ action: 'members', q: 'A-002' }); ok('search by member number', r.b.members.length === 1 && r.b.members[0].id === 'm2');
   r = await AG({ action: 'members', q: 'a' }); ok('search needs 2 characters', r.s === 400);
   r = await AG({ action: 'members', q: 'ada' }); ok('search flags a member with an open request', r.b.members.find(m => m.id === 'm1').open_request === 'LINK_SENT');
