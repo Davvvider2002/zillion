@@ -1291,6 +1291,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/admin-member-phone-change"
+  to   = "/.netlify/functions/admin-member-phone-change"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/member-phone-change"
+  to   = "/.netlify/functions/member-phone-change"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/admin-change-coop-plan"
   to   = "/.netlify/functions/admin-change-coop-plan"
   status = 200

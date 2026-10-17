@@ -923,6 +923,7 @@ tbody tr:last-child td{border-bottom:none;}
         Thrift &amp; Loan Societies
         <div style="display:flex;gap:8px">
           <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" onclick="openCreateSocietyModal()">&#x2795; New Society</button>
+          <button class="rbtn" style="font-weight:700" onclick="openMpcModal()">&#x1F4F1; Member number changes</button>
           <button class="rbtn" onclick="loadCoopThriftSocieties()">&#x21BB;</button>
         </div>
       </div>
@@ -1629,6 +1630,51 @@ tbody tr:last-child td{border-bottom:none;}
       <button onclick="closeChangePhoneModal()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--grb);color:var(--gr);border-radius:8px;cursor:pointer;font-family:inherit">Cancel</button>
       <button onclick="submitChangePhone()" style="flex:1;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Change number</button>
     </div>
+  </div>
+</div>
+
+
+<!-- Member wallet number changes -->
+<div id="mpc-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+  <div style="background:var(--bg2);border-radius:14px;padding:22px;max-width:860px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:17px;font-weight:700">Member number changes</div>
+      <button class="rbtn" onclick="closeMpcModal()">Close</button>
+    </div>
+    <div style="font-size:12px;color:var(--tx3);margin-bottom:14px">Send a member a one time link. They enter the new number, a reason and proof. You approve, reject or ask for more proof. Approval moves the wallet and every society membership to the new number.</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="rbtn" id="mpc-tab-queue" onclick="mpcTab('queue')">Queue</button>
+      <button class="rbtn" id="mpc-tab-send" onclick="mpcTab('send')">Send a link</button>
+    </div>
+    <div id="mpc-send" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input class="field-input" id="mpc-q" placeholder="Member name, number or member no." style="flex:1" onkeydown="if(event.key==='Enter')mpcSearch()">
+        <button class="rbtn" onclick="mpcSearch()">Search</button>
+      </div>
+      <div id="mpc-results"></div>
+      <div id="mpc-link-box" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--grb);border-radius:10px">
+        <div style="font-size:12px;color:var(--tx3);margin-bottom:6px">Send this link to the member. It is shown once. Use Reissue in the queue if you lose it.</div>
+        <input class="field-input" id="mpc-link" readonly style="width:100%;box-sizing:border-box;margin-bottom:8px" onclick="this.select()">
+        <button class="rbtn" onclick="mpcCopyLink()">Copy</button>
+        <a class="rbtn" id="mpc-wa" target="_blank" rel="noopener" style="text-decoration:none;margin-left:6px">WhatsApp</a>
+      </div>
+    </div>
+    <div id="mpc-queue">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <select class="field-input" id="mpc-status" onchange="mpcLoad()">
+          <option value="SUBMITTED">Waiting for review</option>
+          <option value="MORE_PROOF_REQUESTED">Waiting for more proof</option>
+          <option value="LINK_SENT">Link sent</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+          <option value="">All</option>
+        </select>
+        <button class="rbtn" onclick="mpcLoad()">&#x21BB;</button>
+      </div>
+      <div id="mpc-list"></div>
+      <div id="mpc-detail" style="display:none;margin-top:14px;padding:14px;border:1px solid var(--grb);border-radius:10px"></div>
+    </div>
+    <div id="mpc-error" style="color:#e74c3c;font-size:13px;margin-top:10px;display:none"></div>
   </div>
 </div>
 
@@ -5328,6 +5374,102 @@ async function submitChangePlan() {
     loadCoopThriftSocieties();
   } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; }
 }
+
+
+// ── Member wallet number changes ─────────────────────────────────────────────
+let mpcOpenId = null;
+function mpcHdr() { return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }; }
+function mpcErr(m) { const e = document.getElementById('mpc-error'); e.textContent = m || ''; e.style.display = m ? 'block' : 'none'; }
+function openMpcModal() { document.getElementById('mpc-modal').style.display = 'flex'; mpcErr(''); mpcTab('queue'); }
+function closeMpcModal() { document.getElementById('mpc-modal').style.display = 'none'; }
+function mpcTab(t) {
+  document.getElementById('mpc-send').style.display = t === 'send' ? 'block' : 'none';
+  document.getElementById('mpc-queue').style.display = t === 'queue' ? 'block' : 'none';
+  if (t === 'queue') mpcLoad();
+}
+const MPC_LABEL = { LINK_SENT: 'Link sent', SUBMITTED: 'Waiting for review', MORE_PROOF_REQUESTED: 'More proof asked', APPROVED: 'Approved', REJECTED: 'Rejected', CANCELLED: 'Cancelled' };
+async function mpcLoad() {
+  mpcErr(''); document.getElementById('mpc-detail').style.display = 'none';
+  const st = document.getElementById('mpc-status').value;
+  const box = document.getElementById('mpc-list'); box.innerHTML = '<div class="no-data">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/admin-member-phone-change?action=list${st ? '&status=' + st : ''}`, { headers: mpcHdr() });
+    const d = await res.json(); if (!res.ok) { box.innerHTML = ''; return mpcErr(d.error || 'Could not load.'); }
+    if (!d.requests.length) { box.innerHTML = '<div class="no-data">Nothing here.</div>'; return; }
+    box.innerHTML = '<table><thead><tr><th>Member</th><th>Society</th><th>Old</th><th>New</th><th>Status</th><th>Files</th><th></th></tr></thead><tbody>' +
+      d.requests.map(r => `<tr><td style="font-weight:600">${escHtml(r.member_name || '—')}</td><td>${escHtml(r.society)}</td><td>${escHtml(r.old_phone)}</td><td>${escHtml(r.new_phone || '—')}</td><td>${escHtml(MPC_LABEL[r.status] || r.status)}</td><td>${r.proof_count}</td><td><button class="rbtn" onclick="mpcDetail(${jsAttr(r.id)})">Open</button></td></tr>`).join('') + '</tbody></table>';
+  } catch (e) { box.innerHTML = ''; mpcErr('Network error: ' + e.message); }
+}
+async function mpcDetail(id) {
+  mpcErr(''); mpcOpenId = id;
+  const box = document.getElementById('mpc-detail'); box.style.display = 'block'; box.innerHTML = 'Loading...';
+  try {
+    const res = await fetch(`${API}/admin-member-phone-change?action=detail&id=${encodeURIComponent(id)}`, { headers: mpcHdr() });
+    const d = await res.json(); if (!res.ok) { box.style.display = 'none'; return mpcErr(d.error || 'Could not load.'); }
+    const r = d.request, imp = d.impact;
+    const proof = r.proof.length ? r.proof.map(p => p.url ? `<div><a href="${escHtml(p.url)}" target="_blank" rel="noopener">${escHtml(p.name)}</a></div>` : `<div>${escHtml(p.name)}</div>`).join('') : '<div style="color:var(--tx3)">No files attached</div>';
+    const submitted = r.status === 'SUBMITTED';
+    const open = ['LINK_SENT', 'SUBMITTED', 'MORE_PROOF_REQUESTED'].includes(r.status);
+    box.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px">${escHtml(r.member_name || 'Member')}: ${escHtml(r.old_phone)} &rarr; ${escHtml(r.new_phone || 'not entered yet')}</div>
+      <div style="font-size:12px;color:var(--tx3);margin-bottom:8px">${escHtml(MPC_LABEL[r.status] || r.status)}${r.otp_verified_at ? ' · new number verified by text code' : ''}</div>
+      <div style="margin-bottom:8px"><b>Reason:</b> ${escHtml(r.reason || '—')}</div>
+      <div style="margin-bottom:8px"><b>Proof:</b>${proof}</div>
+      <div style="margin-bottom:8px"><b>Affects:</b> ${imp.societies.map(s => escHtml(s.society)).join(', ')}</div>
+      ${imp.warnings.map(w => `<div style="color:#E8930C;font-size:13px;margin-bottom:4px">&#x26A0; ${escHtml(w)}</div>`).join('')}
+      ${r.admin_note ? `<div style="margin:8px 0"><b>Last message to member:</b> ${escHtml(r.admin_note)}</div>` : ''}
+      ${submitted ? `<textarea class="field-input" id="mpc-note" rows="2" placeholder="Note to the member (needed to reject or ask for more proof)" style="width:100%;box-sizing:border-box;margin:8px 0"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="rbtn" style="background:var(--g);color:#fff;font-weight:700" onclick="mpcDecide('approve')">Approve</button>
+          <button class="rbtn" onclick="mpcDecide('more_proof')">Ask for more proof</button>
+          <button class="rbtn" style="color:#e74c3c" onclick="mpcDecide('reject')">Reject</button>
+        </div>` : ''}
+      ${open ? `<div style="margin-top:10px;display:flex;gap:8px"><button class="rbtn" onclick="mpcReissue()">Reissue link</button><button class="rbtn" onclick="mpcCancel()">Cancel request</button></div><div id="mpc-newlink" style="margin-top:8px;word-break:break-all;font-size:12px"></div>` : ''}`;
+  } catch (e) { box.style.display = 'none'; mpcErr('Network error: ' + e.message); }
+}
+async function mpcPost(payload) {
+  const res = await fetch(`${API}/admin-member-phone-change`, { method: 'POST', headers: mpcHdr(), body: JSON.stringify(payload) });
+  const d = await res.json(); if (!res.ok) { mpcErr(d.error || 'Failed.'); return null; } mpcErr(''); return d;
+}
+async function mpcDecide(decision) {
+  const note = (document.getElementById('mpc-note').value || '').trim();
+  if (decision !== 'approve' && note.length < 5) return mpcErr(decision === 'reject' ? 'Give the member a reason for the rejection.' : 'Say what proof the member should add.');
+  if (decision === 'approve' && !confirm('Approve? The wallet and every society membership for this person move to the new number now.')) return;
+  const d = await mpcPost({ action: 'decide', id: mpcOpenId, decision, note }); if (!d) return;
+  notify(d.message || 'Done'); mpcLoad();
+}
+async function mpcReissue() {
+  if (!confirm('Make a new link? The old link stops working.')) return;
+  const d = await mpcPost({ action: 'reissue_link', id: mpcOpenId }); if (!d) return;
+  document.getElementById('mpc-newlink').textContent = d.link;
+}
+async function mpcCancel() {
+  if (!confirm('Cancel this request? The member link stops working.')) return;
+  const d = await mpcPost({ action: 'cancel', id: mpcOpenId }); if (!d) return;
+  notify('Request cancelled'); mpcLoad();
+}
+async function mpcSearch() {
+  mpcErr(''); const q = document.getElementById('mpc-q').value.trim();
+  const box = document.getElementById('mpc-results'); document.getElementById('mpc-link-box').style.display = 'none';
+  if (q.length < 2) return mpcErr('Type at least 2 characters.');
+  box.innerHTML = '<div class="no-data">Searching...</div>';
+  try {
+    const res = await fetch(`${API}/admin-member-phone-change?action=members&q=${encodeURIComponent(q)}`, { headers: mpcHdr() });
+    const d = await res.json(); if (!res.ok) { box.innerHTML = ''; return mpcErr(d.error || 'Search failed.'); }
+    if (!d.members.length) { box.innerHTML = '<div class="no-data">No member found.</div>'; return; }
+    box.innerHTML = '<table><thead><tr><th>Name</th><th>Number</th><th>Society</th><th>Member no.</th><th></th></tr></thead><tbody>' +
+      d.members.map(m => `<tr><td style="font-weight:600">${escHtml(m.name || '—')}</td><td>${escHtml(m.phone_normalized)}</td><td>${escHtml(m.society)}</td><td>${escHtml(m.member_number || '—')}</td><td>${m.open_request ? '<span style="color:var(--tx3);font-size:12px">Open request</span>' : `<button class="rbtn" onclick="mpcCreate(${jsAttr(m.id)},${jsAttr(m.name || 'Member')})">Create link</button>`}</td></tr>`).join('') + '</tbody></table>';
+  } catch (e) { box.innerHTML = ''; mpcErr('Network error: ' + e.message); }
+}
+async function mpcCreate(memberId, name) {
+  const note = prompt('Why is this change being made? (optional, for your records)', '') ;
+  if (note === null) return;
+  const d = await mpcPost({ action: 'create_link', member_id: memberId, note }); if (!d) return;
+  document.getElementById('mpc-link').value = d.link;
+  document.getElementById('mpc-wa').href = 'https://wa.me/?text=' + encodeURIComponent('Hello ' + name + ', use this secure Zillion link to request your wallet number change. It works once and expires in 7 days: ' + d.link);
+  document.getElementById('mpc-link-box').style.display = 'block';
+}
+function mpcCopyLink() { const i = document.getElementById('mpc-link'); i.select(); try { document.execCommand('copy'); notify('Link copied'); } catch {} }
 
 let phCoopId = null, phOld = '';
 function openChangePhoneModal(coopId, name, oldPhone) {

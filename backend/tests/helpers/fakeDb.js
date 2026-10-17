@@ -36,6 +36,11 @@ function makeDb(tables, opts = {}) {
       lt(c, v) { f.push(r => get(r, c) != null && (typeof v === 'number' ? get(r, c) < v : String(get(r, c)) < String(v))); return q; },
       is(c, v) { f.push(r => v === null ? (get(r, c) === null || get(r, c) === undefined) : get(r, c) === v); return q; },
       not(c, op, v) { if (op === 'is' && v === null) f.push(r => get(r, c) !== null && get(r, c) !== undefined); else if (op === 'eq') f.push(r => get(r, c) !== v); return q; },
+      ilike(c, pat) { const rx = new RegExp('^' + String(pat).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$', 'i'); f.push(r => get(r, c) != null && rx.test(String(get(r, c)))); return q; },
+      or(expr) {   // 'col.ilike.%x%,col2.eq.y' - the forms the codebase uses
+        const parts = String(expr).split(/,(?=[\w.]+\.(?:ilike|eq)\.)/).map(p => { const m = p.match(/^([\w.]+)\.(ilike|eq)\.(.*)$/); return m && { c: m[1], op: m[2], v: m[3] }; }).filter(Boolean);
+        f.push(r => parts.some(p => p.op === 'eq' ? String(get(r, p.c)) === p.v : new RegExp('^' + p.v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$', 'i').test(String(get(r, p.c) == null ? '' : get(r, p.c)))));
+        return q; },
       range(a, b) { lo = a; hi = b; return q; },
       upsert(rows, o) { ups = { rows: Array.isArray(rows) ? rows : [rows], key: (o && o.onConflict) || 'id' }; return q; },
       maybeSingle() { single = true; return q; }, single() { single = true; return q; },
