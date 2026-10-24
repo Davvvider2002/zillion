@@ -19,6 +19,7 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 const { runImport, clearDataset, DATASETS } = require('../../lib/coopGoLiveImport');
+const L = require('../../lib/coopGoLiveLock');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -52,8 +53,11 @@ exports.handler = async (event) => {
   const ip = event.headers['x-forwarded-for'] || event.headers['client-ip'] || null;
   const audit = (action, extra) => auditLog(db, { action, username: auth.payload.merchant_id, role: 'merchant', ip, resourceType: 'coop_migration_batch', resourceId: batch.id, requestBody: { dataset, ...extra }, result: 'SUCCESS' });
 
+  const who = await L.portalIdentity(db, auth);
   if (body.clear === true) {
     try { await clearDataset(db, batch, dataset); } catch (e) { return err(409, e.message); }
+    await L.logEvent(db, batch, 'sheet_cleared', who, { dataset });
+    await L.resetApprovals(db, batch, who, `${dataset} sheet cleared`);
     await audit('COOP_GO_LIVE_SHEET_CLEARED', {});
     return ok({ success: true, cleared: dataset });
   }
@@ -63,6 +67,10 @@ exports.handler = async (event) => {
   const dryRun = body.dry_run !== false;
   const result = await runImport(db, { coopId, batch, dataset, text: csvText, dryRun, replace: body.replace === true, actor });
 
+  if (!dryRun && result.ok) {
+    await L.logEvent(db, batch, 'sheet_loaded', who, { dataset, rows: result.rows_read, accepted: result.accepted, replace: body.replace === true });
+    await L.resetApprovals(db, batch, who, `${dataset} sheet loaded`);
+  }
   if (!dryRun) await audit(result.ok ? 'COOP_GO_LIVE_SHEET_LOADED' : 'COOP_GO_LIVE_SHEET_REFUSED', { rows: result.rows_read, accepted: result.accepted, replace: body.replace === true });
   if (!result.ok && !result.errors) return err(result.status || 400, result.error);
   return { statusCode: result.ok ? 200 : (result.status || 422), headers: hdr, body: JSON.stringify(result) };

@@ -17,6 +17,7 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 const { cleanText }            = require('../../lib/cleanText');
+const L = require('../../lib/coopGoLiveLock');
 const { isRealDay }            = require('../../lib/coopGoLiveBatch');
 const { ORDER, DATASETS, MAX_ROWS, countBatch, clearDataset } = require('../../lib/coopGoLiveImport');
 
@@ -57,6 +58,7 @@ exports.handler = async (event) => {
       if (error.code === '23505') return err(409, 'This society already has an open go-live batch. Continue it, or void it first.');
       return err(500, `Could not open the batch: ${error.message}`);
     }
+    await L.logEvent(db, created, 'created', await L.portalIdentity(db, auth), { fy_start: created.fy_start, cutover_date: created.cutover_date });
     await audit('COOP_GO_LIVE_BATCH_CREATED', created.id);
     return ok({ success: true, batch: created, counts: await countBatch(db, created.id), sheets });
   }
@@ -80,6 +82,7 @@ exports.handler = async (event) => {
     try { for (const k of ORDER.slice().reverse()) await clearDataset(db, batch, k); }
     catch (e) { return err(500, `Could not clear the batch: ${e.message}`); }
     await db.from('coop_migration_batches').update({ status: 'void' }).eq('id', batch.id);
+    await L.logEvent(db, batch, 'voided', await L.portalIdentity(db, auth), null);
     await audit('COOP_GO_LIVE_BATCH_VOIDED', batch.id);
     return ok({ success: true });
   }

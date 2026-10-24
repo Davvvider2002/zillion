@@ -21,6 +21,7 @@ const { hasAddon }             = require('../../lib/coopEntitlements');
 const { ensureChartOfAccounts } = require('../../lib/coopAccounting');
 const { auditLog }             = require('../../lib/auditLog');
 const { postDatedDuesAccrual, reconcileBatch } = require('../../lib/coopGoLiveBooks');
+const L = require('../../lib/coopGoLiveLock');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -58,6 +59,9 @@ exports.handler = async (event) => {
   if (body.action === 'accrue_dues') {
     const r = await postDatedDuesAccrual(db, coopId, batch, actor);
     if (!r.ok) return err(409, r.error);
+    const who = await L.portalIdentity(db, auth);
+    await L.logEvent(db, batch, 'dues_accrued', who, { total_kobo: r.total_kobo, entries: r.entries });
+    await L.resetApprovals(db, batch, who, 'dues accrued again');
     await auditLog(db, { action: 'COOP_GO_LIVE_DUES_ACCRUED', username: auth.payload.merchant_id, role: 'merchant', ip: event.headers['x-forwarded-for'] || null, resourceType: 'coop_migration_batch', resourceId: batch.id, requestBody: { total_kobo: r.total_kobo, entries: r.entries }, result: 'SUCCESS' });
     return ok({ success: true, ...r });
   }

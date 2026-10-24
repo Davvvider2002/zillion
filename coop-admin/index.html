@@ -500,6 +500,7 @@ tr:last-child td{border-bottom:none}
         <div class="sidebar-item" data-view="addons" onclick="switchView('addons')">Add-ons</div>
         <div class="sidebar-item" data-view="notifications" onclick="switchView('notifications')">Notifications</div>
         <div class="sidebar-item" data-view="billing" onclick="switchView('billing')">Billing</div>
+        <div class="sidebar-item" data-view="golive" onclick="switchView('golive')">Go-live catch-up</div>
         <div class="sidebar-item" data-view="backups" onclick="switchView('backups')">Backups</div>
         <div class="sidebar-item" id="nav-users-item" data-view="users" onclick="switchView('users')" style="display:none">Users</div>
       </div>
@@ -528,6 +529,7 @@ tr:last-child td{border-bottom:none}
         <div class="view" id="view-reconciliation"></div>
         <div class="view" id="view-surplus"></div>
         <div class="view" id="view-billing"></div>
+        <div class="view" id="view-golive"></div>
         <div class="view" id="view-backups"></div>
         <div class="view" id="view-users"></div>
       </div>
@@ -1384,6 +1386,7 @@ function switchView(name) {
   if (name === 'reconciliation') renderReconciliation();
   if (name === 'surplus') renderSurplus();
   if (name === 'billing') renderBilling();
+  if (name === 'golive') renderGoLive();
   if (name === 'backups') renderBackups();
   if (name === 'users') renderUsers();
 }
@@ -1786,6 +1789,221 @@ async function submitBulkImport() {
     errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Import';
   }
+}
+
+// ── GO-LIVE CATCH-UP WIZARD ───────────────────────────────────────────
+// Brings a society that has already traded part of its financial year onto Zillion with real dates, so dividends,
+// balances and income and expenditure come out right. Dates, then sheets in order, then books, statement, approval, lock.
+const GL = { batch: null, counts: {}, sheets: [], step: 1, sheetKey: null, check: null, rec: null, lock: null, statement: null, busy: false, msg: null };
+const GL_STEPS = ['Dates', 'Sheets', 'Books', 'Statement', 'Approve and lock'];
+
+async function glCall(fn, body, method) {
+  const res = await fetch(`${API}/${fn}`, { method: method || 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: method === 'GET' ? undefined : JSON.stringify(body || {}) });
+  let data = {}; try { data = await res.json(); } catch (e) {}
+  return { ok: res.ok, status: res.status, data };
+}
+function glKobo(n) { return fmtNaira(n); }
+
+async function renderGoLive() {
+  const el = document.getElementById('view-golive');
+  if (!hasPortalAction('members', 'create')) { el.innerHTML = '<div class="card"><div class="card-title">Go-live catch-up</div><div class="card-sub">You do not have access to this feature. Ask your society admin to grant it.</div></div>'; return; }
+  el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
+  const r = await glCall('coop-portal-go-live-batch', { action: 'get' });
+  if (!r.ok) { el.innerHTML = `<div class="card"><div class="card-sub" style="color:#FF8A8A">${escHtml(r.data.error || 'Could not load.')}</div></div>`; return; }
+  GL.batch = r.data.batch; GL.counts = r.data.counts || {}; GL.sheets = r.data.sheets || [];
+  if (GL.batch && GL.batch.status === 'locked') GL.step = 5;
+  else if (GL.batch && GL.step === 1) GL.step = 2;
+  if (GL.batch && GL.batch.status !== 'void') await glLoadLock();
+  glDraw();
+}
+async function glLoadLock() {
+  if (!GL.batch || !hasPortalAction('accounting', 'create')) { GL.lock = null; return; }
+  const r = await glCall('coop-portal-go-live-lock', { action: 'status', batch_id: GL.batch.id });
+  GL.lock = r.ok ? r.data : null;
+}
+function glDraw() {
+  const el = document.getElementById('view-golive');
+  const b = GL.batch, locked = b && b.status === 'locked';
+  const bar = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${GL_STEPS.map((s, i) => {
+    const n = i + 1, on = GL.step === n, dis = !b && n > 1;
+    return `<button class="btn ${on ? 'btn-primary' : 'btn-ghost'} btn-sm" ${dis ? 'disabled' : ''} onclick="glGo(${n})">${n}. ${s}</button>`;
+  }).join('')}</div>`;
+  const head = b && b.status !== 'void' ? `<div class="card-sub" style="margin-bottom:10px">${escHtml(b.label)} · year from <b>${escHtml(b.fy_start)}</b> to cutover <b>${escHtml(b.cutover_date)}</b> · <span class="pill ${locked ? 'pill-green' : 'pill-amber'}">${locked ? 'Locked' : 'Draft'}</span></div>` : '';
+  const msg = GL.msg ? `<div style="margin-bottom:12px;font-size:13px;color:${GL.msg.bad ? '#FF8A8A' : 'var(--green-lt)'}">${GL.msg.text}</div>` : '';
+  let body = '';
+  if (GL.step === 1) body = glStepDates();
+  if (GL.step === 2) body = glStepSheets();
+  if (GL.step === 3) body = glStepBooks();
+  if (GL.step === 4) body = glStepStatement();
+  if (GL.step === 5) body = glStepLock();
+  el.innerHTML = `<div class="card"><div class="card-title">Go-live catch-up</div>
+    <div class="card-sub">Bring in what your society did earlier this year, with the real dates, so dividends and balances come out right.</div>${bar}${head}${msg}${body}</div>`;
+}
+function glGo(n) {
+  GL.step = n; GL.msg = null;
+  if (n === 4 && !GL.statement) glStatement();
+  glDraw();
+}
+function glSay(text, bad) { GL.msg = { text: escHtml(text), bad: !!bad }; }
+
+// 1. Dates
+function glStepDates() {
+  if (GL.batch && GL.batch.status !== 'void') return `<div style="font-size:13.5px">A batch is already open. Continue to the sheets, or void it to start again.</div>
+    <div style="margin-top:12px"><button class="btn btn-primary" onclick="glGo(2)">Continue</button>
+    ${GL.batch.status === 'draft' ? '<button class="btn btn-ghost" style="margin-left:8px" onclick="glVoid()">Void this batch</button>' : ''}</div>`;
+  const today = new Date().toISOString().slice(0, 10);
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Pick the first day of your financial year and the day you start using Zillion for live entries (the cutover). Everything in between is loaded from your sheets.</div>
+    <div class="field"><label>Label</label><input id="gl-label" value="Go-live catch-up"></div>
+    <div class="field"><label>Financial year starts</label><input type="date" id="gl-fy" value="${today.slice(0, 4)}-01-01"></div>
+    <div class="field"><label>Cutover date (last day covered by the sheets)</label><input type="date" id="gl-cut" max="${today}" value="${today}"></div>
+    <button class="btn btn-primary" onclick="glCreate()">Open the batch</button>`;
+}
+async function glCreate() {
+  const r = await glCall('coop-portal-go-live-batch', { action: 'create', label: document.getElementById('gl-label').value, fy_start: document.getElementById('gl-fy').value, cutover_date: document.getElementById('gl-cut').value });
+  if (!r.ok) { glSay(r.data.error || 'Could not open the batch.', true); return glDraw(); }
+  GL.step = 2; GL.msg = null; await renderGoLive();
+}
+async function glVoid() {
+  if (!confirm('Void this batch? Everything it loaded will be removed.')) return;
+  const r = await glCall('coop-portal-go-live-batch', { action: 'void', batch_id: GL.batch.id });
+  if (!r.ok) { glSay(r.data.error || 'Could not void.', true); return glDraw(); }
+  GL.batch = null; GL.step = 1; GL.statement = null; GL.rec = null; GL.check = null; await renderGoLive();
+}
+
+// 2. Sheets
+function glStepSheets() {
+  const b = GL.batch, draft = b.status === 'draft';
+  const rows = GL.sheets.map((s, i) => `<tr><td>${i + 1}. ${escHtml(s.title)}</td><td>${GL.counts[s.key] || 0}</td><td style="text-align:right">
+    <button class="btn btn-ghost btn-sm" onclick="glTemplate('${s.key}')">Template</button>
+    ${draft ? `<button class="btn btn-primary btn-sm" onclick="glOpenSheet('${s.key}')">${GL.counts[s.key] ? 'Replace' : 'Load'}</button>` : ''}</td></tr>`).join('');
+  const panel = GL.sheetKey ? glSheetPanel() : '';
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Load the sheets in this order. Each one is checked first, and nothing is saved until every row passes. Opening balances come first, because the other sheets build on them.</div>
+    <div class="table-wrap"><table><thead><tr><th>Sheet</th><th>Rows loaded</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${panel}
+    <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(3)">Next: books</button></div>`;
+}
+async function glTemplate(key) {
+  const r = await glCall('coop-portal-go-live-template?dataset=' + key, null, 'GET');
+  if (!r.ok) { glSay(r.data.error || 'Could not get the template.', true); return glDraw(); }
+  const t = r.data.template;
+  const blob = new Blob([t.csv], { type: 'text/csv' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = t.filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  if (t.accounts) { GL.msg = { text: 'Account codes for this sheet: ' + t.accounts.map(x => escHtml(x.account_code + ' ' + x.account_name)).join('; '), bad: false }; glDraw(); }
+}
+function glOpenSheet(key) { GL.sheetKey = key; GL.check = null; GL.msg = null; glDraw(); }
+function glSheetPanel() {
+  const s = GL.sheets.find(x => x.key === GL.sheetKey), c = GL.check;
+  let result = '';
+  if (c) {
+    const errs = (c.errors || []).slice(0, 50).map(e => `<div style="color:#FF8A8A">Line ${e.line}: ${escHtml(e.error)}</div>`).join('');
+    const warns = (c.warnings || []).slice(0, 30).map(w => `<div style="color:var(--amber)">Line ${w.line}: ${escHtml(w.warning)}</div>`).join('');
+    result = `<div style="margin-top:10px;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;max-height:280px;overflow-y:auto">
+      <div style="font-weight:600;margin-bottom:6px">${c.error ? escHtml(c.error) : `${c.rows_read} rows read · ${c.accepted} ok · ${c.rejected} need fixing`}</div>${errs}${warns}</div>`;
+  }
+  const canLoad = c && c.ok && c.mode === 'dry_run' && c.rejected === 0 && c.accepted > 0;
+  return `<div style="margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px">
+    <div style="font-weight:700;margin-bottom:8px">${escHtml(s.title)}</div>
+    <div class="field"><label>File (.csv or .xlsx)</label><input type="file" id="gl-file" accept=".csv,.xlsx,.xls" onchange="glCheck()"></div>
+    <label style="font-size:12.5px"><input type="checkbox" id="gl-replace" ${GL.counts[s.key] ? 'checked' : ''}> Replace what this sheet already loaded</label>${result}
+    <div style="margin-top:12px"><button class="btn btn-primary" ${canLoad ? '' : 'disabled'} onclick="glLoad()">Load ${c && c.accepted ? c.accepted + ' rows' : ''}</button>
+    <button class="btn btn-ghost" style="margin-left:8px" onclick="glClear()">Clear this sheet</button>
+    <button class="btn btn-ghost" style="margin-left:8px" onclick="GL.sheetKey=null;GL.check=null;glDraw()">Close</button></div></div>`;
+}
+async function glRun(dry) {
+  const f = document.getElementById('gl-file');
+  if (!f || !f.files.length) { glSay('Choose a file first.', true); return null; }
+  let text; try { text = await readCsvOrExcelFile(f.files[0]); } catch (e) { glSay(e.message, true); return null; }
+  GL.lastText = text;
+  const r = await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, csv_text: text, dry_run: dry, replace: document.getElementById('gl-replace').checked });
+  return r.data;
+}
+async function glCheck() {
+  GL.msg = null; const d = await glRun(true); if (!d) return glDraw();
+  GL.check = d; glDraw();
+}
+async function glLoad() {
+  const d = await glRun(false); if (!d) return glDraw();
+  if (d.ok) { glSay(`${d.accepted} rows loaded.`); GL.check = null; GL.sheetKey = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
+  else GL.check = d;
+  glDraw();
+}
+async function glClear() {
+  if (!confirm('Clear this sheet from the batch?')) return;
+  const r = await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, clear: true });
+  if (!r.ok) glSay(r.data.error || 'Could not clear.', true); else { glSay('Sheet cleared.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
+  glDraw();
+}
+async function glRefreshCounts() {
+  const r = await glCall('coop-portal-go-live-batch', { action: 'get' });
+  if (r.ok) { GL.batch = r.data.batch; GL.counts = r.data.counts || {}; }
+}
+
+// 3. Books
+function glStepBooks() {
+  if (!(portalData.addons || []).some(a => a.addon_key === 'accounting')) return '<div style="font-size:13.5px">The Accounting module is needed to book and reconcile the year. Add it under Add-ons, then come back.</div>';
+  const draft = GL.batch.status === 'draft', r = GL.rec;
+  let out = '';
+  if (r) {
+    out = `<div style="margin-top:14px"><span class="pill ${r.reconciled ? 'pill-green' : 'pill-red'}">${r.reconciled ? 'Everything ties out' : 'Gaps found'}</span></div>` +
+      (r.blocking.length ? `<div style="margin-top:8px;font-size:13px;color:#FF8A8A">${r.blocking.map(x => `<div>${escHtml(x)}</div>`).join('')}</div>` : '') +
+      `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Ledger</th><th>Books</th><th>Members</th><th>Gap</th></tr></thead><tbody>${r.items.map(i => i.controls.map(c => `<tr><td>${escHtml(c.label)}</td><td>${glKobo(c.gl_kobo)}</td><td>${glKobo(c.members_kobo)}</td><td>${glKobo(c.unallocated_kobo)}</td></tr>`).join('')).join('')}</tbody></table></div>
+      <div style="margin-top:10px;font-size:13px">Income ${glKobo(r.income_expenditure.total_income_kobo)} · Expenditure ${glKobo(r.income_expenditure.total_expense_kobo)} · Surplus ${glKobo(r.income_expenditure.surplus_kobo)}</div>`;
+  }
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Book the year's dues income month by month, then check that the members' own records add up to the society's books at the cutover date. A gap is shown as it is. It is never forced to zero.</div>
+    ${draft ? '<button class="btn btn-ghost" onclick="glAccrue()">Book dues income</button>' : ''}
+    <button class="btn btn-primary" style="margin-left:8px" onclick="glReconcile()">Check the books</button>${out}
+    <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(4)">Next: statement</button></div>`;
+}
+async function glAccrue() {
+  const r = await glCall('coop-portal-go-live-books', { action: 'accrue_dues', batch_id: GL.batch.id });
+  if (!r.ok) glSay(r.data.error || 'Could not book dues.', true); else { glSay(`Dues income booked: ${glKobo(r.data.total_kobo)} across ${r.data.entries} entries.`); GL.rec = null; GL.statement = null; await glLoadLock(); }
+  glDraw();
+}
+async function glReconcile() {
+  const r = await glCall('coop-portal-go-live-books', { action: 'reconcile', batch_id: GL.batch.id });
+  if (!r.ok) glSay(r.data.error || 'Could not check.', true); else { GL.rec = r.data; GL.msg = null; }
+  glDraw();
+}
+
+// 4. Statement
+async function glStatement() {
+  const r = await glCall('coop-portal-go-live-lock', { action: 'statement', batch_id: GL.batch.id });
+  if (!r.ok) { glSay(r.data.error || 'Could not build the statement.', true); } else GL.statement = r.data;
+  glDraw();
+}
+function glStepStatement() {
+  const s = GL.statement;
+  if (!s) return '<div class="card-sub">Building the statement…</div>';
+  const types = Object.keys(s.ledgers);
+  const head = types.map(t => `<th>${escHtml(s.ledgers[t].title)}</th>`).join('');
+  const cell = (m, t) => { const v = m.balances[t]; if (!v) return '<td>—</td>'; return `<td>${s.ledgers[t].columns.map(c => glKobo(v[c.key] || 0)).join(' / ')}</td>`; };
+  const rows = s.members.map(m => `<tr><td>${escHtml(m.member_number || '')}</td><td>${escHtml(m.name || '')}</td><td>${escHtml(m.status)}</td><td>${m.imported.savings}/${m.imported.shares}/${m.imported.dues}/${m.imported.loans}</td>${types.map(t => cell(m, t)).join('')}</tr>`).join('');
+  return `<div id="gl-statement"><div style="font-size:13px;color:var(--muted);margin-bottom:10px">Each member's imported records and balances at ${escHtml(s.as_of)}. Print this or send it to members to confirm before the batch is locked. "Records" counts savings / shares / dues / loans imported.</div>
+    <div class="table-wrap"><table><thead><tr><th>No.</th><th>Member</th><th>Status</th><th>Records</th>${head}</tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div style="margin-top:12px"><button class="btn btn-ghost" onclick="printSection('gl-statement', 'Go-live confirmation statement')">🖨️ Print / Download</button>
+    <button class="btn btn-primary" style="margin-left:8px" onclick="glGo(5)">Next: approve and lock</button></div>`;
+}
+
+// 5. Approve and lock
+function glStepLock() {
+  const b = GL.batch, L = GL.lock;
+  if (!L) return '<div style="font-size:13.5px">Approving and locking needs access to the Accounting feature.</div>';
+  const events = (L.events || []).map(e => `<tr><td>${escHtml(new Date(e.created_at).toLocaleString())}</td><td>${escHtml(e.actor_name || '')}</td><td>${escHtml(String(e.action).replace(/_/g, ' '))}</td></tr>`).join('');
+  const trail = `<div class="card-title" style="margin-top:18px">Audit trail</div><div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>${events}</tbody></table></div>`;
+  if (b.status === 'locked') return `<div style="font-size:14px"><span class="pill pill-green">Locked</span> ${escHtml(new Date(b.locked_at).toLocaleString())}. The catch-up is closed and live entries carry on from the cutover date.</div>${trail}`;
+  const mine = L.you_approved;
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Two different people must approve, after the books tie out. Loading or clearing a sheet afterwards removes the approvals, so what is approved is exactly what gets locked. Locking cannot be undone.</div>
+    <div style="font-size:14px;margin-bottom:12px">Approvals: <b>${L.approvals}</b> of 2</div>
+    ${mine ? '<button class="btn btn-ghost" onclick="glLockAct(\'withdraw\')">Withdraw my approval</button>' : '<button class="btn btn-primary" onclick="glLockAct(\'approve\')">Approve as me</button>'}
+    <button class="btn btn-primary" style="margin-left:8px" ${L.approvals >= 2 ? '' : 'disabled'} onclick="glLockAct('lock')">Lock the batch</button>${trail}`;
+}
+async function glLockAct(action) {
+  if (action === 'lock' && !confirm('Lock the batch? This cannot be undone.')) return;
+  const r = await glCall('coop-portal-go-live-lock', { action, batch_id: GL.batch.id });
+  if (!r.ok) glSay((r.data.error || 'Not done.') + (r.data.blocking && r.data.blocking.length ? ' ' + r.data.blocking.join(' ') : ''), true);
+  else glSay(action === 'lock' ? 'Locked.' : action === 'approve' ? 'Approved.' : 'Approval withdrawn.');
+  await glRefreshCounts(); await glLoadLock();
+  if (action === 'lock' && r.ok) { const g = await glCall('coop-portal-go-live-batch', { action: 'get' }); if (g.ok) GL.batch = g.data.batch; }
+  glDraw();
 }
 
 // ── SAVINGS ───────────────────────────────────────────────────────────
