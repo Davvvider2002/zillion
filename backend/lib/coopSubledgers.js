@@ -265,7 +265,7 @@ async function computeSubledger(db, coopId, type, asOf = null, deps = {}) {
 
 
 // ------------------------------------------------------------- member detail
-const SOURCE_LABELS = { interest_credit: 'Interest credited', dividend_credit: 'Dividend credited', cash_in_person: 'Cash payment',
+const SOURCE_LABELS = { member_withdrawal: 'Withdrawal', migration_opening: 'Held at the financial year start', interest_credit: 'Interest credited', dividend_credit: 'Dividend credited', cash_in_person: 'Cash payment',
   bank_transfer_manual: 'Bank transfer', flutterwave_checkout: 'Online payment (Flutterwave)', flutterwave_webhook: 'Bank transfer (auto-detected)' };
 const srcLabel = s => SOURCE_LABELS[s] || String(s || 'Payment').replace(/_/g, ' ');
 

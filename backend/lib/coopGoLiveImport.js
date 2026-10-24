@@ -25,15 +25,30 @@ const { computeReducingBalanceSplit } = require('./coopReducingBalanceSplit');
 const { generateRepaymentSchedule } = require('./coopRepaymentSchedule');
 const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('./coopReducingBalanceSchedule');
 const { accountingIsReady, getAccounts, nextEntryNumber } = require('./coopAccountingHelpers');
+const { hasAddon } = require('./coopEntitlements');
+const { ensureChartOfAccounts } = require('./coopAccounting');
 const { checkMemberCapAllows } = require('./coopMemberCap');
 
-const ORDER = ['members', 'shares', 'savings', 'dues', 'loans', 'loan_repayments'];
-const MAX_ROWS = { members: 200, shares: 500, savings: 500, dues: 500, loans: 300, loan_repayments: 500 };
+const ORDER = ['opening_balances', 'members', 'shares', 'savings', 'dues', 'loans', 'loan_repayments', 'society_entries'];
+const MAX_ROWS = { opening_balances: 200, members: 200, shares: 500, savings: 500, dues: 500, loans: 300, loan_repayments: 500, society_entries: 500 };
+// Sheets whose rows are booked as journals, so the opening balances must already be in.
+const NEEDS_OPENING = new Set(['shares', 'savings', 'dues', 'loans', 'loan_repayments', 'society_entries']);
+// Income that member sheets already produce. Typing it again on the society sheet would count it twice.
+const MEMBER_DRIVEN_INCOME = new Set(['4100', '4120', '4150', '4160']);
 
 const CASH = '1000', BANK = '1010', SAVINGS_PAYABLE = '2000', SHARE_CAPITAL = '3000', DUES_RECEIVABLE = '1150';
 const LOAN_PRINCIPAL = '1100', LOAN_INTEREST = '1110', INTEREST_INCOME = '4150';
 
 const DATASETS = {
+  opening_balances: {
+    title: 'Opening balances',
+    columns: [
+      { name: 'account_code', required: true, help: 'Account code from the society\'s chart of accounts (the list comes with this template).', aliases: ['code', 'account'] },
+      { name: 'balance', required: true, help: 'Naira balance on the financial year start day. Positive.', aliases: ['amount'] },
+      { name: 'side', required: false, help: 'debit or credit. Leave blank for the account\'s normal side: assets and expenses debit, the rest credit.', aliases: ['dr_cr'] },
+    ],
+    examples: [['1000', '250000', ''], ['1010', '4200000', ''], ['1100', '1500000', ''], ['2000', '3100000', ''], ['3000', '2850000', '']],
+  },
   members: {
     title: 'Members',
     columns: [
@@ -45,10 +60,13 @@ const DATASETS = {
       { name: 'exit_date', required: false, help: 'Required when status is exited. The day the member left.', aliases: ['exited_on', 'date_exited'] },
       { name: 'exit_reason', required: false, help: 'Optional note.', aliases: [] },
       { name: 'postcode', required: false, help: 'Optional NIPOST digital postcode.', aliases: ['digital_postcode'] },
+      { name: 'opening_savings', required: false, help: 'Naira the member had saved on the financial year start day. Dated activity after that goes in the savings sheet.', aliases: ['savings_at_year_start', 'opening_balance'] },
+      { name: 'opening_shares', required: false, help: 'Naira of share capital held on the financial year start day.', aliases: ['shares_at_year_start'] },
+      { name: 'opening_dues_paid', required: false, help: 'Total dues the member had paid before the financial year start.', aliases: ['dues_paid_before_year'] },
     ],
     examples: [
-      ['0001', 'Adaobi Okafor', '08031234567', '2019-05-10', 'active', '', '', ''],
-      ['0002', 'Tunde Bakare', '08051234567', '2021-02-01', 'exited', '2026-04-30', 'Relocated', ''],
+      ['0001', 'Adaobi Okafor', '08031234567', '2019-05-10', 'active', '', '', '', '120000', '75000', '60000'],
+      ['0002', 'Tunde Bakare', '08051234567', '2021-02-01', 'exited', '2026-04-30', 'Relocated', '', '40000', '25000', '30000'],
     ],
   },
   shares: {
@@ -64,15 +82,16 @@ const DATASETS = {
     examples: [['0001', '2026-02-14', 'purchase', '50000', 'bank', 'TRF-0214'], ['0001', '2026-06-30', 'purchase', '25000', 'cash', 'RCPT-118']],
   },
   savings: {
-    title: 'Savings deposits',
+    title: 'Savings',
     columns: [
       { name: 'member_no', required: true, help: 'Member number, or the member\'s phone number.', aliases: ['member', 'phone'] },
       { name: 'date', required: true, help: 'Day of the deposit, inside the financial year.', aliases: ['transaction_date'] },
-      { name: 'amount', required: true, help: 'Naira, positive. Deposits only: withdrawals cannot be imported.', aliases: [] },
+      { name: 'type', required: false, help: 'deposit (default) or withdrawal.', aliases: [] },
+      { name: 'amount', required: true, help: 'Naira, positive. A withdrawal cannot take the balance below zero.', aliases: [] },
       { name: 'method', required: false, help: 'cash or bank (default bank).', aliases: ['source'] },
       { name: 'reference', required: false, help: 'Receipt or transfer reference.', aliases: ['ref'] },
     ],
-    examples: [['0001', '2026-01-31', '20000', 'bank', 'TRF-0131'], ['0001', '2026-02-28', '20000', 'bank', 'TRF-0228']],
+    examples: [['0001', '2026-01-31', 'deposit', '20000', 'bank', 'TRF-0131'], ['0001', '2026-05-31', 'withdrawal', '15000', 'cash', 'RCPT-091']],
   },
   dues: {
     title: 'Dues paid',
@@ -111,6 +130,19 @@ const DATASETS = {
       { name: 'reference', required: false, help: 'Receipt or transfer reference.', aliases: ['ref_no'] },
     ],
     examples: [['L-2025-014', '2026-01-31', '27500', '25000', '2500', 'bank', 'TRF-0131'], ['L-2026-003', '2026-04-10', '17500', '', '', 'cash', 'RCPT-077']],
+  },
+  society_entries: {
+    title: 'Society income and expenses',
+    columns: [
+      { name: 'date', required: true, help: 'Day of the entry, inside the financial year.', aliases: ['transaction_date'] },
+      { name: 'type', required: true, help: 'income, expense or transfer.', aliases: [] },
+      { name: 'category', required: true, help: 'Income or expense: an account code or name from the chart. Transfer: the account the money moves TO.', aliases: ['account', 'account_code'] },
+      { name: 'description', required: false, help: 'What it was for.', aliases: ['narration', 'details'] },
+      { name: 'amount', required: true, help: 'Naira, positive.', aliases: [] },
+      { name: 'bank_account', required: false, help: 'cash, bank (default), or the code or name of another bank or cash account. For a transfer this is the account the money leaves.', aliases: ['paid_from', 'account_used'] },
+      { name: 'reference', required: false, help: 'Receipt, voucher or transfer reference.', aliases: ['ref'] },
+    ],
+    examples: [['2026-01-31', 'expense', '5200', 'January bank charges', '2500', 'bank', 'STMT-01'], ['2026-03-15', 'income', '4200', 'Hall hire', '40000', 'cash', 'RCPT-310'], ['2026-04-02', 'transfer', '1010', 'Cash banked', '100000', 'cash', 'DEP-17']],
   },
 };
 
@@ -253,11 +285,20 @@ function validateMembers(rows, ctx) {
       if (ctx.members.has(k) || (/^\d+$/.test(k) && ctx.members.has(String(parseInt(k, 10))))) { fail(`member_no ${no} is already used in this society.`); continue; }
       seenNo.add(k);
     }
+    const opening = {};
+    let bad = false;
+    for (const f of ['opening_savings', 'opening_shares', 'opening_dues_paid']) {
+      if (c[f] === '') { opening[f] = 0; continue; }
+      const k = parseNaira(c[f]);
+      if (k == null) { fail(`${f} "${c[f]}" must be a naira figure of zero or more.`); bad = true; break; }
+      opening[f] = k;
+    }
+    if (bad) continue;
     seenPhone.add(phone);
     if (ctx.members.has(phone)) { warnings.push({ line, warning: `${c.phone} is already a member, so this row will be skipped.` }); continue; }
-    valid.push({ line, name, phone, memberNo: no || null, joinedOn: joined, exitedOn: exited, exitReason: cleanText(c.exit_reason, 200) || null, postcode: c.postcode || null });
+    valid.push({ line, name, phone, memberNo: no || null, joinedOn: joined, exitedOn: exited, exitReason: cleanText(c.exit_reason, 200) || null, postcode: c.postcode || null, openingSavingsKobo: opening.opening_savings, openingSharesKobo: opening.opening_shares, openingDuesPaidKobo: opening.opening_dues_paid });
   }
-  return { valid, errors, warnings, totals: { rows: valid.length, exited: valid.filter(v => v.exitedOn).length } };
+  return { valid, errors, warnings, totals: { rows: valid.length, exited: valid.filter(v => v.exitedOn).length, opening_savings_kobo: valid.reduce((a, v) => a + v.openingSavingsKobo, 0), opening_shares_kobo: valid.reduce((a, v) => a + v.openingSharesKobo, 0), opening_dues_paid_kobo: valid.reduce((a, v) => a + v.openingDuesPaidKobo, 0) } };
 }
 
 function validateLedger(dataset, rows, ctx) {
@@ -281,6 +322,11 @@ function validateLedger(dataset, rows, ctx) {
       if (!['purchase', 'withdrawal'].includes(t)) { fail('type must be purchase or withdrawal.'); continue; }
       type = t === 'withdrawal' ? 'out' : 'in';
     }
+    if (dataset === 'savings') {
+      const t = String(c.type || 'deposit').trim().toLowerCase();
+      if (!['deposit', 'withdrawal'].includes(t)) { fail('type must be deposit or withdrawal.'); continue; }
+      type = t === 'withdrawal' ? 'out' : 'in';
+    }
     const kobo = parseNaira(c.amount);
     if (kobo == null || kobo <= 0) { fail(`amount "${c.amount}" must be a positive naira figure.`); continue; }
     const src = sourceFromMethod(c.method);
@@ -293,8 +339,22 @@ function validateLedger(dataset, rows, ctx) {
     if (!seen.has(dupKey)) seen.set(dupKey, line);
     valid.push({ line, member: m, day, amountKobo: kobo, type, source: src.source, reference });
   }
+  // A member cannot withdraw more savings than they hold. Walk the calendar: what they began with, plus deposits, less withdrawals.
+  if (dataset === 'savings') {
+    const bal = new Map();
+    const order = valid.slice().sort((a, b) => a.day.localeCompare(b.day) || (a.type === 'in' ? -1 : 1) - (b.type === 'in' ? -1 : 1) || a.line - b.line);
+    const reject = new Set();
+    for (const v of order) {
+      const have = bal.has(v.member.id) ? bal.get(v.member.id) : (ctx.savingsStart.get(v.member.id) || 0);
+      if (v.type === 'out') {
+        if (v.amountKobo > have) { errors.push({ line: v.line, error: `Withdrawal of ${fmtNaira(v.amountKobo)} is more than ${v.member.name || 'the member'} held on ${v.day} (${fmtNaira(have)}). Check the date, or the deposits and opening savings.` }); reject.add(v); continue; }
+        bal.set(v.member.id, have - v.amountKobo);
+      } else bal.set(v.member.id, have + v.amountKobo);
+    }
+    for (let i = valid.length - 1; i >= 0; i--) if (reject.has(valid[i])) valid.splice(i, 1);
+  }
   const sum = valid.reduce((s, v) => s + (v.type === 'out' ? -v.amountKobo : v.amountKobo), 0);
-  return { valid, errors, warnings, totals: { rows: valid.length, amount_kobo: sum } };
+  return { valid, errors, warnings, totals: { rows: valid.length, amount_kobo: sum, withdrawals_kobo: valid.filter(v => v.type === 'out').reduce((a, v) => a + v.amountKobo, 0) } };
 }
 
 const LOAN_METHODS = { flat: 'flat', reducing_emi: 'reducing_balance_emi', reducing: 'reducing_balance_emi', reducing_declining: 'reducing_balance_declining' };
@@ -387,7 +447,82 @@ function validateRepayments(rows, ctx) {
   return { valid, errors, warnings, totals: { rows: valid.length, amount_kobo: valid.reduce((s, v) => s + v.amountKobo, 0) } };
 }
 
+function validateOpening(rows, ctx) {
+  const valid = [], errors = [], warnings = [];
+  const seen = new Set();
+  for (const { line, cells: c } of rows) {
+    const fail = msg => errors.push({ line, error: msg });
+    const code = String(c.account_code || '').trim();
+    const acc = ctx.chart.byCode.get(code) || ctx.chart.byName.get(code.toLowerCase());
+    if (!acc) { fail(`No account "${code}" in the chart of accounts.`); continue; }
+    if (acc.account_code === '3900') { fail('Opening Balance Equity is worked out for you. Leave it out.'); continue; }
+    if (seen.has(acc.account_code)) { fail(`Account ${acc.account_code} appears twice in this sheet.`); continue; }
+    if (acc.currency !== ctx.chart.baseCurrency) { fail(`Account ${acc.account_code} is held in ${acc.currency}. Enter it as an ordinary journal entry instead.`); continue; }
+    const kobo = parseNaira(c.balance);
+    if (kobo == null || kobo <= 0) { fail(`balance "${c.balance}" must be a positive naira figure.`); continue; }
+    const natural = ['ASSET', 'EXPENSE'].includes(acc.account_type) ? 'debit' : 'credit';
+    const side = String(c.side || natural).trim().toLowerCase();
+    if (!['debit', 'credit'].includes(side)) { fail('side must be debit or credit.'); continue; }
+    seen.add(acc.account_code);
+    valid.push({ line, account: acc, amountKobo: kobo, side });
+  }
+  const dr = valid.filter(v => v.side === 'debit').reduce((a, v) => a + v.amountKobo, 0);
+  const cr = valid.filter(v => v.side === 'credit').reduce((a, v) => a + v.amountKobo, 0);
+  const plug = dr - cr;
+  if (valid.length && plug !== 0) warnings.push({ line: null, warning: `Debits and credits differ by ${fmtNaira(Math.abs(plug))}. That difference will be held in Opening Balance Equity. If your trial balance should agree, check the figures.` });
+  return { valid, errors, warnings, totals: { rows: valid.length, debits_kobo: dr, credits_kobo: cr, equity_plug_kobo: plug } };
+}
+
+function resolveBank(ctx, raw) {
+  const s = String(raw || 'bank').trim().toLowerCase();
+  const key = s === 'cash' ? '1000' : s === 'bank' ? '1010' : s;
+  const acc = ctx.chart.byCode.get(key) || ctx.chart.byName.get(key);
+  return acc && acc.account_type === 'ASSET' && acc.sub_type === 'bank_cash' ? acc : null;
+}
+
+function validateSociety(rows, ctx) {
+  const valid = [], errors = [], warnings = [];
+  const seen = new Map();
+  for (const { line, cells: c } of rows) {
+    const fail = msg => errors.push({ line, error: msg });
+    const day = parseFlexDay(c.date);
+    if (!day) { fail('date must be a real date, YYYY-MM-DD or DD/MM/YYYY.'); continue; }
+    if (!inWindow(ctx, day)) { fail(day < ctx.batch.fy_start ? `date ${day} is before the financial year start (${ctx.batch.fy_start}). Earlier activity belongs in the opening balances.` : `date ${day} ${windowMsg(ctx)}.`); continue; }
+    const type = String(c.type || '').trim().toLowerCase();
+    if (!['income', 'expense', 'transfer'].includes(type)) { fail('type must be income, expense or transfer.'); continue; }
+    const kobo = parseNaira(c.amount);
+    if (kobo == null || kobo <= 0) { fail(`amount "${c.amount}" must be a positive naira figure.`); continue; }
+    const bank = resolveBank(ctx, c.bank_account);
+    if (!bank) { fail(`bank_account "${c.bank_account}" is not a bank or cash account. Use cash, bank, or the code or name of one.`); continue; }
+    const key = String(c.category || '').trim();
+    const target = ctx.chart.byCode.get(key) || ctx.chart.byName.get(key.toLowerCase());
+    if (!target) { fail(`No account "${key}" in the chart of accounts.`); continue; }
+    if (type === 'income') {
+      if (target.account_type !== 'INCOME') { fail(`${target.account_code} ${target.account_name} is not an income account.`); continue; }
+      if (MEMBER_DRIVEN_INCOME.has(target.account_code)) { fail(`${target.account_name} comes from the member sheets (dues and loans), which post it already. Leave it out here so it is not counted twice.`); continue; }
+    } else if (type === 'expense') {
+      if (target.account_type !== 'EXPENSE') { fail(`${target.account_code} ${target.account_name} is not an expense account.`); continue; }
+    } else {
+      if (!(target.account_type === 'ASSET' && target.sub_type === 'bank_cash')) { fail('For a transfer, category must be the bank or cash account the money moves to.'); continue; }
+      if (target.id === bank.id) { fail('A transfer needs two different accounts.'); continue; }
+    }
+    if (target.currency !== ctx.chart.baseCurrency || bank.currency !== ctx.chart.baseCurrency) { fail("Only accounts held in the society's base currency can be loaded here."); continue; }
+    const reference = cleanText(c.reference, 100) || null;
+    const description = cleanText(c.description, 150) || null;
+    const dupKey = [day, type, target.id, bank.id, kobo, reference || ''].join('|');
+    if (reference && seen.has(dupKey)) { fail(`Same date, account, amount and reference as line ${seen.get(dupKey)}. Remove the duplicate.`); continue; }
+    if (!reference && seen.has(dupKey)) warnings.push({ line, warning: `Looks the same as line ${seen.get(dupKey)}. Check it is not a duplicate.` });
+    if (!seen.has(dupKey)) seen.set(dupKey, line);
+    valid.push({ line, day, type, amountKobo: kobo, target, bank, reference, description });
+  }
+  const income = valid.filter(v => v.type === 'income').reduce((a, v) => a + v.amountKobo, 0);
+  const expense = valid.filter(v => v.type === 'expense').reduce((a, v) => a + v.amountKobo, 0);
+  return { valid, errors, warnings, totals: { rows: valid.length, income_kobo: income, expense_kobo: expense, net_kobo: income - expense } };
+}
+
 function validate(dataset, rows, ctx) {
+  if (dataset === 'opening_balances') return validateOpening(rows, ctx);
+  if (dataset === 'society_entries') return validateSociety(rows, ctx);
   if (dataset === 'members') return validateMembers(rows, ctx);
   if (dataset === 'loans') return validateLoans(rows, ctx);
   if (dataset === 'loan_repayments') return validateRepayments(rows, ctx);
@@ -398,7 +533,7 @@ function validate(dataset, rows, ctx) {
 
 async function loadContext(db, coopId, batch, { dataset, replace } = {}) {
   const members = new Map();
-  const list = await fetchAllRows(() => db.from('coop_members').select('id, name, member_number, phone_normalized, status').eq('coop_id', coopId).order('id'));
+  const list = await fetchAllRows(() => db.from('coop_members').select('id, name, member_number, phone_normalized, status, opening_balance_kobo').eq('coop_id', coopId).order('id'));
   // Replacing the members sheet: this batch's own members are about to be cleared, so they must not count as taken.
   let batchMemberIds = new Set();
   if (dataset === 'members' && replace) {
@@ -424,7 +559,25 @@ async function loadContext(db, coopId, batch, { dataset, replace } = {}) {
       }
     }
   }
-  return { coopId, batch, members, loansByRef, paidByLoan };
+  // Savings a member holds before the sheet: their opening balance, plus anything already loaded in this batch.
+  const savingsStart = new Map();
+  if (dataset === 'savings') {
+    for (const m of list) if (m.opening_balance_kobo) savingsStart.set(m.id, m.opening_balance_kobo);
+    if (!replace) {
+      const mine = await fetchAllRows(() => db.from('coop_savings_transactions').select('member_id, amount_kobo').eq('coop_id', coopId).eq('migration_batch_id', batch.id).order('id'));
+      for (const t of mine) savingsStart.set(t.member_id, (savingsStart.get(t.member_id) || 0) + t.amount_kobo);
+    }
+  }
+
+  let chart = null;
+  if (dataset === 'opening_balances' || dataset === 'society_entries') {
+    const { data: soc } = await db.from('coop_societies').select('base_currency').eq('coop_id', coopId).maybeSingle();
+    const baseCurrency = (soc && soc.base_currency) || 'NGN';
+    await ensureChartOfAccounts(db, coopId, baseCurrency);
+    const accounts = await fetchAllRows(() => db.from('coop_chart_of_accounts').select('id, account_code, account_name, account_type, sub_type, currency, is_system').eq('coop_id', coopId).order('id'));
+    chart = { baseCurrency, accounts, byCode: new Map(accounts.map(a => [a.account_code, a])), byName: new Map(accounts.map(a => [String(a.account_name).toLowerCase(), a])) };
+  }
+  return { coopId, batch, members, loansByRef, paidByLoan, savingsStart, chart };
 }
 
 // ───────────────────────────── journals ─────────────────────────────
@@ -478,18 +631,37 @@ async function journalContext(db, coopId, codes) {
 
 // ───────────────────────────── applying ─────────────────────────────
 
+const dayBefore = day => { const d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+
 async function applyMembers(db, ctx, valid, actor) {
   const cap = await checkMemberCapAllows(db, ctx.coopId, valid.filter(v => !v.exitedOn).length);
   if (!cap.ok) throw new Error(cap.error);
-  const results = [], errors = [];
+  const results = [], errors = [], created = [];
   for (const v of valid) {
     const r = await activateMember(db, {
-      coopId: ctx.coopId, rawPhone: v.phone, name: v.name, openingBalanceKobo: 0, activatedBy: actor, postcode: v.postcode,
+      coopId: ctx.coopId, rawPhone: v.phone, name: v.name, openingBalanceKobo: v.openingSavingsKobo || 0, activatedBy: actor, postcode: v.postcode,
       joinedOn: v.joinedOn, exitedOn: v.exitedOn, exitReason: v.exitReason, migrationBatchId: ctx.batch.id, memberNumber: v.memberNo,
     });
-    if (r.status === 'created') results.push(v.line);
+    if (r.status === 'created') { results.push(v.line); created.push({ v, member: r.member }); }
     else if (r.status === 'already_existed') errors.push({ line: v.line, error: 'Already a member, skipped.' });
     else errors.push({ line: v.line, error: r.error });
+  }
+
+  // What each member held on the year start day. Marker rows dated the day before, with no journal: the opening balances hold them.
+  const openAt = stamp(dayBefore(ctx.batch.fy_start));
+  const marker = (m, amountKobo, label) => ({ coop_id: ctx.coopId, member_id: m.id, amount_kobo: amountKobo, source: 'migration_opening', reference: label, recorded_by: actor, recorded_at: openAt, migration_batch_id: ctx.batch.id });
+  const shareRows = created.filter(c => c.v.openingSharesKobo > 0).map(c => marker(c.member, c.v.openingSharesKobo, 'Held at the financial year start'));
+  const duesRows = created.filter(c => c.v.openingDuesPaidKobo > 0).map(c => marker(c.member, c.v.openingDuesPaidKobo, 'Paid before the financial year start'));
+  // A balance the app can only show through a savings plan, so every member with opening savings gets a default one.
+  const planRows = created.filter(c => c.v.openingSavingsKobo > 0).map(c => ({
+    coop_id: ctx.coopId, member_id: c.member.id, target_amount_kobo: Math.max(1, c.v.openingSavingsKobo), monthly_contribution_kobo: 0, duration_months: 12,
+    start_date: ctx.batch.fy_start, status: 'ACTIVE', created_by: `go_live:${ctx.batch.id}`,
+  }));
+  for (const [table, rows] of [['coop_share_transactions', shareRows], ['coop_dues_transactions', duesRows], ['coop_savings_plans', planRows]]) {
+    for (const part of chunk(rows, 200)) {
+      const { error } = await db.from(table).insert(part);
+      if (error) throw new Error(`The members loaded, but their year-start figures did not (${error.message}). Clear the members sheet and load it again.`);
+    }
   }
   return { applied: results.length, extraErrors: errors, journals: { posted: 0, skipped: null } };
 }
@@ -510,7 +682,7 @@ async function applyLedger(db, ctx, dataset, valid, actor) {
     const need = memberIds.filter(id => !planByMember.has(id));
     if (need.length) {
       const totals = new Map();
-      for (const v of valid) totals.set(v.member.id, (totals.get(v.member.id) || 0) + v.amountKobo);
+      for (const v of valid) totals.set(v.member.id, (totals.get(v.member.id) || 0) + (v.type === 'out' ? 0 : v.amountKobo));
       const rows = need.map(id => ({
         coop_id: ctx.coopId, member_id: id, target_amount_kobo: Math.max(1, totals.get(id) || 1), monthly_contribution_kobo: 0, duration_months: 12,
         start_date: ctx.batch.fy_start, status: 'ACTIVE', created_by: `go_live:${ctx.batch.id}`,
@@ -525,7 +697,7 @@ async function applyLedger(db, ctx, dataset, valid, actor) {
 
   const rows = valid.map(v => ({
     coop_id: ctx.coopId, member_id: v.member.id, amount_kobo: v.type === 'out' ? -v.amountKobo : v.amountKobo,
-    source: v.source, reference: v.reference, recorded_by: actor, recorded_at: stamp(v.day), migration_batch_id: ctx.batch.id,
+    source: dataset === 'savings' && v.type === 'out' ? 'member_withdrawal' : v.source, reference: v.reference, recorded_by: actor, recorded_at: stamp(v.day), migration_batch_id: ctx.batch.id,
     ...(dataset === 'savings' ? { savings_plan_id: planByMember.get(v.member.id) } : {}),
   }));
   const insertedIds = [];
@@ -539,7 +711,7 @@ async function applyLedger(db, ctx, dataset, valid, actor) {
     if (jc.ready) {
       const entries = valid.map(v => {
         const a = cashOrBank(jc.acc, v.source), other = jc.acc[{ shares: SHARE_CAPITAL, savings: SAVINGS_PAYABLE, dues: DUES_RECEIVABLE }[dataset]];
-        const kind = dataset === 'shares' ? (v.type === 'out' ? 'Share capital withdrawal' : 'Share capital contribution') : dataset === 'savings' ? 'Savings payment received' : 'Dues payment received';
+        const kind = dataset === 'shares' ? (v.type === 'out' ? 'Share capital withdrawal' : 'Share capital contribution') : dataset === 'savings' ? (v.type === 'out' ? 'Savings withdrawal' : 'Savings payment received') : 'Dues payment received';
         const out = v.type === 'out';
         return {
           date: v.day, description: `${kind} — ${who(v.member)} via ${viaLabel(v.source)}`,
@@ -681,7 +853,59 @@ async function refreshLoanStatuses(db, loanIds) {
   }
 }
 
-const APPLY = { members: applyMembers, loans: applyLoans, loan_repayments: applyRepayments };
+async function applyOpening(db, ctx, valid, actor) {
+  const obe = ctx.chart.byCode.get('3900');
+  if (!obe) throw new Error('Opening Balance Equity is missing from the chart of accounts. Contact support.');
+  const lines = valid.map(v => ({ accountId: v.account.id, type: v.side, amount: v.amountKobo, currency: v.account.currency }));
+  const dr = valid.filter(v => v.side === 'debit').reduce((a, v) => a + v.amountKobo, 0);
+  const cr = valid.filter(v => v.side === 'credit').reduce((a, v) => a + v.amountKobo, 0);
+  if (dr !== cr) lines.push({ accountId: obe.id, type: dr > cr ? 'credit' : 'debit', amount: Math.abs(dr - cr), currency: obe.currency, memo: 'Opening balance offset' });
+  const number = await nextEntryNumber(db, ctx.coopId);
+  const { data: entry, error } = await db.from('coop_journal_entries').insert({
+    coop_id: ctx.coopId, entry_number: number, entry_date: ctx.batch.fy_start,
+    description: `Opening balances — ${valid.length} account${valid.length === 1 ? '' : 's'}, as of ${ctx.batch.fy_start}`,
+    entry_type: 'opening_balance', created_by: actor, migration_batch_id: ctx.batch.id, migration_dataset: 'opening_balances',
+  }).select().single();
+  if (error) throw new Error(`Could not create the opening balance entry: ${error.message}`);
+  const { error: linesErr } = await db.from('coop_journal_entry_lines').insert(lines.map(l => ({
+    journal_entry_id: entry.id, coop_id: ctx.coopId, account_id: l.accountId, line_type: l.type, amount: l.amount, currency: l.currency,
+    exchange_rate: 1, base_amount: l.amount, memo: l.memo || null,
+  })));
+  if (linesErr) { await db.from('coop_journal_entries').delete().eq('id', entry.id); throw new Error(`Could not save the opening balance lines: ${linesErr.message}`); }
+  return { applied: valid.length, extraErrors: [], journals: { posted: 1, skipped: null } };
+}
+
+async function applySociety(db, ctx, valid, actor) {
+  const entries = valid.map(v => {
+    const label = v.type === 'income' ? 'Income' : v.type === 'expense' ? 'Expense' : 'Transfer';
+    const what = v.description || v.target.account_name;
+    const description = `${label} — ${what}${v.reference ? ` (${v.reference})` : ''}`;
+    const lines = v.type === 'expense'
+      ? [{ account: v.target, type: 'debit', amountKobo: v.amountKobo }, { account: v.bank, type: 'credit', amountKobo: v.amountKobo }]
+      : [{ account: v.bank, type: v.type === 'income' ? 'debit' : 'credit', amountKobo: v.amountKobo }, { account: v.target, type: v.type === 'income' ? 'credit' : 'debit', amountKobo: v.amountKobo }];
+    return { date: v.day, description, lines };
+  });
+  const posted = (await postJournalBatch(db, ctx.coopId, entries, actor, { batchId: ctx.batch.id, dataset: 'society_entries' })).count;
+  return { applied: valid.length, extraErrors: [], journals: { posted, skipped: null } };
+}
+
+const APPLY = { members: applyMembers, loans: applyLoans, loan_repayments: applyRepayments, opening_balances: applyOpening, society_entries: applySociety };
+
+/** Opening balances come first, and need the Accounting module. Returns a message when the sheet cannot be loaded yet. */
+async function accountingGate(db, coopId, batch, dataset, replace) {
+  const needsModule = dataset === 'opening_balances' || dataset === 'society_entries';
+  const hasAcc = await hasAddon(db, coopId, 'accounting');
+  if (needsModule && !hasAcc) return 'This sheet is booked in the society\'s accounts, which needs the Accounting & Finance module on the current plan.';
+  if (dataset === 'opening_balances') {
+    const { data: existing } = await db.from('coop_journal_entries').select('id, migration_batch_id').eq('coop_id', coopId).eq('entry_type', 'opening_balance').limit(1).maybeSingle();
+    if (existing && existing.migration_batch_id !== batch.id) return 'Opening balances were already set for this society outside the go-live batch. Make adjustments with a normal journal entry.';
+    if (existing && !replace) return 'Opening balances are already loaded in this batch. Upload with replace to change them.';
+  }
+  if (NEEDS_OPENING.has(dataset) && hasAcc && !(await accountingIsReady(db, coopId))) {
+    return 'Load the opening balances sheet first, so every dated entry starts from the right balances.';
+  }
+  return null;
+}
 
 /** Validates and, unless dryRun, applies one sheet. Never throws for bad rows: they come back as errors. */
 async function runImport(db, { coopId, batch, dataset, text, dryRun = true, replace = false, actor }) {
@@ -691,6 +915,9 @@ async function runImport(db, { coopId, batch, dataset, text, dryRun = true, repl
   if (parsed.error) return { ok: false, status: 400, error: parsed.error };
   if (parsed.rows.length === 0) return { ok: false, status: 400, error: 'The sheet has a header but no rows.' };
   if (parsed.rows.length > MAX_ROWS[dataset]) return { ok: false, status: 400, error: `${parsed.rows.length} rows is too many for one upload. The limit for ${spec.title} is ${MAX_ROWS[dataset]}. Split the sheet and upload the parts one after another.` };
+
+  const gate = await accountingGate(db, coopId, batch, dataset, replace);
+  if (gate) return { ok: false, status: 409, error: gate };
 
   const ctx = await loadContext(db, coopId, batch, { dataset, replace });
   const result = validate(dataset, parsed.rows, ctx);
@@ -723,31 +950,44 @@ async function deleteJournals(db, batchId, dataset) {
 
 async function countBatch(db, batchId) {
   const head = t => db.from(t).select('id', { count: 'exact', head: true }).eq('migration_batch_id', batchId);
-  const [m, s, sv, d, l, r] = await Promise.all([
-    head('coop_members'), head('coop_share_transactions'), head('coop_savings_transactions'), head('coop_dues_transactions'), head('coop_loans'),
-    head('coop_loan_repayments').neq('source', 'migration_opening'),
+  const journals = ds => head('coop_journal_entries').eq('migration_dataset', ds);
+  const [o, m, s, sv, d, l, r, se] = await Promise.all([
+    journals('opening_balances'), head('coop_members'),
+    head('coop_share_transactions').neq('source', 'migration_opening'), head('coop_savings_transactions'),
+    head('coop_dues_transactions').neq('source', 'migration_opening'), head('coop_loans'),
+    head('coop_loan_repayments').neq('source', 'migration_opening'), journals('society_entries'),
   ]);
-  return { members: m.count || 0, shares: s.count || 0, savings: sv.count || 0, dues: d.count || 0, loans: l.count || 0, loan_repayments: r.count || 0 };
+  return { opening_balances: o.count || 0, members: m.count || 0, shares: s.count || 0, savings: sv.count || 0, dues: d.count || 0, loans: l.count || 0, loan_repayments: r.count || 0, society_entries: se.count || 0 };
 }
 
 /** Removes one sheet's rows (and their journals) from a draft batch. Refuses to pull the rug from sheets that depend on it. */
 async function clearDataset(db, batch, dataset) {
   if (batch.status !== 'draft') throw new Error(`This batch is ${batch.status}. Only a draft batch can be changed.`);
   const counts = await countBatch(db, batch.id);
-  const deps = { members: ['shares', 'savings', 'dues', 'loans', 'loan_repayments'], loans: ['loan_repayments'] }[dataset] || [];
+  const deps = { opening_balances: ['shares', 'savings', 'dues', 'loans', 'loan_repayments', 'society_entries'], members: ['shares', 'savings', 'dues', 'loans', 'loan_repayments'], loans: ['loan_repayments'] }[dataset] || [];
   const blocking = deps.filter(d => counts[d] > 0);
   if (blocking.length) throw new Error(`Clear ${blocking.join(' and ')} first, because they depend on ${dataset}.`);
 
-  if (dataset === 'members') {
+  if (dataset === 'opening_balances' || dataset === 'society_entries') {
+    await deleteJournals(db, batch.id, dataset);
+    if (dataset === 'opening_balances') await deleteJournals(db, batch.id, 'dues_accrual');
+  } else if (dataset === 'members') {
+    await deleteJournals(db, batch.id, 'dues_accrual');   // it is worked out from the members, so it must be run again
+    await db.from('coop_share_transactions').delete().eq('migration_batch_id', batch.id).eq('source', 'migration_opening');
+    await db.from('coop_dues_transactions').delete().eq('migration_batch_id', batch.id).eq('source', 'migration_opening');
     await db.from('coop_savings_plans').delete().eq('created_by', `go_live:${batch.id}`);
     await db.from('coop_members').delete().eq('migration_batch_id', batch.id);
   } else if (dataset === 'shares' || dataset === 'dues') {
     await deleteJournals(db, batch.id, dataset);
-    await db.from(dataset === 'shares' ? 'coop_share_transactions' : 'coop_dues_transactions').delete().eq('migration_batch_id', batch.id);
+    await db.from(dataset === 'shares' ? 'coop_share_transactions' : 'coop_dues_transactions').delete().eq('migration_batch_id', batch.id).neq('source', 'migration_opening');
   } else if (dataset === 'savings') {
     await deleteJournals(db, batch.id, 'savings');
     await db.from('coop_savings_transactions').delete().eq('migration_batch_id', batch.id);
-    await db.from('coop_savings_plans').delete().eq('created_by', `go_live:${batch.id}`);
+    // Plans that exist only because of the deposits go. A member's default plan for their opening savings stays with the member.
+    const mine = await fetchAllRows(() => db.from('coop_savings_plans').select('id, member_id').eq('created_by', `go_live:${batch.id}`).order('id'));
+    const keep = new Set((await fetchAllRows(() => db.from('coop_members').select('id, opening_balance_kobo').eq('coop_id', batch.coop_id).eq('migration_batch_id', batch.id).order('id'))).filter(m => m.opening_balance_kobo > 0).map(m => m.id));
+    const drop = mine.filter(p => !keep.has(p.member_id)).map(p => p.id);
+    for (const part of chunk(drop)) await db.from('coop_savings_plans').delete().in('id', part);
   } else if (dataset === 'loans') {
     const loans = await fetchAllRows(() => db.from('coop_loans').select('id').eq('migration_batch_id', batch.id).order('id'));
     await deleteJournals(db, batch.id, 'loans');
@@ -785,5 +1025,5 @@ function buildTemplate(dataset) {
 
 module.exports = {
   ORDER, DATASETS, MAX_ROWS, parseSheet, parseFlexDay, parseNaira, validate, loadContext, runImport, clearDataset, countBatch, buildTemplate,
-  postJournalBatch, refreshLoanStatuses, resolveMember,
+  postJournalBatch, refreshLoanStatuses, resolveMember, deleteJournals,
 };
