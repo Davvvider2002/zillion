@@ -1878,9 +1878,39 @@ function glStepSheets() {
     ${draft ? `<button class="btn btn-primary btn-sm" onclick="glOpenSheet('${s.key}')">${GL.counts[s.key] ? 'Replace' : 'Load'}</button>` : ''}</td></tr>`).join('');
   const panel = GL.sheetKey ? glSheetPanel() : '';
   return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Load the sheets in this order. Each one is checked first, and nothing is saved until every row passes. Opening balances come first, because the other sheets build on them.</div>
+    <div style="margin-bottom:10px"><button class="btn btn-primary btn-sm" onclick="glDownloadWorkbook()">⬇ Download all templates as one Excel workbook</button></div>
     <div class="table-wrap"><table><thead><tr><th>Sheet</th><th>Rows loaded</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${panel}
     <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(3)">Next: books</button>
     ${draft ? '<button class="btn btn-ghost" style="margin-left:8px;color:#FF8A8A" onclick="glPurge()">Purge all imports</button>' : ''}</div>`;
+}
+async function glDownloadWorkbook() {
+  const r = await glCall('coop-portal-go-live-template', null, 'GET');
+  if (!r.ok) { glSay(r.data.error || 'Could not get the templates.', true); return glDraw(); }
+  const wb = XLSX.utils.book_new(), list = r.data.templates || [];
+  const b = GL.batch;
+  const readme = [
+    ['Zillion go-live catch-up workbook'], [''],
+    ['Financial year starts', b ? b.fy_start : ''], ['Cutover date', b ? b.cutover_date : ''], [''],
+    ['Fill the sheets in this order. Amounts are in naira. Dates are YYYY-MM-DD or DD/MM/YYYY. Every dated row must fall inside the financial year.'],
+    ['Delete the example rows, keep the heading row, then upload this same file for each sheet in the portal. The portal reads the sheet named for the step you are on.'],
+    ['Leave the other sheets in the file. They are ignored. Format the date columns as Text so Excel does not change them.'], [''],
+    ['Sheet', 'Column', 'Required', 'What to put there'],
+  ];
+  list.forEach((t, i) => t.columns.forEach(c => readme.push([`${i + 1}. ${t.title}`, c.name, c.required ? 'Yes' : '', c.help])));
+  const rs = XLSX.utils.aoa_to_sheet(readme); rs['!cols'] = [{ wch: 30 }, { wch: 24 }, { wch: 10 }, { wch: 110 }];
+  XLSX.utils.book_append_sheet(wb, rs, 'Read me');
+  list.forEach(t => {
+    const one = XLSX.read(t.csv, { type: 'string', raw: true }), ws = one.Sheets[one.SheetNames[0]];
+    ws['!cols'] = t.columns.map(c => ({ wch: Math.max(14, c.name.length + 4) }));
+    XLSX.utils.book_append_sheet(wb, ws, t.title.slice(0, 31));
+  });
+  const ob = list.find(t => t.accounts);
+  if (ob) {
+    const as = XLSX.utils.aoa_to_sheet([['account_code', 'account_name', 'type', 'sub_type'], ...ob.accounts.map(a => [a.account_code, a.account_name, a.account_type, a.sub_type || ''])]);
+    as['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 12 }, { wch: 24 }];
+    XLSX.utils.book_append_sheet(wb, as, 'Chart of accounts');
+  }
+  XLSX.writeFile(wb, 'zillion-go-live-workbook.xlsx');
 }
 async function glTemplate(key) {
   const r = await glCall('coop-portal-go-live-template?dataset=' + key, null, 'GET');
@@ -1935,8 +1965,8 @@ function glSplitCsv(text, max) {
 async function glPrepare() {
   const f = document.getElementById('gl-file');
   if (!f || !f.files.length) { glSay('Choose a file first.', true); return null; }
-  let text; try { text = await readCsvOrExcelFile(f.files[0]); } catch (e) { glSay(e.message, true); return null; }
-  const s = GL.sheets.find(x => x.key === GL.sheetKey);
+  let text; const s = GL.sheets.find(x => x.key === GL.sheetKey);
+  try { text = await readCsvOrExcelFile(f.files[0], [s.key, s.title]); } catch (e) { glSay(e.message, true); return null; }
   if (s.key === 'opening_balances') return { parts: [{ text, lineOffset: 0, priorText: '', rows: 0 }], rows: 0 };
   const sp = glSplitCsv(text, s.max_rows);
   if (!sp.parts.length) { glSay('The sheet has a header but no rows.', true); return null; }
@@ -3555,7 +3585,7 @@ async function loadPayrollRunsList() {
 // Converts an uploaded .csv, .xlsx, or .xls file into plain CSV text -
 // the backend only ever needs to understand one format, regardless of
 // what the admin actually uploaded.
-function readCsvOrExcelFile(file) {
+function readCsvOrExcelFile(file, preferSheet) {
   return new Promise((resolve, reject) => {
     const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const reader = new FileReader();
@@ -3564,8 +3594,11 @@ function readCsvOrExcelFile(file) {
       reader.onload = (e) => {
         try {
           const workbook = XLSX.read(e.target.result, { type: 'array' });
-          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          resolve(XLSX.utils.sheet_to_csv(firstSheet));
+          // A workbook with several sheets (the go-live workbook): use the one named for this sheet, else the first.
+          const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const want = (preferSheet || []).map(norm);
+          const name = workbook.SheetNames.find(n => want.includes(norm(n))) || workbook.SheetNames[0];
+          resolve(XLSX.utils.sheet_to_csv(workbook.Sheets[name], { rawNumbers: false }));
         } catch (err) { reject(new Error('Could not parse this Excel file: ' + err.message)); }
       };
       reader.readAsArrayBuffer(file);
