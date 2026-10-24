@@ -8,6 +8,7 @@
  *
  * Body: { action: 'create', label?, fy_start, cutover_date }
  *     | { action: 'get' }                 the open batch, or the latest one, with row counts per sheet
+ *     | { action: 'purge', batch_id }     removes everything loaded, keeps the batch open. Draft only: a locked batch is permanent
  *     | { action: 'void', batch_id }      removes everything the draft batch loaded, then closes it
  */
 'use strict';
@@ -74,6 +75,16 @@ exports.handler = async (event) => {
     return ok({ success: true, batch, counts: await countBatch(db, batch.id), sheets });
   }
 
+  if (body.action === 'purge') {
+    const { data: batch } = await db.from('coop_migration_batches').select('*').eq('id', String(body.batch_id || '')).maybeSingle();
+    if (!batch) return err(404, 'Batch not found.');
+    if (batch.coop_id !== coopId) return err(403, 'This batch does not belong to your society.');
+    const r = await L.purge(db, batch, await L.portalIdentity(db, auth));
+    if (!r.ok) return err(r.status, r.error);
+    await audit('COOP_GO_LIVE_BATCH_PURGED', batch.id, { removed: r.removed });
+    return ok({ success: true, removed: r.removed, counts: await countBatch(db, batch.id) });
+  }
+
   if (body.action === 'void') {
     const { data: batch } = await db.from('coop_migration_batches').select('*').eq('id', String(body.batch_id || '')).maybeSingle();
     if (!batch) return err(404, 'Batch not found.');
@@ -87,5 +98,5 @@ exports.handler = async (event) => {
     return ok({ success: true });
   }
 
-  return err(400, "action must be 'create', 'get' or 'void'");
+  return err(400, "action must be 'create', 'get', 'purge' or 'void'");
 };

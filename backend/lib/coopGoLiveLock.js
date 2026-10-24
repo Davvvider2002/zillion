@@ -81,6 +81,23 @@ async function lock(db, coopId, batch, who, deps = {}) {
 }
 
 /**
+ * Removes everything the batch loaded so wrong figures can be loaded again. The batch stays open. Only a draft can be
+ * purged: once locked it is permanent. Approvals are wiped, and the purge is logged.
+ */
+async function purge(db, batch, who, deps = {}) {
+  const b = await fresh(db, batch);
+  if (!b) return { ok: false, status: 404, error: 'Batch not found.' };
+  if (b.status !== 'draft') return { ok: false, status: 409, error: b.status === 'locked' ? 'This batch is locked. A locked batch is permanent and cannot be purged.' : `This batch is ${b.status}.` };
+  const imp = deps.imp || require('./coopGoLiveImport');
+  const before = await imp.countBatch(db, b.id);
+  try { for (const k of imp.ORDER.slice().reverse()) await imp.clearDataset(db, b, k); }
+  catch (e) { return { ok: false, status: 500, error: `Could not purge the batch: ${e.message}` }; }
+  await db.from('coop_migration_batches').update({ approved_by: [] }).eq('id', b.id);
+  await logEvent(db, b, 'purged', who, { removed: before, approvals_were: (b.approved_by || []).length });
+  return { ok: true, removed: before };
+}
+
+/**
  * What was imported, member by member, with their balances at the cutover date. Members confirm this before the
  * batch is locked. Balances come from the same sub-ledgers the reconcile uses.
  */
@@ -105,4 +122,4 @@ async function buildStatement(db, coopId, batch, deps = {}) {
   return { batch_id: batch.id, as_of: batch.cutover_date, fy_start: batch.fy_start, members: rows, ledgers: Object.fromEntries(Object.keys(ledgers).map(t => [t, { title: ledgers[t].title, columns: ledgers[t].columns }])) };
 }
 
-module.exports = { portalIdentity, logEvent, resetApprovals, approve, withdraw, lock, buildStatement };
+module.exports = { portalIdentity, logEvent, resetApprovals, purge, approve, withdraw, lock, buildStatement };

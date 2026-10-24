@@ -1879,7 +1879,8 @@ function glStepSheets() {
   const panel = GL.sheetKey ? glSheetPanel() : '';
   return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Load the sheets in this order. Each one is checked first, and nothing is saved until every row passes. Opening balances come first, because the other sheets build on them.</div>
     <div class="table-wrap"><table><thead><tr><th>Sheet</th><th>Rows loaded</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${panel}
-    <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(3)">Next: books</button></div>`;
+    <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(3)">Next: books</button>
+    ${draft ? '<button class="btn btn-ghost" style="margin-left:8px;color:#FF8A8A" onclick="glPurge()">Purge all imports</button>' : ''}</div>`;
 }
 async function glTemplate(key) {
   const r = await glCall('coop-portal-go-live-template?dataset=' + key, null, 'GET');
@@ -1930,6 +1931,12 @@ async function glClear() {
   if (!confirm('Clear this sheet from the batch?')) return;
   const r = await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, clear: true });
   if (!r.ok) glSay(r.data.error || 'Could not clear.', true); else { glSay('Sheet cleared.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
+  glDraw();
+}
+async function glPurge() {
+  if (!confirm('Remove everything loaded into this batch so you can start the sheets again? Approvals are cleared. This only works before the batch is locked.')) return;
+  const r = await glCall('coop-portal-go-live-batch', { action: 'purge', batch_id: GL.batch.id });
+  if (!r.ok) glSay(r.data.error || 'Could not purge.', true); else { glSay('All imports removed. The batch is still open.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
   glDraw();
 }
 async function glRefreshCounts() {

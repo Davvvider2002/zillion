@@ -55,5 +55,14 @@ const A = { id: 'owner:1', name: 'Owner' }, B = { id: 'staff:2', name: 'Treasure
   ok('statement lists batch members in number order', st.members.map(m => m.member_number).join() === '0001,0002');
   ok('statement shows imported counts and balances', st.members[0].imported.savings === 2 && st.members[0].balances.savings.balance === 500 && st.members[1].balances.savings === null);
   ok('statement shows exit date', st.members[1].exited === '2026-04-30');
+  db = mk();
+  r = await L.purge(db, batch(), A);
+  ok('purge works on a draft, keeps it open and logs it', r.ok && batch().status === 'draft' && db.t().coop_migration_events.some(e => e.action === 'purged'));
+  await L.approve(db, 'C1', batch(), A, { reconcileBatch: good });
+  await L.purge(db, batch(), A);
+  ok('purge wipes approvals', batch().approved_by.length === 0);
+  batch().status = 'locked';
+  r = await L.purge(db, batch(), A);
+  ok('a locked batch cannot be purged', !r.ok && r.status === 409 && /permanent/.test(r.error));
   console.log(bad ? `\n${bad} FAILED` : '\nAll go-live lock tests passed');
 })();
