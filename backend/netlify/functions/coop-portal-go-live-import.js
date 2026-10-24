@@ -65,7 +65,8 @@ exports.handler = async (event) => {
   const csvText = String(body.csv_text || '').trim();
   if (!csvText) return err(400, 'csv_text is required');
   const dryRun = body.dry_run !== false;
-  const result = await runImport(db, { coopId, batch, dataset, text: csvText, dryRun, replace: body.replace === true, actor });
+  const result = await runImport(db, { coopId, batch, dataset, text: csvText, dryRun, replace: body.replace === true, actor,
+    priorText: dryRun && typeof body.prior_csv === 'string' ? body.prior_csv : '', lineOffset: Number(body.line_offset) || 0 });
 
   if (!dryRun && result.ok) {
     await L.logEvent(db, batch, 'sheet_loaded', who, { dataset, rows: result.rows_read, accepted: result.accepted, replace: body.replace === true });

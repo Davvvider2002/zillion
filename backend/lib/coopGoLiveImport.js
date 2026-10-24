@@ -908,19 +908,41 @@ async function accountingGate(db, coopId, batch, dataset, replace) {
 }
 
 /** Validates and, unless dryRun, applies one sheet. Never throws for bad rows: they come back as errors. */
-async function runImport(db, { coopId, batch, dataset, text, dryRun = true, replace = false, actor }) {
+/**
+ * A big sheet arrives in parts (the portal splits it to stay under MAX_ROWS). To check a later part properly, a dry run
+ * is also given `priorText`: every line of the file before this part. The prior rows are validated together with this
+ * part so balances, duplicates and member numbers are judged across the whole file, but only this part's own problems are
+ * reported. `lineOffset` makes the line numbers match the original file. A real load never takes priorText: by then the
+ * earlier parts are in the database and are seen the normal way.
+ */
+const MAX_PRIOR_ROWS = 20000;
+async function runImport(db, { coopId, batch, dataset, text, dryRun = true, replace = false, actor, priorText = '', lineOffset = 0 }) {
   const spec = DATASETS[dataset];
   if (!spec) return { ok: false, status: 400, error: `Unknown sheet "${dataset}". Use one of: ${ORDER.join(', ')}.` };
   const parsed = parseSheet(dataset, text);
   if (parsed.error) return { ok: false, status: 400, error: parsed.error };
   if (parsed.rows.length === 0) return { ok: false, status: 400, error: 'The sheet has a header but no rows.' };
-  if (parsed.rows.length > MAX_ROWS[dataset]) return { ok: false, status: 400, error: `${parsed.rows.length} rows is too many for one upload. The limit for ${spec.title} is ${MAX_ROWS[dataset]}. Split the sheet and upload the parts one after another.` };
+  if (parsed.rows.length > MAX_ROWS[dataset]) return { ok: false, status: 400, error: `${parsed.rows.length} rows is too many for one upload. The limit for ${spec.title} is ${MAX_ROWS[dataset]}. Choose the file again and the portal will send it in parts.` };
+  const offset = Number.isInteger(lineOffset) && lineOffset > 0 ? lineOffset : 0;
+  if (offset) for (const r of parsed.rows) r.line += offset;
+  let prior = [];
+  if (priorText && dryRun) {
+    const p = parseSheet(dataset, priorText);
+    if (p.error) return { ok: false, status: 400, error: p.error };
+    if (p.rows.length > MAX_PRIOR_ROWS) return { ok: false, status: 400, error: `A sheet can hold at most ${MAX_PRIOR_ROWS} rows in total.` };
+    prior = p.rows;
+  }
+  const firstOwnLine = parsed.rows[0].line;
 
   const gate = await accountingGate(db, coopId, batch, dataset, replace);
   if (gate) return { ok: false, status: 409, error: gate };
 
   const ctx = await loadContext(db, coopId, batch, { dataset, replace });
-  const result = validate(dataset, parsed.rows, ctx);
+  const result = validate(dataset, prior.concat(parsed.rows), ctx);
+  if (prior.length) {                                   // report only this part's own rows
+    const own = x => x.line == null || x.line >= firstOwnLine;
+    result.errors = result.errors.filter(own); result.warnings = result.warnings.filter(own); result.valid = result.valid.filter(own);
+  }
   const out = {
     ok: true, dataset, mode: dryRun ? 'dry_run' : 'applied', rows_read: parsed.rows.length,
     accepted: result.valid.length, rejected: result.errors.length, errors: result.errors.sort((a, b) => a.line - b.line), warnings: result.warnings, totals: result.totals,

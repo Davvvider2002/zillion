@@ -1898,34 +1898,83 @@ function glSheetPanel() {
     const errs = (c.errors || []).slice(0, 50).map(e => `<div style="color:#FF8A8A">Line ${e.line}: ${escHtml(e.error)}</div>`).join('');
     const warns = (c.warnings || []).slice(0, 30).map(w => `<div style="color:var(--amber)">Line ${w.line}: ${escHtml(w.warning)}</div>`).join('');
     result = `<div style="margin-top:10px;font-size:12.5px;background:var(--ink);border-radius:8px;padding:10px;max-height:280px;overflow-y:auto">
-      <div style="font-weight:600;margin-bottom:6px">${c.error ? escHtml(c.error) : `${c.rows_read} rows read · ${c.accepted} ok · ${c.rejected} need fixing`}</div>${errs}${warns}</div>`;
+      <div style="font-weight:600;margin-bottom:6px">${c.error ? escHtml(c.error) : `${c.rows_read} rows read${c.parts > 1 ? ' in ' + c.parts + ' parts' : ''} · ${c.accepted} ok · ${c.rejected} need fixing`}</div>${errs}${warns}</div>`;
   }
   const canLoad = c && c.ok && c.mode === 'dry_run' && c.rejected === 0 && c.accepted > 0;
   return `<div style="margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px">
     <div style="font-weight:700;margin-bottom:8px">${escHtml(s.title)}</div>
-    <div class="field"><label>File (.csv or .xlsx)</label><input type="file" id="gl-file" accept=".csv,.xlsx,.xls" onchange="glCheck()"></div>
+    <div class="field"><label>File (.csv or .xlsx). A long sheet is sent in parts automatically.</label><input type="file" id="gl-file" accept=".csv,.xlsx,.xls" onchange="glCheck()"></div>
     <label style="font-size:12.5px"><input type="checkbox" id="gl-replace" ${GL.counts[s.key] ? 'checked' : ''}> Replace what this sheet already loaded</label>${result}
     <div style="margin-top:12px"><button class="btn btn-primary" ${canLoad ? '' : 'disabled'} onclick="glLoad()">Load ${c && c.accepted ? c.accepted + ' rows' : ''}</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="glClear()">Clear this sheet</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="GL.sheetKey=null;GL.check=null;glDraw()">Close</button></div></div>`;
 }
-async function glRun(dry) {
+// A sheet longer than the per-upload limit is cut into parts here, at row boundaries, and sent one part after another.
+// Each part carries the original line offset so errors point at the right line of the file, and a dry run also carries
+// every earlier line so balances and duplicates are judged across the whole file.
+function glSplitCsv(text, max) {
+  const lines = String(text || '').replace(/^﻿/, '').split(/\r?\n/);
+  const h = lines.findIndex(l => l.trim().length);
+  if (h === -1) return { parts: [], rows: 0 };
+  const header = lines[h], parts = [];
+  let seg = [], count = 0, start = h + 1;
+  const flush = (end) => {
+    if (!count) return;
+    parts.push({ text: header + '\n' + seg.join('\n'), lineOffset: start - 1, priorText: lines.slice(0, start).join('\n'), rows: count });
+  };
+  let total = 0;
+  for (let i = h + 1; i < lines.length; i++) {
+    const blank = !lines[i].trim();
+    if (!blank && count === max) { flush(i); seg = []; count = 0; start = i; }
+    if (!count && blank) { start = i + 1; continue; }     // skip leading blanks of a part
+    seg.push(lines[i]); if (!blank) { count++; total++; }
+  }
+  flush(lines.length);
+  return { parts, rows: total };
+}
+async function glPrepare() {
   const f = document.getElementById('gl-file');
   if (!f || !f.files.length) { glSay('Choose a file first.', true); return null; }
   let text; try { text = await readCsvOrExcelFile(f.files[0]); } catch (e) { glSay(e.message, true); return null; }
-  GL.lastText = text;
-  const r = await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, csv_text: text, dry_run: dry, replace: document.getElementById('gl-replace').checked });
-  return r.data;
+  const s = GL.sheets.find(x => x.key === GL.sheetKey);
+  if (s.key === 'opening_balances') return { parts: [{ text, lineOffset: 0, priorText: '', rows: 0 }], rows: 0 };
+  const sp = glSplitCsv(text, s.max_rows);
+  if (!sp.parts.length) { glSay('The sheet has a header but no rows.', true); return null; }
+  return sp;
 }
+const glBody = (part, dry, replace) => ({ batch_id: GL.batch.id, dataset: GL.sheetKey, csv_text: part.text, dry_run: dry, replace, ...(dry && part.priorText ? { prior_csv: part.priorText, line_offset: part.lineOffset } : (part.lineOffset ? { line_offset: part.lineOffset } : {})) });
 async function glCheck() {
-  GL.msg = null; const d = await glRun(true); if (!d) return glDraw();
-  GL.check = d; glDraw();
+  GL.msg = null; GL.check = null;
+  const sp = await glPrepare(); if (!sp) return glDraw();
+  GL.parts = sp.parts;
+  const agg = { ok: true, mode: 'dry_run', rows_read: 0, accepted: 0, rejected: 0, errors: [], warnings: [], parts: sp.parts.length };
+  const replace = document.getElementById('gl-replace').checked;
+  for (let i = 0; i < sp.parts.length; i++) {
+    const r = await glCall('coop-portal-go-live-import', glBody(sp.parts[i], true, replace));
+    const d = r.data;
+    if (!r.ok && !d.errors) { agg.ok = false; agg.error = (sp.parts.length > 1 ? `Part ${i + 1} of ${sp.parts.length}: ` : '') + (d.error || 'Could not check the sheet.'); break; }
+    agg.rows_read += d.rows_read || 0; agg.accepted += d.accepted || 0; agg.rejected += d.rejected || 0;
+    agg.errors.push(...(d.errors || [])); agg.warnings.push(...(d.warnings || []));
+  }
+  GL.check = agg; glDraw();
 }
 async function glLoad() {
-  const d = await glRun(false); if (!d) return glDraw();
-  if (d.ok) { glSay(`${d.accepted} rows loaded.`); GL.check = null; GL.sheetKey = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
-  else GL.check = d;
-  glDraw();
+  if (!GL.parts || !GL.parts.length) return;
+  const parts = GL.parts, n = GL.counts[GL.sheetKey] || 0;
+  let replace = document.getElementById('gl-replace').checked;
+  if (parts.length > 1 && n > 0 && !replace) { glSay(`This sheet already has ${n} rows. Tick Replace, or clear the sheet, before loading a file that arrives in parts.`, true); return glDraw(); }
+  let done = 0, fail = null;
+  for (let i = 0; i < parts.length; i++) {
+    const r = await glCall('coop-portal-go-live-import', glBody(parts[i], false, i === 0 ? replace : false));
+    if (!r.ok) { fail = (parts.length > 1 ? `Part ${i + 1} of ${parts.length}: ` : '') + (r.data.error || 'Could not load.') + ((r.data.errors || []).length ? ' ' + r.data.errors.slice(0, 5).map(e => `Line ${e.line}: ${e.error}`).join(' ') : ''); break; }
+    done += r.data.accepted || 0;
+  }
+  if (fail) {
+    if (parts.length > 1) { await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, clear: true }); fail += ' The parts already loaded were removed, so the sheet is empty. Fix the file and load it again.'; }
+    glSay(fail, true); GL.check = null; await glRefreshCounts(); await glLoadLock(); return glDraw();
+  }
+  glSay(`${done} rows loaded${parts.length > 1 ? ` in ${parts.length} parts` : ''}.`); GL.check = null; GL.parts = null; GL.sheetKey = null; GL.rec = null; GL.statement = null;
+  await glRefreshCounts(); await glLoadLock(); glDraw();
 }
 async function glClear() {
   if (!confirm('Clear this sheet from the batch?')) return;
