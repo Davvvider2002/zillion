@@ -127,7 +127,7 @@ async function computeRepaymentSplitForLoan(db, loanId, amountKobo, loanInterest
   return computeRepaymentSplit(amountKobo, loanInterestKobo, loanTotalRepayableKobo, interestAlreadyPaidKobo);
 }
 
-async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, createdBy, interestKobo = 0, borrower = null) {
+async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, createdBy, interestKobo = 0, borrower = null, opts = null) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
 
@@ -149,14 +149,14 @@ async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, cre
         { account: interestReceivable, type: 'debit', amountKobo: interestKobo },
         { account: bank, type: 'credit', amountKobo: principalKobo },
         { account: interestIncome, type: 'credit', amountKobo: interestKobo },
-      ]);
+      ], opts);
     }
 
     const accounts = await getAccounts(db, coopId, [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, BANK_ACCOUNT_CODE]);
     const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
     const bank = accounts[BANK_ACCOUNT_CODE];
     if (!principalReceivable || !bank) return { booked: false, reason: 'accounts_missing' };
-    return await postEntry(db, coopId, disbursementDescription, createdBy, principalReceivable, bank, principalKobo);
+    return await postEntry(db, coopId, disbursementDescription, createdBy, principalReceivable, bank, principalKobo, opts);
   } catch (e) {
     console.error('[coopLoanAccounting] recordLoanDisbursementJournalEntry non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };

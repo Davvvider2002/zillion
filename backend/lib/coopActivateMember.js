@@ -40,7 +40,7 @@ function normalisePhone(raw) {
  *   invalid phone does. Not applied when the member already existed (an existing record is never overwritten here).
  * @returns {Promise<{ok: boolean, status: 'created'|'already_existed'|'error', member?, error?, phone?}>}
  */
-async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode, joinedOn, exitedOn, exitReason, migrationBatchId }) {
+async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode, joinedOn, exitedOn, exitReason, migrationBatchId, memberNumber: givenNumber }) {
   name = cleanText(name, 100);
   if (!rawPhone) return { ok: false, status: 'error', error: 'phone is required' };
   if (openingBalanceKobo < 0) return { ok: false, status: 'error', error: 'opening balance cannot be negative' };
@@ -107,9 +107,11 @@ async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, 
     return String((existingCount || 0) + 1).padStart(4, '0');
   }
 
+  // Go-live import: the society's own member number is kept as given. A clash is an error, never a silent renumber.
+  const wantedNumber = givenNumber ? cleanText(givenNumber, 20) : '';
   let created, insertErr;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const memberNumber = await nextMemberNumber();
+  for (let attempt = 0; attempt < (wantedNumber ? 1 : 2); attempt++) {
+    const memberNumber = wantedNumber || await nextMemberNumber();
     const result = await db.from('coop_members').insert({
       coop_id:              coopId,
       zillion_id:           zillionId,
@@ -130,6 +132,9 @@ async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, 
     if (!insertErr || !String(insertErr.message || '').includes('idx_coop_members_number')) break;
   }
 
+  if (insertErr && wantedNumber && String(insertErr.message || '').includes('idx_coop_members_number')) {
+    return { ok: false, status: 'error', error: `Member number ${wantedNumber} is already used in this society.`, phone };
+  }
   if (insertErr) return { ok: false, status: 'error', error: insertErr.message, phone };
 
   return { ok: true, status: 'created', member: created, phone };

@@ -49,6 +49,7 @@ async function insertEntryHeader(db, coopId, description, createdBy, opts = null
       coop_id: coopId, entry_number: nextNumber, entry_date: (opts && opts.entryDate) || new Date().toISOString().slice(0, 10),
       description, entry_type: 'manual', created_by: createdBy,
       ...(opts && opts.batchId ? { migration_batch_id: opts.batchId } : {}),
+      ...(opts && opts.dataset ? { migration_dataset: opts.dataset } : {}),
     }).select().single();
     if (entry) return { entry };
     last = error;
