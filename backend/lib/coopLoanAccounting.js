@@ -167,7 +167,7 @@ async function recordLoanDisbursementJournalEntry(db, coopId, principalKobo, cre
  * @param {number} principalPortionKobo  from computeRepaymentSplitForLoan, computed ONCE by the caller before inserting the new repayment row
  * @param {number} interestPortionKobo   from the same call - never recomputed here
  */
-async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, createdBy, principalPortionKobo = null, interestPortionKobo = 0, borrower = null, debitAccountOverride = null) {
+async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, createdBy, principalPortionKobo = null, interestPortionKobo = 0, borrower = null, debitAccountOverride = null, opts = null) {
   try {
     if (!(await accountingIsReady(db, coopId))) return { booked: false, reason: 'accounting_not_ready' };
 
@@ -201,14 +201,14 @@ async function recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, c
         { account: debitAccount, type: 'debit', amountKobo },
         { account: principalReceivable, type: 'credit', amountKobo: resolvedPrincipal },
         { account: interestReceivable, type: 'credit', amountKobo: interestPortionKobo },
-      ]);
+      ], opts);
     }
 
     const accounts = await getAccounts(db, coopId, debitAccountOverride ? [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE] : [LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE, debitCode, BANK_ACCOUNT_CODE]);
     const principalReceivable = accounts[LOAN_PRINCIPAL_RECEIVABLE_ACCOUNT_CODE];
     const debitAccount = debitAccountOverride || accounts[debitCode] || (isFlutterwaveSource(source) ? accounts[BANK_ACCOUNT_CODE] : undefined);
     if (!principalReceivable || !debitAccount) return { booked: false, reason: 'accounts_missing' };
-    return await postEntry(db, coopId, description, createdBy, debitAccount, principalReceivable, amountKobo);
+    return await postEntry(db, coopId, description, createdBy, debitAccount, principalReceivable, amountKobo, opts);
   } catch (e) {
     console.error('[coopLoanAccounting] recordLoanRepaymentJournalEntry non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };

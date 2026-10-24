@@ -10,7 +10,8 @@
  * since nothing stops a malicious caller from guessing or enumerating
  * another society's plan IDs.
  *
- * Body: { savings_plan_id, amount_kobo, reference?, source? }
+ * Body: { savings_plan_id, amount_kobo, reference?, source?, as_of_date?, migration_batch_id? }
+ * as_of_date and migration_batch_id go together and are for go-live catch-up only (see lib/coopGoLiveBatch.js).
  */
 'use strict';
 
@@ -18,6 +19,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
+const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
 const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
@@ -55,6 +57,9 @@ exports.handler = async (event) => {
   if (source === 'cash_in_person' && !reference)
     return err(400, 'A reference (receipt number, member name, etc.) is required when recording a cash payment.');
 
+  const gl = await resolveGoLiveInput(db, coopId, body);
+  if (!gl.ok) return err(gl.status, gl.error);
+
   const { data: plan } = await db.from('coop_savings_plans')
     .select('id, coop_id, member_id, status').eq('id', savingsPlanId).maybeSingle();
   if (!plan) return err(404, 'Savings plan not found');
@@ -69,13 +74,14 @@ exports.handler = async (event) => {
     source,
     reference,
     recorded_by:           `portal:${auth.payload.merchant_id}`,
+    ...(gl.active ? { recorded_at: gl.recordedAt, migration_batch_id: gl.batch.id } : {}),
   }).select().single();
 
   if (insertErr) return err(500, `Failed to record payment: ${insertErr.message}`);
 
   // Savings deposits used to reach the ledger by no route at all.
   const { data: payerRow } = await db.from('coop_members').select('id, name').eq('id', plan.member_id).maybeSingle();
-  const posted = await recordSavingsPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`, payerRow, reference);
+  const posted = await recordSavingsPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`, payerRow, reference, null, gl.active ? gl.opts : null);
   await alertIfNotBooked(db, posted, { source: 'coop-portal-record-savings-payment', what: 'A recorded savings payment', amountKobo });
 
   await auditLog(db, {

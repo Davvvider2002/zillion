@@ -23,7 +23,8 @@
  *  - once a repayment clears the last of it, the loan is closed out
  *    as COMPLETED (see coopLoanCompletion.js).
  *
- * Body: { loan_id, amount_kobo, reference?, source? }
+ * Body: { loan_id, amount_kobo, reference?, source?, as_of_date?, migration_batch_id? }
+ * as_of_date and migration_batch_id go together and are for go-live catch-up only (see lib/coopGoLiveBatch.js).
  */
 'use strict';
 
@@ -33,6 +34,7 @@ const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coo
 const { auditLog }             = require('../../lib/auditLog');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { computeTotalRemainingKobo, finalizeLoanIfFullyRepaid } = require('../../lib/coopLoanCompletion');
+const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -71,6 +73,9 @@ exports.handler = async (event) => {
   if (source === 'cash_in_person' && !reference)
     return err(400, 'A reference (receipt number, witness name, etc.) is required when recording a cash payment.');
 
+  const gl = await resolveGoLiveInput(db, coopId, body);
+  if (!gl.ok) return err(gl.status, gl.error);
+
   const { data: loan } = await db.from('coop_loans')
     .select('id, coop_id, member_id, status, principal_kobo, interest_kobo, total_repayable_kobo, interest_method')
     .eq('id', loanId).maybeSingle();
@@ -93,11 +98,12 @@ exports.handler = async (event) => {
   const { data: created, error: insertErr } = await db.from('coop_loan_repayments').insert({
     loan_id: loanId, amount_kobo: amountKobo, source, reference, recorded_by: actor,
     principal_portion_kobo: principalPortionKobo, interest_portion_kobo: interestPortionKobo,
+    ...(gl.active ? { recorded_at: gl.recordedAt, migration_batch_id: gl.batch.id } : {}),
   }).select().single();
   if (insertErr) return err(500, `Failed to record repayment: ${insertErr.message}`);
 
   const { data: borrower } = await db.from('coop_members').select('id, name').eq('id', loan.member_id).maybeSingle();
-  await recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, actor, principalPortionKobo, interestPortionKobo, borrower ? { id: borrower.id, name: borrower.name } : null);
+  await recordLoanRepaymentJournalEntry(db, coopId, amountKobo, source, actor, principalPortionKobo, interestPortionKobo, borrower ? { id: borrower.id, name: borrower.name } : null, null, gl.active ? gl.opts : null);
 
   // Close the loan out if this cleared it; otherwise a first repayment
   // moves DISBURSED -> REPAYING (DISBURSED alone can't distinguish

@@ -8,7 +8,8 @@
  * cash_in_person). The member must belong to the caller's own
  * resolved society — a member_id alone isn't authorization.
  *
- * Body: { member_id, amount_kobo, reference?, source? }
+ * Body: { member_id, amount_kobo, reference?, source?, as_of_date?, migration_batch_id? }
+ * as_of_date and migration_batch_id go together and are for go-live catch-up only (see lib/coopGoLiveBatch.js).
  */
 'use strict';
 
@@ -17,6 +18,7 @@ const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
+const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -53,10 +55,14 @@ exports.handler = async (event) => {
   if (source === 'cash_in_person' && !reference)
     return err(400, 'A reference (receipt number, etc.) is required when recording a cash payment.');
 
+  const gl = await resolveGoLiveInput(db, coopId, body);
+  if (!gl.ok) return err(gl.status, gl.error);
+
   const { data: member } = await db.from('coop_members').select('id, coop_id, status, name').eq('id', memberId).maybeSingle();
   if (!member) return err(404, 'Member not found');
   if (member.coop_id !== coopId) return err(403, 'This member does not belong to your society.');
-  if (member.status !== 'ACTIVE') return err(409, `This member's status is ${member.status}, not ACTIVE`);
+  // A catch-up batch may carry history for a member who has since left; live recording stays ACTIVE only.
+  if (member.status !== 'ACTIVE' && !(gl.active && member.status === 'EXITED')) return err(409, `This member's status is ${member.status}, not ACTIVE`);
 
   const { data: created, error: insertErr } = await db.from('coop_dues_transactions').insert({
     coop_id:       coopId,
@@ -65,11 +71,12 @@ exports.handler = async (event) => {
     source,
     reference,
     recorded_by:       `portal:${auth.payload.merchant_id}`,
+    ...(gl.active ? { recorded_at: gl.recordedAt, migration_batch_id: gl.batch.id } : {}),
   }).select().single();
 
   if (insertErr) return err(500, `Failed to record dues payment: ${insertErr.message}`);
 
-  await recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`, { id: member.id, name: member.name });
+  await recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, `portal:${auth.payload.merchant_id}`, { id: member.id, name: member.name }, null, gl.active ? gl.opts : null);
 
   await auditLog(db, {
     action:       'COOP_PORTAL_DUES_PAYMENT_RECORDED',

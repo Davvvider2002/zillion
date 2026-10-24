@@ -114,6 +114,11 @@ async function recordDuesAccrual(db, coopId) {
       .select('coop_id, dues_amount_kobo, dues_frequency, dues_income_accrued_kobo, base_currency').eq('coop_id', coopId).single();
     if (!society || !society.dues_amount_kobo) return { booked: false, reason: 'no_dues_configured' };
 
+    // While a go-live catch-up is open, members carry back-dated join dates. Accruing now would book the whole year
+    // in one entry dated today, so hold until the batch is locked and the dated accrual has been posted.
+    const { data: openBatch } = await db.from('coop_migration_batches').select('id').eq('coop_id', coopId).eq('status', 'draft').limit(1).maybeSingle();
+    if (openBatch) return { booked: false, reason: 'go_live_in_progress' };
+
     const members = await fetchAllRows(() => db.from('coop_members').select('id, activated_at').eq('coop_id', coopId).eq('status', 'ACTIVE').order('id'));
     // Pure arithmetic - no per-member queries (see computeTotalDuesAccrued).
     const currentTotalAccrued = computeTotalDuesAccrued(members, society.dues_amount_kobo);
@@ -159,7 +164,7 @@ async function recordDuesAccrual(db, coopId) {
  * compatible: existing callers that don't pass it still work, just
  * without the richer description.
  */
-async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, createdBy, member = null, debitAccountOverride = null) {
+async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, createdBy, member = null, debitAccountOverride = null, opts = null) {
   try {
     const { ready } = await accountingIsReady(db, coopId);
     if (!ready) return { booked: false, reason: 'accounting_not_ready' };
@@ -179,7 +184,7 @@ async function recordDuesPaymentJournalEntry(db, coopId, amountKobo, source, cre
       ? `Dues payment received — ${memberLabel} via ${sourceLabel}`
       : `Dues payment received via ${sourceLabel}`;
 
-    return await postEntry(db, coopId, description, createdBy, debitAccount, receivable, amountKobo);
+    return await postEntry(db, coopId, description, createdBy, debitAccount, receivable, amountKobo, opts);
   } catch (e) {
     console.error('[coopDuesAccounting] recordDuesPaymentJournalEntry non-fatal error:', e.message);
     return { booked: false, reason: 'unexpected_error' };

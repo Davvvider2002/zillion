@@ -19,6 +19,7 @@ const { createHmac } = require('crypto');
 const { resolveOrCreateZillionId } = require('./zillionId');
 const { computeWalletDeviceHash }  = require('./crypto');
 const { validateOptionalPostcode } = require('./ngPostcode');
+const { parseDay } = require('./coopGoLiveBatch');
 
 function normalisePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
@@ -29,19 +30,38 @@ function normalisePhone(raw) {
 
 /**
  * @param {object} db  Supabase client
- * @param {object} params { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode? }
+ * @param {object} params { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode?, joinedOn?, exitedOn?, exitReason?, migrationBatchId? }
+ *   Go-live catch-up only: joinedOn (YYYY-MM-DD) becomes the member's activation date, which dues accrue from, so
+ *   years of membership are not lost. exitedOn marks a member who left earlier in the year as EXITED so their
+ *   entitlement can still be paid. The caller (an importer) is responsible for checking the batch is a draft one
+ *   belonging to this society before passing migrationBatchId.
  *   postcode is an optional, self-declared NIPOST digital postcode (see ngPostcode.js) - format-checked here, up
  *   front, so a malformed one fails the whole activation before any identity/wallet side effects, the same way an
  *   invalid phone does. Not applied when the member already existed (an existing record is never overwritten here).
  * @returns {Promise<{ok: boolean, status: 'created'|'already_existed'|'error', member?, error?, phone?}>}
  */
-async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode }) {
+async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, activatedBy, postcode, joinedOn, exitedOn, exitReason, migrationBatchId }) {
   name = cleanText(name, 100);
   if (!rawPhone) return { ok: false, status: 'error', error: 'phone is required' };
   if (openingBalanceKobo < 0) return { ok: false, status: 'error', error: 'opening balance cannot be negative' };
 
   const pc = validateOptionalPostcode(postcode);
   if (!pc.ok) return { ok: false, status: 'error', error: pc.error };
+
+  let joinedAt = null, exitedAt = null;
+  if (joinedOn) {
+    const j = parseDay(joinedOn, 'joined_on');
+    if (!j.ok) return { ok: false, status: 'error', error: j.error };
+    if (j.day > new Date().toISOString().slice(0, 10)) return { ok: false, status: 'error', error: 'joined_on cannot be in the future.' };
+    joinedAt = j.recordedAt;
+  }
+  if (exitedOn) {
+    const x = parseDay(exitedOn, 'exited_on');
+    if (!x.ok) return { ok: false, status: 'error', error: x.error };
+    if (joinedAt && x.recordedAt < joinedAt) return { ok: false, status: 'error', error: 'exited_on cannot be before joined_on.' };
+    if (x.day > new Date().toISOString().slice(0, 10)) return { ok: false, status: 'error', error: 'exited_on cannot be in the future.' };
+    exitedAt = x.recordedAt;
+  }
 
   const phone = normalisePhone(rawPhone);
   if (!/^\+\d{10,15}$/.test(phone)) return { ok: false, status: 'error', error: `Invalid phone number: "${phone}"`, phone };
@@ -99,6 +119,9 @@ async function activateMember(db, { coopId, rawPhone, name, openingBalanceKobo, 
       activated_by:         activatedBy,
       member_number:        memberNumber,
       postcode:             pc.value,
+      ...(joinedAt ? { activated_at: joinedAt } : {}),
+      ...(exitedAt ? { status: 'EXITED', exited_at: exitedAt, exit_reason: cleanText(exitReason, 200) || null } : {}),
+      ...(migrationBatchId ? { migration_batch_id: migrationBatchId } : {}),
     }).select().single();
     created = result.data; insertErr = result.error;
     // Only retry if it was specifically the member_number uniqueness

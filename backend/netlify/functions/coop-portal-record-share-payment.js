@@ -18,6 +18,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
+const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
@@ -58,10 +59,14 @@ exports.handler = async (event) => {
   if (source === 'cash_in_person' && !reference)
     return err(400, 'A reference (receipt number, member name, etc.) is required when recording a cash payment.');
 
+  const gl = await resolveGoLiveInput(db, coopId, body);
+  if (!gl.ok) return err(gl.status, gl.error);
+
   const { data: member } = await db.from('coop_members').select('id, coop_id, status, name').eq('id', memberId).maybeSingle();
   if (!member) return err(404, 'Member not found');
   if (member.coop_id !== coopId) return err(403, 'This member does not belong to your society.');
-  if (member.status !== 'ACTIVE') return err(409, `This member's status is ${member.status}, not ACTIVE`);
+  // A catch-up batch may carry history for a member who has since left; live recording stays ACTIVE only.
+  if (member.status !== 'ACTIVE' && !(gl.active && member.status === 'EXITED')) return err(409, `This member's status is ${member.status}, not ACTIVE`);
 
   const { data: created, error: insertErr } = await db.from('coop_share_transactions').insert({
     coop_id:      coopId,
@@ -70,6 +75,7 @@ exports.handler = async (event) => {
     source,
     reference,
     recorded_by:  `portal:${auth.payload.merchant_id}`,
+    ...(gl.active ? { recorded_at: gl.recordedAt, migration_batch_id: gl.batch.id } : {}),
   }).select().single();
 
   if (insertErr) return err(500, `Failed to record share contribution: ${insertErr.message}`);
@@ -83,7 +89,7 @@ exports.handler = async (event) => {
       if (debitAccount && shareCapital) {
         const memberLabel = member.name ? `${member.name} (Member #${String(member.id).slice(0, 8)})` : `Member #${String(member.id).slice(0, 8)}`;
         const sourceLabel = source === 'cash_in_person' ? 'Cash (in person)' : 'Bank transfer (recorded manually)';
-        await postEntry(db, coopId, `Share capital contribution — ${memberLabel} via ${sourceLabel}`, `portal:${auth.payload.merchant_id}`, debitAccount, shareCapital, amountKobo);
+        await postEntry(db, coopId, `Share capital contribution — ${memberLabel} via ${sourceLabel}`, `portal:${auth.payload.merchant_id}`, debitAccount, shareCapital, amountKobo, gl.active ? gl.opts : null);
       }
     }
   } catch (e) {

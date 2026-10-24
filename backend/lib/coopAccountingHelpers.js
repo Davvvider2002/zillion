@@ -41,13 +41,14 @@ async function getAccounts(db, coopId, codes) {
  * fails. That used to surface as booked:false after the member had already been credited.
  * Retry with a freshly read number instead of giving up.
  */
-async function insertEntryHeader(db, coopId, description, createdBy) {
+async function insertEntryHeader(db, coopId, description, createdBy, opts = null) {
   let last = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     const nextNumber = await nextEntryNumber(db, coopId);
     const { data: entry, error } = await db.from('coop_journal_entries').insert({
-      coop_id: coopId, entry_number: nextNumber, entry_date: new Date().toISOString().slice(0, 10),
+      coop_id: coopId, entry_number: nextNumber, entry_date: (opts && opts.entryDate) || new Date().toISOString().slice(0, 10),
       description, entry_type: 'manual', created_by: createdBy,
+      ...(opts && opts.batchId ? { migration_batch_id: opts.batchId } : {}),
     }).select().single();
     if (entry) return { entry };
     last = error;
@@ -56,8 +57,8 @@ async function insertEntryHeader(db, coopId, description, createdBy) {
   return { error: last };
 }
 
-async function postEntry(db, coopId, description, createdBy, debitAccount, creditAccount, amountKobo) {
-  const { entry, error: entryErr } = await insertEntryHeader(db, coopId, description, createdBy);
+async function postEntry(db, coopId, description, createdBy, debitAccount, creditAccount, amountKobo, opts = null) {
+  const { entry, error: entryErr } = await insertEntryHeader(db, coopId, description, createdBy, opts);
   if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
 
   const { error: linesErr } = await db.from('coop_journal_entry_lines').insert([
@@ -74,9 +75,11 @@ async function postEntry(db, coopId, description, createdBy, debitAccount, credi
 /**
  * General-purpose multi-line poster.
  * @param {Array<{account: object, type: 'debit'|'credit', amountKobo: number}>} lines
+ * @param {{entryDate?: string, batchId?: string}|null} opts  go-live catch-up only: a real YYYY-MM-DD entry date and the
+ *   migration batch the entry belongs to. Omitted by every live caller, which keeps posting dated today.
  */
-async function postEntryLines(db, coopId, description, createdBy, lines) {
-  const { entry, error: entryErr } = await insertEntryHeader(db, coopId, description, createdBy);
+async function postEntryLines(db, coopId, description, createdBy, lines, opts = null) {
+  const { entry, error: entryErr } = await insertEntryHeader(db, coopId, description, createdBy, opts);
   if (entryErr || !entry) return { booked: false, reason: 'entry_insert_failed' };
 
   const rows = lines.map(l => ({
