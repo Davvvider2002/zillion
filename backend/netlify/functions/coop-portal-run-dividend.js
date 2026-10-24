@@ -169,7 +169,11 @@ exports.handler = async (event) => {
   // Re-running (draft only, checked above) replaces the previous draft entirely.
   if (existingRun) await db.from('coop_dividend_runs').delete().eq('id', existingRun.id); // cascades to entitlements
 
-  const { data: run, error: runErr } = await db.from('coop_dividend_runs').insert({
+  // The basis and split columns arrive with migration 2026-10-25. Until it is applied, save the run the old way.
+  const NEW_RUN_COLS = ['share_basis', 'savings_basis', 'includes_exited'];
+  const NEW_ENT_COLS = ['member_status', 'year_end_share_capital_kobo', 'imported_patronage_kobo', 'live_patronage_kobo', 'imported_share_capital_kobo', 'live_share_capital_kobo'];
+  const omit = (o, keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
+  const runRow = {
     financial_year_id: financialYearId,
     coop_id: coopId,
     total_distributable_kobo: totalDistributableKobo,
@@ -178,10 +182,19 @@ exports.handler = async (event) => {
     share_weight_percent: shareWeightPercent,
     share_basis: shareBasis, savings_basis: savingsBasis, includes_exited: includeExited,
     calculated_by: resolved.society.merchant_id,
-  }).select().single();
+  };
+  let legacySchema = false;
+  let { data: run, error: runErr } = await db.from('coop_dividend_runs').insert(runRow).select().single();
+  if (runErr && /column/i.test(runErr.message || '')) {
+    legacySchema = true;
+    ({ data: run, error: runErr } = await db.from('coop_dividend_runs').insert(omit(runRow, NEW_RUN_COLS)).select().single());
+  }
   if (runErr) return err(500, `Failed to save dividend run: ${runErr.message}`);
 
-  const rows = entitlements.map(e => ({ ...e, dividend_run_id: run.id, coop_id: coopId }));
+  const rows = entitlements.map(e => {
+    const row = { ...e, dividend_run_id: run.id, coop_id: coopId };
+    return legacySchema ? omit(row, NEW_ENT_COLS) : row;
+  });
   const { error: insertErr } = await db.from('coop_dividend_entitlements').insert(rows);
   if (insertErr) return err(500, `Failed to save entitlements: ${insertErr.message}`);
 
