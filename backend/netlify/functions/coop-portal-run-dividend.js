@@ -18,6 +18,9 @@
  * happened - the system just records that it's locked in, not that
  * the approval itself occurred through Zillion.
  *
+ * POST { financial_year_id, action: 'preview', share_basis?, savings_basis?, include_exited?, share_weight_percent? }
+ * works the figures out exactly as a run would and returns them with the imported / live split, saving nothing.
+ *
  * GET returns the most recent run and its full entitlement breakdown.
  *
  * Gated behind the Surplus & Member Benefits add-on.
@@ -28,6 +31,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { hasAddon }             = require('../../lib/coopEntitlements');
+const { fetchAllRows }         = require('../../lib/coopPaginate');
 const { calculateDividendRun } = require('../../lib/coopDividendCalculation');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 
@@ -133,10 +137,33 @@ exports.handler = async (event) => {
   const shareWeightPercent = Number.isInteger(body.share_weight_percent) && body.share_weight_percent >= 0 && body.share_weight_percent <= 100
     ? body.share_weight_percent : 0; // defaults to pure patronage, the original behavior
 
-  const { entitlements, total_patronage_kobo, total_share_capital_kobo } = await calculateDividendRun(db, coopId, fy.start_date, fy.end_date, totalDistributableKobo, shareWeightPercent);
+  // How the figures are worked out. The defaults are the fair ones for a society that has just caught up its year:
+  // average share balance across the year, and members who left during the year still paid for the part they served.
+  const shareBasis   = body.share_basis === 'year_end' ? 'year_end' : 'time_weighted';
+  const savingsBasis = body.savings_basis === 'deposits' ? 'deposits' : 'net';
+  const includeExited = body.include_exited !== false;
+  const opts = { shareBasis, savingsBasis, includeExited };
+
+  const { entitlements, total_patronage_kobo, total_share_capital_kobo } = await calculateDividendRun(db, coopId, fy.start_date, fy.end_date, totalDistributableKobo, shareWeightPercent, opts);
 
   if (!entitlements.length) {
     return err(400, 'No members have any qualifying patronage or share capital in this period — nothing to distribute.');
+  }
+
+  // Preview: the same working, shown with names and the imported / live split, and nothing saved.
+  if (body.action === 'preview') {
+    const names = await fetchAllRows(() => db.from('coop_members').select('id, name, phone_normalized').eq('coop_id', coopId).order('id'));
+    const byId = new Map(names.map(m => [m.id, m]));
+    const out = entitlements.map(e => ({ ...e, member_name: (byId.get(e.member_id) || {}).name || (byId.get(e.member_id) || {}).phone_normalized || 'Member' }))
+      .sort((a, b) => b.entitlement_kobo - a.entitlement_kobo);
+    const sum = k => out.reduce((t, e) => t + (e[k] || 0), 0);
+    return ok({
+      success: true, preview: true, basis: { share_basis: shareBasis, savings_basis: savingsBasis, include_exited: includeExited, share_weight_percent: shareWeightPercent },
+      pool_kobo: totalDistributableKobo, total_patronage_kobo, total_share_capital_kobo, member_count: out.length,
+      exited_count: out.filter(e => e.member_status === 'EXITED').length,
+      split: { imported_patronage_kobo: sum('imported_patronage_kobo'), live_patronage_kobo: sum('live_patronage_kobo'), imported_share_capital_kobo: sum('imported_share_capital_kobo'), live_share_capital_kobo: sum('live_share_capital_kobo') },
+      entitlements: out,
+    });
   }
 
   // Re-running (draft only, checked above) replaces the previous draft entirely.
@@ -149,6 +176,7 @@ exports.handler = async (event) => {
     total_patronage_kobo,
     total_share_capital_kobo,
     share_weight_percent: shareWeightPercent,
+    share_basis: shareBasis, savings_basis: savingsBasis, includes_exited: includeExited,
     calculated_by: resolved.society.merchant_id,
   }).select().single();
   if (runErr) return err(500, `Failed to save dividend run: ${runErr.message}`);
