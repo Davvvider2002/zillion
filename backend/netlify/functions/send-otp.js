@@ -133,6 +133,25 @@ exports.handler = async (event) => {
     return err(400,`Invalid phone number: "${phone}"`,
       { detail:'Expected: 08012345678 or +2348012345678' });
 
+  // ── Demo bypass — set DEMO_OTP + DEMO_OTP_PHONES in Netlify env vars ────
+  // For the Google Play reviewer and the team's own test numbers. Restricted to an allowlist of phones, never "any
+  // phone": a blanket bypass would put every real member's account one API call from takeover, since this response
+  // hands the code straight back. It runs BEFORE the email check and the rate limits on purpose: a reviewer who picks
+  // Email without typing one, or who taps Send Code a few times, must still get in. It sends nothing and stores nothing.
+  const demoOtpPhones = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => normalisePhone(p)).filter(p => p.length > 4);
+  const demoCode = (process.env.DEMO_OTP || '').trim();
+  if (demoCode && demoOtpPhones.includes(phone)) {
+    console.log(`[send-otp] DEMO mode, skipping delivery for allowlisted ${phone}`);
+    return ok({
+      success:   true,
+      demo:      true,
+      demo_code: demoCode,
+      message:   `Demo mode: use code ${demoCode} to verify`,
+      phone,
+    });
+  }
+  // ── End demo bypass ──────────────────────────────────────────────────────
+
   // ── Delivery channel — phone stays the account identifier either
   // way (the OTP is still generated/stored/verified keyed by phone
   // below); this only changes where the code is actually delivered.
@@ -192,25 +211,6 @@ exports.handler = async (event) => {
 
   console.log(`[OTP] Generated for ${phone}, expires ${expiresAt}`);
 
-  // ── Demo bypass — set DEMO_OTP + DEMO_OTP_PHONES in Netlify env vars ────
-  // Restricted to a specific allowlist of test phone numbers, not "any
-  // phone" — a blanket bypass would mean every real pilot member's
-  // account is one API call away from takeover by anyone who knows (or
-  // even just guesses) their phone number, since this same response
-  // hands the bypass code straight back. This is scoped so David's own
-  // team can keep testing without SMS while it's genuinely safe to
-  // onboard real members whose numbers aren't on the list.
-  const demoOtpPhones = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
-  if ((process.env.DEMO_OTP || '').trim() && demoOtpPhones.includes(phone)) {
-    console.log(`[send-otp] DEMO mode — skipping SMS for allowlisted ${phone}`);
-    return ok({
-      success:  true,
-      demo:     true,
-      message:  `Demo mode: use code ${process.env.DEMO_OTP.trim()} to verify`,
-      phone,
-    });
-  }
-  // ── End demo bypass ──────────────────────────────────────────────────────
 
   if (channel === 'email') {
     try {

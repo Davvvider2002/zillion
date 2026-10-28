@@ -2770,6 +2770,17 @@ async function submitPhone() {
       return;
     }
 
+    // Demo / reviewer number: nothing is sent, so fill the code in and show it.
+    if (data.demo && data.demo_code) {
+      showOtpSection();
+      String(data.demo_code).split('').slice(0, 6).forEach((d, i) => {
+        const box = document.getElementById('otp' + i);
+        if (box) { box.value = d; box.classList.add('filled'); }
+      });
+      toast('Demo number: the code is filled in. Tap Verify.', false, 8000);
+      return;
+    }
+
     // Real delivery error (SMS or email)
     if (!res.ok) {
       let msg = data.error || 'SMS delivery failed.';
