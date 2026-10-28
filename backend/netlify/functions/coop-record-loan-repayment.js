@@ -16,6 +16,7 @@ const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { finalizeLoanIfFullyRepaid } = require('../../lib/coopLoanCompletion');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -89,6 +90,8 @@ exports.handler = async (event) => {
     requestBody:  body,
     result:       'SUCCESS',
   });
+
+  await recordMemberEvent(db, { coopId: loan.coop_id, memberId: loan.member_id, kind: 'loan_repayment', amountKobo: created.amount_kobo, reference, refId: created.id, actor: auth.payload.username || auth.payload.sub });
 
   return ok({ success: true, repayment: created, loan_completed: completed });
 };

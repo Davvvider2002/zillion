@@ -17,6 +17,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
 const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
 
@@ -88,6 +89,8 @@ exports.handler = async (event) => {
     requestBody:  body,
     result:       'SUCCESS',
   });
+
+  await recordMemberEvent(db, { coopId, memberId, kind: 'dues_paid', amountKobo, reference, refId: created.id, actor: `portal:${auth.payload.merchant_id}`, skip: gl.active });
 
   return ok({ success: true, transaction: created });
 };

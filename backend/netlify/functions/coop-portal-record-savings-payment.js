@@ -21,6 +21,7 @@ const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coo
 const { auditLog }             = require('../../lib/auditLog');
 const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
 const { recordSavingsPaymentJournalEntry, alertIfNotBooked } = require('../../lib/coopMemberPaymentAccounting');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -94,6 +95,8 @@ exports.handler = async (event) => {
     requestBody:  body,
     result:       'SUCCESS',
   });
+
+  await recordMemberEvent(db, { coopId, memberId: plan.member_id, kind: 'savings_deposit', amountKobo, reference, refId: created.id, actor: `portal:${auth.payload.merchant_id}`, skip: gl.active });
 
   return ok({ success: true, transaction: created, ledger_posted: !!posted.booked });
 };

@@ -18,6 +18,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { activateMember }       = require('../../lib/coopActivateMember');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 const { checkMemberCapAllows } = require('../../lib/coopMemberCap');
 const { auditLog }             = require('../../lib/auditLog');
 
@@ -75,6 +76,8 @@ exports.handler = async (event) => {
     requestBody:  { phone: result.phone, name, opening_balance_kobo: openingBalance },
     result:       'SUCCESS',
   });
+
+  await recordMemberEvent(db, { coopId, memberId: result.member.id, kind: 'member_activated', refId: result.member.id, actor: `portal:${auth.payload.merchant_id}` });
 
   return ok({
     success: true,

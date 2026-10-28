@@ -32,6 +32,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 const { recordLoanRepaymentJournalEntry, computeLoanRepaymentSplitUnified } = require('../../lib/coopLoanAccounting');
 const { computeTotalRemainingKobo, finalizeLoanIfFullyRepaid } = require('../../lib/coopLoanCompletion');
 const { resolveGoLiveInput }  = require('../../lib/coopGoLiveBatch');
@@ -118,6 +119,8 @@ exports.handler = async (event) => {
     ip: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
     resourceType: 'coop_loan_repayment', resourceId: created.id, requestBody: body, result: 'SUCCESS',
   });
+
+  await recordMemberEvent(db, { coopId, memberId: loan.member_id, kind: 'loan_repayment', amountKobo, reference, remainingKobo: remainingAfterKobo, refId: created.id, actor, skip: gl.active });
 
   return ok({ success: true, repayment: created, loan_completed: completed, remaining_kobo: remainingAfterKobo });
 };

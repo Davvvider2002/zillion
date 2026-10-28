@@ -25,6 +25,7 @@ const { auditLog }             = require('../../lib/auditLog');
 const { generateRepaymentSchedule } = require('../../lib/coopRepaymentSchedule');
 const { generateEmiSchedule, generateDecliningPrincipalSchedule } = require('../../lib/coopReducingBalanceSchedule');
 const { recordLoanDisbursementJournalEntry } = require('../../lib/coopLoanAccounting');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 
 exports.handler = async (event) => {
   const hdr = { 'Content-Type': 'application/json' };
@@ -111,6 +112,9 @@ exports.handler = async (event) => {
     requestBody:  { loan_id: loanId, action, reason: body.reason || null },
     result:       'SUCCESS',
   });
+
+  const evKind = { approve: 'loan_approved', reject: 'loan_rejected', disburse: 'loan_disbursed' }[action];
+  if (evKind) await recordMemberEvent(db, { coopId, memberId: loan.member_id, kind: evKind, amountKobo: loan.principal_kobo, note: action === 'reject' ? (body.reason || '').trim() : undefined, refId: `${loanId}:${action}`, actor: actorName });
 
   return ok({ success: true, loan: updated });
 };

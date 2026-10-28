@@ -32,6 +32,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { auditLog }             = require('../../lib/auditLog');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 const { accountingIsReady, getAccounts, postEntry } = require('../../lib/coopAccountingHelpers');
 const { logAlert } = require('../../lib/alerts');
 const { findCreditPlan } = require('../../lib/coopOfflineTransfer');
@@ -175,6 +176,10 @@ exports.handler = async (event) => {
     requestBody:  body,
     result:       'SUCCESS',
   });
+
+  for (const created of createdRows) {
+    await recordMemberEvent(db, { coopId, memberId: entitlement.member_id, kind: 'dividend_paid', amountKobo: created.amount_kobo, reference: created.reference, note: created.method === 'cash' ? 'in cash' : `into your ${created.method}`, refId: created.id, actor: `portal:${auth.payload.merchant_id}` });
+  }
 
   return ok({ success: true, payouts: createdRows, total_paid_kobo: alreadyPaidKobo + newTotal, remaining_kobo: entitlement.entitlement_kobo - (alreadyPaidKobo + newTotal) });
 };

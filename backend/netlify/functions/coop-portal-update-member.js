@@ -22,6 +22,7 @@ const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
 const { validateOptionalPostcode } = require('../../lib/ngPostcode');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 
 // Controlled list, matching public-coop-signup.js's VALID_INDUSTRIES
 // pattern, so analytics can aggregate by category rather than
@@ -91,6 +92,8 @@ exports.handler = async (event) => {
 
   if (updateErr) return err(500, `Failed to update member: ${updateErr.message}`);
   if (!updated) return err(404, 'Member not found in your society');
+
+  if (updated) await recordMemberEvent(db, { coopId, memberId: body.member_id, kind: 'profile_updated', refId: `${body.member_id}:${Date.now()}`, actor: `portal:${auth.payload.merchant_id}` });
 
   return ok({ success: true, member: updated });
 };

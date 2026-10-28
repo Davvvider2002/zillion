@@ -21,6 +21,7 @@ const { getServiceClient }       = require('../../lib/supabase');
 const { verifyJWT, requireRole } = require('../../lib/validators');
 const { auditLog }               = require('../../lib/auditLog');
 const { recordDuesPaymentJournalEntry } = require('../../lib/coopDuesAccounting');
+const { recordMemberEvent } = require('../../lib/coopMemberEvents');
 
 const VALID_SOURCES = ['bank_transfer_manual', 'cash_in_person'];
 
@@ -79,6 +80,8 @@ exports.handler = async (event) => {
     requestBody:  body,
     result:       'SUCCESS',
   });
+
+  await recordMemberEvent(db, { coopId: member.coop_id, memberId, kind: 'dues_paid', amountKobo, reference, refId: created.id, actor: auth.payload.username || auth.payload.sub });
 
   return ok({ success: true, transaction: created });
 };
