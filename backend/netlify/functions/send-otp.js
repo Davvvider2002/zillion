@@ -104,7 +104,7 @@ async function sendOtpEmail(email, otp) {
     subject: 'Your Zillion verification code',
     htmlContent: `<p>Your Zillion verification code is:</p><h2 style="letter-spacing:4px">${otp}</h2><p>Do not share this code. Valid for 10 minutes.</p>`,
   });
-  if (!result.sent) throw new Error(result.reason === 'not_configured' ? 'Email OTP is not configured (BREVO_API_KEY/BREVO_SENDER_EMAIL missing)' : `Email send failed: ${result.reason}`);
+  if (!result.sent) throw new Error(result.reason === 'not_configured' ? 'Email OTP is not configured (RESEND_API_KEY/RESEND_SENDER_EMAIL missing)' : `Email send failed: ${result.reason}`);
   return { provider: 'email', message_id: result.messageId };
 }
 
