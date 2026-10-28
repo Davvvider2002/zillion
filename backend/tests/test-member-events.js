@@ -30,5 +30,10 @@ let bad = 0; const ok = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + ' - ' + 
   ok('an unknown kind is ignored quietly', (await E.recordMemberEvent(db, { coopId: 'C1', memberId: 'm1', kind: 'nope' })).reason === 'unknown_kind');
   const broken = await E.recordMemberEvent({ from() { throw new Error('db down'); } }, { coopId: 'C1', memberId: 'm1', kind: 'dues_paid', amountKobo: 1 });
   ok('a database failure never throws into the caller', broken.recorded === false);
+  const FN = path.join(__dirname, '..', 'netlify', 'functions');
+  const h = require(path.join(FN, 'coop-portal-whatsapp-outbox')).handler;
+  ok('outbox endpoint refuses no token with 401', (await h({ httpMethod: 'POST', headers: {}, body: '{}' })).statusCode === 401);
+  ok('outbox endpoint refuses GET with 405', (await h({ httpMethod: 'GET', headers: {} })).statusCode === 405);
+  ok('outbox endpoint is routed', require('fs').readFileSync(path.join(__dirname, '..', '..', 'netlify.toml'), 'utf8').includes('from = "/api/v1/coop-portal-whatsapp-outbox"'));
   console.log(bad ? `\n${bad} FAILED` : '\nAll member event tests passed');
 })();

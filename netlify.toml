@@ -1171,6 +1171,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/coop-portal-whatsapp-outbox"
+  to   = "/.netlify/functions/coop-portal-whatsapp-outbox"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/coop-portal-record-dues-payment"
   to   = "/.netlify/functions/coop-portal-record-dues-payment"
   status = 200
