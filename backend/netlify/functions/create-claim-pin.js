@@ -8,7 +8,7 @@
  *
  * Body: {
  *   bundle,          -- full .zil bundle
- *   tx_pin?          -- optional 4-6 digit PIN set by sender
+ *   tx_pin?          -- optional 6-digit PIN set by sender
  * }
  *
  * Returns: {
@@ -62,14 +62,14 @@ exports.handler = async (event) => {
 
   try {
   // ── Validate optional PIN ─────────────────────────────────────────────────
-  // PIN must be 4-6 digits if provided
+  // PIN must be exactly 6 digits if provided
   let pinHash    = null;
   let pinRequired = false;
 
   if (tx_pin !== undefined && tx_pin !== null && String(tx_pin).trim() !== '') {
     const pinStr = String(tx_pin).trim();
-    if (!/^\d{4,6}$/.test(pinStr)) {
-      return err(400, 'tx_pin must be 4-6 digits');
+    if (!/^\d{6}$/.test(pinStr)) {
+      return err(400, 'tx_pin must be 6 digits');
     }
     pinHash     = hashPin(pinStr);
     pinRequired = true;

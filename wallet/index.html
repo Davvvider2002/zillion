@@ -1832,7 +1832,7 @@ function triggerPWAInstall() {
             </label>
           </div>
           <div id="send-pin-input-wrap" style="display:none;margin-top:10px">
-            <input type="tel" id="send-pin-value" inputmode="numeric" maxlength="6" placeholder="Enter 4-6 digit PIN"
+            <input type="tel" id="send-pin-value" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit PIN"
               style="width:100%;box-sizing:border-box;padding:11px 14px;font-size:20px;letter-spacing:8px;border:2px solid var(--g);border-radius:10px;text-align:center;font-family:inherit;color:var(--tx);background:var(--w)"
               oninput="this.value=this.value.replace(/[^0-9]/g,'');updateSendPinLabel(this.value)">
             <div id="send-pin-label" style="font-size:11px;margin-top:5px;text-align:center;color:var(--gr)">Share PIN verbally with recipient only</div>
@@ -7913,7 +7913,7 @@ async function attachPinToBundle(bundle) {
   var inp = document.getElementById('send-pin-value');
   if (!tog || !tog.checked || !inp) { bundle.pin_protected = false; return bundle; }
   var pin = inp.value.trim();
-  if (!/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4-6 digits');
+  if (!/^\d{6}$/.test(pin)) throw new Error('PIN must be 6 digits');
   bundle.pin_verifier  = await derivePinVerifier(pin, bundle.bundle_id);
   bundle.pin_protected = true;
   return bundle;
@@ -7958,9 +7958,8 @@ function updateSendPinLabel(val) {
   var lbl = document.getElementById('send-pin-label');
   if (!lbl) return;
   if (!val||val.length===0) { lbl.textContent='Share PIN verbally with recipient only'; lbl.style.color='var(--gr)'; }
-  else if (val.length<4)   { lbl.textContent='Need at least 4 digits'; lbl.style.color='var(--r)'; }
-  else if (val.length===4) { lbl.textContent='4-digit PIN ready (6 digits stronger)'; lbl.style.color='var(--am)'; }
-  else                     { lbl.textContent=val.length+'-digit PIN set - Secure'; lbl.style.color='var(--g)'; }
+  else if (val.length<6)   { lbl.textContent='Needs 6 digits (' + val.length + ' so far)'; lbl.style.color='var(--r)'; }
+  else                     { lbl.textContent='6-digit PIN set - Secure'; lbl.style.color='var(--g)'; }
 }
 
 // Start PIN entry for receiver (called when bundle has pin_protected=true)
