@@ -4897,33 +4897,66 @@ async function renderWhatsApp() {
   const el = document.getElementById('view-whatsapp');
   if (!hasPortalAction('notifications', 'view')) { el.innerHTML = '<div class="card"><div class="card-title">WhatsApp Outbox</div><div class="card-sub">You do not have access to this feature. Ask your society admin to grant it.</div></div>'; return; }
   el.innerHTML = '<div class="card"><div class="card-sub">Loading…</div></div>';
-  const r = await waCall({ action: 'list', status: WA.tab, limit: 200 });
+  const [r, st] = await Promise.all([waCall({ action: 'list', status: WA.tab, limit: 200 }), waCall({ action: 'settings' })]);
   if (!r.ok) { el.innerHTML = `<div class="card"><div class="card-sub" style="color:#FF8A8A">${escHtml(r.data.error || 'Could not load.')}</div></div>`; return; }
-  WA.events = r.data.events || [];
+  WA.events = r.data.events || []; WA.groups = r.data.groups || [];
+  WA.enabled = st.ok ? st.data.enabled : true; WA.optedOut = st.ok ? (st.data.opted_out || []) : [];
   const canAct = hasPortalAction('notifications', 'create');
+  const canEdit = hasPortalAction('notifications', 'edit');
   const tabBtn = (k, label) => `<button class="btn ${WA.tab === k ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="WA.tab='${k}';renderWhatsApp()">${label}</button>`;
+  const combine = WA.tab === 'pending' && WA.combine;
+  const sendBtn = (url, ids, label) => url
+    ? `<a class="btn btn-primary btn-sm" href="${url}" target="_blank" rel="noopener" onclick="waOpened(${escHtml(JSON.stringify(ids))})">${label}</a>`
+    : '<span class="pill pill-muted">No phone</span>';
+  const rowsHtml = combine
+    ? WA.groups.map(g => `
+        <tr>
+          <td>${escHtml(g.member_name || 'Member')}<div style="font-size:11px;color:var(--muted)">${g.count} update${g.count === 1 ? '' : 's'}</div></td>
+          <td style="max-width:420px;white-space:pre-line">${escHtml(g.message)}</td>
+          <td>${fmtDate(g.created_at)}</td>
+          <td style="white-space:nowrap">${sendBtn(g.url, g.ids, 'Send combined')}
+            ${canAct ? `<button class="btn btn-ghost btn-sm" onclick='waMark(${JSON.stringify(g.ids)},"skipped")'>Skip</button>` : ''}</td>
+        </tr>`).join('')
+    : WA.events.map(e => `
+        <tr>
+          <td>${escHtml(e.member_name || 'Member')}<div style="font-size:11px;color:var(--muted)">${escHtml(e.title)}</div></td>
+          <td style="max-width:420px;white-space:normal">${escHtml(e.message)}</td>
+          <td>${fmtDate(e.created_at)}</td>
+          <td style="white-space:nowrap">${sendBtn(e.url, [e.id], WA.tab === 'pending' ? 'Send on WhatsApp' : 'Send again')}
+            ${WA.tab === 'pending' && canAct ? `<button class="btn btn-ghost btn-sm" onclick="waMark(['${e.id}'],'skipped')">Skip</button>
+            <button class="btn btn-ghost btn-sm" title="Stop WhatsApp messages to this member" onclick="waOptOut('${e.member_id}', true)">Opt out</button>` : ''}</td>
+        </tr>`).join('');
   el.innerHTML = `
     <div class="card">
       <div class="card-title">WhatsApp Outbox
         <span style="display:flex;gap:6px">${tabBtn('pending', 'Waiting')}${tabBtn('sent', 'Sent')}${tabBtn('skipped', 'Skipped')}</span>
       </div>
       <div class="card-sub">Every payment and change on a member's account leaves a ready message here. Tap <b>Send on WhatsApp</b>, check the text, and press Send in WhatsApp. Members also see each one in their app.</div>
-      ${WA.tab === 'pending' && canAct && WA.events.length ? `<div style="margin:8px 0"><button class="btn btn-ghost btn-sm" onclick="waSkipAll()">Skip all ${WA.events.length} shown</button></div>` : ''}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:8px 0">
+        <label style="font-size:13px;display:flex;gap:6px;align-items:center"><input type="checkbox" ${WA.enabled ? 'checked' : ''} ${canEdit ? '' : 'disabled'} onchange="waSetEnabled(this.checked)"> Prepare WhatsApp messages for my society</label>
+        ${WA.tab === 'pending' ? `<label style="font-size:13px;display:flex;gap:6px;align-items:center"><input type="checkbox" ${WA.combine ? 'checked' : ''} onchange="WA.combine=this.checked;renderWhatsApp()"> One message per member</label>` : ''}
+        ${WA.tab === 'pending' && canAct && WA.events.length ? `<button class="btn btn-ghost btn-sm" onclick="waSkipAll()">Skip all ${WA.events.length} shown</button>` : ''}
+      </div>
+      ${WA.enabled ? '' : '<div class="card-sub" style="color:var(--amber)">Switched off. New activity is still recorded and shown in members\' apps, but no WhatsApp messages are prepared.</div>'}
       <div class="table-wrap"><table>
         <thead><tr><th>Member</th><th>Message</th><th>When</th><th></th></tr></thead>
-        <tbody>${WA.events.map(e => `
-          <tr>
-            <td>${escHtml(e.member_name || 'Member')}<div style="font-size:11px;color:var(--muted)">${escHtml(e.title)}</div></td>
-            <td style="max-width:420px;white-space:normal">${escHtml(e.message)}</td>
-            <td>${fmtDate(e.created_at)}</td>
-            <td style="white-space:nowrap">${e.url
-              ? `<a class="btn btn-primary btn-sm" href="${e.url}" target="_blank" rel="noopener" onclick="waOpened('${e.id}')">${WA.tab === 'pending' ? 'Send on WhatsApp' : 'Send again'}</a>`
-              : '<span class="pill pill-muted">No phone</span>'}
-              ${WA.tab === 'pending' && canAct ? `<button class="btn btn-ghost btn-sm" onclick="waMark(['${e.id}'],'skipped')">Skip</button>` : ''}</td>
-          </tr>`).join('') || `<tr><td colspan="4" class="no-data">${WA.tab === 'pending' ? 'Nothing waiting. New messages appear here as you record activity.' : 'Nothing here yet.'}</td></tr>`}</tbody>
+        <tbody>${rowsHtml || `<tr><td colspan="4" class="no-data">${WA.tab === 'pending' ? 'Nothing waiting. New messages appear here as you record activity.' : 'Nothing here yet.'}</td></tr>`}</tbody>
       </table></div>
+      ${WA.optedOut.length ? `<div class="card-sub" style="margin-top:12px">Opted out of WhatsApp: ${WA.optedOut.map(m => `${escHtml(m.name || 'Member')} <a href="#" onclick="waOptOut('${m.id}', false);return false">turn back on</a>`).join(', ')}</div>` : ''}
     </div>`;
   refreshWaBadge();
+}
+
+async function waSetEnabled(on) {
+  const r = await waCall({ action: 'set_enabled', enabled: !!on });
+  if (!r.ok) notify(r.data.error || 'Could not update.', true);
+  renderWhatsApp();
+}
+async function waOptOut(memberId, optOut) {
+  if (optOut && !confirm('Stop WhatsApp messages to this member? Their waiting messages are skipped. They still see updates in their app.')) return;
+  const r = await waCall({ action: 'set_optout', member_id: memberId, opt_out: optOut });
+  if (!r.ok) { notify(r.data.error || 'Could not update.', true); return; }
+  renderWhatsApp();
 }
 
 async function waMark(ids, status) {
@@ -4936,9 +4969,9 @@ async function waSkipAll() {
   await waMark(WA.events.map(e => e.id), 'skipped');
 }
 // Opening the chat counts as sending. The link itself opens in a new tab, so this just records it.
-async function waOpened(id) {
+async function waOpened(ids) {
   if (WA.tab !== 'pending') return;
-  const r = await waCall({ action: 'mark', ids: [id], status: 'sent' });
+  const r = await waCall({ action: 'mark', ids: Array.isArray(ids) ? ids : [ids], status: 'sent' });
   if (r.ok) setTimeout(renderWhatsApp, 400);
 }
 

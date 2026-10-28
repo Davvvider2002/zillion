@@ -65,6 +65,14 @@ function buildMessage(kind, o = {}) {
   }
 }
 
+/** One WhatsApp message that rolls several updates into a list. Each line drops its own greeting. */
+function buildDigest(memberName, societyName, messages) {
+  const lines = (messages || []).map(m => String(m).replace(/^Hello [^,]+, [^:]+: /, '').trim());
+  if (lines.length === 1) return String(messages[0]);
+  return `Hello ${firstName(memberName)}, ${societyName || 'your society'}: here are the latest updates on your account.\n` +
+    lines.map((l, i) => `${i + 1}. ${l}`).join('\n');
+}
+
 /** International digits for a wa.me link: 08031234567 or +2348031234567 become 2348031234567. */
 function waPhone(phone) {
   const d = String(phone || '').replace(/\D/g, '');
@@ -92,20 +100,23 @@ async function recordMemberEvent(db, ev) {
     if (!ev.coopId || !ev.memberId) return { recorded: false, reason: 'missing_ids' };
 
     const [{ data: society }, { data: member }] = await Promise.all([
-      db.from('coop_societies').select('name').eq('coop_id', ev.coopId).maybeSingle(),
-      db.from('coop_members').select('name, phone_normalized').eq('id', ev.memberId).maybeSingle(),
+      db.from('coop_societies').select('*').eq('coop_id', ev.coopId).maybeSingle(),
+      db.from('coop_members').select('*').eq('id', ev.memberId).maybeSingle(),
     ]);
     if (!member) return { recorded: false, reason: 'member_not_found' };
 
     const message = buildMessage(ev.kind, { ...ev, societyName: society && society.name, memberName: member.name });
     const title = KINDS[ev.kind].title;
     const actor = ev.actor || 'system';
+    // Switched off for the society, or this member asked not to get WhatsApp messages: still logged and still in their app.
+    const skipWhatsapp = (society && society.whatsapp_notify_enabled === false) || member.whatsapp_opt_out === true;
     const dedupeKey = ev.refId ? `${ev.kind}:${ev.refId}` : null;
 
     const { data: row, error } = await db.from('coop_member_events').insert({
       coop_id: ev.coopId, member_id: ev.memberId, kind: ev.kind, title, message,
       amount_kobo: ev.amountKobo != null ? ev.amountKobo : null, reference: ev.reference || null,
       actor, dedupe_key: dedupeKey, member_phone: member.phone_normalized || null,
+      ...(skipWhatsapp ? { whatsapp_status: 'skipped', whatsapp_sent_by: 'preference' } : {}),
     }).select('id').single();
     if (error) return { recorded: false, reason: error.code === '23505' ? 'duplicate' : error.message };
 
@@ -122,4 +133,4 @@ async function recordMemberEvent(db, ev) {
   }
 }
 
-module.exports = { KINDS, buildMessage, naira, waPhone, whatsappUrl, recordMemberEvent };
+module.exports = { KINDS, buildMessage, buildDigest, naira, waPhone, whatsappUrl, recordMemberEvent };

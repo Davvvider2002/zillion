@@ -11,13 +11,16 @@
  *   { action: 'list', status?: 'pending'|'sent'|'skipped' (default pending), member_id?, since?: ISO, limit? (max 200) }
  *   { action: 'mark', ids: [uuid, ...], status: 'sent'|'skipped' }
  *   { action: 'count' }   pending total, for the sidebar badge
+ *   { action: 'settings' }                         { enabled, opted_out: [{id,name}] }
+ *   { action: 'set_enabled', enabled: bool }       society switch for the whole outbox
+ *   { action: 'set_optout', member_id, opt_out }   one member; opting out also skips their waiting messages
  */
 'use strict';
 
 const { getServiceClient }     = require('../../lib/supabase');
 const { verifyJWT }            = require('../../lib/validators');
 const { resolvePortalSociety, requirePortalPermission } = require('../../lib/coopPortalAuth');
-const { whatsappUrl }          = require('../../lib/coopMemberEvents');
+const { whatsappUrl, buildDigest } = require('../../lib/coopMemberEvents');
 
 const STATUSES = ['pending', 'sent', 'skipped'];
 
@@ -68,7 +71,43 @@ exports.handler = async (event) => {
       (members || []).forEach(m => { names[m.id] = m.name; });
     }
     const events = (rows || []).map(r => ({ ...r, member_name: names[r.member_id] || null, url: whatsappUrl(r.member_phone, r.message) }));
-    return ok({ events, status });
+    // Combined view: one message per member covering everything waiting for them.
+    const byMember = new Map();
+    for (const e of events) { if (!byMember.has(e.member_id)) byMember.set(e.member_id, []); byMember.get(e.member_id).push(e); }
+    const groups = [...byMember.values()].map(list => {
+      const message = buildDigest(list[0].member_name, resolved.society.name, list.map(e => e.message));
+      return { member_id: list[0].member_id, member_name: list[0].member_name, ids: list.map(e => e.id), count: list.length, message, url: whatsappUrl(list[0].member_phone, message), created_at: list[0].created_at };
+    });
+    return ok({ events, groups, status });
+  }
+
+  if (action === 'settings') {
+    if (!(await requirePortalPermission(db, auth, 'notifications', 'view'))) return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    const { data: soc } = await db.from('coop_societies').select('*').eq('coop_id', coopId).maybeSingle();
+    const { data: out } = await db.from('coop_members').select('id, name').eq('coop_id', coopId).eq('whatsapp_opt_out', true).order('name').limit(200);
+    return ok({ enabled: !(soc && soc.whatsapp_notify_enabled === false), opted_out: out || [] });
+  }
+
+  if (action === 'set_enabled') {
+    if (!(await requirePortalPermission(db, auth, 'notifications', 'edit'))) return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    if (typeof body.enabled !== 'boolean') return err(400, 'enabled must be true or false');
+    const { error } = await db.from('coop_societies').update({ whatsapp_notify_enabled: body.enabled }).eq('coop_id', coopId);
+    if (error) return err(500, error.message);
+    return ok({ success: true, enabled: body.enabled });
+  }
+
+  if (action === 'set_optout') {
+    if (!(await requirePortalPermission(db, auth, 'notifications', 'create'))) return err(403, 'You do not have access to this feature. Ask your society admin to grant it.');
+    if (!body.member_id || typeof body.opt_out !== 'boolean') return err(400, 'member_id and opt_out are required');
+    const { data: m, error } = await db.from('coop_members').update({ whatsapp_opt_out: body.opt_out }).eq('id', body.member_id).eq('coop_id', coopId).select('id').maybeSingle();
+    if (error) return err(500, error.message);
+    if (!m) return err(404, 'Member not found in your society');
+    if (body.opt_out) {
+      await db.from('coop_member_events')
+        .update({ whatsapp_status: 'skipped', whatsapp_sent_at: new Date().toISOString(), whatsapp_sent_by: 'preference' })
+        .eq('coop_id', coopId).eq('member_id', body.member_id).eq('whatsapp_status', 'pending');
+    }
+    return ok({ success: true });
   }
 
   if (action === 'mark') {

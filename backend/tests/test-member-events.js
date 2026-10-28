@@ -35,5 +35,16 @@ let bad = 0; const ok = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + ' - ' + 
   ok('outbox endpoint refuses no token with 401', (await h({ httpMethod: 'POST', headers: {}, body: '{}' })).statusCode === 401);
   ok('outbox endpoint refuses GET with 405', (await h({ httpMethod: 'GET', headers: {} })).statusCode === 405);
   ok('outbox endpoint is routed', require('fs').readFileSync(path.join(__dirname, '..', '..', 'netlify.toml'), 'utf8').includes('from = "/api/v1/coop-portal-whatsapp-outbox"'));
+  ok('digest of one is the plain message', E.buildDigest('Ada Okafor', 'Unity Coop', ['Hello Ada, Unity Coop: A.']) === 'Hello Ada, Unity Coop: A.');
+  const dg = E.buildDigest('Ada Okafor', 'Unity Coop', ['Hello Ada, Unity Coop: ₦5,000 savings deposit received on 28 Oct 2026.', 'Hello Ada, Unity Coop: ₦1,000 dues payment received on 28 Oct 2026.']);
+  ok('digest greets once and numbers the lines', dg.startsWith('Hello Ada, Unity Coop: here are the latest updates') && dg.includes('1. ₦5,000 savings') && dg.includes('2. ₦1,000 dues') && !/[—–]/.test(dg) && (dg.match(/Hello/g) || []).length === 1);
+  const db2 = fakeDb({ coop_societies: [{ coop_id: 'C2', name: 'Off Coop', whatsapp_notify_enabled: false }, { coop_id: 'C3', name: 'On Coop' }],
+    coop_members: [{ id: 'a', coop_id: 'C2', name: 'A', phone_normalized: '+2348000000001' }, { id: 'b', coop_id: 'C3', name: 'B', phone_normalized: '+2348000000002', whatsapp_opt_out: true }, { id: 'c', coop_id: 'C3', name: 'C', phone_normalized: '+2348000000003' }], coop_member_events: [], coop_notifications: [] });
+  await E.recordMemberEvent(db2, { coopId: 'C2', memberId: 'a', kind: 'dues_paid', amountKobo: 1, refId: '1' });
+  await E.recordMemberEvent(db2, { coopId: 'C3', memberId: 'b', kind: 'dues_paid', amountKobo: 1, refId: '2' });
+  await E.recordMemberEvent(db2, { coopId: 'C3', memberId: 'c', kind: 'dues_paid', amountKobo: 1, refId: '3' });
+  const ev2 = db2.t().coop_member_events;
+  ok('society switch off marks the event skipped but keeps the in-app message', ev2[0].whatsapp_status === 'skipped' && db2.t().coop_notifications.length === 3);
+  ok('an opted-out member is skipped, others stay pending', ev2[1].whatsapp_status === 'skipped' && ev2[2].whatsapp_status === undefined);
   console.log(bad ? `\n${bad} FAILED` : '\nAll member event tests passed');
 })();
