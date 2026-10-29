@@ -192,7 +192,7 @@ async function applyPhoneChange(db, request, serviceKey) {
 async function verifyPhoneOtp(db, phone, code, otpSecret) {
   if (!otpSecret) return { ok: false, error: 'Server is missing OTP_SECRET' };
   const c = String(code || '').trim();
-  if (!/^\d{6}$/.test(c)) return { ok: false, error: 'Enter the 6 digit code sent to the new number' };
+  if (!/^\d{6}$/.test(c)) return { ok: false, error: 'Enter the 6 digit code sent to your email' };
   const { data: rows, error } = await db.from('otp_requests').select('id, hashed_otp, expires_at, attempts, used')
     .eq('phone', phone).eq('used', false).order('created_at', { ascending: false }).limit(1);
   if (error) return { ok: false, error: 'Could not check the code. Please try again.' };

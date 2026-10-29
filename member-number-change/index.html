@@ -86,7 +86,10 @@ function render() {
       <input id="newPhone" type="tel" inputmode="tel" placeholder="08012345678" value="${esc(info.new_phone)}">
       <button class="btn alt" id="otpBtn" onclick="sendCode()">Send code</button>
     </div>
-    <label>6 digit code from the text message</label>
+    <label>Your email address</label>
+    <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
+    <div class="sub" style="margin:-6px 0 10px;font-size:12px">We send the 6 digit code here, then use the new number for your wallet.</div>
+    <label>6 digit code from the email</label>
     <input id="otp" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
     <label>Why is the number changing?</label>
     <textarea id="reason" maxlength="500" placeholder="e.g. My SIM was lost and I replaced it">${esc(info.reason)}</textarea>
@@ -103,13 +106,15 @@ function render() {
 async function sendCode() {
   show('m', '');
   const phone = $('newPhone').value.trim();
+  const email = $('email').value.trim();
   if (!phone) return show('m', 'Enter the new number first.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return show('m', 'Enter a valid email address. The code is sent there.');
   $('otpBtn').disabled = true;
-  const r = await call(`${API}/send-otp`, 'POST', { phone });
+  const r = await call(`${API}/send-otp`, 'POST', { phone, channel: 'email', email });
   $('otpBtn').disabled = false;
   if (!r.ok) return show('m', r.data.error || 'Could not send the code.');
   otpSent = true; otpPhone = phone;
-  show('m', 'Code sent. It is valid for 10 minutes.', 'good');
+  show('m', 'Code sent to your email. It is valid for 10 minutes. Check spam if you do not see it.', 'good');
 }
 
 function readB64(file) {
