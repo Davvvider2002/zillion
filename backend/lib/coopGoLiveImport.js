@@ -36,6 +36,11 @@ const NEEDS_OPENING = new Set(['shares', 'savings', 'dues', 'loans', 'loan_repay
 // Income that member sheets already produce. Typing it again on the society sheet would count it twice.
 const MEMBER_DRIVEN_INCOME = new Set(['4100', '4120', '4150', '4160']);
 
+// Extra sheets (the Quick start path registers its own in coopGoLiveQuick.js): { spec, maxRows, base, validate, apply, clear, gate }.
+const EXT = {};
+function registerDataset(name, def) { DATASETS[name] = def.spec; MAX_ROWS[name] = def.maxRows; EXT[name] = def; }
+const baseOf = d => (EXT[d] ? EXT[d].base : d);
+
 const CASH = '1000', BANK = '1010', SAVINGS_PAYABLE = '2000', SHARE_CAPITAL = '3000', DUES_RECEIVABLE = '1150';
 const LOAN_PRINCIPAL = '1100', LOAN_INTEREST = '1110', INTEREST_INCOME = '4150';
 
@@ -521,6 +526,7 @@ function validateSociety(rows, ctx) {
 }
 
 function validate(dataset, rows, ctx) {
+  if (EXT[dataset]) return EXT[dataset].validate(rows, ctx);
   if (dataset === 'opening_balances') return validateOpening(rows, ctx);
   if (dataset === 'society_entries') return validateSociety(rows, ctx);
   if (dataset === 'members') return validateMembers(rows, ctx);
@@ -536,19 +542,19 @@ async function loadContext(db, coopId, batch, { dataset, replace } = {}) {
   const list = await fetchAllRows(() => db.from('coop_members').select('id, name, member_number, phone_normalized, status, opening_balance_kobo').eq('coop_id', coopId).order('id'));
   // Replacing the members sheet: this batch's own members are about to be cleared, so they must not count as taken.
   let batchMemberIds = new Set();
-  if (dataset === 'members' && replace) {
+  if (baseOf(dataset) === 'members' && replace) {
     const mine = await fetchAllRows(() => db.from('coop_members').select('id').eq('coop_id', coopId).eq('migration_batch_id', batch.id).order('id'));
     batchMemberIds = new Set(mine.map(r => r.id));
   }
   for (const m of list) { if (batchMemberIds.has(m.id)) continue; for (const k of memberKeys(m)) if (!members.has(k)) members.set(k, m); }
 
   const loansByRef = new Map(), paidByLoan = new Map();
-  if (dataset === 'loans' || dataset === 'loan_repayments') {
+  if (baseOf(dataset) === 'loans' || dataset === 'loan_repayments') {
     const loans = await fetchAllRows(() => db.from('coop_loans')
       .select('id, import_ref, member_id, principal_kobo, interest_kobo, total_repayable_kobo, interest_method, repayment_months, disbursed_at, status')
       .eq('coop_id', coopId).eq('migration_batch_id', batch.id).order('id'));
     // Replacing the loans sheet: this batch's own loans are about to be cleared, so their references are free again.
-    if (!(dataset === 'loans' && replace)) for (const l of loans) if (l.import_ref) loansByRef.set(l.import_ref.toLowerCase(), l);
+    if (!(baseOf(dataset) === 'loans' && replace)) for (const l of loans) if (l.import_ref) loansByRef.set(l.import_ref.toLowerCase(), l);
     if (dataset === 'loan_repayments' && loans.length) {
       for (const ids of chunk(loans.map(l => l.id))) {
         const reps = await fetchAllRows(() => db.from('coop_loan_repayments').select('loan_id, amount_kobo, source').in('loan_id', ids).order('id'));
@@ -570,7 +576,7 @@ async function loadContext(db, coopId, batch, { dataset, replace } = {}) {
   }
 
   let chart = null;
-  if (dataset === 'opening_balances' || dataset === 'society_entries') {
+  if (baseOf(dataset) === 'opening_balances' || dataset === 'society_entries') {
     const { data: soc } = await db.from('coop_societies').select('base_currency').eq('coop_id', coopId).maybeSingle();
     const baseCurrency = (soc && soc.base_currency) || 'NGN';
     await ensureChartOfAccounts(db, coopId, baseCurrency);
@@ -893,6 +899,7 @@ const APPLY = { members: applyMembers, loans: applyLoans, loan_repayments: apply
 
 /** Opening balances come first, and need the Accounting module. Returns a message when the sheet cannot be loaded yet. */
 async function accountingGate(db, coopId, batch, dataset, replace) {
+  if (EXT[dataset]) return EXT[dataset].gate ? EXT[dataset].gate(db, coopId, batch, replace) : null;
   const needsModule = dataset === 'opening_balances' || dataset === 'society_entries';
   const hasAcc = await hasAddon(db, coopId, 'accounting');
   if (needsModule && !hasAcc) return 'This sheet is booked in the society\'s accounts, which needs the Accounting & Finance module on the current plan.';
@@ -953,7 +960,7 @@ async function runImport(db, { coopId, batch, dataset, text, dryRun = true, repl
 
   try {
     if (replace) await clearDataset(db, batch, dataset);
-    const applied = await (APPLY[dataset] || ((d, c, v, a) => applyLedger(d, c, dataset, v, a)))(db, ctx, result.valid, actor);
+    const applied = await ((EXT[dataset] && EXT[dataset].apply) || APPLY[dataset] || ((d, c, v, a) => applyLedger(d, c, dataset, v, a)))(db, ctx, result.valid, actor);
     return { ...out, applied: applied.applied, errors: [...out.errors, ...applied.extraErrors], journals: applied.journals };
   } catch (e) {
     return { ...out, ok: false, status: 500, mode: 'failed', error: e.message };
@@ -985,6 +992,7 @@ async function countBatch(db, batchId) {
 /** Removes one sheet's rows (and their journals) from a draft batch. Refuses to pull the rug from sheets that depend on it. */
 async function clearDataset(db, batch, dataset) {
   if (batch.status !== 'draft') throw new Error(`This batch is ${batch.status}. Only a draft batch can be changed.`);
+  if (EXT[dataset]) return EXT[dataset].clear(db, batch);
   const counts = await countBatch(db, batch.id);
   const deps = { opening_balances: ['shares', 'savings', 'dues', 'loans', 'loan_repayments', 'society_entries'], members: ['shares', 'savings', 'dues', 'loans', 'loan_repayments'], loans: ['loan_repayments'] }[dataset] || [];
   const blocking = deps.filter(d => counts[d] > 0);
@@ -992,7 +1000,7 @@ async function clearDataset(db, batch, dataset) {
 
   if (dataset === 'opening_balances' || dataset === 'society_entries') {
     await deleteJournals(db, batch.id, dataset);
-    if (dataset === 'opening_balances') await deleteJournals(db, batch.id, 'dues_accrual');
+    if (dataset === 'opening_balances') { await deleteJournals(db, batch.id, 'dues_accrual'); await db.from('coop_migration_batches').update({ quick_ledger: null }).eq('id', batch.id); }
   } else if (dataset === 'members') {
     await deleteJournals(db, batch.id, 'dues_accrual');   // it is worked out from the members, so it must be run again
     await db.from('coop_share_transactions').delete().eq('migration_batch_id', batch.id).eq('source', 'migration_opening');
@@ -1048,4 +1056,7 @@ function buildTemplate(dataset) {
 module.exports = {
   ORDER, DATASETS, MAX_ROWS, parseSheet, parseFlexDay, parseNaira, validate, loadContext, runImport, clearDataset, countBatch, buildTemplate,
   postJournalBatch, refreshLoanStatuses, resolveMember, deleteJournals,
+  registerDataset, EXT, internals: { stamp, dayBefore, computeLoanTerms, LOAN_METHODS, fmtNaira, who, journalContext, cleanText, normalisePhone, activateMember, checkMemberCapAllows,
+    computeRepaymentSplit, computeReducingBalanceSplit, nextEntryNumber, ensureChartOfAccounts, hasAddon, accountingIsReady },
 };
+require('./coopGoLiveQuick');   // registers the Quick start sheets

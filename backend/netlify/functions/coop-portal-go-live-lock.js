@@ -51,9 +51,15 @@ exports.handler = async (event) => {
     const { data: events } = await db.from('coop_migration_events').select('action, actor_name, detail, created_at').eq('batch_id', batch.id).order('created_at', { ascending: true }).limit(500);
     return ok({ success: true, status: batch.status, approvals: (batch.approved_by || []).length, you_approved: (batch.approved_by || []).includes(who.id), locked_at: batch.locked_at, events: events || [] });
   }
+  if (body.action === 'position') {
+    // Quick start proof: the opening entry as it stands now, with where every line came from. Nothing is written.
+    const { buildPosition } = require('../../lib/coopGoLiveQuick');
+    try { return ok({ success: true, position: await buildPosition(db, coopId, batch.id, who.id, { write: false }) }); }
+    catch (e) { return err(500, e.message); }
+  }
   if (body.action === 'statement') return ok({ success: true, ...(await L.buildStatement(db, coopId, batch)) });
   if (body.action === 'approve')  { const r = await L.approve(db, coopId, batch, who);  if (r.ok) await audit('COOP_GO_LIVE_APPROVED');  return reply(r); }
   if (body.action === 'withdraw') { const r = await L.withdraw(db, batch, who);         if (r.ok) await audit('COOP_GO_LIVE_APPROVAL_WITHDRAWN'); return reply(r); }
   if (body.action === 'lock')     { const r = await L.lock(db, coopId, batch, who);     if (r.ok) await audit('COOP_GO_LIVE_LOCKED');    return reply(r); }
-  return err(400, "action must be 'status', 'approve', 'withdraw', 'lock' or 'statement'");
+  return err(400, "action must be 'status', 'position', 'approve', 'withdraw', 'lock' or 'statement'");
 };

@@ -32,7 +32,7 @@ exports.handler = async (event) => {
 
   // The two accounting sheets are filled with the society's own account codes, so the list comes with them.
   const withAccounts = async t => {
-    if (!t || !['opening_balances', 'society_entries'].includes(t.dataset)) return t;
+    if (!t || !['opening_balances', 'society_entries', 'q_balances'].includes(t.dataset)) return t;
     await ensureChartOfAccounts(db, resolved.society.coop_id, resolved.society.base_currency || 'NGN');
     const { data } = await db.from('coop_chart_of_accounts').select('account_code, account_name, account_type, sub_type')
       .eq('coop_id', resolved.society.coop_id).eq('active', true).order('account_code');
@@ -45,5 +45,7 @@ exports.handler = async (event) => {
     if (!t) return err(400, `dataset must be one of: ${ORDER.join(', ')}`);
     return ok({ success: true, template: await withAccounts(t) });
   }
+  const QUICK = ['q_members', 'q_loans', 'q_balances'];
+  if ((event.queryStringParameters || {}).mode === 'quick') return ok({ success: true, order: QUICK, templates: await Promise.all(QUICK.map(k => withAccounts(buildTemplate(k)))) });
   return ok({ success: true, order: ORDER, templates: await Promise.all(ORDER.map(k => withAccounts(buildTemplate(k)))) });
 };

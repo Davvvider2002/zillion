@@ -6,7 +6,7 @@
  * Opens, reads and voids the society's go-live catch-up batch (see lib/coopGoLiveBatch.js and lib/coopGoLiveImport.js).
  * A society has at most one open (draft) batch at a time.
  *
- * Body: { action: 'create', label?, fy_start, cutover_date }
+ * Body: { action: 'create', label?, fy_start, cutover_date, mode?: 'quick'|'detailed' }
  *     | { action: 'get' }                 the open batch, or the latest one, with row counts per sheet
  *     | { action: 'purge', batch_id }     removes everything loaded, keeps the batch open. Draft only: a locked batch is permanent
  *     | { action: 'void', batch_id }      removes everything the draft batch loaded, then closes it
@@ -45,7 +45,9 @@ exports.handler = async (event) => {
   const ip = event.headers['x-forwarded-for'] || event.headers['client-ip'] || null;
   const audit = (action, id, extra) => auditLog(db, { action, username: auth.payload.merchant_id, role: 'merchant', ip, resourceType: 'coop_migration_batch', resourceId: id, requestBody: extra || body, result: 'SUCCESS' });
 
-  const sheets = ORDER.map(k => ({ key: k, title: DATASETS[k].title, max_rows: MAX_ROWS[k] }));
+  const { QUICK_ORDER } = require('../../lib/coopGoLiveQuick');
+  const sheetsFor = mode => (mode === 'quick' ? QUICK_ORDER : ORDER).map(k => ({ key: k, title: DATASETS[k].title, max_rows: MAX_ROWS[k] }));
+  const sheets = sheetsFor('detailed');
 
   if (body.action === 'create') {
     if (!isRealDay(String(body.fy_start || ''))) return err(400, 'fy_start must be a real date written YYYY-MM-DD.');
@@ -53,15 +55,15 @@ exports.handler = async (event) => {
     if (body.cutover_date < body.fy_start) return err(400, 'The cutover date cannot be before the financial year start.');
     if (body.cutover_date > new Date().toISOString().slice(0, 10)) return err(400, 'The cutover date cannot be in the future.');
     const { data: created, error } = await db.from('coop_migration_batches').insert({
-      coop_id: coopId, label: cleanText(body.label, 100) || 'Go-live catch-up', fy_start: body.fy_start, cutover_date: body.cutover_date, created_by: actor,
+      coop_id: coopId, label: cleanText(body.label, 100) || 'Go-live catch-up', fy_start: body.fy_start, cutover_date: body.cutover_date, created_by: actor, mode: body.mode === 'quick' ? 'quick' : 'detailed',
     }).select().single();
     if (error) {
       if (error.code === '23505') return err(409, 'This society already has an open go-live batch. Continue it, or void it first.');
       return err(500, `Could not open the batch: ${error.message}`);
     }
-    await L.logEvent(db, created, 'created', await L.portalIdentity(db, auth), { fy_start: created.fy_start, cutover_date: created.cutover_date });
+    await L.logEvent(db, created, 'created', await L.portalIdentity(db, auth), { fy_start: created.fy_start, cutover_date: created.cutover_date, mode: created.mode });
     await audit('COOP_GO_LIVE_BATCH_CREATED', created.id);
-    return ok({ success: true, batch: created, counts: await countBatch(db, created.id), sheets });
+    return ok({ success: true, batch: created, counts: await countBatch(db, created.id), sheets: sheetsFor(created.mode) });
   }
 
   if (body.action === 'get') {
@@ -72,7 +74,7 @@ exports.handler = async (event) => {
       batch = latest;
     }
     if (!batch) return ok({ success: true, batch: null, sheets });
-    return ok({ success: true, batch, counts: await countBatch(db, batch.id), sheets });
+    return ok({ success: true, batch, counts: await countBatch(db, batch.id), sheets: sheetsFor(batch.mode) });
   }
 
   if (body.action === 'purge') {

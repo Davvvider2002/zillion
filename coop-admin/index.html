@@ -1801,6 +1801,10 @@ async function submitBulkImport() {
 // balances and income and expenditure come out right. Dates, then sheets in order, then books, statement, approval, lock.
 const GL = { batch: null, counts: {}, sheets: [], step: 1, sheetKey: null, check: null, rec: null, lock: null, statement: null, busy: false, msg: null };
 const GL_STEPS = ['Dates', 'Sheets', 'Books', 'Statement', 'Approve and lock'];
+const GL_STEPS_QUICK = ['Dates', 'Sheets', 'Check', 'Statement', 'Approve and lock'];
+const glQuick = () => !!(GL.batch && GL.batch.mode === 'quick');
+// How many rows each sheet has loaded. The three quick sheets share the tables the detailed ones use.
+const glCount = key => ({ q_members: GL.counts.members, q_loans: GL.counts.loans, q_balances: GL.counts.opening_balances }[key] ?? GL.counts[key]) || 0;
 
 async function glCall(fn, body, method) {
   const res = await fetch(`${API}/${fn}`, { method: method || 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + portalToken }, body: method === 'GET' ? undefined : JSON.stringify(body || {}) });
@@ -1829,24 +1833,25 @@ async function glLoadLock() {
 function glDraw() {
   const el = document.getElementById('view-golive');
   const b = GL.batch, locked = b && b.status === 'locked';
-  const bar = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${GL_STEPS.map((s, i) => {
+  const bar = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${(glQuick() ? GL_STEPS_QUICK : GL_STEPS).map((s, i) => {
     const n = i + 1, on = GL.step === n, dis = !b && n > 1;
     return `<button class="btn ${on ? 'btn-primary' : 'btn-ghost'} btn-sm" ${dis ? 'disabled' : ''} onclick="glGo(${n})">${n}. ${s}</button>`;
   }).join('')}</div>`;
-  const head = b && b.status !== 'void' ? `<div class="card-sub" style="margin-bottom:10px">${escHtml(b.label)} · year from <b>${escHtml(b.fy_start)}</b> to cutover <b>${escHtml(b.cutover_date)}</b> · <span class="pill ${locked ? 'pill-green' : 'pill-amber'}">${locked ? 'Locked' : 'Draft'}</span></div>` : '';
+  const head = b && b.status !== 'void' ? `<div class="card-sub" style="margin-bottom:10px">${escHtml(b.label)} · year from <b>${escHtml(b.fy_start)}</b> to cutover <b>${escHtml(b.cutover_date)}</b> · <span class="pill ${locked ? 'pill-green' : 'pill-amber'}">${locked ? 'Locked' : 'Draft'}</span>${glQuick() ? ' <span class="pill pill-muted">Quick start</span>' : ''}</div>` : '';
   const msg = GL.msg ? `<div style="margin-bottom:12px;font-size:13px;color:${GL.msg.bad ? '#FF8A8A' : 'var(--green-lt)'}">${GL.msg.text}</div>` : '';
   let body = '';
   if (GL.step === 1) body = glStepDates();
   if (GL.step === 2) body = glStepSheets();
-  if (GL.step === 3) body = glStepBooks();
+  if (GL.step === 3) body = glQuick() ? glStepCheckQuick() : glStepBooks();
   if (GL.step === 4) body = glStepStatement();
   if (GL.step === 5) body = glStepLock();
   el.innerHTML = `<div class="card"><div class="card-title">Go-live catch-up</div>
-    <div class="card-sub">Bring in what your society did earlier this year, with the real dates, so dividends and balances come out right.</div>${bar}${head}${msg}${body}</div>`;
+    <div class="card-sub">${glQuick() ? 'Bring your society in as at one date: member balances, loans, and the rest of your trial balance. Zillion does the double entry.' : 'Bring in what your society did earlier this year, with the real dates, so dividends and balances come out right.'}</div>${bar}${head}${msg}${body}</div>`;
 }
 function glGo(n) {
   GL.step = n; GL.msg = null;
   if (n === 4 && !GL.statement) glStatement();
+  if (n === 3 && glQuick()) glPosition();
   glDraw();
 }
 function glSay(text, bad) { GL.msg = { text: escHtml(text), bad: !!bad }; }
@@ -1857,14 +1862,17 @@ function glStepDates() {
     <div style="margin-top:12px"><button class="btn btn-primary" onclick="glGo(2)">Continue</button>
     ${GL.batch.status === 'draft' ? '<button class="btn btn-ghost" style="margin-left:8px" onclick="glVoid()">Void this batch</button>' : ''}</div>`;
   const today = new Date().toISOString().slice(0, 10);
-  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Pick the first day of your financial year and the day you start using Zillion for live entries (the cutover). Everything in between is loaded from your sheets.</div>
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Pick the first day of your financial year and the day you start using Zillion (the cutover).</div>
+    <div class="field"><label>How do you want to bring your society in?</label>
+      <label style="display:block;font-size:13px;margin:4px 0"><input type="radio" name="gl-mode" value="quick" checked> <b>Quick start (recommended).</b> Three sheets: members and their balances, loans with repayments to date, and your trial balance. Zillion does the double entry.</label>
+      <label style="display:block;font-size:13px;margin:4px 0"><input type="radio" name="gl-mode" value="detailed"> <b>Detailed history.</b> Load every dated savings, share, dues, loan and income record for the year.</label></div>
     <div class="field"><label>Label</label><input id="gl-label" value="Go-live catch-up"></div>
     <div class="field"><label>Financial year starts</label><input type="date" id="gl-fy" value="${today.slice(0, 4)}-01-01"></div>
     <div class="field"><label>Cutover date (last day covered by the sheets)</label><input type="date" id="gl-cut" max="${today}" value="${today}"></div>
     <button class="btn btn-primary" onclick="glCreate()">Open the batch</button>`;
 }
 async function glCreate() {
-  const r = await glCall('coop-portal-go-live-batch', { action: 'create', label: document.getElementById('gl-label').value, fy_start: document.getElementById('gl-fy').value, cutover_date: document.getElementById('gl-cut').value });
+  const r = await glCall('coop-portal-go-live-batch', { action: 'create', label: document.getElementById('gl-label').value, fy_start: document.getElementById('gl-fy').value, cutover_date: document.getElementById('gl-cut').value, mode: (document.querySelector('input[name=gl-mode]:checked') || {}).value || 'quick' });
   if (!r.ok) { glSay(r.data.error || 'Could not open the batch.', true); return glDraw(); }
   GL.step = 2; GL.msg = null; await renderGoLive();
 }
@@ -1878,25 +1886,25 @@ async function glVoid() {
 // 2. Sheets
 function glStepSheets() {
   const b = GL.batch, draft = b.status === 'draft';
-  const rows = GL.sheets.map((s, i) => `<tr><td>${i + 1}. ${escHtml(s.title)}</td><td>${GL.counts[s.key] || 0}</td><td style="text-align:right">
+  const rows = GL.sheets.map((s, i) => `<tr><td>${i + 1}. ${escHtml(s.title)}</td><td>${glCount(s.key)}</td><td style="text-align:right">
     <button class="btn btn-ghost btn-sm" onclick="glTemplate('${s.key}')">Template</button>
-    ${draft ? `<button class="btn btn-primary btn-sm" onclick="glOpenSheet('${s.key}')">${GL.counts[s.key] ? 'Replace' : 'Load'}</button>` : ''}</td></tr>`).join('');
+    ${draft ? `<button class="btn btn-primary btn-sm" onclick="glOpenSheet('${s.key}')">${glCount(s.key) ? 'Replace' : 'Load'}</button>` : ''}</td></tr>`).join('');
   const panel = GL.sheetKey ? glSheetPanel() : '';
-  return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Load the sheets in this order. Each one is checked first, and nothing is saved until every row passes. Opening balances come first, because the other sheets build on them.</div>
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${glQuick() ? 'Load the three sheets in this order. Each one is checked first, and nothing is saved until every row passes. Do not type savings, shares, loans, dues or Opening Balance Equity on the trial balance. Zillion works those out from the first two sheets.' : 'Load the sheets in this order. Each one is checked first, and nothing is saved until every row passes. Opening balances come first, because the other sheets build on them.'}</div>
     <div style="margin-bottom:10px"><button class="btn btn-primary btn-sm" onclick="glDownloadWorkbook()">⬇ Download all templates as one Excel workbook</button></div>
     <div class="table-wrap"><table><thead><tr><th>Sheet</th><th>Rows loaded</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${panel}
-    <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(3)">Next: books</button>
+    <div style="margin-top:14px"><button class="btn btn-primary" onclick="glGo(3)">${glQuick() ? 'Next: check' : 'Next: books'}</button>
     ${draft ? '<button class="btn btn-ghost" style="margin-left:8px;color:#FF8A8A" onclick="glPurge()">Purge all imports</button>' : ''}</div>`;
 }
 async function glDownloadWorkbook() {
-  const r = await glCall('coop-portal-go-live-template', null, 'GET');
+  const r = await glCall('coop-portal-go-live-template' + (glQuick() ? '?mode=quick' : ''), null, 'GET');
   if (!r.ok) { glSay(r.data.error || 'Could not get the templates.', true); return glDraw(); }
   const wb = XLSX.utils.book_new(), list = r.data.templates || [];
   const b = GL.batch;
   const readme = [
-    ['Zillion go-live catch-up workbook'], [''],
+    [glQuick() ? 'Zillion go-live Quick start workbook' : 'Zillion go-live catch-up workbook'], [''],
     ['Financial year starts', b ? b.fy_start : ''], ['Cutover date', b ? b.cutover_date : ''], [''],
-    ['Fill the sheets in this order. Amounts are in naira. Dates are YYYY-MM-DD or DD/MM/YYYY. Every dated row must fall inside the financial year.'],
+    [glQuick() ? 'Fill the three sheets in this order. Everything is as at the cutover date, in naira. On the trial balance, income and expense accounts carry the total for the financial year to date. Leave out savings, shares, loans, dues and Opening Balance Equity: Zillion works those out.' : 'Fill the sheets in this order. Amounts are in naira. Dates are YYYY-MM-DD or DD/MM/YYYY. Every dated row must fall inside the financial year.'],
     ['Delete the example rows, keep the heading row, then upload this same file for each sheet in the portal. The portal reads the sheet named for the step you are on.'],
     ['Leave the other sheets in the file. They are ignored. Format the date columns as Text so Excel does not change them.'], [''],
     ['Sheet', 'Column', 'Required', 'What to put there'],
@@ -1915,7 +1923,7 @@ async function glDownloadWorkbook() {
     as['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 12 }, { wch: 24 }];
     XLSX.utils.book_append_sheet(wb, as, 'Chart of accounts');
   }
-  XLSX.writeFile(wb, 'zillion-go-live-workbook.xlsx');
+  XLSX.writeFile(wb, glQuick() ? 'zillion-go-live-quick-start.xlsx' : 'zillion-go-live-workbook.xlsx');
 }
 async function glTemplate(key) {
   const r = await glCall('coop-portal-go-live-template?dataset=' + key, null, 'GET');
@@ -1939,7 +1947,7 @@ function glSheetPanel() {
   return `<div style="margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px">
     <div style="font-weight:700;margin-bottom:8px">${escHtml(s.title)}</div>
     <div class="field"><label>File (.csv or .xlsx). A long sheet is sent in parts automatically.</label><input type="file" id="gl-file" accept=".csv,.xlsx,.xls" onchange="glCheck()"></div>
-    <label style="font-size:12.5px"><input type="checkbox" id="gl-replace" ${GL.counts[s.key] ? 'checked' : ''}> Replace what this sheet already loaded</label>${result}
+    <label style="font-size:12.5px"><input type="checkbox" id="gl-replace" ${glCount(s.key) ? 'checked' : ''}> Replace what this sheet already loaded</label>${result}
     <div style="margin-top:12px"><button class="btn btn-primary" ${canLoad ? '' : 'disabled'} onclick="glLoad()">Load ${c && c.accepted ? c.accepted + ' rows' : ''}</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="glClear()">Clear this sheet</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="GL.sheetKey=null;GL.check=null;glDraw()">Close</button></div></div>`;
@@ -1972,7 +1980,7 @@ async function glPrepare() {
   if (!f || !f.files.length) { glSay('Choose a file first.', true); return null; }
   let text; const s = GL.sheets.find(x => x.key === GL.sheetKey);
   try { text = await readCsvOrExcelFile(f.files[0], [s.key, s.title]); } catch (e) { glSay(e.message, true); return null; }
-  if (s.key === 'opening_balances') return { parts: [{ text, lineOffset: 0, priorText: '', rows: 0 }], rows: 0 };
+  if (s.key === 'opening_balances' || s.key === 'q_balances') return { parts: [{ text, lineOffset: 0, priorText: '', rows: 0 }], rows: 0 };
   const sp = glSplitCsv(text, s.max_rows);
   if (!sp.parts.length) { glSay('The sheet has a header but no rows.', true); return null; }
   return sp;
@@ -1995,7 +2003,7 @@ async function glCheck() {
 }
 async function glLoad() {
   if (!GL.parts || !GL.parts.length) return;
-  const parts = GL.parts, n = GL.counts[GL.sheetKey] || 0;
+  const parts = GL.parts, n = glCount(GL.sheetKey);
   let replace = document.getElementById('gl-replace').checked;
   if (parts.length > 1 && n > 0 && !replace) { glSay(`This sheet already has ${n} rows. Tick Replace, or clear the sheet, before loading a file that arrives in parts.`, true); return glDraw(); }
   let done = 0, fail = null;
@@ -2008,19 +2016,19 @@ async function glLoad() {
     if (parts.length > 1) { await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, clear: true }); fail += ' The parts already loaded were removed, so the sheet is empty. Fix the file and load it again.'; }
     glSay(fail, true); GL.check = null; await glRefreshCounts(); await glLoadLock(); return glDraw();
   }
-  glSay(`${done} rows loaded${parts.length > 1 ? ` in ${parts.length} parts` : ''}.`); GL.check = null; GL.parts = null; GL.sheetKey = null; GL.rec = null; GL.statement = null;
+  glSay(`${done} rows loaded${parts.length > 1 ? ` in ${parts.length} parts` : ''}.`); GL.check = null; GL.parts = null; GL.sheetKey = null; GL.rec = null; GL.position = null; GL.statement = null;
   await glRefreshCounts(); await glLoadLock(); glDraw();
 }
 async function glClear() {
   if (!confirm('Clear this sheet from the batch?')) return;
   const r = await glCall('coop-portal-go-live-import', { batch_id: GL.batch.id, dataset: GL.sheetKey, clear: true });
-  if (!r.ok) glSay(r.data.error || 'Could not clear.', true); else { glSay('Sheet cleared.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
+  if (!r.ok) glSay(r.data.error || 'Could not clear.', true); else { glSay('Sheet cleared.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.position = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
   glDraw();
 }
 async function glPurge() {
   if (!confirm('Remove everything loaded into this batch so you can start the sheets again? Approvals are cleared. This only works before the batch is locked.')) return;
   const r = await glCall('coop-portal-go-live-batch', { action: 'purge', batch_id: GL.batch.id });
-  if (!r.ok) glSay(r.data.error || 'Could not purge.', true); else { glSay('All imports removed. The batch is still open.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
+  if (!r.ok) glSay(r.data.error || 'Could not purge.', true); else { glSay('All imports removed. The batch is still open.'); GL.sheetKey = null; GL.check = null; GL.rec = null; GL.position = null; GL.statement = null; await glRefreshCounts(); await glLoadLock(); }
   glDraw();
 }
 async function glRefreshCounts() {
@@ -2046,13 +2054,51 @@ function glStepBooks() {
 }
 async function glAccrue() {
   const r = await glCall('coop-portal-go-live-books', { action: 'accrue_dues', batch_id: GL.batch.id });
-  if (!r.ok) glSay(r.data.error || 'Could not book dues.', true); else { glSay(`Dues income booked: ${glKobo(r.data.total_kobo)} across ${r.data.entries} entries.`); GL.rec = null; GL.statement = null; await glLoadLock(); }
+  if (!r.ok) glSay(r.data.error || 'Could not book dues.', true); else { glSay(`Dues income booked: ${glKobo(r.data.total_kobo)} across ${r.data.entries} entries.`); GL.rec = null; GL.position = null; GL.statement = null; await glLoadLock(); }
   glDraw();
 }
 async function glReconcile() {
   const r = await glCall('coop-portal-go-live-books', { action: 'reconcile', batch_id: GL.batch.id });
   if (!r.ok) glSay(r.data.error || 'Could not check.', true); else { GL.rec = r.data; GL.msg = null; }
   glDraw();
+}
+
+// 3 (Quick start). Check: the opening entry as Zillion worked it out, then the tie-out
+async function glPosition() {
+  const [p, rc] = await Promise.all([
+    glCall('coop-portal-go-live-lock', { action: 'position', batch_id: GL.batch.id }),
+    glCall('coop-portal-go-live-books', { action: 'reconcile', batch_id: GL.batch.id }),
+  ]);
+  if (p.ok) GL.position = p.data.position; else { GL.position = null; glSay(p.data.error || 'Could not work out the position.', true); }
+  if (rc.ok) GL.rec = rc.data;
+  glDraw();
+}
+function glStepCheckQuick() {
+  if (!(portalData.addons || []).some(a => a.addon_key === 'accounting')) return '<div style="font-size:13.5px">The Accounting module is needed to book the opening position. Add it under Add-ons, then come back.</div>';
+  const P = GL.position, R = GL.rec;
+  if (!P) return '<div class="card-sub">Working out the opening position…</div>';
+  if (!P.built) {
+    const why = { no_trial_balance: 'Load the trial balance sheet first. The opening entry is built when it is in.', no_accounting: 'The Accounting module is needed to book the opening position.', no_batch: 'Batch not found.' }[P.reason] || 'Nothing to show yet.';
+    return `<div style="font-size:13.5px">${escHtml(why)}</div><div style="margin-top:12px"><button class="btn btn-primary" onclick="glGo(2)">Back to the sheets</button></div>`;
+  }
+  const src = { members: 'Members sheet', loans: 'Loans sheet', society: 'Your trial balance' };
+  const rows = P.lines.map(l => `<tr><td>${escHtml(l.code)} ${escHtml(l.name)}</td><td>${l.side === 'debit' ? glKobo(l.amount_kobo) : ''}</td><td>${l.side === 'credit' ? glKobo(l.amount_kobo) : ''}</td><td style="color:var(--muted)">${src[l.source] || ''}</td></tr>`).join('');
+  const plug = P.equity_plug_kobo;
+  const obe = plug === 0 ? '' : `<tr><td>3900 Opening Balance Equity</td><td>${plug < 0 ? glKobo(-plug) : ''}</td><td>${plug > 0 ? glKobo(plug) : ''}</td><td style="color:var(--amber)">Balancing figure</td></tr>`;
+  const m = P.member_totals;
+  const tile = (label, v) => `<div style="background:var(--ink);border-radius:8px;padding:10px 12px;min-width:150px"><div style="font-size:11px;color:var(--muted)">${label}</div><div style="font-weight:700">${glKobo(v)}</div></div>`;
+  const rec = R ? `<div style="margin-top:14px"><span class="pill ${R.reconciled ? 'pill-green' : 'pill-red'}">${R.reconciled ? 'Members and books tie out' : 'Gaps found'}</span></div>` +
+    (R.blocking.length ? `<div style="margin-top:8px;font-size:13px;color:#FF8A8A">${R.blocking.map(x => `<div>${escHtml(x)}</div>`).join('')}</div>` : '') : '';
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">This is the one opening entry Zillion will post on <b>${escHtml(P.as_of)}</b>. Member balances, loans, dues and loan interest income come from your first two sheets. Everything else is your own trial balance.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${tile('Member savings', m.savings_kobo)}${tile('Share capital', m.shares_kobo)}${tile('Loans outstanding', m.loan_principal_kobo + m.loan_interest_kobo)}${tile('Dues owed by members', m.dues_owed_kobo)}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${tile('Income to date', P.lines.filter(l => l.type === 'INCOME').reduce((a, l) => a + (l.side === 'credit' ? l.amount_kobo : -l.amount_kobo), 0))}${tile('Expenses to date', P.lines.filter(l => l.type === 'EXPENSE').reduce((a, l) => a + (l.side === 'debit' ? l.amount_kobo : -l.amount_kobo), 0))}${tile(P.surplus_kobo >= 0 ? 'Surplus to date' : 'Deficit to date', Math.abs(P.surplus_kobo))}</div>
+    <div class="table-wrap"><table><thead><tr><th>Account</th><th>Debit</th><th>Credit</th><th>Comes from</th></tr></thead><tbody>${rows}${obe}
+      <tr style="font-weight:700"><td>Total</td><td>${glKobo(P.debits_kobo + (plug < 0 ? -plug : 0))}</td><td>${glKobo(P.credits_kobo + (plug > 0 ? plug : 0))}</td><td></td></tr></tbody></table></div>
+    ${plug === 0 ? '' : `<div style="margin-top:10px;font-size:13px;color:var(--amber)">Your trial balance is out by ${glKobo(Math.abs(plug))}. It is held in Opening Balance Equity so the books balance. If your own trial balance agrees, check the figures on the three sheets.</div>`}
+    ${rec}
+    <div style="margin-top:14px;font-size:13px;color:var(--muted)">The surplus to date is what Surplus and Dividends works from. Each member's shares, dues paid and loan interest paid this year are loaded as imported figures, so a dividend preview is ready as soon as you lock.</div>
+    <div style="margin-top:14px"><button class="btn btn-ghost" onclick="glPosition()">Check again</button>
+    <button class="btn btn-primary" style="margin-left:8px" onclick="glGo(4)">Next: statement</button></div>`;
 }
 
 // 4. Statement
