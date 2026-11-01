@@ -2730,6 +2730,14 @@ async function submitPhone() {
   let phone = raw;
   if (phone.startsWith('0')) phone = '+234' + phone.slice(1);
   else if (!phone.startsWith('+')) phone = '+234' + phone;
+  // A Nigerian mobile number is +234 followed by exactly 10 digits (08126426726 has 11 with the leading 0).
+  // A single dropped digit used to send a code and then fail later with a confusing "not registered" message.
+  if (phone.startsWith('+234') && phone.length !== 14) {
+    const typed = raw.replace(/\D/g, '');
+    errEl.textContent = `That number has ${typed.length} digits. A Nigerian mobile number has 11 digits, like 08012345678. Check for a missing digit.`;
+    errEl.style.display = 'block';
+    return;
+  }
   STATE._pendingPhone = phone;
 
   let email = '';
