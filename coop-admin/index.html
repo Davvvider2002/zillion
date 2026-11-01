@@ -247,6 +247,17 @@ tr:last-child td{border-bottom:none}
         <label>Phone number</label>
         <input type="tel" id="fp-phone" placeholder="08012345678">
       </div>
+      <div class="field">
+        <label>Send the code by</label>
+        <select id="fp-channel" onchange="fpChannelChanged()">
+          <option value="email">Email</option>
+          <option value="sms">SMS</option>
+        </select>
+      </div>
+      <div class="field" id="fp-email-field">
+        <label>Email address</label>
+        <input type="email" id="fp-email" placeholder="The email your society registered with" autocomplete="email">
+      </div>
       <div id="fp-phone-error" style="display:none;color:#FF8A8A;font-size:13px;margin-bottom:12px"></div>
       <button class="btn btn-primary" style="width:100%" onclick="submitForgotPasswordSendCode()" id="fp-send-btn">Send code</button>
     </div>
@@ -1215,21 +1226,30 @@ function openForgotPasswordModal() {
   document.getElementById('fp-phone-error').style.display = 'none';
   document.getElementById('fp-otp').value = '';
   document.getElementById('fp-new-password').value = '';
+  document.getElementById('fp-channel').value = 'email';
+  fpChannelChanged();
   openModal('modal-forgot-password');
 }
 
+function fpChannelChanged() {
+  document.getElementById('fp-email-field').style.display = document.getElementById('fp-channel').value === 'email' ? '' : 'none';
+}
+
 async function submitForgotPasswordSendCode() {
-  const errEl = document.getElementById('fp-phone-error');
+  const errEl = document.getElementById(document.getElementById('fp-step-reset').style.display === 'none' ? 'fp-phone-error' : 'fp-reset-error');
   errEl.style.display = 'none';
   const phone = document.getElementById('fp-phone').value.trim();
   if (!phone) { errEl.textContent = 'Enter your registered phone number.'; errEl.style.display = 'block'; return; }
+  const channel = document.getElementById('fp-channel').value;
+  const email = document.getElementById('fp-email').value.trim();
+  if (channel === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Enter the email address your society registered with.'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('fp-send-btn');
   btn.disabled = true; btn.textContent = 'Sending...';
   try {
-    const res = await fetch(`${API}/send-otp`, {
+    const res = await fetch(`${API}/merchant-forgot-password`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, channel: 'sms' }),
+      body: JSON.stringify({ action: 'send', phone, channel, email }),
     });
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'Send code';
