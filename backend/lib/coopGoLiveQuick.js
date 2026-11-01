@@ -320,7 +320,8 @@ async function applyQMembers(db, ctx, valid, actor) {
   }
   const savingsRows = created.filter(c => c.v.savingsFlow > 0 && planByMember.has(c.member.id)).map(c => ({
     coop_id: ctx.coopId, member_id: c.member.id, savings_plan_id: planByMember.get(c.member.id), amount_kobo: c.v.savingsFlow, source: 'migration_opening',
-    reference: 'Added this financial year', recorded_by: actor, recorded_at: stamp(cut), migration_batch_id: ctx.batch.id,
+    // The database allows each savings reference once, so the member id keeps every row unique.
+    reference: `Added this financial year [${c.member.id}]`, recorded_by: actor, recorded_at: stamp(cut), migration_batch_id: ctx.batch.id,
   }));
   for (const [table, rows] of [['coop_share_transactions', shareRows], ['coop_dues_transactions', duesRows], ['coop_savings_transactions', savingsRows]]) {
     for (const part of chunk(rows, 200)) {
@@ -363,7 +364,7 @@ async function applyQLoans(db, ctx, valid, actor) {
         if (amt <= 0) continue;
         const s = v.method === 'flat' ? computeRepaymentSplit(amt, v.interestKobo, v.totalRepayableKobo, interestPaid) : computeReducingBalanceSplit(v.schedule, paid, amt);
         paid += amt; interestPaid += s.interestPortionKobo;
-        reps.push({ loan_id: id, amount_kobo: amt, source: 'migration_opening', reference: label, recorded_by: actor, recorded_at: at, principal_portion_kobo: s.principalPortionKobo, interest_portion_kobo: s.interestPortionKobo, migration_batch_id: ctx.batch.id });
+        reps.push({ loan_id: id, amount_kobo: amt, source: 'migration_opening', reference: `${label} [${id}]`, recorded_by: actor, recorded_at: at, principal_portion_kobo: s.principalPortionKobo, interest_portion_kobo: s.interestPortionKobo, migration_batch_id: ctx.batch.id });
       }
     }
     for (const part of chunk(reps, 200)) {

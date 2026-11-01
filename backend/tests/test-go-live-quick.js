@@ -88,6 +88,18 @@ L-2,0002,100000,flat,10,10,2026-03-10,55000,`;
   const reps1 = t2.coop_loan_repayments.filter(x => x.loan_id === l1.id);
   ok('repayments to date become a before-year and a this-year marker', reps1.length === 2 && reps1.reduce((a, x) => a + x.amount_kobo, 0) === 16500000 && reps1.some(x => x.amount_kobo === 11000000));
   ok('each marker carries its principal and interest split', reps1.every(x => x.principal_portion_kobo + x.interest_portion_kobo === x.amount_kobo));
+  // The database allows each repayment and savings reference only once (unique indexes), so two loans must never share one.
+  const uniq = rows => { const refs = rows.map(x => x.reference).filter(Boolean); return refs.length === new Set(refs).size; };
+  ok('opening repayment references are unique across loans (database unique index)', t2.coop_loan_repayments.length >= 3 && uniq(t2.coop_loan_repayments));
+  {
+    // Two members who both added savings this year, loaded on a clean database.
+    const dbS = fakeDb(seed);
+    const two = MEMBERS + '\n0003,Chidi Eze,08061234567,2020-03-01,active,,50000,10000,10000,20000,0,0';
+    const rs = await run(dbS, 'q_members', two, { dryRun: false });
+    ok('two members with savings added this year load', rs.ok && dbS.t().coop_savings_transactions.length === 2);
+    ok('opening savings references are unique across members (database unique index)', uniq(dbS.t().coop_savings_transactions));
+    await imp.clearDataset(dbS, batch, 'q_members');
+  }
   const l2 = t2.coop_loans.find(l => l.import_ref === 'L-2');
   ok('a loan lent this year puts all its repayments in the year', t2.coop_loan_repayments.filter(x => x.loan_id === l2.id).length === 1);
   ok('statuses follow what was repaid', l1.status === 'REPAYING' || t2.coop_loans.find(l => l.id === l1.id).status === 'REPAYING');

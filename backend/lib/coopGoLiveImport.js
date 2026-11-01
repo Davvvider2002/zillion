@@ -762,7 +762,9 @@ async function applyLoans(db, ctx, valid, actor) {
         ? computeRepaymentSplit(v.repaidBeforeKobo, v.interestKobo, v.totalRepayableKobo, 0)
         : computeReducingBalanceSplit(v.schedule, 0, v.repaidBeforeKobo);
       const d = new Date(ctx.batch.fy_start + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1);
-      return { loan_id: idByRef.get(v.ref.toLowerCase()), amount_kobo: v.repaidBeforeKobo, source: 'migration_opening', reference: 'Repaid before the financial year', recorded_by: actor,
+      const loanId = idByRef.get(v.ref.toLowerCase());
+      // Each repayment reference must be unique in the database, so the loan id is part of it.
+      return { loan_id: loanId, amount_kobo: v.repaidBeforeKobo, source: 'migration_opening', reference: `Repaid before the financial year [${loanId}]`, recorded_by: actor,
         recorded_at: stamp(d.toISOString().slice(0, 10)), principal_portion_kobo: split.principalPortionKobo, interest_portion_kobo: split.interestPortionKobo, migration_batch_id: ctx.batch.id };
     });
     for (const part of chunk(before, 200)) {
