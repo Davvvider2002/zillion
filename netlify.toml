@@ -305,6 +305,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/account-deletion-request"
+  to   = "/.netlify/functions/account-deletion-request"
+  status = 200
+
+[[redirects]]
+  from = "/delete-account"
+  to   = "/delete-account/index.html"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/merchant-forgot-password"
   to   = "/.netlify/functions/merchant-forgot-password"
   status = 200

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delete your account — Zillion Coop</title>
+<meta name="robots" content="index,follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#0A2E1A;--amber:#F59E0B;--cream:#F7F3EC;--muted:#C8BFA8;--green:#1A5C32;--card:#0F3A22;--line:rgba(247,243,236,.16);--red:#ff8a80}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--ink);color:var(--cream);line-height:1.6;font-size:15px}
+.wrap{max-width:640px;margin:0 auto;padding:28px 18px 60px}
+.brand{font-family:'Fraunces',serif;font-weight:700;font-size:20px;color:var(--amber);margin-bottom:22px}
+h1{font-family:'Fraunces',serif;font-size:28px;line-height:1.2;margin-bottom:10px}
+h2{font-size:15px;margin:22px 0 6px;color:var(--amber)}
+p,li{color:var(--muted)}
+ul{padding-left:20px;margin:6px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:22px}
+label{display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--ink);color:var(--cream);font:inherit}
+textarea{min-height:80px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px}
+button{margin-top:20px;width:100%;padding:14px;border:0;border-radius:10px;background:var(--amber);color:#1b1200;font:inherit;font-weight:700;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.msg{margin-top:14px;padding:12px;border-radius:10px;display:none;font-size:14px}
+.msg.err{display:block;background:rgba(255,138,128,.12);color:var(--red)}
+.msg.ok{display:block;background:rgba(45,138,78,.2);color:var(--cream)}
+.hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+footer{margin-top:34px;font-size:13px;color:var(--muted)}
+a{color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Zillion Coop</div>
+  <h1>Delete your account</h1>
+  <p>Use this page to ask us to delete your Zillion Coop account and personal data. You do not need to sign in.</p>
+
+  <h2>What happens next</h2>
+  <ul>
+    <li>We call the phone number you give here, to confirm it is really you.</li>
+    <li>Once confirmed, we close your account and delete your personal details, such as your name, email, address and ID details, within 30 days.</li>
+    <li>You can also choose to keep your account and have only some of your data removed.</li>
+  </ul>
+
+  <h2>What we may have to keep</h2>
+  <p>Financial records, such as savings contributions, loan and repayment entries, and society accounting records, must be kept for the period the law and your society's books require. Where we keep them, they are cut off from your personal details as far as the law allows and are used only for legal, tax and audit purposes. If you have an unpaid loan or are a guarantor on one, your society will need to settle it first.</p>
+
+  <form class="card" id="f" novalidate>
+    <label for="phone">Phone number on your account</label>
+    <input id="phone" type="tel" inputmode="numeric" maxlength="14" placeholder="08012345678" autocomplete="tel" required>
+    <label for="name">Full name</label>
+    <input id="name" type="text" maxlength="120" autocomplete="name" required>
+    <label for="email">Email (optional, for a confirmation copy)</label>
+    <input id="email" type="email" maxlength="160" autocomplete="email">
+    <label for="scope">What would you like to do?</label>
+    <select id="scope">
+      <option value="account">Delete my account and personal data</option>
+      <option value="data_only">Keep my account, delete only some of my data</option>
+    </select>
+    <label for="reason">Anything we should know (optional)</label>
+    <textarea id="reason" maxlength="500" placeholder="For example, which data you want removed"></textarea>
+    <div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" tabindex="-1" autocomplete="off"></div>
+    <button type="submit" id="btn">Send deletion request</button>
+    <div class="msg" id="msg" role="status"></div>
+  </form>
+
+  <footer>
+    You can also email <a href="mailto:support@zillion.ng?subject=Account%20deletion%20request">support@zillion.ng</a> from the email address on your account.
+    <br>Read our <a href="/coop/privacy.html">Privacy Policy</a>.
+  </footer>
+</div>
+<script>
+(function () {
+  var f = document.getElementById('f'), msg = document.getElementById('msg'), btn = document.getElementById('btn');
+  function show(cls, text) { msg.className = 'msg ' + cls; msg.textContent = text; }
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var phone = document.getElementById('phone').value.replace(/\D/g, '');
+    if (phone.length !== 11 && !(phone.length === 13 && phone.indexOf('234') === 0)) {
+      return show('err', 'Enter the 11 digit number you use on Zillion Coop, like 08012345678.');
+    }
+    if (document.getElementById('name').value.trim().length < 2) return show('err', 'Enter your full name.');
+    btn.disabled = true; msg.className = 'msg';
+    fetch('/api/v1/account-deletion-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: phone, full_name: document.getElementById('name').value,
+        email: document.getElementById('email').value, scope: document.getElementById('scope').value,
+        reason: document.getElementById('reason').value, website: document.getElementById('website').value
+      })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        if (x.ok) { f.reset(); show('ok', x.d.message); } else { show('err', x.d.error || 'Something went wrong. Please email support@zillion.ng.'); }
+      })
+      .catch(function () { show('err', 'No connection. Please try again, or email support@zillion.ng.'); })
+      .then(function () { btn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
