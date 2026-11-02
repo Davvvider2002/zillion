@@ -236,6 +236,24 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- REPORT PREVIEW -->
+<div class="modal-overlay" id="modal-report-preview" style="align-items:stretch;padding:0;background:rgba(10,20,14,.88)">
+  <div style="display:flex;flex-direction:column;width:100%;height:100%">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)">
+      <div style="min-width:0"><div style="font-weight:700;font-size:15px" id="rp-title">Report preview</div><div style="font-size:12px;color:var(--muted)">Preview of the printed page. Use Print, then choose "Save as PDF" to download.</div></div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button class="btn btn-primary btn-sm" onclick="printReportPreview()">🖨️ Print / Save as PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeReportPreview()">Close</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:24px 12px;background:#2b3a31">
+      <div id="rp-sheet" style="margin:0 auto;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.45);width:794px;max-width:100%">
+        <iframe id="rp-frame" title="Report preview" style="width:100%;border:0;display:block;background:#fff;min-height:400px"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- FORGOT PASSWORD -->
 <div class="modal-overlay" id="modal-forgot-password">
 
@@ -5122,24 +5140,117 @@ function hasPortalAction(featureKey, action) {
   return !!(entry && entry.actions.includes(action));
 }
 
-// Generic print/download for any report card - "download" is the
-// browser's own Save as PDF option in the print dialog, so this one
-// mechanism covers both asks without needing a bespoke PDF generator
-// for every report type. Injects a small letterhead (society name +
-// generated date) that only shows up in the print output, then
-// restores the DOM to normal right after.
+// ── REPORT DOCUMENTS ──────────────────────────────────────────────────
+// Every report's "Print / Download" opens a preview of a proper A4 document: society letterhead, report title, period,
+// clean tables with right-aligned figures, repeating column headings and page numbers. It is built in its own white
+// frame, so the portal's dark theme never reaches the page (printing the portal itself used to leave green blocks and
+// blank green pages). "Download" is the browser's Save as PDF option in the print dialog.
+// REPORT-DOC-START
+const REPORT_DOC_CSS = `
+:root{--ink:#14231b;--amber:#92580a;--cream:#14231b;--muted:#5d6b63;--green-mid:#1a5c32;--green-lt:#1a7a43;--card:#fff;--line:#d9dfdb;--red:#b42318;--redl:#fdecea;--greenl:#e7f4ec}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff}
+body{font-family:'Inter','Segoe UI',Arial,sans-serif;color:#14231b;font-size:12px;line-height:1.45;padding:36px 40px 40px}
+.rd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding-bottom:12px;border-bottom:3px solid #1a5c32;margin-bottom:6px}
+.rd-society{font-size:20px;font-weight:700;color:#0a2e1a}
+.rd-kicker{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#1a7a43;font-weight:700;margin-bottom:3px}
+.rd-brand{text-align:right;font-size:10px;color:#5d6b63;white-space:nowrap}
+.rd-brand b{display:block;font-size:13px;color:#1a5c32;letter-spacing:.02em}
+.rd-title{font-size:17px;font-weight:700;margin:16px 0 2px;color:#0a2e1a}
+.rd-meta{font-size:11px;color:#5d6b63;margin-bottom:14px}
+.rd-body *{color:#14231b!important;background:transparent!important;border-color:#d9dfdb!important}
+.rd-body{overflow:visible}
+.rd-body .table-wrap{overflow:visible}
+.rd-body table{width:100%;border-collapse:collapse;margin:0 0 10px}
+.rd-body th{background:#eef3ef!important;color:#0a2e1a!important;text-align:left;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;padding:7px 8px;border-top:1px solid #c5cec8;border-bottom:1.5px solid #1a5c32}
+.rd-body td{padding:6px 8px;border-bottom:1px solid #e4e9e6;vertical-align:top}
+.rd-body tbody tr:nth-child(even) td{background:#f8faf9!important}
+.rd-body tfoot td{font-weight:700;border-top:1.5px solid #1a5c32;border-bottom:0;background:#eef3ef!important}
+.rd-body .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rd-body th.num{text-align:right}
+.rd-body thead{display:table-header-group}
+.rd-body tr{page-break-inside:avoid}
+.rd-body td[colspan]{font-weight:700;background:#f3f6f4!important}
+.rd-body .pill,.rd-body .badge{display:inline-block;border:1px solid #c5cec8;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600}
+.rd-body [style*="var(--green-lt)"]{color:#1a7a43!important}
+.rd-body [style*="#e74c3c"],.rd-body [style*="var(--red)"]{color:#b42318!important}
+.rd-body h2,.rd-body h3,.rd-body h4{font-size:13px;margin:16px 0 6px;color:#0a2e1a!important}
+.rd-body .no-data{color:#5d6b63!important;padding:14px 0;font-style:italic}
+.rd-foot{margin-top:22px;padding-top:8px;border-top:1px solid #d9dfdb;font-size:9.5px;color:#5d6b63;display:flex;justify-content:space-between}
+@page{size:A4 portrait;margin:14mm 12mm 16mm;@bottom-right{content:"Page " counter(page) " of " counter(pages);font-size:9px;color:#5d6b63}}
+@media print{body{padding:0}.rd-head{margin-top:0}}
+`;
+
+function buildReportDocument(el, title, opts) {
+  opts = opts || {};
+  const clone = el.cloneNode(true);
+  // Controls, screen-only helpers and anything that is not part of the report itself.
+  clone.querySelectorAll('button, select, input, textarea, label, script, style, .no-print, .drill-hint, .crumbs, .print-header, .card-title, .card-sub, [id$="period-inputs"]').forEach(n => n.remove());
+  clone.querySelectorAll('[onclick]').forEach(n => n.removeAttribute('onclick'));
+  clone.querySelectorAll('.drill-row').forEach(n => n.classList.remove('drill-row'));
+  clone.querySelectorAll('[style]').forEach(n => { n.style.removeProperty('cursor'); n.style.removeProperty('overflow-x'); n.style.removeProperty('max-height'); });
+  clone.querySelectorAll('table').forEach(t => {
+    // Drop columns that only held action buttons: a blank heading and nothing in any cell.
+    const heads = Array.from(t.querySelectorAll('thead tr:last-child th'));
+    for (let i = heads.length - 1; i > 0; i--) {
+      if (heads[i].textContent.trim() !== '') continue;
+      const cells = Array.from(t.querySelectorAll('tbody tr, tfoot tr')).map(r => r.children[i]).filter(Boolean);
+      if (cells.every(c => c.textContent.trim() === '')) { heads[i].remove(); cells.forEach(c => c.remove()); }
+    }
+    // Right-align figure columns.
+    const body = Array.from(t.querySelectorAll('tbody tr')).filter(r => !r.querySelector('td[colspan]'));
+    const colCount = Math.max(0, ...Array.from(t.rows).map(r => r.children.length));
+    for (let c = 0; c < colCount; c++) {
+      const vals = body.map(r => r.children[c]).filter(Boolean).map(x => x.textContent.trim()).filter(Boolean);
+      const head = ((t.querySelector('thead tr:last-child') || { children: [] }).children[c] || { textContent: '' }).textContent.trim();
+      const isId = /^(code|ref|reference|no\.?|#|account|date|phone|id)/i.test(head);
+      const numeric = !isId && vals.length > 0 && vals.every(v => /^[\s₦$£€+\-−–—()\d,.%]+$/.test(v));
+      if (!numeric) continue;
+      Array.from(t.rows).forEach(r => { const cell = r.children[c]; if (cell && !cell.hasAttribute('colspan')) cell.classList.add('num'); });
+    }
+  });
+  const wide = Math.max(0, ...Array.from(clone.querySelectorAll('table')).map(t => (t.querySelector('tr') || { children: [] }).children.length)) > 7;
+  const society = (typeof portalData !== 'undefined' && portalData && portalData.society && portalData.society.name) || 'Zillion Coop';
+  const now = new Date().toLocaleString('en-NG', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const meta = [opts.subtitle, 'Generated ' + now].filter(Boolean).join('  ·  ');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(society)} - ${escHtml(title || 'Report')}</title><style>${REPORT_DOC_CSS}${wide ? '@page{size:A4 landscape}' : ''}</style></head><body>
+<div class="rd-head"><div><div class="rd-kicker">${escHtml(title || 'Report')}</div><div class="rd-society">${escHtml(society)}</div></div><div class="rd-brand"><b>Zillion Coop</b>Cooperative management</div></div>
+<div class="rd-title">${escHtml(title || 'Report')}</div><div class="rd-meta">${escHtml(meta)}</div>
+<div class="rd-body">${clone.innerHTML}</div>
+<div class="rd-foot"><span>${escHtml(society)}</span><span>Produced by Zillion Coop · zillion.ng</span></div>
+</body></html>`;
+  return { html, wide };
+}
+// REPORT-DOC-END
+
+function reportPeriodSubtitle() {
+  const on = document.getElementById('report-period-toggle');
+  if (on && on.checked) {
+    const a = document.getElementById('report-start-date').value, b = document.getElementById('report-end-date').value;
+    if (a && b) return 'Period: ' + a + ' to ' + b;
+  }
+  return '';
+}
+
 function printSection(elementId, reportTitle) {
   const el = document.getElementById(elementId);
   if (!el) return;
-  const header = document.createElement('div');
-  header.className = 'print-header';
-  const societyName = portalData?.society?.name || 'Zillion Coop';
-  header.innerHTML = `<strong style="font-size:15px">${societyName}</strong><br>${reportTitle || ''}<br>Generated: ${new Date().toLocaleString('en-NG', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
-  el.insertBefore(header, el.firstChild);
-  el.classList.add('print-target');
-  window.print();
-  setTimeout(() => { el.classList.remove('print-target'); header.remove(); }, 300);
+  const title = (reportTitle || 'Report').replace(/\s+/g, ' ').trim();
+  const subtitle = elementId === 'accounting-report-card' ? (reportPeriodSubtitle() || 'Cumulative to date') : '';
+  const doc = buildReportDocument(el, title, { subtitle });
+  const frame = document.getElementById('rp-frame');
+  const sheet = document.getElementById('rp-sheet');
+  document.getElementById('rp-title').textContent = title;
+  sheet.style.width = doc.wide ? '1123px' : '794px';
+  frame.onload = () => { try { frame.style.height = Math.max(400, frame.contentDocument.documentElement.scrollHeight + 4) + 'px'; } catch (e) {} };
+  frame.srcdoc = doc.html;
+  openModal('modal-report-preview');
 }
+function printReportPreview() {
+  const frame = document.getElementById('rp-frame');
+  if (frame && frame.contentWindow) { frame.contentWindow.focus(); frame.contentWindow.print(); }
+}
+function closeReportPreview() { closeModal('modal-report-preview'); document.getElementById('rp-frame').srcdoc = ''; }
 
 let accountingAccounts = null;
 let accountingSubTypes = {};
