@@ -140,6 +140,11 @@ exports.handler = async (event) => {
   // Email without typing one, or who taps Send Code a few times, must still get in. It sends nothing and stores nothing.
   const demoOtpPhones = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => normalisePhone(p)).filter(p => p.length > 4);
   const demoCode = (process.env.DEMO_OTP || '').trim();
+  const { demoCodeFor } = require('../../lib/coopDemo');   // the reserved demo-cooperative number block has its own fixed code
+  const blockCode = demoCodeFor(phone);
+  if (blockCode) {
+    return ok({ success: true, demo: true, demo_code: blockCode, message: `Demo mode: use code ${blockCode} to verify`, phone });
+  }
   if (demoCode && demoOtpPhones.includes(phone)) {
     console.log(`[send-otp] DEMO mode, skipping delivery for allowlisted ${phone}`);
     return ok({

@@ -546,6 +546,10 @@ tbody tr:last-child td{border-bottom:none;}
               onclick="showSec('backups',this);loadAdminBackups()">
         <span class="si">💾</span> Backups
       </button>
+      <button class="snav-item" id="nav-demosociety"
+              onclick="showSec('demosociety',this);loadDemoSociety()">
+        <span class="si">🎭</span> Demo Society
+      </button>
       <button class="snav-item" id="nav-kyc"
               onclick="showSec('kyc',this);loadKycAdmin()">
         <span class="si">🪪</span> NIN/KYC
@@ -1020,6 +1024,28 @@ tbody tr:last-child td{border-bottom:none;}
         <div id="ct-settlement-status">Loading...</div>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="sec-demosociety" class="sec">
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Demo Cooperative
+      <button class="rbtn" onclick="loadDemoSociety()">&#x21BB;</button>
+    </div>
+    <div class="card-sub">A fully populated society that anyone can log into and use. Whatever visitors enter is cleared automatically every few days.</div>
+    <div id="demo-soc-state" style="margin-top:12px"><div class="no-data">Loading...</div></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="rbtn" style="background:var(--gl);color:var(--g);font-weight:700" id="demo-build-btn" onclick="demoSocietyRun('build')">Build demo society</button>
+      <button class="rbtn" id="demo-reset-btn" onclick="demoSocietyRun('reset')">Reset now</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Logins to share</div>
+    <div id="demo-soc-logins"><div class="no-data">Loading...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Build log</div>
+    <pre id="demo-soc-log" style="white-space:pre-wrap;font-size:12px;margin-top:8px;max-height:260px;overflow:auto"></pre>
   </div>
 </div>
 
@@ -4854,6 +4880,39 @@ function fmtBytesAdmin(n) {
   if (n < 1024) return n + ' B';
   if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
   return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ── Demo cooperative ──────────────────────────────────────────────────────────
+let _demoPoll = null;
+async function loadDemoSociety() {
+  const st = document.getElementById('demo-soc-state'), lg = document.getElementById('demo-soc-logins'), log = document.getElementById('demo-soc-log');
+  try {
+    const res = await fetch('/api/v1/admin-demo-society', { headers: { Authorization: 'Bearer ' + adminToken } });
+    const d = await res.json();
+    if (!res.ok) { st.innerHTML = '<div class="no-data">' + (d.error || 'Could not load.') + '</div>'; return; }
+    const s = d.state || {}, when = x => x ? new Date(x).toLocaleString() : 'never';
+    const label = { not_built: 'Not built yet', building: 'Building...', ready: 'Ready', failed: 'Failed' }[s.status] || s.status;
+    st.innerHTML = '<div style="display:flex;gap:24px;flex-wrap:wrap"><div><div style="font-size:12px;color:var(--tx2,#999)">Status</div><div style="font-weight:700">' + label + (s.detail && s.status === 'building' ? ' (' + s.detail + ')' : '') + '</div></div>'
+      + '<div><div style="font-size:12px;color:var(--tx2,#999)">Built</div><div style="font-weight:700">' + when(s.built_at) + '</div></div>'
+      + '<div><div style="font-size:12px;color:var(--tx2,#999)">Last reset</div><div style="font-weight:700">' + when(s.last_reset_at) + '</div></div>'
+      + '<div><div style="font-size:12px;color:var(--tx2,#999)">Next reset</div><div style="font-weight:700">' + when(s.next_reset_at) + '</div></div></div>'
+      + (s.error ? '<div style="margin-top:8px;color:#b42318">' + String(s.error).replace(/</g, '&lt;') + '</div>' : '');
+    const a = d.logins.society_admin, m = d.logins.members;
+    lg.innerHTML = '<div style="margin-top:6px"><b>Society admin</b><br>Site: ' + a.site + '<br>Phone: <b>' + a.phone + '</b><br>Password: <b>' + a.password + '</b></div>'
+      + '<div style="margin-top:12px"><b>Members</b><br>Site: ' + m.site + '<br>' + m.note + '<br>Code: <b>' + m.code + '</b><br>Numbers: ' + m.range + '<br>' + m.phones.map(p => p.phone + ' (' + p.name + ')').join('<br>') + '</div>';
+    log.textContent = s.log || '';
+    document.getElementById('demo-reset-btn').disabled = s.status !== 'ready';
+    document.getElementById('demo-build-btn').disabled = s.status === 'building';
+    clearTimeout(_demoPoll);
+    if (s.status === 'building') _demoPoll = setTimeout(loadDemoSociety, 5000);
+  } catch (e) { st.innerHTML = '<div class="no-data">Could not load.</div>'; }
+}
+async function demoSocietyRun(action) {
+  if (!confirm(action === 'reset' ? 'Clear everything entered in the demo society and return it to the saved demo data?' : 'Build the demo society now? This takes a few minutes. If it already exists it is topped up, and the saved baseline is replaced.')) return;
+  const res = await fetch('/.netlify/functions/admin-demo-society-background', { method: 'POST', headers: { Authorization: 'Bearer ' + adminToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+  if (res.status === 403) return notify('Only a Super Admin or Operations user can do this.', true);
+  notify(action === 'reset' ? 'Reset started' : 'Build started. This takes a few minutes.');
+  setTimeout(loadDemoSociety, 2500);
 }
 
 async function loadAdminBackups() {

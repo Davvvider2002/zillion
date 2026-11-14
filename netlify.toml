@@ -35,6 +35,10 @@
 [functions."scheduled-backups"]
   schedule = "0 1 * * *"
 
+# Puts the public demo cooperative back to its baseline every few days (see backend/lib/coopDemo.js).
+[functions."scheduled-demo-reset"]
+  schedule = "30 2 * * *"
+
 # ── Security Headers (Priority 2) ───────────────────────────────
 
 [[headers]]
@@ -227,6 +231,11 @@
 [[redirects]]
   from = "/api/v1/admin-coop-analytics"
   to   = "/.netlify/functions/admin-coop-analytics"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/admin-demo-society"
+  to   = "/.netlify/functions/admin-demo-society"
   status = 200
 
 [[redirects]]

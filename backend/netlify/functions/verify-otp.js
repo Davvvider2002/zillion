@@ -97,7 +97,8 @@ exports.handler = async (event) => {
   // is only useful against a phone it's actually valid for.
   const DEMO_OTP = (process.env.DEMO_OTP || '').trim();
   const demoOtpPhonesVerify = (process.env.DEMO_OTP_PHONES || '').split(',').map(p => p.trim()).filter(Boolean).map(normalise);
-  if (DEMO_OTP && otpStr === DEMO_OTP && demoOtpPhonesVerify.includes(phone)) {
+  const demoBlockCode = require('../../lib/coopDemo').demoCodeFor(phone);   // reserved demo-cooperative numbers: their own fixed code
+  if ((DEMO_OTP && otpStr === DEMO_OTP && demoOtpPhonesVerify.includes(phone)) || (demoBlockCode && otpStr === demoBlockCode)) {
     const deviceId = createHash('sha256')
       .update(phone + (mustEnv('SUPABASE_SERVICE_KEY')))
       .digest('hex').slice(0, 16);
